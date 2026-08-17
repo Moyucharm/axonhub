@@ -23,7 +23,8 @@ import {
   IconGauge,
   IconHistory,
   IconPlugConnected,
-  IconShieldLock,
+  IconKey,
+  IconFingerprint,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,7 @@ import { useChannels } from '../context/channels-context';
 import { useTestChannel, useUpdateChannel } from '../data/channels';
 import { CHANNEL_CONFIGS, getProvider } from '../data/config_channels';
 import { Channel } from '../data/schema';
+import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { ChannelHealthCell } from './channel-health-cell';
 import { ChannelLimiterCell } from './channel-limiter-cell';
 import { ChannelsStatusDialog } from './channels-status-dialog';
@@ -95,9 +97,8 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
   const testChannel = useTestChannel();
   const isArchived = channel.status === 'archived';
   const hasError = !!channel.errorMessage;
-  const hasDisabledAPIKeys = channelPermissions.canWrite && (channel.disabledAPIKeys?.length ?? 0) > 0;
   const apiKeysCount = channel.credentials?.apiKeys?.filter((key) => key.trim().length > 0).length ?? 0;
-  const hasMultipleAPIKeys = channelPermissions.canWrite && apiKeysCount > 1;
+  const isKeyPool = channelPermissions.canWrite && (channel.credentials?.mode === 'pool' || apiKeysCount > 1);
 
   const handleDefaultTest = async () => {
     try {
@@ -203,6 +204,17 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             <IconTransform size={16} className='mr-2' />
             {t('channels.dialogs.transformOptions.action')}
           </DropdownMenuItem>
+          {channel.type === 'openai_responses' && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(channel);
+                setOpen('codexSimulation');
+              }}
+            >
+              <IconFingerprint size={16} className='mr-2' />
+              {t('channels.codexSimulation.action')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() => {
               setCurrentRow(channel);
@@ -221,38 +233,15 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             <IconPlugConnected size={16} className='mr-2' />
             {t('channels.endpoints.title')}
           </DropdownMenuItem>
-          {hasMultipleAPIKeys && (
+          {isKeyPool && (
             <DropdownMenuItem
               onClick={() => {
                 setCurrentRow(channel);
-                setOpen('testAPIKeys');
+                setOpen('keyPool');
               }}
             >
-              <IconPlayerPlay size={16} className='mr-2' />
-              {t('channels.actions.testAPIKeys', { count: apiKeysCount })}
-            </DropdownMenuItem>
-          )}
-          {channelPermissions.canWrite && (
-            <DropdownMenuItem
-              onClick={() => {
-                setCurrentRow(channel);
-                setOpen('apiKeyRules');
-              }}
-            >
-              <IconShieldLock size={16} className='mr-2' />
-              {t('channels.dialogs.apiKeyRules.action')}
-            </DropdownMenuItem>
-          )}
-          {hasDisabledAPIKeys && (
-            <DropdownMenuItem
-              onClick={() => {
-                setCurrentRow(channel);
-                setOpen('disabledAPIKeys');
-              }}
-              className='text-orange-500!'
-            >
-              <IconKeyOff size={16} className='mr-2' />
-              {t('channels.actions.disabledAPIKeys', { count: channel.disabledAPIKeys?.length ?? 0 })}
+              <IconKey size={16} className='mr-2' />
+              {t('channels.keyPool.action')}
             </DropdownMenuItem>
           )}
           {hasError && (
@@ -344,6 +333,7 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
   const disabledKeysCount = channel.disabledAPIKeys?.length ?? 0;
   const hasDisabledKeys = disabledKeysCount > 0;
   const websiteURL = getChannelWebsiteURL(channel.baseURL);
+  const { total, enabled, isPool } = getChannelAPIKeySummary(channel);
 
   const nameElement = websiteURL ? (
     <a
@@ -361,10 +351,15 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
 
   const content = (
     <div className='flex justify-center'>
-      <div className='flex max-w-56 items-center gap-2'>
+      <div className='flex max-w-72 items-center gap-2'>
         {hasError && <IconAlertTriangle className='text-destructive h-4 w-4 shrink-0' />}
         {!hasError && hasDisabledKeys && <IconKeyOff className='h-4 w-4 shrink-0 text-amber-500' />}
         {nameElement}
+        {isPool && (
+          <Badge variant='outline' className='shrink-0 text-xs tabular-nums'>
+            {t('channels.keyPool.summary', { enabled, total })}
+          </Badge>
+        )}
       </div>
     </div>
   );

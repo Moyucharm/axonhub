@@ -1,6 +1,12 @@
 // Utility functions for merging channel override configurations
 // Mirrors backend merge logic in internal/server/biz/channel_merge.go
-import type { ChannelSettings, OverrideOperation } from '../data/schema';
+import type {
+  APIKeyPoolSettings,
+  ChannelSettings,
+  CodexSimulationSettings,
+  CodexSimulationSettingsInput,
+  OverrideOperation,
+} from '../data/schema';
 
 /**
  * Normalizes empty or whitespace-only parameter strings to "[]".
@@ -84,6 +90,24 @@ function isReplacingBodyOverrideOperation(op: OverrideOperation): boolean {
   return op.op === 'set' || op.op === 'set_if_absent' || op.op === 'delete';
 }
 
+function codexSimulationSettingsForInput(
+  simulation: CodexSimulationSettings | null | undefined
+): CodexSimulationSettingsInput | null {
+  if (simulation === null || simulation === undefined) {
+    return null;
+  }
+
+  return {
+    enabled: simulation.enabled ?? false,
+    ...(simulation.preset === undefined ? {} : { preset: simulation.preset }),
+    ...(simulation.options === undefined ? {} : { options: simulation.options }),
+    ...(simulation.version === undefined ? {} : { version: simulation.version }),
+    ...(simulation.platform === undefined ? {} : { platform: simulation.platform }),
+    ...(simulation.standardUserAgent === undefined ? {} : { standardUserAgent: simulation.standardUserAgent }),
+    ...(simulation.liteUserAgent === undefined ? {} : { liteUserAgent: simulation.liteUserAgent }),
+  };
+}
+
 export function mergeChannelSettingsForUpdate(
   existing: ChannelSettings | null | undefined,
   patch: Partial<ChannelSettings>
@@ -114,6 +138,20 @@ export function mergeChannelSettingsForUpdate(
     retryableStatusCodes: pick('retryableStatusCodes', existing?.retryableStatusCodes ?? []),
     retryableErrorPatterns: pick('retryableErrorPatterns', existing?.retryableErrorPatterns ?? []),
     providerQuota: pick('providerQuota', existing?.providerQuota ?? null),
+    // lastAutoCheckAt is read-only (set by the backend auto-check task) and is
+    // not part of the GraphQL input, so it must never be submitted.
+    apiKeyPool: (() => {
+      const pool = pick('apiKeyPool', existing?.apiKeyPool ?? null);
+      return pool === null || pool === undefined
+        ? (pool as APIKeyPoolSettings | null)
+        : { ...pool, lastAutoCheckAt: undefined };
+    })(),
+    // Strategy is server-managed and intentionally excluded from GraphQL input.
+    // Every settings dialog passes through this helper, so existing fingerprints
+    // cannot leak into CodexSimulationSettingsInput as unknown fields.
+    codexSimulation: codexSimulationSettingsForInput(
+      pick('codexSimulation', existing?.codexSimulation ?? null) as CodexSimulationSettings | null
+    ),
   };
 }
 

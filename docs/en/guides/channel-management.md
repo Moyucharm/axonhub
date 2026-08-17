@@ -52,22 +52,45 @@ In short: **API Key Profile renames → Model Association selects channel → Ch
 | API Key | sk-your-deepseek-key |
 | Supported Models | deepseek-chat, deepseek-reasoner |
 
-## Multiple API Keys
+## Multiple API Keys (Single Key / Key Pool)
 
-When an account has multiple API Keys, you can configure them all in the same channel. AxonHub will automatically rotate between them for better stability.
+When an account has multiple API Keys, you can configure them all in the same channel. AxonHub supports two key modes:
 
-Simply add all keys in the API Keys field, one per line:
-```
-sk-key-1
-sk-key-2
-sk-key-3
-```
+- **Single key**: the channel keeps exactly one API Key.
+- **Key pool**: the channel keeps multiple API Keys and AxonHub automatically rotates between them for better stability.
+
+### Configure a Key Pool on creation
+
+When creating a channel, set **Key mode** to “Key pool” and paste the keys in the **API Key** field, one per line. In-pool retry and auto-check options can be configured at the same time (see below).
+
+### Manage an existing Key Pool
+
+After creation, use the **Manage key pool** entry to maintain existing keys (channel row menu → Manage key pool; or edit channel → summary card → Manage key pool):
+
+- **Import**: paste text to bulk-import keys (accepts newlines, commas, semicolons, or spaces; duplicates are removed)
+- **Export**: export the keys under the current filter (All/Enabled/Disabled) as a .txt file
+- **Check**: validate key availability; when keys are selected, only the selected keys are checked
+- **Enable/Disable**: enable or disable single or multiple keys (disable requires confirmation), plus a one-click enable-all
+- **Remove**: permanently remove the selected keys from the channel (requires confirmation)
+- **Pool settings**: configure in-pool retry count, auto-check toggle, interval, concurrency, and timeout, and view the last auto-check time
+
+While editing a channel, the key pool is not overwritten by the form: existing keys are maintained in the manager, and the edit page only shows an enabled/total summary.
+
+### Switch a Key Pool back to Single Key
+
+When editing, switching the key mode from “Key pool” to “Single key” requires choosing which key to keep; after saving, the other keys are removed from the channel.
 
 ### Load Balancing
 
 - Same Trace ID always uses the same Key (session consistency)
 - Different requests randomly select from available Keys
-- If one Key fails, the system automatically switches to another
+- If one Key fails, the system automatically switches to another (the in-pool retry count can be tuned in pool settings)
+
+### Auto-disable and Auto-check
+
+- Keys that fail repeatedly are automatically disabled, recording the failure count, last error code, and last failure time; disabled keys also show their disable reason and expiry time (if any)
+- With “Auto-check” enabled, the system periodically checks disabled keys at the configured interval (**minimum 1 hour**) and re-enables keys that have recovered
+- Check concurrency and per-key timeout can be tuned in pool settings
 
 ## Model Renaming
 
@@ -226,11 +249,11 @@ https://custom-gateway.example.com/api##
 
 ### Q: How to set up multiple API Keys?
 
-Enter all keys in the API Keys field, one per line. The system will automatically rotate them.
+In the channel edit form, set **Key mode** to “Key pool” and add the keys one per line; after creation, use **Manage key pool** to import, check, and manage existing keys.
 
 ### Q: How to restore a disabled API Key?
 
-Go to channel details, find the key in the **Disabled List**, and click **Restore**.
+Open **Manage key pool**, filter by “Disabled”, find the key, and click the enable (restore) button; alternatively enable **Auto-check** to have the system periodically re-enable recovered keys.
 
 ## Related Documentation
 

@@ -139,15 +139,16 @@ export const apiKeyAutoDisableRuleSchema = z.object({
 });
 export type APIKeyAutoDisableRule = z.infer<typeof apiKeyAutoDisableRuleSchema>;
 
-export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema
-  .refine((rule) => (rule.statusCodes?.length ?? 0) > 0 || (rule.keywordPatterns?.some((pattern) => pattern.trim() !== '') ?? false), {
-    message: 'At least one status code or keyword pattern is required',
-    path: ['statusCodes'],
-  })
-  .refine((rule) => rule.action !== 'temporary_disable' || (rule.disableDurationMinutes ?? 0) > 0, {
+// Empty conditions (no status codes and no keyword patterns) mean "any error" ->
+// the rule matches every failed request, mirroring the global API key setting's
+// any-error mode. Only the duration rule stays enforced.
+export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema.refine(
+  (rule) => rule.action !== 'temporary_disable' || (rule.disableDurationMinutes ?? 0) > 0,
+  {
     message: 'Temporary disable requires a duration',
     path: ['disableDurationMinutes'],
-  });
+  }
+);
 
 export const channelPoliciesSchema = z.object({
   stream: capabilityPolicySchema.optional(),
@@ -272,6 +273,151 @@ export const channelProviderQuotaSettingsSchema = z.object({
 export type ChannelProviderQuotaSettings = z.infer<typeof channelProviderQuotaSettingsSchema>;
 
 // Channel Settings
+export const apiKeyPoolSettingsSchema = z.object({
+  retryCount: z.number().int().nonnegative().optional().nullable(),
+  autoCheckEnabled: z.boolean().optional().default(false),
+  autoCheckIntervalHours: z.number().int().min(1).optional().nullable(),
+  autoCheckConcurrency: z.number().int().min(1).max(32).optional().nullable(),
+  autoCheckTimeoutSeconds: z.number().int().min(1).max(600).optional().nullable(),
+  lastAutoCheckAt: z.string().optional().nullable(),
+});
+export type APIKeyPoolSettings = z.infer<typeof apiKeyPoolSettingsSchema>;
+
+// Codex Simulation
+// 渠道级 Codex 指纹模拟：仅 openai_responses 渠道可启用。
+// preset 是最近一次选中的预设等级标签；options 为实际生效的子选项。
+export const codexSimulationPresetSchema = z.enum(['ua', 'normal', 'enhanced']);
+export type CodexSimulationPreset = z.infer<typeof codexSimulationPresetSchema>;
+
+export const codexSimulationOptionsSchema = z.object({
+  prompt: z.boolean(),
+  userAgent: z.boolean(),
+  codexHeaders: z.boolean(),
+  clientMetadata: z.boolean(),
+  responsesShape: z.boolean(),
+  additionalTool: z.boolean(),
+});
+export type CodexSimulationOptions = z.infer<typeof codexSimulationOptionsSchema>;
+
+export const codexSimulationStrategySchema = z.object({
+  installationId: z.string(),
+  threadId: z.string(),
+  windowGeneration: z.number().int().nonnegative(),
+});
+export type CodexSimulationStrategy = z.infer<typeof codexSimulationStrategySchema>;
+
+export const codexSimulationPlatformSchema = z.enum(['windows10', 'windows11', 'debian', 'ubuntu', 'macos', 'custom']);
+export type CodexSimulationPlatform = z.infer<typeof codexSimulationPlatformSchema>;
+export const DEFAULT_CODEX_SIMULATION_PLATFORM: CodexSimulationPlatform = 'windows10';
+
+export const DEFAULT_CODEX_SIMULATION_VERSION = '0.144.2';
+
+export function codexSimulationPlatformLabel(platform: CodexSimulationPlatform): string {
+  return {
+    windows10: 'Windows 10',
+    windows11: 'Windows 11',
+    debian: 'Debian 13.0.0',
+    ubuntu: 'Ubuntu 24.04',
+    macos: 'macOS 15.0',
+    custom: 'Custom',
+  }[platform];
+}
+
+export function inferCodexSimulationPlatform(
+  standardUserAgent?: string,
+  liteUserAgent?: string
+): CodexSimulationPlatform {
+  const candidates: Array<[CodexSimulationPlatform, string]> = [
+    ['windows10', 'Windows 10'],
+    ['windows11', 'Windows 11'],
+    ['debian', 'Debian 13.0.0'],
+    ['ubuntu', 'Ubuntu 24.04'],
+    ['macos', 'macOS 15.0'],
+  ];
+  for (const [platform, name] of candidates) {
+    if (standardUserAgent?.includes(`(${name};`) && liteUserAgent?.includes(`(${name};`)) {
+      return platform;
+    }
+  }
+
+  return standardUserAgent || liteUserAgent ? 'custom' : DEFAULT_CODEX_SIMULATION_PLATFORM;
+}
+
+export function buildCodexSimulationUserAgents(
+  version: string,
+  platform: CodexSimulationPlatform = DEFAULT_CODEX_SIMULATION_PLATFORM
+): { standard: string; lite: string } {
+  const effectiveVersion = version.trim() || DEFAULT_CODEX_SIMULATION_VERSION;
+  const platformName = codexSimulationPlatformLabel(platform === 'custom' ? DEFAULT_CODEX_SIMULATION_PLATFORM : platform);
+  return {
+    standard: `codex_cli_rs/${effectiveVersion} (${platformName}; x86_64)`,
+    lite: `codex_exec/${effectiveVersion} (${platformName}; x86_64) tmux/3.5a (codex_exec; ${effectiveVersion})`,
+  };
+}
+
+export const codexSimulationSettingsSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  preset: codexSimulationPresetSchema.optional(),
+  options: codexSimulationOptionsSchema.optional(),
+  version: z.string().optional(),
+  platform: z.preprocess(
+    (value) => (value === '' || value === null ? undefined : value),
+    codexSimulationPlatformSchema.optional()
+  ),
+  standardUserAgent: z.string().optional(),
+  liteUserAgent: z.string().optional(),
+  strategy: codexSimulationStrategySchema.optional().nullable(),
+});
+export type CodexSimulationSettings = z.infer<typeof codexSimulationSettingsSchema>;
+export type CodexSimulationSettingsInput = Pick<
+  CodexSimulationSettings,
+  'enabled' | 'preset' | 'options' | 'version' | 'platform' | 'standardUserAgent' | 'liteUserAgent'
+>;
+
+// Preset-default option sets for the three levels.
+export const CODEX_SIMULATION_PRESET_DEFAULTS: Record<CodexSimulationPreset, CodexSimulationOptions> = {
+  ua: {
+    prompt: false,
+    userAgent: true,
+    codexHeaders: false,
+    clientMetadata: false,
+    responsesShape: false,
+    additionalTool: false,
+  },
+  normal: {
+    prompt: true,
+    userAgent: true,
+    codexHeaders: true,
+    clientMetadata: true,
+    responsesShape: true,
+    additionalTool: false,
+  },
+  enhanced: {
+    prompt: true,
+    userAgent: true,
+    codexHeaders: true,
+    clientMetadata: true,
+    responsesShape: true,
+    additionalTool: true,
+  },
+};
+
+// Reports whether the given option set differs from the preset defaults (customized state).
+export function isCodexSimulationCustomized(preset: CodexSimulationPreset | undefined, options?: CodexSimulationOptions): boolean {
+  if (!options || !preset) {
+    return false;
+  }
+  const defaults = CODEX_SIMULATION_PRESET_DEFAULTS[preset];
+  return (
+    options.prompt !== defaults.prompt ||
+    options.userAgent !== defaults.userAgent ||
+    options.codexHeaders !== defaults.codexHeaders ||
+    options.clientMetadata !== defaults.clientMetadata ||
+    options.responsesShape !== defaults.responsesShape ||
+    options.additionalTool !== defaults.additionalTool
+  );
+}
+
 export const channelSettingsSchema = z.object({
   extraModelPrefix: z.string().optional(),
   modelMappings: z.array(modelMappingSchema).optional().nullable(),
@@ -289,6 +435,8 @@ export const channelSettingsSchema = z.object({
   retryableStatusCodes: z.array(z.number().int().min(400).max(599)).optional().nullable(),
   retryableErrorPatterns: z.array(retryableErrorPatternSchema).optional().nullable(),
   providerQuota: channelProviderQuotaSettingsSchema.optional().nullable(),
+  apiKeyPool: apiKeyPoolSettingsSchema.optional().nullable(),
+  codexSimulation: codexSimulationSettingsSchema.optional().nullable(),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;
@@ -302,9 +450,23 @@ export const channelModelEntrySchema = z.object({
 export type ChannelModelEntry = z.infer<typeof channelModelEntrySchema>;
 
 // Channel Credentials
+export const apiKeyModeSchema = z.enum(['single', 'pool']);
+export type APIKeyMode = z.infer<typeof apiKeyModeSchema>;
+
+export const channelAPIKeyStateSchema = z.object({
+  key: z.string(),
+  failureCount: z.number().int().nonnegative(),
+  lastFailedAt: z.string().optional().nullable(),
+  lastErrorCode: z.number().int().optional().nullable(),
+  lastError: z.string().optional().nullable(),
+});
+export type ChannelAPIKeyState = z.infer<typeof channelAPIKeyStateSchema>;
+
 export const channelCredentialsSchema = z.object({
+  mode: apiKeyModeSchema.optional().nullable(),
   apiKey: z.string().optional().nullable(),
   apiKeys: z.array(z.string()).optional().nullable(),
+  apiKeyStates: z.array(channelAPIKeyStateSchema).optional().nullable(),
   oauth: z
     .object({
       accessToken: z.string().optional().nullable(),
@@ -335,6 +497,8 @@ export const disabledAPIKeySchema = z.object({
   errorCode: z.number(),
   reason: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
+  failureCount: z.number().int().nonnegative().optional().default(0),
+  lastFailedAt: z.string().optional().nullable(),
 });
 export type DisabledAPIKey = z.infer<typeof disabledAPIKeySchema>;
 
@@ -551,6 +715,7 @@ export const createChannelInputSchema = z
     settings: channelSettingsSchema.optional(),
     endpoints: z.array(channelEndpointSchema).optional(),
     credentials: z.object({
+      mode: apiKeyModeSchema.optional().default('single'),
       // apiKey is used for OAuth credentials (JSON string with access_token, refresh_token)
       apiKey: z.string().optional(),
       // apiKeys is used for regular API keys (multiple keys for load balancing)
@@ -639,6 +804,7 @@ export const updateChannelInputSchema = z
     endpoints: z.array(channelEndpointSchema).optional(),
     credentials: z
       .object({
+        mode: apiKeyModeSchema.optional(),
         // apiKey 用于 OAuth 凭据 (codex/claudecode/antigravity)，存储 JSON 字符串（含 access_token, refresh_token）
         apiKey: z.string().optional(),
         // apiKeys 用于普通 API Key（支持多 key 负载均衡），OAuth 类型不使用此字段

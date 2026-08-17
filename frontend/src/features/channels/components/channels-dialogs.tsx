@@ -1,7 +1,6 @@
 import { useChannels } from '../context/channels-context';
 import { ChannelsActionDialog } from './channels-action-dialog';
 import { ChannelsArchiveDialog } from './channels-archive-dialog';
-import { ChannelsAPIKeyRulesDialog } from './channels-apikey-rules-dialog';
 import { ChannelsBulkApplyTemplateDialog } from './channels-bulk-apply-template-dialog';
 import { ChannelsBulkClearTemplateDialog } from './channels-bulk-clear-template-dialog';
 import { ChannelsBulkArchiveDialog } from './channels-bulk-archive-dialog';
@@ -12,7 +11,6 @@ import { ChannelsBulkImportDialog } from './channels-bulk-import-dialog';
 import { ChannelsBulkOrderingDialog } from './channels-bulk-ordering-dialog';
 import { ChannelsBulkTestDialog } from './channels-bulk-test-dialog';
 import { ChannelsDeleteDialog } from './channels-delete-dialog';
-import { ChannelsDisabledAPIKeysDialog } from './channels-disabled-api-keys-dialog';
 import { ChannelsErrorResolvedDialog } from './channels-error-resolved-dialog';
 import { ChannelsModelMappingDialog } from './channels-model-mapping-dialog';
 import { ChannelsModelPriceDialog } from './channels-model-price-dialog';
@@ -21,11 +19,12 @@ import { ChannelsProxyDialog } from './channels-proxy-dialog';
 import { ChannelsStatusDialog } from './channels-status-dialog';
 import { ChannelsTestDialog } from './channels-test-dialog';
 import { ChannelsTestHistoryDrawer } from './channels-test-history-drawer';
-import { ChannelsTestAPIKeysDialog } from './channels-test-api-keys-dialog';
 import { ChannelsRateLimitDialog } from './channels-rate-limit-dialog';
 import { ChannelsTransformOptionsDialog } from './channels-transform-options-dialog';
+import { ChannelsCodexSimulationDialog } from './channels-codex-simulation-dialog';
 import { ChannelsEndpointsDialog } from './channels-endpoints-dialog';
 import { ChannelsSystemSettingsDialog } from './channels-system-settings-dialog';
+import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 
 export function ChannelsDialogs() {
   const { open, setOpen, currentRow, setCurrentRow, selectedChannels } = useChannels();
@@ -271,6 +270,20 @@ export function ChannelsDialogs() {
             currentRow={currentRow}
           />
 
+          <ChannelsCodexSimulationDialog
+            key={`channel-codex-simulation-${currentRow.id}`}
+            open={open === 'codexSimulation'}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setOpen(null);
+                setTimeout(() => {
+                  setCurrentRow(null);
+                }, 500);
+              }
+            }}
+            currentRow={currentRow}
+          />
+
           <ChannelsRateLimitDialog
             key={`channel-rate-limit-${currentRow.id}`}
             open={open === 'rateLimit'}
@@ -299,45 +312,18 @@ export function ChannelsDialogs() {
             channel={currentRow}
           />
 
-          <ChannelsDisabledAPIKeysDialog
-            key={`channel-disabled-api-keys-${currentRow.id}`}
-            open={open === 'disabledAPIKeys'}
+          <ChannelAPIKeyPoolPanel
+            key={`channel-key-pool-${currentRow.id}`}
+            channel={currentRow}
+            open={open === 'keyPool'}
             onOpenChange={(isOpen) => {
               if (!isOpen) {
                 setOpen(null);
-                setTimeout(() => {
-                  setCurrentRow(null);
-                }, 500);
+                setTimeout(() => setCurrentRow(null), 500);
               }
             }}
           />
 
-          <ChannelsAPIKeyRulesDialog
-            key={`channel-api-key-rules-${currentRow.id}`}
-            open={open === 'apiKeyRules'}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) {
-                setOpen(null);
-                setTimeout(() => {
-                  setCurrentRow(null);
-                }, 500);
-              }
-            }}
-            currentRow={currentRow}
-          />
-
-          <ChannelsTestAPIKeysDialog
-            key={`channel-test-api-keys-${currentRow.id}`}
-            open={open === 'testAPIKeys'}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) {
-                setOpen(null);
-                setTimeout(() => {
-                  setCurrentRow(null);
-                }, 500);
-              }
-            }}
-          />
         </>
       )}
     </>

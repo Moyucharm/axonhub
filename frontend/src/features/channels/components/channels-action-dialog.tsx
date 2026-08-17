@@ -60,10 +60,12 @@ import {
 import { Channel, ChannelType, ApiFormat, RetryableErrorPattern, createChannelInputSchema, updateChannelInputSchema } from '../data/schema';
 import { ProxyConfig, useOAuthFlow } from '../hooks/use-oauth-flow';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
+import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { isValidModelPattern, matchesModelPattern } from '../utils/pattern';
 import { ProxyType } from './channels-proxy-dialog';
 import { CopilotDeviceFlow } from './copilot-device-flow';
 import { ManualModelBadge } from './manual-model-badge';
+import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 
 interface Props {
   currentRow?: Channel;
@@ -367,6 +369,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const [authMode, setAuthMode] = useState<'official' | 'auth-json' | 'third-party'>('official');
   const [codexAuthJSONText, setCodexAuthJSONText] = useState('');
   const [patternError, setPatternError] = useState<string | null>(null);
+  // Key pool management state (edit mode). The panel owns existing pool keys;
+  // the form only shows a summary and an entry point.
+  const [keyPoolOpen, setKeyPoolOpen] = useState(false);
+  const [managedChannel, setManagedChannel] = useState<Channel | undefined>(currentRow);
+  // Set when the user asks to switch from pool to single but multiple keys
+  // exist: they must explicitly choose which key to keep.
+  const [pendingSingleKey, setPendingSingleKey] = useState<string | null>(null);
 
   // Debounced search values for better performance
   const debouncedFetchedModelsSearch = useDebounce(fetchedModelsSearch, 300);
@@ -678,6 +687,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             remark: currentRow.remark || '',
             credentials: {
               // OAuth 类型 (codex/claudecode/antigravity) 的凭据存储在 apiKey 字段，不放入 apiKeys
+              mode: currentRow.credentials?.mode || ((currentRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
               apiKey: currentRow.credentials?.apiKey || undefined,
               apiKeys: currentRow.credentials?.apiKeys || [],
               gcp: {
@@ -703,6 +713,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               settings: duplicateFromRow.settings ?? undefined,
               credentials: {
                 // OAuth 类型 (codex/claudecode/antigravity) 的凭据存储在 apiKey 字段，不放入 apiKeys
+                mode: duplicateFromRow.credentials?.mode || ((duplicateFromRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
                 apiKey: duplicateFromRow.credentials?.apiKey || undefined,
                 apiKeys: duplicateFromRow.credentials?.apiKeys || [],
                 gcp: {
@@ -718,6 +729,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               name: '',
               policies: { stream: 'unlimited' },
               credentials: {
+                mode: 'single',
                 apiKeys: [],
                 gcp: {
                   region: '',
@@ -733,6 +745,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             },
   });
 
+  const apiKeyMode = form.watch('credentials.mode') || 'single';
   const apiKeys = form.watch('credentials.apiKeys');
   const apiKeysCount = useMemo(() => (apiKeys || []).filter((k) => k.trim().length > 0).length, [apiKeys]);
   const isSubmitting = createChannel.isPending || duplicateChannel.isPending || updateChannel.isPending;
@@ -1254,8 +1267,16 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           values.credentials.gcp.projectID.trim() !== '' &&
           values.credentials?.gcp?.jsonData &&
           values.credentials.gcp.jsonData.trim() !== '';
+        const isPoolMode = values.credentials?.mode === 'pool';
+        const wasPool = currentRow.credentials?.mode === 'pool' || (currentRow.credentials?.apiKeys?.length ?? 0) > 1;
+        const switchingToPool = isPoolMode && !wasPool;
+        const switchingToSingle = !isPoolMode && wasPool;
 
-        if (!hasApiKey && !hasApiKeys && !hasGcpCredentials) {
+        if (isPoolMode && !switchingToPool) {
+          // Existing pool keys are managed by dedicated mutations in the pool panel.
+          // Sending the stale form snapshot would overwrite keys imported there.
+          delete updateInput.credentials;
+        } else if (!hasApiKey && !hasApiKeys && !hasGcpCredentials && !switchingToSingle) {
           delete updateInput.credentials;
         }
 
@@ -2191,9 +2212,42 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                       {(!(isCodexType || isClaudeCodeType || isCopilotType) || authMode === 'third-party') &&
                         selectedProvider !== 'antigravity' &&
                         selectedType !== 'anthropic_gcp' && (
+                          <>
                           <FormField
                             control={form.control}
-                            name='credentials.apiKeys'
+                            name='credentials.mode'
+                            render={({ field }) => (
+                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.mode.label')}</FormLabel>
+                                <RadioGroup
+                                  value={field.value || 'single'}
+                                  onValueChange={(value) => {
+                                    if (value === 'single') {
+                                      const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
+                                      if (keys.length > 1) {
+                                        // Pool has multiple keys: require an explicit choice of the key to keep.
+                                        setPendingSingleKey(keys[0]);
+                                        return;
+                                      }
+                                      field.onChange(value);
+                                      form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
+                                      return;
+                                    }
+                                    field.onChange(value);
+                                    setPendingSingleKey(null);
+                                  }}
+                                  className='flex gap-4 pt-2 md:col-span-6'
+                                >
+                                  <div className='flex items-center gap-2'><RadioGroupItem value='single' id='api-key-mode-single' /><label htmlFor='api-key-mode-single'>{t('channels.keyPool.mode.single')}</label></div>
+                                  <div className='flex items-center gap-2'><RadioGroupItem value='pool' id='api-key-mode-pool' /><label htmlFor='api-key-mode-pool'>{t('channels.keyPool.mode.pool')}</label></div>
+                                </RadioGroup>
+                              </FormItem>
+                            )}
+                          />
+                          {(!isEdit || apiKeyMode !== 'pool') && (
+                            <FormField
+                              control={form.control}
+                              name='credentials.apiKeys'
                             render={({ field, fieldState }) => (
                               <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                                 <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
@@ -2285,7 +2339,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                         </Button>
                                       </div>
                                       <p className='text-muted-foreground mt-1 text-xs'>
-                                        {t('channels.dialogs.fields.apiKey.multiLineHint')}
+                                        {t(apiKeyMode === 'pool' ? 'channels.dialogs.fields.apiKey.multiLineHint' : 'channels.keyPool.singleHint')}
                                       </p>
                                     </div>
                                   ) : (
@@ -2316,7 +2370,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                         aria-invalid={!!fieldState.error}
                                         data-testid='channel-api-key-input'
                                       />
-                                      <p className='text-muted-foreground text-xs'>{t('channels.dialogs.fields.apiKey.multiLineHint')}</p>
+                                      <p className='text-muted-foreground text-xs'>{t(apiKeyMode === 'pool' ? 'channels.dialogs.fields.apiKey.multiLineHint' : 'channels.keyPool.singleHint')}</p>
                                     </>
                                   )}
                                   <FormMessage />
@@ -2324,6 +2378,57 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                               </FormItem>
                             )}
                           />
+                          )}
+                          {isEdit && apiKeyMode === 'pool' && (
+                            <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                              <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>{t('channels.dialogs.fields.apiKey.label')}</FormLabel>
+                              <div className='space-y-2 md:col-span-6'>
+                                <div className='rounded-md border p-3'>
+                                  <div className='flex items-center justify-between gap-3'>
+                                    <div className='text-sm'>
+                                      {(() => {
+                                        const summary = getChannelAPIKeySummary(managedChannel ?? currentRow);
+                                        return t('channels.keyPool.editSummary', { enabled: summary.enabled, total: summary.total, disabled: summary.disabled });
+                                      })()}
+                                    </div>
+                                    <Button type='button' size='sm' variant='outline' onClick={() => setKeyPoolOpen(true)}>
+                                      {t('channels.keyPool.manage')}
+                                    </Button>
+                                  </div>
+                                  <p className='text-muted-foreground mt-1 text-xs'>{t('channels.keyPool.editHint')}</p>
+                                </div>
+                              </div>
+                            </FormItem>
+                          )}
+                          {apiKeyMode === 'pool' && !isEdit && (
+                            <>
+                            <FormField
+                              control={form.control}
+                              name='settings.apiKeyPool.retryCount'
+                              render={({ field }) => (
+                                <FormItem className='grid grid-cols-1 items-center gap-x-6 gap-y-2 md:grid-cols-8'>
+                                  <FormLabel className='font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.retryCount')}</FormLabel>
+                                  <Input type='number' min={0} className='w-28 md:col-span-6' value={field.value ?? 2} onChange={(event) => field.onChange(Number(event.target.value))} />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='settings.apiKeyPool.autoCheckEnabled'
+                              render={({ field }) => (
+                                <FormItem className='grid grid-cols-1 items-center gap-x-6 gap-y-2 md:grid-cols-8'>
+                                  <FormLabel className='font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.autoCheck')}</FormLabel>
+                                  <div className='flex items-center gap-3 md:col-span-6'>
+                                    <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
+                                    <Input type='number' min={1} className='w-28' value={form.watch('settings.apiKeyPool.autoCheckIntervalHours') ?? 24} onChange={(event) => form.setValue('settings.apiKeyPool.autoCheckIntervalHours', Number(event.target.value), { shouldDirty: true })} />
+                                    <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                            </>
+                          )}
+                          </>
                         )}
 
                       {isOpenCodeGoType && (
@@ -3320,6 +3425,56 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {pendingSingleKey !== null && (
+        <Dialog open onOpenChange={(isOpen) => {
+          if (!isOpen) setPendingSingleKey(null);
+        }}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>{t('channels.keyPool.switchToSingleTitle')}</DialogTitle>
+              <DialogDescription>{t('channels.keyPool.switchToSingleDescription')}</DialogDescription>
+            </DialogHeader>
+            <RadioGroup
+              value={pendingSingleKey}
+              onValueChange={setPendingSingleKey}
+              className='space-y-2'
+            >
+              {(form.getValues('credentials.apiKeys') || []).filter((key) => key.trim()).map((key) => (
+                <div key={key} className='flex items-center gap-2'>
+                  <RadioGroupItem value={key} id={`keep-${key.slice(-4)}`} />
+                  <label htmlFor={`keep-${key.slice(-4)}`} className='font-mono text-xs break-all'>
+                    {key.length > 8 ? `${key.slice(0, 4)}****${key.slice(-4)}` : key}
+                  </label>
+                </div>
+              ))}
+            </RadioGroup>
+            <DialogFooter>
+              <Button type='button' variant='outline' onClick={() => setPendingSingleKey(null)}>
+                {t('common.buttons.cancel')}
+              </Button>
+              <Button
+                type='button'
+                onClick={() => {
+                  if (!pendingSingleKey) return;
+                  form.setValue('credentials.mode', 'single', { shouldDirty: true });
+                  form.setValue('credentials.apiKeys', [pendingSingleKey], { shouldDirty: true });
+                  setPendingSingleKey(null);
+                }}
+              >
+                {t('channels.keyPool.keepKey')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {currentRow && (
+        <ChannelAPIKeyPoolPanel
+          channel={managedChannel ?? currentRow}
+          open={keyPoolOpen}
+          onOpenChange={setKeyPoolOpen}
+          onChannelChange={setManagedChannel}
+        />
+      )}
     </>
   );
 }

@@ -31,6 +31,8 @@ import {
   testChannelAPIKeysPayloadSchema,
   TestAPIKeyResult,
   testAPIKeyResultSchema,
+  CodexSimulationSettings,
+  codexSimulationSettingsSchema,
 } from './schema';
 
 const QUERY_CHANNEL_NAMES_QUERY = `
@@ -86,6 +88,27 @@ const CREATE_CHANNEL_MUTATION = `
       tags
       defaultTestModel
       settings {
+        codexSimulation {
+          enabled
+          preset
+          version
+          platform
+          standardUserAgent
+          liteUserAgent
+          options {
+            prompt
+            userAgent
+            codexHeaders
+            clientMetadata
+            responsesShape
+            additionalTool
+          }
+          strategy {
+            installationId
+            threadId
+            windowGeneration
+          }
+        }
         extraModelPrefix
         modelMappings {
           from
@@ -161,6 +184,27 @@ const DUPLICATE_CHANNEL_MUTATION = `
       tags
       defaultTestModel
       settings {
+        codexSimulation {
+          enabled
+          preset
+          version
+          platform
+          standardUserAgent
+          liteUserAgent
+          options {
+            prompt
+            userAgent
+            codexHeaders
+            clientMetadata
+            responsesShape
+            additionalTool
+          }
+          strategy {
+            installationId
+            threadId
+            windowGeneration
+          }
+        }
         extraModelPrefix
         modelMappings {
           from
@@ -236,6 +280,27 @@ const BULK_CREATE_CHANNELS_MUTATION = `
       tags
       defaultTestModel
       settings {
+        codexSimulation {
+          enabled
+          preset
+          version
+          platform
+          standardUserAgent
+          liteUserAgent
+          options {
+            prompt
+            userAgent
+            codexHeaders
+            clientMetadata
+            responsesShape
+            additionalTool
+          }
+          strategy {
+            installationId
+            threadId
+            windowGeneration
+          }
+        }
         extraModelPrefix
         modelMappings {
           from
@@ -311,6 +376,27 @@ const UPDATE_CHANNEL_MUTATION = `
       tags
       defaultTestModel
       settings {
+        codexSimulation {
+          enabled
+          preset
+          version
+          platform
+          standardUserAgent
+          liteUserAgent
+          options {
+            prompt
+            userAgent
+            codexHeaders
+            clientMetadata
+            responsesShape
+            additionalTool
+          }
+          strategy {
+            installationId
+            threadId
+            windowGeneration
+          }
+        }
         extraModelPrefix
         modelMappings {
           from
@@ -508,6 +594,27 @@ const BULK_IMPORT_CHANNELS_MUTATION = `
           transport
         }
         settings {
+          codexSimulation {
+            enabled
+            preset
+            version
+            platform
+            standardUserAgent
+            liteUserAgent
+            options {
+              prompt
+              userAgent
+              codexHeaders
+              clientMetadata
+              responsesShape
+              additionalTool
+            }
+            strategy {
+              installationId
+              threadId
+              windowGeneration
+            }
+          }
           extraModelPrefix
           modelMappings {
             from
@@ -573,6 +680,30 @@ const DELETE_DISABLED_CHANNEL_API_KEYS_MUTATION = `
       success
       message
     }
+  }
+`;
+
+const IMPORT_CHANNEL_API_KEYS_MUTATION = `
+  mutation ImportChannelAPIKeys($channelID: ID!, $text: String!) {
+    importChannelAPIKeys(channelID: $channelID, text: $text) { added ignored total }
+  }
+`;
+
+const EXPORT_CHANNEL_API_KEYS_MUTATION = `
+  mutation ExportChannelAPIKeys($channelID: ID!, $status: ChannelAPIKeyExportStatus!) {
+    exportChannelAPIKeys(channelID: $channelID, status: $status)
+  }
+`;
+
+const REMOVE_CHANNEL_API_KEYS_MUTATION = `
+  mutation RemoveChannelAPIKeys($channelID: ID!, $keys: [String!]!) {
+    removeChannelAPIKeys(channelID: $channelID, keys: $keys) { success message }
+  }
+`;
+
+const CHECK_CHANNEL_API_KEYS_MUTATION = `
+  mutation CheckChannelAPIKeys($channelID: ID!, $status: ChannelAPIKeyExportStatus!) {
+    checkChannelAPIKeys(channelID: $channelID, status: $status) { key success error }
   }
 `;
 
@@ -739,6 +870,27 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
           transport
         }
         settings {
+          codexSimulation {
+            enabled
+            preset
+            version
+            platform
+            standardUserAgent
+            liteUserAgent
+            options {
+              prompt
+              userAgent
+              codexHeaders
+              clientMetadata
+              responsesShape
+              additionalTool
+            }
+            strategy {
+              installationId
+              threadId
+              windowGeneration
+            }
+          }
           extraModelPrefix
           modelMappings {
             from
@@ -841,8 +993,10 @@ const QUERY_CHANNELS_QUERY = `
             apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
           }
           credentials {
+            mode
             apiKey
             apiKeys
+            apiKeyStates { key failureCount lastFailedAt lastErrorCode lastError }
             gcp {
               region
               projectID
@@ -856,6 +1010,27 @@ const QUERY_CHANNELS_QUERY = `
           tags
           defaultTestModel
           settings {
+            codexSimulation {
+              enabled
+              preset
+              version
+              platform
+              standardUserAgent
+              liteUserAgent
+              options {
+                prompt
+                userAgent
+                codexHeaders
+                clientMetadata
+                responsesShape
+                additionalTool
+              }
+              strategy {
+                installationId
+                threadId
+                windowGeneration
+              }
+            }
             extraModelPrefix
             modelMappings {
               from
@@ -926,6 +1101,14 @@ const QUERY_CHANNELS_QUERY = `
                 authCookie
               }
             }
+            apiKeyPool {
+              retryCount
+              autoCheckEnabled
+              autoCheckIntervalHours
+              autoCheckConcurrency
+              autoCheckTimeoutSeconds
+              lastAutoCheckAt
+            }
           }
           orderingWeight
           errorMessage
@@ -948,6 +1131,8 @@ const QUERY_CHANNELS_QUERY = `
             errorCode
             reason
             expiresAt
+            failureCount
+            lastFailedAt
           }
           liveLimiterStats {
             inFlight
@@ -1210,6 +1395,86 @@ export function useUpdateChannel() {
       handleError(error, { context: t('channels.dialogs.edit.title') });
     },
   });
+}
+
+const RANDOMIZE_CHANNEL_CODEX_SIMULATION_MUTATION = `
+  mutation RandomizeChannelCodexSimulation($id: ID!) {
+    randomizeChannelCodexSimulation(id: $id) {
+      id
+      settings {
+        codexSimulation {
+          enabled
+          preset
+          version
+          platform
+          standardUserAgent
+          liteUserAgent
+          options {
+            prompt
+            userAgent
+            codexHeaders
+            clientMetadata
+            responsesShape
+            additionalTool
+          }
+          strategy {
+            installationId
+            threadId
+            windowGeneration
+          }
+        }
+      }
+    }
+  }
+`;
+
+interface CodexSimulationMutationResult {
+  settings?: {
+    codexSimulation?: CodexSimulationSettings | null;
+  } | null;
+}
+
+function codexSimulationFromResult(data: Record<string, CodexSimulationMutationResult>): CodexSimulationSettings | null {
+  const result = Object.values(data)[0];
+  const sim = result?.settings?.codexSimulation;
+  if (!sim) {
+    return null;
+  }
+  return codexSimulationSettingsSchema.parse(sim);
+}
+
+function useChannelCodexSimulationMutation(
+  mutation: string,
+  messageKey: string
+): {
+  mutateAsync: (channelID: string) => Promise<CodexSimulationSettings | null>;
+  isPending: boolean;
+} {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+
+  const { mutateAsync, isPending } = useMutation({
+    mutationFn: async (channelID: string) => {
+      const data = await graphqlRequest<Record<string, CodexSimulationMutationResult>>(mutation, { id: channelID });
+      return codexSimulationFromResult(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['channel'] });
+      toast.success(t(messageKey));
+    },
+    onError: (error) => {
+      handleError(error, { context: t('channels.codexSimulation.title') });
+    },
+  });
+
+  return { mutateAsync, isPending };
+}
+
+/** Randomizes the codex simulation identity and system profile, keeping preset, options, and version. */
+export function useRandomizeChannelCodexSimulation() {
+  return useChannelCodexSimulationMutation(RANDOMIZE_CHANNEL_CODEX_SIMULATION_MUTATION, 'channels.codexSimulation.messages.randomizeSuccess');
 }
 
 export interface SaveChannelEndpointsInput {
@@ -1824,6 +2089,8 @@ export function useChannelDisabledAPIKeys(channelId: string, options?: { enabled
               errorCode: number;
               reason?: string | null;
               expiresAt?: string | null;
+              failureCount?: number;
+              lastFailedAt?: string | null;
             }>;
           };
         }>(GET_CHANNEL_DISABLED_API_KEYS_QUERY, { id: channelId });
@@ -1834,6 +2101,92 @@ export function useChannelDisabledAPIKeys(channelId: string, options?: { enabled
       }
     },
     enabled: !!channelId && options?.enabled !== false,
+  });
+}
+
+export type ChannelAPIKeyStatusFilter = 'all' | 'enabled' | 'disabled';
+
+export function useImportChannelAPIKeys() {
+  const queryClient = useQueryClient();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ channelID, text }: { channelID: string; text: string }) => {
+      try {
+        const data = await graphqlRequest<{ importChannelAPIKeys: { added: number; ignored: number; total: number } }>(
+          IMPORT_CHANNEL_API_KEYS_MUTATION,
+          { channelID, text }
+        );
+        return data.importChannelAPIKeys;
+      } catch (error) {
+        handleError(error, { context: 'Import Channel API Keys' });
+        throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
+  });
+}
+
+export function useExportChannelAPIKeys() {
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ channelID, status }: { channelID: string; status: ChannelAPIKeyStatusFilter }) => {
+      try {
+        const data = await graphqlRequest<{ exportChannelAPIKeys: string }>(EXPORT_CHANNEL_API_KEYS_MUTATION, { channelID, status });
+        return data.exportChannelAPIKeys;
+      } catch (error) {
+        handleError(error, { context: 'Export Channel API Keys' });
+        throw error;
+      }
+    },
+  });
+}
+
+export function useRemoveChannelAPIKeys() {
+  const queryClient = useQueryClient();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ channelID, keys }: { channelID: string; keys: string[] }) => {
+      try {
+        const data = await graphqlRequest<{ removeChannelAPIKeys: { success: boolean; message?: string } }>(
+          REMOVE_CHANNEL_API_KEYS_MUTATION,
+          { channelID, keys }
+        );
+        return data.removeChannelAPIKeys;
+      } catch (error) {
+        handleError(error, { context: 'Remove Channel API Keys' });
+        throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
+  });
+}
+
+export function useCheckChannelAPIKeys() {
+  const queryClient = useQueryClient();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ channelID, status }: { channelID: string; status: ChannelAPIKeyStatusFilter }) => {
+      try {
+        const data = await graphqlRequest<{ checkChannelAPIKeys: Array<{ key: string; success: boolean; error?: string | null }> }>(
+          CHECK_CHANNEL_API_KEYS_MUTATION,
+          { channelID, status }
+        );
+        return data.checkChannelAPIKeys;
+      } catch (error) {
+        handleError(error, { context: 'Check Channel API Keys' });
+        throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+    },
   });
 }
 

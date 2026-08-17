@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { CHANNEL_CONFIGS } from '../data/config_channels';
 import { Channel } from '../data/schema';
+import { getChannelAPIKeySummary } from '../utils/key-pool';
 
 interface ChannelExpandedRowProps {
   channel: Channel;
@@ -14,6 +15,7 @@ interface ChannelExpandedRowProps {
 export const ChannelExpandedRow = memo(({ channel, columnsLength, getApiFormatLabel }: ChannelExpandedRowProps) => {
   const { t } = useTranslation();
   const config = CHANNEL_CONFIGS[channel.type];
+  const { total, enabled, disabled, isPool } = getChannelAPIKeySummary(channel);
 
   return (
     <div className='bg-muted/30 p-6 hover:bg-muted/50'>
@@ -51,6 +53,23 @@ export const ChannelExpandedRow = memo(({ channel, columnsLength, getApiFormatLa
             <div className='space-y-3'>
               <h4 className='text-sm font-semibold'>{t('channels.expandedRow.additional')}</h4>
               <div className='space-y-2 text-sm'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-muted-foreground'>{t('channels.keyPool.mode.label')}:</span>
+                  <span>{isPool ? t('channels.keyPool.mode.pool') : t('channels.keyPool.mode.single')}</span>
+                </div>
+                {isPool && (
+                  <div className='flex items-center justify-between'>
+                    <span className='text-muted-foreground'>{t('channels.keyPool.keysLabel')}:</span>
+                    <span className='flex items-center gap-1'>
+                      <span className='font-mono text-xs tabular-nums'>
+                        {t('channels.keyPool.summary', { enabled, total })}
+                      </span>
+                      {disabled > 0 && (
+                        <span className='text-amber-500 text-xs'>{t('channels.keyPool.disabledCount', { count: disabled })}</span>
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div className='flex items-center justify-between'>
                   <span className='text-muted-foreground'>{t('channels.columns.orderingWeight')}:</span>
                   <span className='font-mono text-xs'>{channel.orderingWeight ?? 0}</span>

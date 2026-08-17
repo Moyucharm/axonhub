@@ -30,10 +30,9 @@ type ChannelsDialogType =
   | 'price'
   | 'transformOptions'
   | 'rateLimit'
-  | 'apiKeyRules'
-  | 'testAPIKeys'
-  | 'disabledAPIKeys'
-  | 'endpoints';
+  | 'keyPool'
+  | 'endpoints'
+  | 'codexSimulation';
 
 interface ChannelsContextType {
   open: ChannelsDialogType | null;
