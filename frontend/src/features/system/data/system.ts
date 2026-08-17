@@ -109,6 +109,18 @@ const RETRY_POLICY_QUERY = `
       }
       autoDisableChannel {
         enabled
+        mode
+        times
+        statuses {
+          status
+          times
+        }
+      }
+      autoDisableAPIKey {
+        enabled
+        mode
+        times
+        disableDurationMinutes
         statuses {
           status
           times
@@ -341,7 +353,22 @@ export interface WebhookNotifierConfig {
 
 export interface AutoDisableChannel {
   enabled: boolean;
+  mode: string;
+  times: number;
   statuses: AutoDisableChannelStatus[];
+}
+
+export interface AutoDisableAPIKeyStatus {
+  status: number;
+  times: number;
+}
+
+export interface AutoDisableAPIKey {
+  enabled: boolean;
+  mode: string;
+  times: number;
+  disableDurationMinutes: number;
+  statuses: AutoDisableAPIKeyStatus[];
 }
 
 export interface RetryPolicy {
@@ -354,6 +381,7 @@ export interface RetryPolicy {
   traceStickyMode: TraceStickyMode;
   enabled: boolean;
   autoDisableChannel: AutoDisableChannel;
+  autoDisableAPIKey: AutoDisableAPIKey;
   emptyResponseDetection: boolean;
   upstreamErrorPolicy: UpstreamErrorPolicy;
 }
@@ -370,7 +398,22 @@ export interface AutoDisableChannelStatusInput {
 
 export interface AutoDisableChannelInput {
   enabled?: boolean;
+  mode?: string;
+  times?: number;
   statuses?: AutoDisableChannelStatusInput[];
+}
+
+export interface AutoDisableAPIKeyStatusInput {
+  status: number;
+  times: number;
+}
+
+export interface AutoDisableAPIKeyInput {
+  enabled?: boolean;
+  mode?: string;
+  times?: number;
+  disableDurationMinutes?: number;
+  statuses?: AutoDisableAPIKeyStatusInput[];
 }
 
 export interface RetryPolicyInput {
@@ -383,6 +426,7 @@ export interface RetryPolicyInput {
   traceStickyMode?: TraceStickyMode;
   enabled?: boolean;
   autoDisableChannel?: AutoDisableChannelInput;
+  autoDisableAPIKey?: AutoDisableAPIKeyInput;
   emptyResponseDetection?: boolean;
   upstreamErrorPolicy?: Partial<UpstreamErrorPolicy>;
 }

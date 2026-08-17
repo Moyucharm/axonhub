@@ -11,12 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useRetryPolicy, useUpdateRetryPolicy, type RetryPolicyInput } from '../data/system';
+import { useRetryPolicy, useUpdateRetryPolicy, type RetryPolicyInput, type AutoDisableAPIKeyInput } from '../data/system';
+import { APIKeyAutoDisableRulesDialog } from '@/features/channels/components/api-key-auto-disable-rules-dialog';
+import type { APIKeyAutoDisableRule } from '@/features/channels/data/schema';
 
 export function RetrySettings() {
   const { t } = useTranslation();
   const { data: retryPolicy, isLoading } = useRetryPolicy();
   const updateRetryPolicy = useUpdateRetryPolicy();
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const [formData, setFormData] = useState<RetryPolicyInput>({
     enabled: true,
@@ -34,6 +37,15 @@ export function RetrySettings() {
     },
     autoDisableChannel: {
       enabled: false,
+      mode: 'codes',
+      times: 3,
+      statuses: [],
+    },
+    autoDisableAPIKey: {
+      enabled: true,
+      mode: 'any',
+      times: 3,
+      disableDurationMinutes: 30,
       statuses: [],
     },
   });
@@ -55,8 +67,17 @@ export function RetrySettings() {
           customMessage: retryPolicy.upstreamErrorPolicy?.customMessage || '',
         },
         autoDisableChannel: {
-          enabled: retryPolicy.autoDisableChannel?.enabled || false,
+          enabled: retryPolicy.autoDisableChannel?.enabled ?? false,
+          mode: retryPolicy.autoDisableChannel?.mode || 'codes',
+          times: retryPolicy.autoDisableChannel?.times || 3,
           statuses: retryPolicy.autoDisableChannel?.statuses || [],
+        },
+        autoDisableAPIKey: {
+          enabled: retryPolicy.autoDisableAPIKey?.enabled ?? true,
+          mode: retryPolicy.autoDisableAPIKey?.mode || 'any',
+          times: retryPolicy.autoDisableAPIKey?.times || 3,
+          disableDurationMinutes: retryPolicy.autoDisableAPIKey?.disableDurationMinutes ?? 30,
+          statuses: retryPolicy.autoDisableAPIKey?.statuses || [],
         },
       });
     }
@@ -79,15 +100,20 @@ export function RetrySettings() {
     }));
   }, []);
 
-  const handleAutoDisableChannelChange = useCallback((field: 'enabled', value: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      autoDisableChannel: {
-        ...prev.autoDisableChannel,
-        [field]: value,
-      },
-    }));
-  }, []);
+  const handleAutoDisableChannelChange = useCallback(
+    (field: 'enabled' | 'mode' | 'times', value: boolean | string | number) => {
+      setFormData((prev) => ({
+        ...prev,
+        autoDisableChannel: {
+          ...prev.autoDisableChannel,
+          mode: prev.autoDisableChannel?.mode || 'codes',
+          times: prev.autoDisableChannel?.times || 3,
+          [field]: value,
+        },
+      }));
+    },
+    []
+  );
 
   const handleStatusChange = useCallback((index: number, field: 'status' | 'times', value: number) => {
     setFormData((prev) => ({
@@ -117,6 +143,56 @@ export function RetrySettings() {
         statuses: prev.autoDisableChannel?.statuses?.filter((_, i) => i !== index) || [],
       },
     }));
+  }, []);
+
+  // === Conversion functions for API Key auto-disable rules dialog ===
+
+  function autoDisableAPIKeyToRules(apiKey: AutoDisableAPIKeyInput | undefined): APIKeyAutoDisableRule[] {
+    if (!apiKey?.enabled) return [];
+    if (apiKey.mode === 'any') {
+      return [{
+        statusCodes: [],
+        keywordPatterns: [],
+        times: apiKey.times ?? 3,
+        action: 'temporary_disable' as const,
+        disableDurationMinutes: apiKey.disableDurationMinutes ?? 30,
+      }];
+    }
+    const statusCodes = apiKey.statuses?.map(s => s.status) ?? [];
+    return [{
+      statusCodes,
+      keywordPatterns: [],
+      times: apiKey.times ?? 3,
+      action: 'temporary_disable' as const,
+      disableDurationMinutes: apiKey.disableDurationMinutes ?? 30,
+    }];
+  }
+
+  function rulesToAutoDisableAPIKey(rules: APIKeyAutoDisableRule[]): AutoDisableAPIKeyInput {
+    if (rules.length === 0) {
+      return { enabled: false, mode: 'any', times: 3, disableDurationMinutes: 30, statuses: [] };
+    }
+    const rule = rules[0];
+    const isAnyError = rule.statusCodes.length === 0 && (!rule.keywordPatterns || rule.keywordPatterns.length === 0);
+    return {
+      enabled: true,
+      mode: isAnyError ? 'any' : 'codes',
+      times: rule.times,
+      disableDurationMinutes: rule.disableDurationMinutes ?? 30,
+      statuses: isAnyError ? [] : rule.statusCodes.map(code => ({ status: code, times: rule.times })),
+    };
+  }
+
+  const handleAPIKeyRulesSave = useCallback(async (rules: APIKeyAutoDisableRule[]) => {
+    const updated = rulesToAutoDisableAPIKey(rules);
+    setFormData((prev) => ({
+      ...prev,
+      autoDisableAPIKey: {
+        ...prev.autoDisableAPIKey,
+        ...updated,
+      },
+    }));
+    setRulesOpen(false);
   }, []);
 
   const handleSubmit = useCallback(
@@ -364,47 +440,126 @@ export function RetrySettings() {
                 {formData.autoDisableChannel?.enabled && (
                   <div className='space-y-3'>
                     <div className='flex items-center justify-between'>
-                      <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.statuses.label')}</Label>
-                      <Button type='button' variant='outline' size='sm' onClick={addStatus}>
-                        <Plus className='mr-1 h-4 w-4' />
-                        {t('system.retry.autoDisableChannel.statuses.add')}
-                      </Button>
+                      <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.mode.label')}</Label>
+                      <Select
+                        value={formData.autoDisableChannel?.mode || 'codes'}
+                        onValueChange={(value) => handleAutoDisableChannelChange('mode', value)}
+                      >
+                        <SelectTrigger className='w-44'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='any'>{t('system.retry.autoDisableChannel.mode.any')}</SelectItem>
+                          <SelectItem value='codes'>{t('system.retry.autoDisableChannel.mode.codes')}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    {formData.autoDisableChannel?.statuses && formData.autoDisableChannel.statuses.length > 0 ? (
-                      <div className='space-y-2'>
-                        {formData.autoDisableChannel.statuses.map((statusItem, index) => (
-                          <div key={index} className='flex items-center space-x-2'>
-                            <Input
-                              type='number'
-                              placeholder={t('system.retry.autoDisableChannel.statuses.statusPlaceholder')}
-                              value={statusItem.status}
-                              onChange={(e) => handleStatusChange(index, 'status', parseInt(e.target.value) || 0)}
-                              className='w-24'
-                              min='400'
-                              max='599'
-                            />
-                            <Input
-                              type='number'
-                              placeholder={t('system.retry.autoDisableChannel.statuses.timesPlaceholder')}
-                              value={statusItem.times}
-                              onChange={(e) => handleStatusChange(index, 'times', parseInt(e.target.value) || 0)}
-                              className='w-24'
-                              min='1'
-                              max='100'
-                            />
-                            <span className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.times')}</span>
-                            <Button type='button' variant='ghost' size='icon' onClick={() => removeStatus(index)}>
-                              <Trash2 className='h-4 w-4' />
-                            </Button>
-                          </div>
-                        ))}
+                    {formData.autoDisableChannel?.mode === 'any' ? (
+                      <div className='flex items-center justify-between'>
+                        <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.times.label')}</Label>
+                        <Input
+                          type='number'
+                          min='1'
+                          max='100'
+                          value={formData.autoDisableChannel?.times || 3}
+                          onChange={(e) => handleAutoDisableChannelChange('times', parseInt(e.target.value) || 0)}
+                          className='w-24'
+                        />
                       </div>
                     ) : (
-                      <div className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.empty')}</div>
+                      <>
+                        <div className='flex items-center justify-between'>
+                          <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.statuses.label')}</Label>
+                          <Button type='button' variant='outline' size='sm' onClick={addStatus}>
+                            <Plus className='mr-1 h-4 w-4' />
+                            {t('system.retry.autoDisableChannel.statuses.add')}
+                          </Button>
+                        </div>
+
+                        {formData.autoDisableChannel?.statuses && formData.autoDisableChannel.statuses.length > 0 ? (
+                          <div className='space-y-2'>
+                            {formData.autoDisableChannel.statuses.map((statusItem, index) => (
+                              <div key={index} className='flex items-center space-x-2'>
+                                <Input
+                                  type='number'
+                                  placeholder={t('system.retry.autoDisableChannel.statuses.statusPlaceholder')}
+                                  value={statusItem.status}
+                                  onChange={(e) => handleStatusChange(index, 'status', parseInt(e.target.value) || 0)}
+                                  className='w-24'
+                                  min='400'
+                                  max='599'
+                                />
+                                <Input
+                                  type='number'
+                                  placeholder={t('system.retry.autoDisableChannel.statuses.timesPlaceholder')}
+                                  value={statusItem.times}
+                                  onChange={(e) => handleStatusChange(index, 'times', parseInt(e.target.value) || 0)}
+                                  className='w-24'
+                                  min='1'
+                                  max='100'
+                                />
+                                <span className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.times')}</span>
+                                <Button type='button' variant='ghost' size='icon' onClick={() => removeStatus(index)}>
+                                  <Trash2 className='h-4 w-4' />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.empty')}</div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
+              </div>
+
+              <Separator />
+
+              {/* Auto Disable API Key */}
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='space-y-0.5'>
+                    <Label htmlFor='auto-disable-api-key' className='text-base'>
+                      {t('system.retry.autoDisableAPIKey.label')}
+                    </Label>
+                    <div className='text-muted-foreground text-sm'>{t('system.retry.autoDisableAPIKey.description')}</div>
+                  </div>
+                  <Switch
+                    id='auto-disable-api-key'
+                    checked={formData.autoDisableAPIKey?.enabled ?? true}
+                    onCheckedChange={(checked) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        autoDisableAPIKey: {
+                          ...prev.autoDisableAPIKey,
+                          enabled: checked,
+                        },
+                      }));
+                    }}
+                  />
+                </div>
+
+                {formData.autoDisableAPIKey?.enabled && (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    className='w-full'
+                    onClick={() => setRulesOpen(true)}
+                  >
+                    {t('system.retry.autoDisableAPIKey.manageRules')}
+                  </Button>
+                )}
+
+                <APIKeyAutoDisableRulesDialog
+                  open={rulesOpen}
+                  onOpenChange={setRulesOpen}
+                  rules={autoDisableAPIKeyToRules(formData.autoDisableAPIKey)}
+                  onSave={handleAPIKeyRulesSave}
+                  title={t('system.retry.autoDisableAPIKey.rulesTitle')}
+                  description={t('system.retry.autoDisableAPIKey.rulesDescription')}
+                />
               </div>
             </div>
           )}
