@@ -1,6 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Channel } from '../data/schema';
 
+export const DEFAULT_API_KEY_POOL_REQUEST_COUNT = 3;
+
 export interface ChannelAPIKeySummary {
   total: number;
   enabled: number;

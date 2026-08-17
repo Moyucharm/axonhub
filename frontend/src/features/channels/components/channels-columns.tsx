@@ -329,11 +329,14 @@ function getProxyURLSummary(proxyURL: string): { label: string; detail?: string 
 const NameCell = memo(({ row }: { row: Row<Channel> }) => {
   const { t } = useTranslation();
   const channel = row.original;
+  const { setCurrentRow, setOpen } = useChannels();
+  const { channelPermissions } = usePermissions();
   const hasError = !!channel.errorMessage;
   const disabledKeysCount = channel.disabledAPIKeys?.length ?? 0;
   const hasDisabledKeys = disabledKeysCount > 0;
   const websiteURL = getChannelWebsiteURL(channel.baseURL);
   const { total, enabled, isPool } = getChannelAPIKeySummary(channel);
+  const keyPoolSummary = t('channels.keyPool.summary', { enabled, total });
 
   const nameElement = websiteURL ? (
     <a
@@ -355,11 +358,31 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
         {hasError && <IconAlertTriangle className='text-destructive h-4 w-4 shrink-0' />}
         {!hasError && hasDisabledKeys && <IconKeyOff className='h-4 w-4 shrink-0 text-amber-500' />}
         {nameElement}
-        {isPool && (
-          <Badge variant='outline' className='shrink-0 text-xs tabular-nums'>
-            {t('channels.keyPool.summary', { enabled, total })}
-          </Badge>
-        )}
+        {isPool &&
+          (channelPermissions.canWrite ? (
+            <Badge
+              asChild
+              variant='outline'
+              className='cursor-pointer text-xs tabular-nums transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary dark:hover:bg-primary/10'
+            >
+              <button
+                type='button'
+                title={t('channels.keyPool.action')}
+                aria-label={t('channels.keyPool.action')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setCurrentRow(channel);
+                  setOpen('keyPool');
+                }}
+              >
+                {keyPoolSummary}
+              </button>
+            </Badge>
+          ) : (
+            <Badge variant='outline' className='shrink-0 text-xs tabular-nums'>
+              {keyPoolSummary}
+            </Badge>
+          ))}
       </div>
     </div>
   );

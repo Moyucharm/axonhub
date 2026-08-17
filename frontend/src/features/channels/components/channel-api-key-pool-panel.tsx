@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -26,6 +27,7 @@ import {
   useUpdateChannel,
 } from '../data/channels';
 import { APIKeyAutoDisableRule, Channel } from '../data/schema';
+import { DEFAULT_API_KEY_POOL_REQUEST_COUNT } from '../utils/key-pool';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
 import { ChannelsAPIKeyRulesDialog } from './channels-apikey-rules-dialog';
 
@@ -126,7 +128,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   const updateChannel = useUpdateChannel();
 
   const poolSettings = channel.settings?.apiKeyPool;
-  const [retryCount, setRetryCount] = useState(poolSettings?.retryCount ?? 2);
+  const [retryCount, setRetryCount] = useState(poolSettings?.retryCount ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT);
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(poolSettings?.autoCheckEnabled ?? false);
   const [autoCheckIntervalHours, setAutoCheckIntervalHours] = useState(poolSettings?.autoCheckIntervalHours ?? 24);
   const [autoCheckConcurrency, setAutoCheckConcurrency] = useState(poolSettings?.autoCheckConcurrency ?? 4);
@@ -137,7 +139,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
 
   useEffect(() => {
     if (settingsOpen) {
-      setRetryCount(poolSettings?.retryCount ?? 2);
+      setRetryCount(poolSettings?.retryCount ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT);
       setAutoCheckEnabled(poolSettings?.autoCheckEnabled ?? false);
       setAutoCheckIntervalHours(poolSettings?.autoCheckIntervalHours ?? 24);
       setAutoCheckConcurrency(poolSettings?.autoCheckConcurrency ?? 4);
@@ -249,6 +251,10 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   };
 
   const handleSaveSettings = async () => {
+    if (retryCount < 1) {
+      toast.error(t('channels.keyPool.requestCountTooSmall'));
+      return;
+    }
     if (autoCheckEnabled && autoCheckIntervalHours < 1) {
       toast.error(t('channels.keyPool.intervalTooSmall'));
       return;
@@ -435,72 +441,104 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className='sm:max-w-md'>
+        <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-lg'>
           <DialogHeader>
             <DialogTitle>{t('channels.keyPool.settingsTitle')}</DialogTitle>
             <DialogDescription>{t('channels.keyPool.settingsDescription')}</DialogDescription>
           </DialogHeader>
-          {poolSettings?.lastAutoCheckAt && (
-            <p className='text-muted-foreground text-xs'>{t('channels.keyPool.lastAutoCheck', { time: poolSettings.lastAutoCheckAt })}</p>
-          )}
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between gap-3'>
-              <label className='text-sm font-medium'>{t('channels.keyPool.retryCount')}</label>
-              <Input type='number' min={0} className='w-28' value={retryCount} onChange={(event) => setRetryCount(Number(event.target.value))} />
-            </div>
-            <div className='flex items-center justify-between gap-3'>
-              <label className='text-sm font-medium'>{t('channels.keyPool.autoCheck')}</label>
-              <Checkbox checked={autoCheckEnabled} onCheckedChange={(checked) => setAutoCheckEnabled(!!checked)} />
-            </div>
-            {autoCheckEnabled && (
-              <>
-                <div className='flex items-center justify-between gap-3'>
-                  <label className='text-sm font-medium'>{t('channels.keyPool.autoCheckInterval')}</label>
-                  <div className='flex items-center gap-2'>
-                    <Input type='number' min={1} className='w-24' value={autoCheckIntervalHours} onChange={(event) => setAutoCheckIntervalHours(Number(event.target.value))} />
-                    <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
-                  </div>
+          <div className='space-y-3'>
+            <Card className='gap-4 py-4'>
+              <CardHeader className='flex flex-row items-start justify-between gap-4 px-4'>
+                <div className='space-y-1'>
+                  <CardTitle className='text-sm'>{t('channels.keyPool.requestStrategyTitle')}</CardTitle>
+                  <CardDescription className='text-xs leading-relaxed'>{t('channels.keyPool.retryCountDescription')}</CardDescription>
                 </div>
-                <div className='flex items-center justify-between gap-3'>
-                  <label className='text-sm font-medium'>{t('channels.keyPool.autoCheckConcurrency')}</label>
-                  <Input type='number' min={1} max={32} className='w-24' value={autoCheckConcurrency} onChange={(event) => setAutoCheckConcurrency(Number(event.target.value))} />
-                </div>
-                <div className='flex items-center justify-between gap-3'>
-                  <label className='text-sm font-medium'>{t('channels.keyPool.autoCheckTimeout')}</label>
-                  <div className='flex items-center gap-2'>
-                    <Input type='number' min={1} max={600} className='w-24' value={autoCheckTimeoutSeconds} onChange={(event) => setAutoCheckTimeoutSeconds(Number(event.target.value))} />
-                    <span className='text-muted-foreground text-xs'>{t('channels.keyPool.seconds')}</span>
-                  </div>
-                </div>
-              </>
-            )}
-            <div className='space-y-2 border-t pt-3'>
-              <div className='flex items-center justify-between gap-3'>
-                <label className='text-sm font-medium'>{t('channels.keyPool.autoDisable')}</label>
-                <Checkbox checked={autoDisableEnabled} disabled={hasAdvancedRules} onCheckedChange={(checked) => setAutoDisableEnabled(!!checked)} />
-              </div>
-              <p className='text-muted-foreground text-xs'>{t('channels.keyPool.autoDisableDescription')}</p>
-              {hasAdvancedRules && <p className='text-muted-foreground text-xs'>{t('channels.keyPool.advancedRulesHint')}</p>}
-              <div className='flex items-center justify-between gap-3'>
-                <label className='text-sm font-medium'>{t('channels.keyPool.autoDisableThreshold')}</label>
-                <div className='flex items-center gap-2'>
-                  <Input type='number' min={1} className='w-24' value={autoDisableThreshold} onChange={(event) => setAutoDisableThreshold(Number(event.target.value))} />
+                <div className='flex shrink-0 items-center gap-2'>
+                  <Input
+                    type='number'
+                    min={1}
+                    className='w-20'
+                    value={retryCount}
+                    onChange={(event) => setRetryCount(Number(event.target.value))}
+                    aria-label={t('channels.keyPool.retryCount')}
+                  />
                   <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
                 </div>
-              </div>
-              <div className='flex items-center justify-between gap-3 border-t pt-2'>
-                <label className='text-sm font-medium'>{t('channels.keyPool.rules')}</label>
-                <Button variant='outline' size='sm' onClick={() => setRulesOpen(true)}>
-                  <Settings2 className='mr-1 h-4 w-4' />
-                  {t('channels.keyPool.manageRules')}
-                </Button>
-              </div>
-              <p className='text-muted-foreground text-xs'>
-                {t('channels.keyPool.rulesCount', {
-                  count: channel.policies?.apiKeyAutoDisableRules?.length ?? 0,
-                })}
-              </p>
-            </div>
+              </CardHeader>
+            </Card>
+
+            <Card className='gap-4 py-4'>
+              <CardHeader className='flex flex-row items-start justify-between gap-4 px-4'>
+                <div className='space-y-1'>
+                  <CardTitle className='text-sm'>{t('channels.keyPool.autoCheck')}</CardTitle>
+                  <CardDescription className='text-xs leading-relaxed'>{t('channels.keyPool.autoCheckDescription')}</CardDescription>
+                </div>
+                <Checkbox checked={autoCheckEnabled} onCheckedChange={(checked) => setAutoCheckEnabled(!!checked)} />
+              </CardHeader>
+              {autoCheckEnabled && (
+                <CardContent className='space-y-3 px-4 pt-0'>
+                  <div className='grid gap-3 sm:grid-cols-3'>
+                    <div className='space-y-1'>
+                      <label className='text-muted-foreground text-xs font-medium'>{t('channels.keyPool.autoCheckInterval')}</label>
+                      <div className='flex items-center gap-2'>
+                        <Input type='number' min={1} className='w-full' value={autoCheckIntervalHours} onChange={(event) => setAutoCheckIntervalHours(Number(event.target.value))} />
+                        <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
+                      </div>
+                    </div>
+                    <div className='space-y-1'>
+                      <label className='text-muted-foreground text-xs font-medium'>{t('channels.keyPool.autoCheckConcurrency')}</label>
+                      <Input type='number' min={1} max={32} className='w-full' value={autoCheckConcurrency} onChange={(event) => setAutoCheckConcurrency(Number(event.target.value))} />
+                    </div>
+                    <div className='space-y-1'>
+                      <label className='text-muted-foreground text-xs font-medium'>{t('channels.keyPool.autoCheckTimeout')}</label>
+                      <div className='flex items-center gap-2'>
+                        <Input type='number' min={1} max={600} className='w-full' value={autoCheckTimeoutSeconds} onChange={(event) => setAutoCheckTimeoutSeconds(Number(event.target.value))} />
+                        <span className='text-muted-foreground text-xs'>{t('channels.keyPool.seconds')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  {poolSettings?.lastAutoCheckAt && (
+                    <p className='text-muted-foreground text-xs'>{t('channels.keyPool.lastAutoCheck', { time: poolSettings.lastAutoCheckAt })}</p>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className='gap-4 py-4'>
+              <CardHeader className='flex flex-row items-start justify-between gap-4 px-4'>
+                <div className='space-y-1'>
+                  <CardTitle className='text-sm'>{t('channels.keyPool.autoDisable')}</CardTitle>
+                  <CardDescription className='text-xs leading-relaxed'>{t('channels.keyPool.autoDisableDescription')}</CardDescription>
+                </div>
+                <Checkbox checked={autoDisableEnabled} disabled={hasAdvancedRules} onCheckedChange={(checked) => setAutoDisableEnabled(!!checked)} />
+              </CardHeader>
+              <CardContent className='space-y-3 px-4 pt-0'>
+                {hasAdvancedRules && <p className='text-muted-foreground text-xs'>{t('channels.keyPool.advancedRulesHint')}</p>}
+                {autoDisableEnabled && (
+                  <div className='flex items-center justify-between gap-3'>
+                    <label className='text-sm font-medium'>{t('channels.keyPool.autoDisableThreshold')}</label>
+                    <div className='flex items-center gap-2'>
+                      <Input type='number' min={1} className='w-20' value={autoDisableThreshold} onChange={(event) => setAutoDisableThreshold(Number(event.target.value))} />
+                      <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
+                    </div>
+                  </div>
+                )}
+                <div className='flex items-center justify-between gap-3 border-t pt-3'>
+                  <div>
+                    <p className='text-sm font-medium'>{t('channels.keyPool.rules')}</p>
+                    <p className='text-muted-foreground text-xs'>
+                      {t('channels.keyPool.rulesCount', {
+                        count: channel.policies?.apiKeyAutoDisableRules?.length ?? 0,
+                      })}
+                    </p>
+                  </div>
+                  <Button variant='outline' size='sm' onClick={() => setRulesOpen(true)}>
+                    <Settings2 className='mr-1 h-4 w-4' />
+                    {t('channels.keyPool.manageRules')}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setSettingsOpen(false)}>{t('common.buttons.cancel')}</Button>

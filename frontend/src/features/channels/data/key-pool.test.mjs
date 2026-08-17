@@ -11,8 +11,11 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
   const schema = read('features/channels/data/schema.ts');
   const data = read('features/channels/data/channels.ts');
   assert.match(schema, /apiKeyModeSchema = z\.enum\(\['single', 'pool'\]\)/);
+  assert.match(schema, /apiKeyPoolSettingsSchema[\s\S]*retryCount: z\.number\(\)\.int\(\)\.min\(1\)/);
   assert.match(schema, /apiKeyPoolSettingsSchema[\s\S]*autoCheckIntervalHours/);
   assert.match(schema, /channelAPIKeyStateSchema[\s\S]*failureCount/);
+  const keyPoolUtils = read('features/channels/utils/key-pool.ts');
+  assert.match(keyPoolUtils, /DEFAULT_API_KEY_POOL_REQUEST_COUNT = 3/);
   for (const operation of ['importChannelAPIKeys', 'exportChannelAPIKeys', 'removeChannelAPIKeys', 'checkChannelAPIKeys']) {
     assert.match(data, new RegExp(operation), `${operation} should be wired in the channel data layer`);
   }
@@ -26,6 +29,8 @@ test('key pool UI exposes mode selection and standalone management', () => {
   const contextFile = read('features/channels/context/channels-context.tsx');
   assert.match(dialog, /name='credentials\.mode'/);
   assert.match(dialog, /name='settings\.apiKeyPool\.autoCheckEnabled'/);
+  assert.match(dialog, /DEFAULT_API_KEY_POOL_REQUEST_COUNT/);
+  assert.match(dialog, /channels\.keyPool\.retryCountDescription/);
   // Edit saves must not overwrite existing pool keys with the stale form snapshot.
   assert.match(dialog, /isPoolMode && !switchingToPool/);
   assert.match(dialog, /switchingToSingle/);
@@ -41,6 +46,7 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(panel, /handleEnableAll/);
   assert.match(panel, /handleSaveSettings/);
   assert.match(panel, /useTestChannelAPIKey/);
+  assert.match(panel, /DEFAULT_API_KEY_POOL_REQUEST_COUNT/);
   // Selected-key check, pool summary line, disabled expiry and last auto-check display.
   assert.match(panel, /selected\.size > 0/);
   assert.match(panel, /enabledKeys/);
@@ -65,6 +71,9 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(columns, /getChannelAPIKeySummary\(channel\)/);
   assert.match(columns, /channels\.keyPool\.summary/);
   assert.match(columns, /isPool &&/);
+  assert.match(columns, /channelPermissions\.canWrite \?/);
+  assert.match(columns, /aria-label=\{t\('channels\.keyPool\.action'\)\}/);
+  assert.match(columns, /event\.stopPropagation\(\)/);
   // The legacy dialogs are no longer entry points.
   assert.doesNotMatch(columns, /setOpen\('testAPIKeys'\)/);
   assert.doesNotMatch(columns, /setOpen\('disabledAPIKeys'\)/);
@@ -90,6 +99,10 @@ test('key pool strings exist in English and Simplified Chinese', () => {
       'channels.keyPool.mode.single',
       'channels.keyPool.mode.pool',
       'channels.keyPool.autoCheck',
+      'channels.keyPool.autoCheckDescription',
+      'channels.keyPool.requestStrategyTitle',
+      'channels.keyPool.retryCountDescription',
+      'channels.keyPool.requestCountTooSmall',
       'channels.keyPool.import',
       'channels.keyPool.export',
       'channels.keyPool.check',

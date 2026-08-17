@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TagsAutocompleteInput } from '@/components/ui/tags-autocomplete-input';
 import { Textarea } from '@/components/ui/textarea';
@@ -60,7 +61,7 @@ import {
 import { Channel, ChannelType, ApiFormat, RetryableErrorPattern, createChannelInputSchema, updateChannelInputSchema } from '../data/schema';
 import { ProxyConfig, useOAuthFlow } from '../hooks/use-oauth-flow';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
-import { getChannelAPIKeySummary } from '../utils/key-pool';
+import { DEFAULT_API_KEY_POOL_REQUEST_COUNT, getChannelAPIKeySummary } from '../utils/key-pool';
 import { isValidModelPattern, matchesModelPattern } from '../utils/pattern';
 import { ProxyType } from './channels-proxy-dialog';
 import { CopilotDeviceFlow } from './copilot-device-flow';
@@ -1190,6 +1191,17 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         values.credentials.apiKeys = [...new Set(values.credentials.apiKeys.filter((k) => k.trim().length > 0))];
       }
 
+      if (values.credentials?.mode === 'pool') {
+        const apiKeyPool = values.settings?.apiKeyPool;
+        values.settings = {
+          ...(values.settings ?? {}),
+          apiKeyPool: {
+            ...(apiKeyPool ?? {}),
+            retryCount: apiKeyPool?.retryCount ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT,
+          },
+        };
+      }
+
       const retryableStatusCodes = parseRetryableStatusCodesInput(retryableStatusCodesText);
       if (retryableStatusCodes === null) {
         toast.error(t('channels.dialogs.retryableStatusCodes.validation'));
@@ -2219,28 +2231,39 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                             render={({ field }) => (
                               <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                                 <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.mode.label')}</FormLabel>
-                                <RadioGroup
-                                  value={field.value || 'single'}
-                                  onValueChange={(value) => {
-                                    if (value === 'single') {
-                                      const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
-                                      if (keys.length > 1) {
-                                        // Pool has multiple keys: require an explicit choice of the key to keep.
-                                        setPendingSingleKey(keys[0]);
+                                <div className='md:col-span-6'>
+                                  <Select
+                                    value={field.value || 'single'}
+                                    onValueChange={(value) => {
+                                      if (value === 'single') {
+                                        const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
+                                        if (keys.length > 1) {
+                                          // Pool has multiple keys: require an explicit choice of the key to keep.
+                                          setPendingSingleKey(keys[0]);
+                                          return;
+                                        }
+                                        field.onChange(value);
+                                        form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
                                         return;
                                       }
+                                      if (form.getValues('settings.apiKeyPool.retryCount') == null) {
+                                        form.setValue('settings.apiKeyPool.retryCount', DEFAULT_API_KEY_POOL_REQUEST_COUNT, { shouldDirty: true });
+                                      }
                                       field.onChange(value);
-                                      form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
-                                      return;
-                                    }
-                                    field.onChange(value);
-                                    setPendingSingleKey(null);
-                                  }}
-                                  className='flex gap-4 pt-2 md:col-span-6'
-                                >
-                                  <div className='flex items-center gap-2'><RadioGroupItem value='single' id='api-key-mode-single' /><label htmlFor='api-key-mode-single'>{t('channels.keyPool.mode.single')}</label></div>
-                                  <div className='flex items-center gap-2'><RadioGroupItem value='pool' id='api-key-mode-pool' /><label htmlFor='api-key-mode-pool'>{t('channels.keyPool.mode.pool')}</label></div>
-                                </RadioGroup>
+                                      setPendingSingleKey(null);
+                                    }}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value='single'>{t('channels.keyPool.mode.single')}</SelectItem>
+                                      <SelectItem value='pool'>{t('channels.keyPool.mode.pool')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </FormItem>
                             )}
                           />
@@ -2401,32 +2424,60 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                             </FormItem>
                           )}
                           {apiKeyMode === 'pool' && !isEdit && (
-                            <>
-                            <FormField
-                              control={form.control}
-                              name='settings.apiKeyPool.retryCount'
-                              render={({ field }) => (
-                                <FormItem className='grid grid-cols-1 items-center gap-x-6 gap-y-2 md:grid-cols-8'>
-                                  <FormLabel className='font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.retryCount')}</FormLabel>
-                                  <Input type='number' min={0} className='w-28 md:col-span-6' value={field.value ?? 2} onChange={(event) => field.onChange(Number(event.target.value))} />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name='settings.apiKeyPool.autoCheckEnabled'
-                              render={({ field }) => (
-                                <FormItem className='grid grid-cols-1 items-center gap-x-6 gap-y-2 md:grid-cols-8'>
-                                  <FormLabel className='font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.autoCheck')}</FormLabel>
-                                  <div className='flex items-center gap-3 md:col-span-6'>
-                                    <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
-                                    <Input type='number' min={1} className='w-28' value={form.watch('settings.apiKeyPool.autoCheckIntervalHours') ?? 24} onChange={(event) => form.setValue('settings.apiKeyPool.autoCheckIntervalHours', Number(event.target.value), { shouldDirty: true })} />
-                                    <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
-                                  </div>
-                                </FormItem>
-                              )}
-                            />
-                            </>
+                            <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                              <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                {t('channels.keyPool.requestStrategyTitle')}
+                              </FormLabel>
+                              <div className='space-y-4 rounded-lg border p-4 md:col-span-6'>
+                                <FormField
+                                  control={form.control}
+                                  name='settings.apiKeyPool.retryCount'
+                                  render={({ field }) => (
+                                    <FormItem className='space-y-2'>
+                                      <div className='flex items-start justify-between gap-4'>
+                                        <div className='space-y-1'>
+                                          <FormLabel className='text-sm'>{t('channels.keyPool.retryCount')}</FormLabel>
+                                          <p className='text-muted-foreground text-xs leading-relaxed'>{t('channels.keyPool.retryCountDescription')}</p>
+                                        </div>
+                                        <div className='flex shrink-0 items-center gap-2'>
+                                          <Input type='number' min={1} className='w-20' value={field.value ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT} onChange={(event) => field.onChange(Number(event.target.value))} />
+                                          <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
+                                        </div>
+                                      </div>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <Separator />
+                                <FormField
+                                  control={form.control}
+                                  name='settings.apiKeyPool.autoCheckEnabled'
+                                  render={({ field }) => (
+                                    <FormItem className='space-y-3'>
+                                      <div className='flex items-start justify-between gap-4'>
+                                        <div className='space-y-1'>
+                                          <FormLabel className='text-sm'>{t('channels.keyPool.autoCheck')}</FormLabel>
+                                          <p className='text-muted-foreground text-xs leading-relaxed'>{t('channels.keyPool.autoCheckDescription')}</p>
+                                        </div>
+                                        <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
+                                      </div>
+                                      {field.value && (
+                                        <div className='flex items-center gap-2 pl-0 sm:pl-1'>
+                                          <Input
+                                            type='number'
+                                            min={1}
+                                            className='w-20'
+                                            value={form.watch('settings.apiKeyPool.autoCheckIntervalHours') ?? 24}
+                                            onChange={(event) => form.setValue('settings.apiKeyPool.autoCheckIntervalHours', Number(event.target.value), { shouldDirty: true })}
+                                          />
+                                          <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
+                                        </div>
+                                      )}
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
                           )}
                           </>
                         )}

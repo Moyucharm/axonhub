@@ -31,6 +31,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: process.env.VITE_PORT ? parseInt(process.env.VITE_PORT, 10) : 5174,
     strictPort: true,
     proxy: {

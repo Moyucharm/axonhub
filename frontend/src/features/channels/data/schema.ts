@@ -274,7 +274,7 @@ export type ChannelProviderQuotaSettings = z.infer<typeof channelProviderQuotaSe
 
 // Channel Settings
 export const apiKeyPoolSettingsSchema = z.object({
-  retryCount: z.number().int().nonnegative().optional().nullable(),
+  retryCount: z.number().int().min(1).optional().nullable(),
   autoCheckEnabled: z.boolean().optional().default(false),
   autoCheckIntervalHours: z.number().int().min(1).optional().nullable(),
   autoCheckConcurrency: z.number().int().min(1).max(32).optional().nullable(),
