@@ -41,6 +41,41 @@ type TestChannelOrchestrator struct {
 	channelLimiterManager       *ChannelLimiterManager
 }
 
+func (processor *TestChannelOrchestrator) CheckChannelAPIKeys(
+	ctx context.Context,
+	channelID int,
+	keys []string,
+	concurrency int,
+	timeout time.Duration,
+) []biz.ChannelAPIKeyCheckResult {
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	results := make([]biz.ChannelAPIKeyCheckResult, len(keys))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(min(concurrency, max(len(keys), 1)))
+	for i, key := range keys {
+		index, apiKey := i, key
+		group.Go(func() error {
+			checkCtx, cancel := context.WithTimeout(groupCtx, timeout)
+			defer cancel()
+			result, err := processor.TestSingleAPIKey(checkCtx, objects.GUID{ID: channelID}, apiKey, nil, nil)
+			results[index] = biz.ChannelAPIKeyCheckResult{Key: apiKey}
+			if err != nil {
+				results[index].Error = err.Error()
+				return nil
+			}
+			results[index].Success = result.Success
+			if result.Error != nil {
+				results[index].Error = *result.Error
+			}
+			return nil
+		})
+	}
+	_ = group.Wait()
+	return results
+}
+
 // NewTestChannelOrchestrator creates a new TestChannelOrchestrator.
 func NewTestChannelOrchestrator(
 	channelService *biz.ChannelService,
@@ -50,7 +85,7 @@ func NewTestChannelOrchestrator(
 	promptProtectionRuleService *biz.PromptProtectionRuleService,
 	httpClient *httpclient.HttpClient,
 ) *TestChannelOrchestrator {
-	return &TestChannelOrchestrator{
+	processor := &TestChannelOrchestrator{
 		channelService:              channelService,
 		requestService:              requestService,
 		systemService:               systemService,
@@ -62,6 +97,8 @@ func NewTestChannelOrchestrator(
 		loadBalancer:                NewLoadBalancer(systemService, channelService, NewWeightStrategy()),
 		channelLimiterManager:       NewChannelLimiterManager(),
 	}
+	channelService.SetAPIKeyTester(processor)
+	return processor
 }
 
 // TestChannelRequest represents a channel test request.
@@ -381,6 +418,14 @@ func (processor *TestChannelOrchestrator) TestChannelAPIKeys(
 			results[index] = result
 
 			if result.Success {
+				// A successful probe means the key is healthy again — clear the
+				// consecutive failure streak recorded by the request path.
+				if err := processor.channelService.ResetAPIKeyFailure(groupCtx, channelID.ID, apiKey); err != nil {
+					log.Warn(ctx, "Failed to reset API key failure streak after successful test",
+						log.Int("channel_id", channelID.ID),
+						log.Cause(err),
+					)
+				}
 				atomic.AddInt32(&successCount, 1)
 				return nil
 			}
@@ -448,6 +493,17 @@ func (processor *TestChannelOrchestrator) TestSingleAPIKey(
 	result := processor.testSingleKey(ctx, channelID, key, testModel, useStream, proxy, systemPrompt, userPrompt)
 	_, isDisabled := disabledSet[key]
 	result.Disabled = isDisabled
+
+	if result.Success {
+		// A successful probe means the key is healthy again — clear the
+		// consecutive failure streak recorded by the request path.
+		if err := processor.channelService.ResetAPIKeyFailure(ctx, channelID.ID, key); err != nil {
+			log.Warn(ctx, "Failed to reset API key failure streak after successful test",
+				log.Int("channel_id", channelID.ID),
+				log.Cause(err),
+			)
+		}
+	}
 
 	return result, nil
 }

@@ -148,6 +148,33 @@ models:
   ChannelSettingsInput:
     model:
       - github.com/looplj/axonhub/internal/objects.ChannelSettings
+  CodexSimulationSettings:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationSettings
+  CodexSimulationSettingsInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationSettings
+  CodexSimulationPlatform:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationPlatform
+  CodexSimulationPreset:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationPreset
+  CodexSimulationOptions:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationOptions
+  CodexSimulationOptionsInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationOptions
+  CodexSimulationStrategy:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationStrategy
+  APIKeyPoolSettings:
+    model:
+      - github.com/looplj/axonhub/internal/objects.APIKeyPoolSettings
+  APIKeyPoolSettingsInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.APIKeyPoolSettings
   RetryableErrorPattern:
     model:
       - github.com/looplj/axonhub/internal/objects.RetryableErrorPattern
@@ -178,6 +205,12 @@ models:
   ChannelCredentialsInput:
     model:
       - github.com/looplj/axonhub/internal/objects.ChannelCredentials
+  APIKeyMode:
+    model:
+      - github.com/looplj/axonhub/internal/objects.APIKeyMode
+  ChannelAPIKeyState:
+    model:
+      - github.com/looplj/axonhub/internal/objects.ChannelAPIKeyState
   OAuthCredentials:
     model:
       - github.com/looplj/axonhub/internal/objects.OAuthCredentials
@@ -211,6 +244,24 @@ models:
   UpdateRetryPolicyInput:
     model:
       - github.com/looplj/axonhub/internal/server/biz.RetryPolicy
+  AutoDisableChannel:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannel
+  AutoDisableChannelStatus:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannelStatus
+  AutoDisableAPIKey:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableAPIKey
+  AutoDisableAPIKeyStatus:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableAPIKeyStatus
+  AutoDisableAPIKeyInput:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableAPIKey
+  AutoDisableAPIKeyStatusInput:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.AutoDisableAPIKeyStatus
   WebhookNotifierConfig:
     model:
       - github.com/looplj/axonhub/internal/server/biz.WebhookNotifierConfig
@@ -229,12 +280,6 @@ models:
   WebhookSubscriptionInput:
     model:
       - github.com/looplj/axonhub/internal/server/biz.WebhookSubscription
-  AutoDisableChannel:
-    model:
-      - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannel
-  AutoDisableChannelStatus:
-    model:
-      - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannelStatus
   AutoDisableChannelInput:
     model:
       - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannel
@@ -757,3 +802,12 @@ models:
   DeleteDisabledAPIKeysPayload:
     model:
       - github.com/looplj/axonhub/internal/server/biz.DeleteDisabledAPIKeysResult
+  ImportChannelAPIKeysPayload:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.ImportChannelAPIKeysResult
+  ChannelAPIKeyExportStatus:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.ExportChannelAPIKeyStatus
+  ChannelAPIKeyCheckResult:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.ChannelAPIKeyCheckResult

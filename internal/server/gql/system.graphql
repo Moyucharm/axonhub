@@ -65,6 +65,8 @@ type AutoDisableChannelStatus {
 
 type AutoDisableChannel {
   enabled: Boolean!
+  mode: String!
+  times: Int!
   statuses: [AutoDisableChannelStatus!]!
 }
 
@@ -75,6 +77,9 @@ type AutoDisableAPIKeyStatus {
 
 type AutoDisableAPIKey {
   enabled: Boolean!
+  mode: String!
+  times: Int!
+  disableDurationMinutes: Int!
   statuses: [AutoDisableAPIKeyStatus!]!
 }
 
@@ -128,6 +133,7 @@ type RetryPolicy {
   traceStickyMode: TraceStickyMode!
   enabled: Boolean!
   autoDisableChannel: AutoDisableChannel!
+  autoDisableAPIKey: AutoDisableAPIKey!
   emptyResponseDetection: Boolean!
   upstreamErrorPolicy: UpstreamErrorPolicy!
 }
@@ -149,7 +155,22 @@ input AutoDisableChannelStatusInput {
 
 input AutoDisableChannelInput {
   enabled: Boolean
+  mode: String
+  times: Int
   statuses: [AutoDisableChannelStatusInput!]
+}
+
+input AutoDisableAPIKeyStatusInput {
+  status: Int!
+  times: Int!
+}
+
+input AutoDisableAPIKeyInput {
+  enabled: Boolean
+  mode: String
+  times: Int
+  disableDurationMinutes: Int
+  statuses: [AutoDisableAPIKeyStatusInput!]
 }
 
 input UpdateRetryPolicyInput {
@@ -162,6 +183,7 @@ input UpdateRetryPolicyInput {
   traceStickyMode: TraceStickyMode
   enabled: Boolean
   autoDisableChannel: AutoDisableChannelInput
+  autoDisableAPIKey: AutoDisableAPIKeyInput
   emptyResponseDetection: Boolean
   upstreamErrorPolicy: UpstreamErrorPolicyInput
 }

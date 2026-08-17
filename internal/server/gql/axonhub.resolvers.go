@@ -61,11 +61,14 @@ func (r *channelResolver) Credentials(ctx context.Context, obj *ent.Channel) (*o
 	if obj.Type == channel.TypeAntigravity || creds.IsOAuth() {
 		// For OAuth channels (e.g., antigravity, claudecode, codex), only return single API key.
 		// Clear APIKeys as OAuth only supports single credential.
+		creds.Mode = objects.APIKeyModeSingle
 		creds.APIKeys = nil
+		creds.APIKeyStates = nil
 		return &creds, nil
 	}
 
 	// For non-OAuth channel types, use api keys array.
+	creds.Mode = creds.EffectiveAPIKeyMode()
 	creds.APIKeys = creds.GetAllAPIKeys()
 	creds.APIKey = ""
 
@@ -182,6 +185,15 @@ func (r *mutationResolver) SaveChannelEndpoints(ctx context.Context, input biz.S
 // UpdateChannelStatus is the resolver for the updateChannelStatus field.
 func (r *mutationResolver) UpdateChannelStatus(ctx context.Context, id objects.GUID, status channel.Status) (*ent.Channel, error) {
 	return r.channelService.UpdateChannelStatus(ctx, id.ID, status)
+}
+
+// RandomizeChannelCodexSimulation is the resolver for the randomizeChannelCodexSimulation field.
+func (r *mutationResolver) RandomizeChannelCodexSimulation(ctx context.Context, id objects.GUID) (*ent.Channel, error) {
+	if err := authz.RequireScope(ctx, scopes.ScopeWriteChannels); err != nil {
+		return nil, err
+	}
+
+	return r.channelService.RandomizeChannelCodexSimulation(ctx, id.ID)
 }
 
 // DeleteChannel is the resolver for the deleteChannel field.
@@ -391,6 +403,42 @@ func (r *mutationResolver) DeleteDisabledChannelAPIKeys(ctx context.Context, cha
 	}
 
 	return result, nil
+}
+
+// ImportChannelAPIKeys is the resolver for the importChannelAPIKeys field.
+func (r *mutationResolver) ImportChannelAPIKeys(ctx context.Context, channelID objects.GUID, text string) (*biz.ImportChannelAPIKeysResult, error) {
+	result, err := r.channelService.ImportChannelAPIKeys(ctx, channelID.ID, text)
+	if err != nil {
+		return nil, fmt.Errorf("failed to import channel API keys: %w", err)
+	}
+	return result, nil
+}
+
+// ExportChannelAPIKeys is the resolver for the exportChannelAPIKeys field.
+func (r *mutationResolver) ExportChannelAPIKeys(ctx context.Context, channelID objects.GUID, status biz.ExportChannelAPIKeyStatus) (string, error) {
+	text, err := r.channelService.ExportChannelAPIKeys(ctx, channelID.ID, status)
+	if err != nil {
+		return "", fmt.Errorf("failed to export channel API keys: %w", err)
+	}
+	return text, nil
+}
+
+// RemoveChannelAPIKeys is the resolver for the removeChannelAPIKeys field.
+func (r *mutationResolver) RemoveChannelAPIKeys(ctx context.Context, channelID objects.GUID, keys []string) (*biz.DeleteDisabledAPIKeysResult, error) {
+	result, err := r.channelService.RemoveChannelAPIKeys(ctx, channelID.ID, keys)
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove channel API keys: %w", err)
+	}
+	return result, nil
+}
+
+// CheckChannelAPIKeys is the resolver for the checkChannelAPIKeys field.
+func (r *mutationResolver) CheckChannelAPIKeys(ctx context.Context, channelID objects.GUID, status biz.ExportChannelAPIKeyStatus) ([]*biz.ChannelAPIKeyCheckResult, error) {
+	results, err := r.channelService.CheckChannelAPIKeys(ctx, channelID.ID, status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check channel API keys: %w", err)
+	}
+	return lo.ToSlicePtr(results), nil
 }
 
 // CreateAPIKey is the resolver for the createAPIKey field.

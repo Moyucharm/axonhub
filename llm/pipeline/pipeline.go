@@ -35,6 +35,12 @@ type ChannelRetryable interface {
 	PrepareForRetry(ctx context.Context) error
 }
 
+// ChannelRetryLimitProvider optionally overrides the same-channel retry limit
+// for the currently selected candidate.
+type ChannelRetryLimitProvider interface {
+	SameChannelRetryLimit(defaultLimit int) int
+}
+
 // ChannelCustomizedExecutor interface for channel need custom the process of request.
 // The customized executor will be used to execute the request.
 // e.g. the aws bedrock process need a custom executor to handle the request.
@@ -299,14 +305,18 @@ func (p *pipeline) Process(ctx context.Context, request *httpclient.Request) (*R
 		// 1. Try same-channel retry first if supported
 		if !timeoutRetry {
 			if channelRetryable, ok := p.Outbound.(ChannelRetryable); ok {
-				if sameChannelRetries < p.getMaxSameChannelRetries() && channelRetryable.CanRetry(lastErr) {
+				sameChannelRetryLimit := p.getMaxSameChannelRetries()
+				if provider, ok := p.Outbound.(ChannelRetryLimitProvider); ok {
+					sameChannelRetryLimit = provider.SameChannelRetryLimit(sameChannelRetryLimit)
+				}
+				if sameChannelRetries < sameChannelRetryLimit && channelRetryable.CanRetry(lastErr) {
 					if err := channelRetryable.PrepareForRetry(ctx); err == nil {
 						sameChannelRetries++
 						canRetry = true
 
 						slog.DebugContext(ctx, "retrying same channel",
 							slog.Int("same_channel_attempt", sameChannelRetries),
-							slog.Int("max_same_channel_retries", p.getMaxSameChannelRetries()),
+							slog.Int("max_same_channel_retries", sameChannelRetryLimit),
 						)
 					} else {
 						slog.WarnContext(ctx, "failed to prepare same channel retry, will try channel switch", slog.Any("error", err))

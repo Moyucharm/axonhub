@@ -1328,3 +1328,61 @@ func TestNormalizeRetryPolicy_LoadBalancerStrategy(t *testing.T) {
 		}
 	})
 }
+
+func TestNormalizeRetryPolicy_AutoDisableDefaults(t *testing.T) {
+	t.Run("channel defaults to codes mode and disabled", func(t *testing.T) {
+		policy := &RetryPolicy{}
+		normalizeRetryPolicy(policy)
+		require.Equal(t, AutoDisableModeCodes, policy.AutoDisableChannel.Mode)
+		require.False(t, policy.AutoDisableChannel.Enabled)
+		require.NotNil(t, policy.AutoDisableChannel.Statuses)
+	})
+
+	t.Run("all-zero APIKey gets wholesale defaults enabled any x3 30m", func(t *testing.T) {
+		policy := &RetryPolicy{}
+		normalizeRetryPolicy(policy)
+		require.Equal(t, defaultRetryPolicy.AutoDisableAPIKey, policy.AutoDisableAPIKey)
+		require.True(t, policy.AutoDisableAPIKey.Enabled)
+		require.Equal(t, AutoDisableModeAny, policy.AutoDisableAPIKey.Mode)
+		require.Equal(t, 3, policy.AutoDisableAPIKey.Times)
+		require.Equal(t, 30, policy.AutoDisableAPIKey.DisableDurationMinutes)
+	})
+
+	t.Run("explicit off full shape is preserved", func(t *testing.T) {
+		policy := &RetryPolicy{AutoDisableAPIKey: AutoDisableAPIKey{
+			Enabled:                false,
+			Mode:                   AutoDisableModeAny,
+			Times:                  3,
+			DisableDurationMinutes: 30,
+			Statuses:               []AutoDisableAPIKeyStatus{},
+		}}
+		normalizeRetryPolicy(policy)
+		require.False(t, policy.AutoDisableAPIKey.Enabled, "explicit off must survive normalization")
+	})
+
+	t.Run("partial APIKey config gets field defaults", func(t *testing.T) {
+		policy := &RetryPolicy{AutoDisableAPIKey: AutoDisableAPIKey{Enabled: true, Mode: AutoDisableModeCodes}}
+		normalizeRetryPolicy(policy)
+		require.Equal(t, 3, policy.AutoDisableAPIKey.Times, "times default 3")
+		require.Equal(t, 0, policy.AutoDisableAPIKey.DisableDurationMinutes, "partial keeps explicit 0 = permanent")
+		require.NotNil(t, policy.AutoDisableAPIKey.Statuses)
+	})
+
+	t.Run("partial channel config gets mode and times defaults", func(t *testing.T) {
+		policy := &RetryPolicy{AutoDisableChannel: AutoDisableChannel{Enabled: true}}
+		normalizeRetryPolicy(policy)
+		require.Equal(t, AutoDisableModeCodes, policy.AutoDisableChannel.Mode)
+		require.Equal(t, 3, policy.AutoDisableChannel.Times)
+	})
+}
+
+func TestDefaultRetryPolicy_AutoDisable(t *testing.T) {
+	require.False(t, defaultRetryPolicy.AutoDisableChannel.Enabled)
+	require.Equal(t, AutoDisableModeCodes, defaultRetryPolicy.AutoDisableChannel.Mode)
+
+	require.True(t, defaultRetryPolicy.AutoDisableAPIKey.Enabled)
+	require.Equal(t, AutoDisableModeAny, defaultRetryPolicy.AutoDisableAPIKey.Mode)
+	require.Equal(t, 3, defaultRetryPolicy.AutoDisableAPIKey.Times)
+	require.Equal(t, 30, defaultRetryPolicy.AutoDisableAPIKey.DisableDurationMinutes)
+	require.Empty(t, defaultRetryPolicy.AutoDisableAPIKey.Statuses)
+}

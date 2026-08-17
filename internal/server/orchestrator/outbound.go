@@ -8,6 +8,7 @@ import (
 
 	"github.com/samber/lo"
 
+	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
@@ -313,8 +314,14 @@ var errSkipCandidateByCircuitBreaker = errors.New("skip candidate by circuit bre
 
 // PersistentOutboundTransformer wraps an outbound transformer with shared persistence state.
 type PersistentOutboundTransformer struct {
-	wrapped transformer.Outbound
-	state   *PersistenceState
+	wrapped        transformer.Outbound
+	state          *PersistenceState
+	keyPoolRetries int
+
+	// codexSimTurnID and codexSimTurnAtMs cache the per-request turn identity so
+	// all failover attempts of the same request share the same turn metadata.
+	codexSimTurnID   string
+	codexSimTurnAtMs int64
 }
 
 func shouldForceStreamingForCandidate(candidate *ChannelModelsCandidate, req *llm.Request) bool {
@@ -529,6 +536,8 @@ func (p *PersistentOutboundTransformer) NextChannel(ctx context.Context) error {
 	p.resetPassThroughStreamState()
 
 	p.state.CurrentCandidateIndex++
+	p.keyPoolRetries = 0
+	contexts.ResetChannelAPIKeySelection(ctx)
 
 	p.state.CurrentModelIndex = 0
 	if p.state.CurrentCandidateIndex >= len(p.state.ChannelModelsCandidates) {
@@ -593,13 +602,12 @@ func (p *PersistentOutboundTransformer) CanRetry(err error) bool {
 		return true
 	}
 
-	// 429 Too Many Requests: always skip same-channel retry.
-	// The upstream is explicitly rate-limiting this channel, so retrying the same
-	// channel would just burn a retry attempt without any chance of success.
-	// Instead, force a channel switch so the next candidate (e.g. a backup channel)
-	// is tried immediately. The load balancer (e.g. ErrorAware strategy) will
-	// deprioritize this channel for subsequent requests and it will naturally
-	// recover as the rate-limit window resets.
+	// Multi-key pools can retry 429 and other retryable failures with another
+	// untried key before moving to a different channel.
+	if p.canRetryWithAnotherPoolKey() {
+		return httpclient.IsRateLimitErr(err) || isRetryableErrorForChannel(err, p.state.CurrentCandidate.Channel)
+	}
+
 	if httpclient.IsRateLimitErr(err) {
 		log.Debug(context.Background(), "429 rate limit, skipping same-channel retry to switch to next channel",
 			log.Int("channel_id", p.state.CurrentCandidate.Channel.ID),
@@ -622,6 +630,13 @@ func (p *PersistentOutboundTransformer) CanRetry(err error) bool {
 // It will try the next model in the same channel if available.
 func (p *PersistentOutboundTransformer) PrepareForRetry(ctx context.Context) error {
 	candidate := p.state.CurrentCandidate
+
+	if p.canRetryWithAnotherPoolKey() {
+		if selected, ok := contexts.GetChannelAPIKey(ctx); ok {
+			contexts.ExcludeChannelAPIKey(ctx, selected)
+		}
+		p.keyPoolRetries++
+	}
 
 	// Reset request execution for the same channel.
 	p.state.RequestExec = nil
@@ -664,6 +679,40 @@ func (p *PersistentOutboundTransformer) PrepareForRetry(ctx context.Context) err
 	}
 
 	return nil
+}
+
+// SameChannelRetryLimit lets a channel key pool override the system retry count.
+func (p *PersistentOutboundTransformer) SameChannelRetryLimit(defaultLimit int) int {
+	if p.state == nil || p.state.CurrentCandidate == nil || p.state.CurrentCandidate.Channel == nil {
+		return defaultLimit
+	}
+	ch := p.state.CurrentCandidate.Channel
+	if ch.Credentials.IsAPIKeyPool() {
+		limit := defaultLimit
+		if ch.Settings != nil && ch.Settings.APIKeyPool != nil && ch.Settings.APIKeyPool.RetryCount != nil {
+			limit = *ch.Settings.APIKeyPool.RetryCount
+		}
+		// Never cycle back to an already attempted key within one candidate.
+		return min(limit, max(len(ch.Credentials.GetEnabledAPIKeys(ch.DisabledAPIKeys))-1, 0))
+	}
+	return defaultLimit
+}
+
+func (p *PersistentOutboundTransformer) canRetryWithAnotherPoolKey() bool {
+	if p.state == nil || p.state.CurrentCandidate == nil || p.state.CurrentCandidate.Channel == nil {
+		return false
+	}
+	ch := p.state.CurrentCandidate.Channel
+	if !ch.Credentials.IsAPIKeyPool() || len(ch.Credentials.GetEnabledAPIKeys(ch.DisabledAPIKeys)) <= 1 {
+		return false
+	}
+	limit := 0
+	if p.state.RetryPolicyProvider != nil {
+		limit = p.SameChannelRetryLimit(p.state.RetryPolicyProvider.RetryPolicyOrDefault(context.Background()).MaxSingleChannelRetries)
+	} else {
+		limit = p.SameChannelRetryLimit(0)
+	}
+	return limit > p.keyPoolRetries
 }
 
 // CustomizeExecutor customizes the executor for the current channel.

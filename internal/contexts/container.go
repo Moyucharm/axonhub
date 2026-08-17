@@ -22,8 +22,10 @@ type contextContainer struct {
 	Errors        []error
 	mu            sync.RWMutex
 
-	// ChannelAPIKey stores the API key used for the channel request (not the user's API key)
+	// ChannelAPIKey stores the API key used for the channel request (not the user's API key).
 	ChannelAPIKey *string
+	// ExcludedChannelAPIKeys stores keys already attempted during same-channel retries.
+	ExcludedChannelAPIKeys map[string]struct{}
 }
 
 // getContainer retrieves the existing container from context, or creates a new one and stores it in the context if it doesn't exist.

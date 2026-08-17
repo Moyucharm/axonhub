@@ -150,6 +150,23 @@ input ChannelProviderQuotaSettingsInput {
   opencodeGo: OpenCodeGoQuotaSettingsInput
 }
 
+type APIKeyPoolSettings {
+  retryCount: Int
+  autoCheckEnabled: Boolean!
+  autoCheckIntervalHours: Int
+  autoCheckConcurrency: Int
+  autoCheckTimeoutSeconds: Int
+  lastAutoCheckAt: Time
+}
+
+input APIKeyPoolSettingsInput {
+  retryCount: Int
+  autoCheckEnabled: Boolean
+  autoCheckIntervalHours: Int
+  autoCheckConcurrency: Int
+  autoCheckTimeoutSeconds: Int
+}
+
 type ChannelSettings {
   extraModelPrefix: String
   modelMappings: [ModelMapping!]
@@ -167,6 +184,68 @@ type ChannelSettings {
   retryableStatusCodes: [Int!]
   retryableErrorPatterns: [RetryableErrorPattern!]
   providerQuota: ChannelProviderQuotaSettings
+  apiKeyPool: APIKeyPoolSettings
+  codexSimulation: CodexSimulationSettings
+}
+
+enum CodexSimulationPreset {
+  ua
+  normal
+  enhanced
+}
+
+type CodexSimulationOptions {
+  prompt: Boolean!
+  userAgent: Boolean!
+  codexHeaders: Boolean!
+  clientMetadata: Boolean!
+  responsesShape: Boolean!
+  additionalTool: Boolean!
+}
+
+type CodexSimulationStrategy {
+  installationId: String!
+  threadId: String!
+  windowGeneration: Int!
+}
+
+enum CodexSimulationPlatform {
+  windows10
+  windows11
+  debian
+  ubuntu
+  macos
+  custom
+}
+
+type CodexSimulationSettings {
+  enabled: Boolean!
+  preset: CodexSimulationPreset!
+  options: CodexSimulationOptions!
+  version: String!
+  platform: CodexSimulationPlatform!
+  standardUserAgent: String!
+  liteUserAgent: String!
+  strategy: CodexSimulationStrategy!
+}
+
+input CodexSimulationOptionsInput {
+  prompt: Boolean
+  userAgent: Boolean
+  codexHeaders: Boolean
+  clientMetadata: Boolean
+  responsesShape: Boolean
+  additionalTool: Boolean
+}
+
+input CodexSimulationSettingsInput {
+  enabled: Boolean!
+  preset: CodexSimulationPreset
+  options: CodexSimulationOptionsInput
+  version: String
+  platform: CodexSimulationPlatform
+  standardUserAgent: String
+  liteUserAgent: String
 }
 
 enum CapabilityPolicy {
@@ -228,6 +307,8 @@ input ChannelSettingsInput {
   retryableStatusCodes: [Int!]
   retryableErrorPatterns: [RetryableErrorPatternInput!]
   providerQuota: ChannelProviderQuotaSettingsInput
+  apiKeyPool: APIKeyPoolSettingsInput
+  codexSimulation: CodexSimulationSettingsInput
 }
 
 input ChannelRateLimitInput {
@@ -246,11 +327,26 @@ type ChannelRateLimit {
   queueTimeoutMs: Int
 }
 
+enum APIKeyMode {
+  single
+  pool
+}
+
+type ChannelAPIKeyState {
+  key: String!
+  failureCount: Int!
+  lastFailedAt: Time
+  lastErrorCode: Int!
+  lastError: String!
+}
+
 type ChannelCredentials {
+  mode: APIKeyMode
   apiKey: String
   apiKeys: [String!]
   gcp: GCPCredential
   oauth: OAuthCredentials
+  apiKeyStates: [ChannelAPIKeyState!]
 }
 
 type DisabledAPIKey {
@@ -259,6 +355,8 @@ type DisabledAPIKey {
   errorCode: Int!
   reason: String
   expiresAt: Time
+  failureCount: Int!
+  lastFailedAt: Time
 }
 
 type OAuthCredentials {
@@ -277,6 +375,7 @@ type GCPCredential {
 }
 
 input ChannelCredentialsInput {
+  mode: APIKeyMode
   apiKey: String
   apiKeys: [String!]
   gcp: GCPCredentialInput
@@ -841,6 +940,24 @@ type DeleteDisabledAPIKeysPayload {
   message: String
 }
 
+type ImportChannelAPIKeysPayload {
+  added: Int!
+  ignored: Int!
+  total: Int!
+}
+
+enum ChannelAPIKeyExportStatus {
+  all
+  enabled
+  disabled
+}
+
+type ChannelAPIKeyCheckResult {
+  key: String!
+  success: Boolean!
+  error: String
+}
+
 type Mutation {
   createChannel(input: CreateChannelInput!): Channel!
   duplicateChannel(sourceID: ID!, input: CreateChannelInput!): Channel!
@@ -848,6 +965,7 @@ type Mutation {
   updateChannel(id: ID!, input: UpdateChannelInput!): Channel!
   saveChannelEndpoints(input: SaveChannelEndpointsInput!): Channel!
   updateChannelStatus(id: ID!, status: ChannelStatus!): Channel!
+  randomizeChannelCodexSimulation(id: ID!): Channel!
   deleteChannel(id: ID!): Boolean!
   bulkArchiveChannels(ids: [ID!]!): Boolean!
   bulkDisableChannels(ids: [ID!]!): Boolean!
@@ -871,6 +989,10 @@ type Mutation {
     channelID: ID!
     keys: [String!]!
   ): DeleteDisabledAPIKeysPayload!
+  importChannelAPIKeys(channelID: ID!, text: String!): ImportChannelAPIKeysPayload!
+  exportChannelAPIKeys(channelID: ID!, status: ChannelAPIKeyExportStatus!): String!
+  removeChannelAPIKeys(channelID: ID!, keys: [String!]!): DeleteDisabledAPIKeysPayload!
+  checkChannelAPIKeys(channelID: ID!, status: ChannelAPIKeyExportStatus!): [ChannelAPIKeyCheckResult!]!
 
   createAPIKey(input: CreateAPIKeyInput!): APIKey!
   updateAPIKey(id: ID!, input: UpdateAPIKeyInput!): APIKey!

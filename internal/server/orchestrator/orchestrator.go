@@ -258,11 +258,18 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 	middlewares = append(middlewares,
 		// applyPassThroughBody runs first so that override operations can still modify the pass-through body.
 		applyPassThroughRequestBody(outbound, processor.SystemService),
+		// applyCodexSimulationBody rewrites the outbound body into the codex disguise shape
+		// after pass-through substitution and before user override operations, so overrides win.
+		// It is skipped when PassThroughBody replaced the body with the original inbound payload.
+		applyCodexSimulationBody(outbound),
 		applyOverrideRequestBody(outbound),
 		// applyUserAgentPassThrough runs before header overrides to set the initial
 		// User-Agent value (either from client pass-through or default "axonhub/1.0").
 		// This allows override headers to modify the User-Agent if configured.
 		applyUserAgentPassThrough(outbound, processor.SystemService),
+		// applyCodexSimulationHeaders runs after User-Agent pass-through and before header
+		// overrides so simulation headers win over pass-through and overrides win over simulation.
+		applyCodexSimulationHeaders(outbound),
 		applyOverrideRequestHeaders(outbound),
 
 		// Unified performance tracking middleware.

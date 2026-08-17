@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/samber/lo"
 	"go.uber.org/fx"
 
 	"github.com/looplj/axonhub/internal/ent"
@@ -80,6 +81,16 @@ type Channel struct {
 	// apiKeyOverride, if non-empty, forces all outbound transformers to use this key
 	// instead of the channel's normal key selection. Used by the channel key test flow.
 	apiKeyOverride string
+}
+
+type ChannelAPIKeyCheckResult struct {
+	Key     string
+	Success bool
+	Error   string
+}
+
+type ChannelAPIKeyTester interface {
+	CheckChannelAPIKeys(ctx context.Context, channelID int, keys []string, concurrency int, timeout time.Duration) []ChannelAPIKeyCheckResult
 }
 
 type ChannelServiceParams struct {
@@ -191,6 +202,9 @@ type ChannelService struct {
 
 	modelSyncMu sync.Mutex
 
+	apiKeyTesterMu sync.RWMutex
+	apiKeyTester   ChannelAPIKeyTester
+
 	lastModelSyncExecutionTime time.Time
 
 	// cacheVersion is incremented each time the enabled channels cache data is swapped.
@@ -199,6 +213,18 @@ type ChannelService struct {
 
 	// perfCh is the channel for performance records for async processing.
 	perfCh chan *PerformanceRecord
+}
+
+func (svc *ChannelService) SetAPIKeyTester(tester ChannelAPIKeyTester) {
+	svc.apiKeyTesterMu.Lock()
+	svc.apiKeyTester = tester
+	svc.apiKeyTesterMu.Unlock()
+}
+
+func (svc *ChannelService) getAPIKeyTester() ChannelAPIKeyTester {
+	svc.apiKeyTesterMu.RLock()
+	defer svc.apiKeyTesterMu.RUnlock()
+	return svc.apiKeyTester
 }
 
 func (svc *ChannelService) RegisterScheduledTasks(ctx context.Context, s *scheduler.Scheduler) error {
@@ -211,12 +237,21 @@ func (svc *ChannelService) RegisterScheduledTasks(ctx context.Context, s *schedu
 		return err
 	}
 
-	return s.Register(ctx, scheduler.TaskSpec{
+	if err := s.Register(ctx, scheduler.TaskSpec{
 		Name:        "channel-disabled-api-key-cleanup",
 		Description: "Recover temporarily disabled channel API keys",
 		CronExpr:    "*/5 * * * *",
 		Timezone:    "UTC",
-	}, svc.cleanupExpiredDisabledAPIKeys)
+	}, svc.cleanupExpiredDisabledAPIKeys); err != nil {
+		return err
+	}
+
+	return s.Register(ctx, scheduler.TaskSpec{
+		Name:        "channel-api-key-pool-auto-check",
+		Description: "Validate opted-in channel key pools every hour",
+		CronExpr:    "23 * * * *",
+		Timezone:    "UTC",
+	}, svc.runAPIKeyPoolAutoCheck)
 }
 
 func (svc *ChannelService) reloadEnabledChannels(ctx context.Context, current []*Channel, lastUpdate time.Time) ([]*Channel, time.Time, bool, error) {
@@ -525,6 +560,9 @@ func (svc *ChannelService) createChannel(ctx context.Context, input ent.CreateCh
 	if err := NormalizeAPIKeyAutoDisableRules(input.Policies); err != nil {
 		return nil, err
 	}
+	if err := NormalizeChannelCredentials(&input.Credentials); err != nil {
+		return nil, err
+	}
 
 	if input.Settings != nil {
 		if input.Settings.BodyOverrideOperations != nil {
@@ -548,6 +586,14 @@ func (svc *ChannelService) createChannel(ctx context.Context, input ent.CreateCh
 		}
 
 		if err := NormalizeRetryableErrorPatterns(input.Settings); err != nil {
+			return nil, err
+		}
+
+		if err := NormalizeAPIKeyPoolSettings(input.Settings); err != nil {
+			return nil, err
+		}
+
+		if err := NormalizeCodexSimulation(input.Type, input.Settings); err != nil {
 			return nil, err
 		}
 	}
@@ -688,6 +734,98 @@ func NormalizeRetryableErrorPatterns(settings *objects.ChannelSettings) error {
 	return nil
 }
 
+// NormalizeAPIKeyPoolSettings validates channel-scoped key pool settings.
+func NormalizeAPIKeyPoolSettings(settings *objects.ChannelSettings) error {
+	if settings == nil || settings.APIKeyPool == nil {
+		return nil
+	}
+
+	pool := settings.APIKeyPool
+	if pool.RetryCount != nil && *pool.RetryCount < 0 {
+		return fmt.Errorf("API key pool retry count cannot be negative")
+	}
+	if !pool.AutoCheckEnabled {
+		pool.LastAutoCheckAt = nil
+		return nil
+	}
+	if pool.AutoCheckIntervalHours == nil {
+		pool.AutoCheckIntervalHours = lo.ToPtr(24)
+	}
+	if *pool.AutoCheckIntervalHours < 1 {
+		return fmt.Errorf("API key pool auto check interval must be at least 1 hour")
+	}
+	if pool.AutoCheckConcurrency == nil {
+		pool.AutoCheckConcurrency = lo.ToPtr(4)
+	}
+	if *pool.AutoCheckConcurrency < 1 || *pool.AutoCheckConcurrency > 32 {
+		return fmt.Errorf("API key pool auto check concurrency must be between 1 and 32")
+	}
+	if pool.AutoCheckTimeoutSeconds == nil {
+		pool.AutoCheckTimeoutSeconds = lo.ToPtr(20)
+	}
+	if *pool.AutoCheckTimeoutSeconds < 1 || *pool.AutoCheckTimeoutSeconds > 600 {
+		return fmt.Errorf("API key pool auto check timeout must be between 1 and 600 seconds")
+	}
+
+	return nil
+}
+
+// NormalizeChannelCredentials validates the explicit key mode and preserves
+// operational state only for configured keys.
+func NormalizeChannelCredentials(credentials *objects.ChannelCredentials) error {
+	if credentials == nil || credentials.IsOAuth() {
+		return nil
+	}
+
+	legacyOnly := credentials.APIKey != "" && len(credentials.APIKeys) == 0
+	keys := credentials.GetAllAPIKeys()
+	uniqueKeys := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		uniqueKeys = append(uniqueKeys, key)
+	}
+
+	mode := credentials.EffectiveAPIKeyMode()
+	if mode == objects.APIKeyModeSingle && len(uniqueKeys) > 1 {
+		return fmt.Errorf("single API key mode requires exactly one key")
+	}
+	if credentials.Mode != "" && credentials.Mode != objects.APIKeyModeSingle && credentials.Mode != objects.APIKeyModePool {
+		return fmt.Errorf("unsupported API key mode %q", credentials.Mode)
+	}
+
+	credentials.Mode = mode
+	if legacyOnly && len(uniqueKeys) == 1 {
+		credentials.APIKey = uniqueKeys[0]
+		credentials.APIKeys = nil
+	} else {
+		credentials.APIKey = ""
+		credentials.APIKeys = uniqueKeys
+	}
+
+	statesByKey := make(map[string]objects.ChannelAPIKeyState, len(credentials.APIKeyStates))
+	for _, state := range credentials.APIKeyStates {
+		if _, ok := seen[state.Key]; ok {
+			statesByKey[state.Key] = state
+		}
+	}
+	credentials.APIKeyStates = make([]objects.ChannelAPIKeyState, 0, len(uniqueKeys))
+	for _, key := range uniqueKeys {
+		state := statesByKey[key]
+		state.Key = key
+		credentials.APIKeyStates = append(credentials.APIKeyStates, state)
+	}
+
+	return nil
+}
+
 // NormalizeAPIKeyAutoDisableRules validates and canonicalizes channel-scoped
 // API key rules before they are persisted.
 func NormalizeAPIKeyAutoDisableRules(policies *objects.ChannelPolicies) error {
@@ -748,8 +886,22 @@ func NormalizeAPIKeyAutoDisableRules(policies *objects.ChannelPolicies) error {
 // UpdateChannel updates an existing channel with the provided input.
 func (svc *ChannelService) UpdateChannel(ctx context.Context, id int, input *ent.UpdateChannelInput) (*ent.Channel, error) {
 	log.Debug(ctx, "UpdateChannel", log.Int("id", id), log.Any("input", input))
+	if input.Credentials != nil {
+		existing, err := svc.entFromContext(ctx).Channel.Get(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load existing channel credentials: %w", err)
+		}
+		// API key operational state is server-managed. Preserve the latest state
+		// for retained keys instead of trusting GraphQL mutation input.
+		input.Credentials.APIKeyStates = slices.Clone(existing.Credentials.APIKeyStates)
+	}
 	if err := NormalizeAPIKeyAutoDisableRules(input.Policies); err != nil {
 		return nil, err
+	}
+	if input.Credentials != nil {
+		if err := NormalizeChannelCredentials(input.Credentials); err != nil {
+			return nil, err
+		}
 	}
 
 	// Check if name is being updated and if it conflicts with existing channels
@@ -794,6 +946,10 @@ func (svc *ChannelService) UpdateChannel(ctx context.Context, id int, input *ent
 		if err := NormalizeRetryableErrorPatterns(input.Settings); err != nil {
 			return nil, err
 		}
+
+		if err := NormalizeAPIKeyPoolSettings(input.Settings); err != nil {
+			return nil, err
+		}
 	}
 
 	if input.Endpoints != nil {
@@ -817,6 +973,27 @@ func (svc *ChannelService) UpdateChannel(ctx context.Context, id int, input *ent
 			if err != nil {
 				return fmt.Errorf("failed to load channel provider identity: %w", err)
 			}
+		}
+
+		if input.Type != nil || (input.Settings != nil && input.Settings.CodexSimulation != nil) {
+			existingChannel, err := db.Channel.Query().
+				Where(channel.IDEQ(id)).
+				Select(channel.FieldType, channel.FieldSettings).
+				Only(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to load channel settings: %w", err)
+			}
+
+			preparedSettings, err := prepareCodexSimulationUpdate(
+				existingChannel.Type,
+				input.Type,
+				existingChannel.Settings,
+				input.Settings,
+			)
+			if err != nil {
+				return err
+			}
+			input.Settings = preparedSettings
 		}
 
 		mut := db.Channel.UpdateOneID(id).

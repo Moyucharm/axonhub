@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/samber/lo"
+
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
@@ -94,9 +96,10 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 		{
 			name: "first error - should not disable",
 			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
+				AutoDisableAPIKey: AutoDisableAPIKey{
 					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
+					Mode:    AutoDisableModeCodes,
+					Statuses: []AutoDisableAPIKeyStatus{
 						{Status: 401, Times: 3},
 					},
 				},
@@ -115,9 +118,10 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 		{
 			name: "second error - should not disable",
 			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
+				AutoDisableAPIKey: AutoDisableAPIKey{
 					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
+					Mode:    AutoDisableModeCodes,
+					Statuses: []AutoDisableAPIKeyStatus{
 						{Status: 401, Times: 3},
 					},
 				},
@@ -138,9 +142,10 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 		{
 			name: "third error - should disable API key",
 			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
+				AutoDisableAPIKey: AutoDisableAPIKey{
 					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
+					Mode:    AutoDisableModeCodes,
+					Statuses: []AutoDisableAPIKeyStatus{
 						{Status: 401, Times: 3},
 					},
 				},
@@ -169,9 +174,10 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 		{
 			name: "different status code - should not disable",
 			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
+				AutoDisableAPIKey: AutoDisableAPIKey{
 					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
+					Mode:    AutoDisableModeCodes,
+					Statuses: []AutoDisableAPIKeyStatus{
 						{Status: 401, Times: 3},
 					},
 				},
@@ -192,9 +198,10 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 		{
 			name: "different API key - should not disable",
 			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
+				AutoDisableAPIKey: AutoDisableAPIKey{
 					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
+					Mode:    AutoDisableModeCodes,
+					Statuses: []AutoDisableAPIKeyStatus{
 						{Status: 401, Times: 3},
 					},
 				},
@@ -238,6 +245,28 @@ func TestChannelService_checkAndHandleAPIKeyError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChannelService_APIKeyFailureStatePersistsAndResets(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	svc := newTestChannelService(client)
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "persistent-key-state", []string{"key1", "key2"})
+	policy := &RetryPolicy{AutoDisableAPIKey: AutoDisableAPIKey{Enabled: true, Mode: AutoDisableModeCodes, Statuses: []AutoDisableAPIKeyStatus{{Status: 401, Times: 2}}}}
+
+	require.False(t, svc.checkAndHandleAPIKeyError(ctx, &PerformanceRecord{ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 401, ErrorMessage: "invalid"}, policy))
+	persisted, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, persisted.Credentials.APIKeyStates[0].FailureCount)
+	require.Equal(t, 401, persisted.Credentials.APIKeyStates[0].LastErrorCode)
+
+	now := time.Now()
+	svc.RecordPerformance(ctx, &PerformanceRecord{ChannelID: ch.ID, APIKey: "key1", StartTime: now, EndTime: now, Success: true, RequestCompleted: true})
+	persisted, err = client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, 0, persisted.Credentials.APIKeyStates[0].FailureCount)
+	require.Nil(t, persisted.Credentials.APIKeyStates[0].LastFailedAt)
 }
 
 func TestChannelService_checkAndHandleChannelError(t *testing.T) {
@@ -466,20 +495,17 @@ func TestChannelService_MultipleStatusCodes(t *testing.T) {
 	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel", []string{"key1", "key2"})
 
 	policy := &RetryPolicy{
-		AutoDisableChannel: AutoDisableChannel{
+		AutoDisableAPIKey: AutoDisableAPIKey{
 			Enabled: true,
-			Statuses: []AutoDisableChannelStatus{
+			Mode:    AutoDisableModeCodes,
+			Statuses: []AutoDisableAPIKeyStatus{
 				{Status: 401, Times: 2},
 				{Status: 403, Times: 1},
 			},
 		},
 	}
 
-	// Test 401 - needs 2 times
-	svc.apiKeyErrorCounts = map[int]map[string]map[int]int{
-		ch.ID: {"key1": {401: 1}},
-	}
-
+	// Test 401 - needs 2 persisted failures.
 	perf401 := &PerformanceRecord{
 		ChannelID:          ch.ID,
 		APIKey:             "key1",
@@ -487,6 +513,7 @@ func TestChannelService_MultipleStatusCodes(t *testing.T) {
 		Success:            false,
 	}
 
+	require.False(t, svc.checkAndHandleAPIKeyError(ctx, perf401, policy))
 	result := svc.checkAndHandleAPIKeyError(ctx, perf401, policy)
 	require.True(t, result)
 
@@ -529,9 +556,10 @@ func TestChannelService_ConcurrentErrorTracking(t *testing.T) {
 	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel", []string{"key1", "key2", "key3"})
 
 	policy := &RetryPolicy{
-		AutoDisableChannel: AutoDisableChannel{
+		AutoDisableAPIKey: AutoDisableAPIKey{
 			Enabled: true,
-			Statuses: []AutoDisableChannelStatus{
+			Mode:    AutoDisableModeCodes,
+			Statuses: []AutoDisableAPIKeyStatus{
 				{Status: 401, Times: 5},
 			},
 		},
@@ -677,6 +705,12 @@ func TestMatchesAPIKeyRule(t *testing.T) {
 			perf: &PerformanceRecord{ResponseStatusCode: 429},
 			want: false,
 		},
+		{
+			name: "empty conditions match any error",
+			rule: objects.APIKeyAutoDisableRule{},
+			perf: &PerformanceRecord{ResponseStatusCode: 500, ErrorMessage: ""},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -701,6 +735,14 @@ func TestNormalizeAPIKeyAutoDisableRules(t *testing.T) {
 	require.NoError(t, NormalizeAPIKeyAutoDisableRules(policies))
 	require.Equal(t, []int{401, 429}, policies.APIKeyAutoDisableRules[0].StatusCodes)
 	require.Equal(t, []string{"quota"}, policies.APIKeyAutoDisableRules[0].KeywordPatterns)
+
+	// Empty conditions (any-error rule) are allowed and stay empty.
+	emptyPolicies := &objects.ChannelPolicies{APIKeyAutoDisableRules: []objects.APIKeyAutoDisableRule{
+		{Times: 2, Action: objects.APIKeyAutoDisableActionTemporary, DisableDurationMinutes: lo.ToPtr(30)},
+	}}
+	require.NoError(t, NormalizeAPIKeyAutoDisableRules(emptyPolicies))
+	require.Empty(t, emptyPolicies.APIKeyAutoDisableRules[0].StatusCodes)
+	require.Empty(t, emptyPolicies.APIKeyAutoDisableRules[0].KeywordPatterns)
 
 	invalidDuration := 0
 	tests := []objects.APIKeyAutoDisableRule{
@@ -1078,4 +1120,178 @@ func TestChannelService_ChannelAPIKeyRuleDoesNotStartConcurrentAction(t *testing
 	streakReset, stillInFlight = svc.apiKeyRuleActionsInFlight[ch.ID][ruleKey]
 	require.True(t, stillInFlight)
 	require.True(t, streakReset)
+}
+
+func TestChannelService_ResetAPIKeyFailureExported(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	svc := newTestChannelService(client)
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "reset-exported", []string{"key1", "key2"})
+	policy := &RetryPolicy{AutoDisableAPIKey: AutoDisableAPIKey{Enabled: true, Mode: AutoDisableModeCodes, Statuses: []AutoDisableAPIKeyStatus{{Status: 401, Times: 2}}}}
+
+	require.False(t, svc.checkAndHandleAPIKeyError(ctx, &PerformanceRecord{ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 401, ErrorMessage: "invalid"}, policy))
+	persisted, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, persisted.Credentials.APIKeyStates[0].FailureCount)
+
+	// The exported ResetAPIKeyFailure must clear the streak like the success path.
+	require.NoError(t, svc.ResetAPIKeyFailure(ctx, ch.ID, "key1"))
+	persisted, err = client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, 0, persisted.Credentials.APIKeyStates[0].FailureCount)
+	require.Nil(t, persisted.Credentials.APIKeyStates[0].LastFailedAt)
+	require.Equal(t, 0, persisted.Credentials.APIKeyStates[0].LastErrorCode)
+}
+
+func TestChannelService_checkAndHandleAPIKeyErrorAnyMode(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	svc := newTestChannelService(client)
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel-any", []string{"key1", "key2"})
+
+	policy := &RetryPolicy{
+		AutoDisableAPIKey: AutoDisableAPIKey{
+			Enabled:                true,
+			Mode:                   AutoDisableModeAny,
+			Times:                  3,
+			DisableDurationMinutes: 30,
+		},
+	}
+
+	// Three consecutive failures with DIFFERENT status codes (including 0
+	// network errors) must accumulate toward one threshold in any mode.
+	statuses := []int{500, 0, 502}
+	for i, status := range statuses {
+		perf := &PerformanceRecord{
+			ChannelID:          ch.ID,
+			APIKey:             "key1",
+			ResponseStatusCode: status,
+			Success:            false,
+		}
+		result := svc.checkAndHandleAPIKeyError(ctx, perf, policy)
+		require.Equal(t, i == len(statuses)-1, result, "status %d should trigger only at threshold", status)
+	}
+
+	updatedCh, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Len(t, updatedCh.DisabledAPIKeys, 1)
+	require.Equal(t, "key1", updatedCh.DisabledAPIKeys[0].Key)
+	require.NotNil(t, updatedCh.DisabledAPIKeys[0].ExpiresAt, "temporary disable must set ExpiresAt")
+	require.WithinDuration(t, time.Now().Add(30*time.Minute), *updatedCh.DisabledAPIKeys[0].ExpiresAt, time.Minute)
+}
+
+func TestChannelService_checkAndHandleAPIKeyErrorDisableDurationZero(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	svc := newTestChannelService(client)
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel-permanent", []string{"key1", "key2"})
+
+	// DisableDurationMinutes 0 means permanent disable (no ExpiresAt).
+	policy := &RetryPolicy{
+		AutoDisableAPIKey: AutoDisableAPIKey{
+			Enabled: true,
+			Mode:    AutoDisableModeAny,
+			Times:   1,
+		},
+	}
+
+	result := svc.checkAndHandleAPIKeyError(ctx, &PerformanceRecord{
+		ChannelID:          ch.ID,
+		APIKey:             "key1",
+		ResponseStatusCode: 500,
+		Success:            false,
+	}, policy)
+	require.True(t, result)
+
+	updatedCh, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Len(t, updatedCh.DisabledAPIKeys, 1)
+	require.Nil(t, updatedCh.DisabledAPIKeys[0].ExpiresAt, "zero duration must be permanent")
+}
+
+func TestChannelService_checkAndHandleAPIKeyErrorDisabledFlag(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	svc := newTestChannelService(client)
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel-off", []string{"key1", "key2"})
+
+	policy := &RetryPolicy{
+		AutoDisableAPIKey: AutoDisableAPIKey{
+			Enabled: false,
+			Mode:    AutoDisableModeAny,
+			Times:   1,
+		},
+	}
+
+	result := svc.checkAndHandleAPIKeyError(ctx, &PerformanceRecord{
+		ChannelID:          ch.ID,
+		APIKey:             "key1",
+		ResponseStatusCode: 500,
+		Success:            false,
+	}, policy)
+	require.False(t, result, "auto-disable disabled must never disable")
+
+	updatedCh, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Empty(t, updatedCh.DisabledAPIKeys)
+}
+
+// Empty-condition rules mean "any error": failures with different status
+// codes all count toward one consecutive threshold, mirroring the global
+// API key setting's any-error mode.
+func TestChannelService_ChannelAPIKeyRuleAnyErrorCountsAcrossStatusCodes(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	svc := newTestChannelService(client)
+	duration := 30
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "any-error-rule", []string{"key1", "key2"})
+	ch, err := client.Channel.UpdateOneID(ch.ID).
+		SetPolicies(objects.ChannelPolicies{APIKeyAutoDisableRules: []objects.APIKeyAutoDisableRule{
+			{
+				StatusCodes:            []int{},
+				KeywordPatterns:        []string{},
+				Times:                  2,
+				Action:                 objects.APIKeyAutoDisableActionTemporary,
+				DisableDurationMinutes: &duration,
+			},
+		}}).
+		Save(ctx)
+	require.NoError(t, err)
+	svc.SetEnabledChannelsForTest([]*Channel{buildChannel(ch, nil)})
+
+	// First failure (500) must not disable yet.
+	matched, acted := svc.checkAndHandleChannelAPIKeyRules(ctx, &PerformanceRecord{ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 500})
+	require.True(t, matched)
+	require.False(t, acted)
+
+	// Second failure with a DIFFERENT status code (0 = network error) reaches
+	// the consecutive threshold and disables the key.
+	matched, acted = svc.checkAndHandleChannelAPIKeyRules(ctx, &PerformanceRecord{ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 0})
+	require.True(t, matched)
+	require.True(t, acted)
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Len(t, updated.DisabledAPIKeys, 1)
+	require.Equal(t, "key1", updated.DisabledAPIKeys[0].Key)
+	require.NotNil(t, updated.DisabledAPIKeys[0].ExpiresAt)
+	require.WithinDuration(t, time.Now().Add(30*time.Minute), *updated.DisabledAPIKeys[0].ExpiresAt, 5*time.Second)
 }

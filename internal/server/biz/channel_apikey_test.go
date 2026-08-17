@@ -60,6 +60,21 @@ func TestTraceStickyKeyProvider_MultipleKeys_WithTrace_Sticky(t *testing.T) {
 	require.Contains(t, keys, key1)
 }
 
+func TestTraceStickyKeyProvider_ExcludesAttemptedKey(t *testing.T) {
+	keys := []string{"key-1", "key-2", "key-3"}
+	ch := &Channel{
+		Channel:              &ent.Channel{Credentials: objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: keys}},
+		cachedEnabledAPIKeys: keys,
+	}
+	provider := NewTraceStickyKeyProvider(ch)
+	ctx := contexts.EnsureContainer(context.Background())
+	first := provider.Get(ctx)
+	contexts.ExcludeChannelAPIKey(ctx, first)
+	second := provider.Get(ctx)
+	require.NotEqual(t, first, second)
+	require.Contains(t, keys, second)
+}
+
 func TestTraceStickyKeyProvider_DifferentTraces_MaySelectDifferentKeys(t *testing.T) {
 	keys := []string{"key-1", "key-2", "key-3", "key-4", "key-5"}
 	ch := &Channel{
@@ -501,6 +516,35 @@ func TestTraceStickyKeyProvider_KeyOrderIndependence(t *testing.T) {
 	key2 := provider2.Get(ctx)
 
 	require.Equal(t, key1, key2, "rendezvous hashing should be order-independent")
+}
+
+func TestChannelService_ImportExportChannelAPIKeys(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("key-pool-import-export").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: []string{"key1"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		Save(ctx)
+	require.NoError(t, err)
+
+	result, err := svc.ImportChannelAPIKeys(ctx, ch.ID, "key1\nkey2,key3;key2")
+	require.NoError(t, err)
+	require.Equal(t, 2, result.Added)
+	require.Equal(t, 1, result.Ignored)
+	require.Equal(t, 3, result.Total)
+
+	require.NoError(t, svc.DisableAPIKey(ctx, ch.ID, "key2", 401, "invalid"))
+	enabled, err := svc.ExportChannelAPIKeys(ctx, ch.ID, ExportChannelAPIKeyStatusEnabled)
+	require.NoError(t, err)
+	require.Equal(t, "key1\nkey3", enabled)
+	disabled, err := svc.ExportChannelAPIKeys(ctx, ch.ID, ExportChannelAPIKeyStatusDisabled)
+	require.NoError(t, err)
+	require.Equal(t, "key2", disabled)
 }
 
 // ==================== DeleteDisabledAPIKeys Tests ====================.

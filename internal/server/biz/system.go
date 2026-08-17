@@ -343,10 +343,16 @@ type RetryPolicy struct {
 	// the current trace or thread is selected before normal load balancing.
 	TraceStickyMode TraceStickyMode `json:"trace_sticky_mode"`
 
-	// AutoDisableChannel controls whether to auto-disable a channel or API key when it exceeds the maximum number of retries.
+	// AutoDisableChannel controls whether to auto-disable a channel when it
+	// exceeds the maximum number of retries. It only applies to requests that
+	// carry no API key; key failures are handled by AutoDisableAPIKey.
 	// For compatibility with legacy setting, the name is AutoDisableChannel.
-	// If the channel has more than one key, the API key will be disabled instead of the channel.
 	AutoDisableChannel AutoDisableChannel `json:"auto_disable_channel"`
+
+	// AutoDisableAPIKey is the global API key auto-disable setting. It applies
+	// to every channel's API keys when no channel-scoped rule matches; channel-
+	// scoped API key rules always take priority.
+	AutoDisableAPIKey AutoDisableAPIKey `json:"auto_disable_api_key"`
 
 	// EmptyResponseDetection controls whether to detect empty streaming responses.
 	// When enabled, the pipeline pre-reads stream events to check if the response
@@ -418,9 +424,24 @@ type UpstreamErrorPolicy struct {
 	CustomMessage string `json:"custom_message"`
 }
 
+// Auto-disable capture modes shared by the channel and API key dimensions.
+const (
+	// AutoDisableModeAny counts every failed request (any status code) toward the threshold.
+	AutoDisableModeAny = "any"
+	// AutoDisableModeCodes only counts failures matching the configured status codes.
+	AutoDisableModeCodes = "codes"
+)
+
 type AutoDisableChannel struct {
 	// Enabled controls whether auto-disable channel is active
 	Enabled bool `json:"enabled"`
+
+	// Mode defines which failures are counted: "any" or "codes".
+	// Defaults to AutoDisableModeCodes for legacy compatibility.
+	Mode string `json:"mode"`
+
+	// Times is the consecutive failure count that triggers disabling when Mode is "any".
+	Times int `json:"times"`
 
 	// Statuses defines the status codes and times to auto-disable a channel
 	Statuses []AutoDisableChannelStatus `json:"statuses"`
@@ -431,6 +452,35 @@ type AutoDisableChannelStatus struct {
 	Status int `json:"status"`
 
 	// Times is the number of times the status code occurs before auto-disable the channel.
+	Times int `json:"times"`
+}
+
+// AutoDisableAPIKey is the global API key auto-disable setting. It applies to
+// every channel's API keys when no channel-scoped API key rule matches, so its
+// priority is lower than channel-scoped rules.
+type AutoDisableAPIKey struct {
+	// Enabled controls whether global API key auto-disable is active.
+	Enabled bool `json:"enabled"`
+
+	// Mode defines which failures are counted: "any" or "codes". Defaults to AutoDisableModeAny.
+	Mode string `json:"mode"`
+
+	// Times is the consecutive failure count that triggers disabling when Mode is "any".
+	Times int `json:"times"`
+
+	// DisableDurationMinutes is how long the key stays disabled in minutes.
+	// 0 means permanently disabled (no expiry).
+	DisableDurationMinutes int `json:"disable_duration_minutes"`
+
+	// Statuses defines the status codes and times to disable a key when Mode is "codes".
+	Statuses []AutoDisableAPIKeyStatus `json:"statuses"`
+}
+
+type AutoDisableAPIKeyStatus struct {
+	// Status is the HTTP status code to trigger auto-disable.
+	Status int `json:"status"`
+
+	// Times is the number of times the status code occurs before auto-disable the key.
 	Times int `json:"times"`
 }
 
@@ -1147,6 +1197,40 @@ func normalizeRetryPolicy(policy *RetryPolicy) {
 
 	if policy.AutoDisableChannel.Statuses == nil {
 		policy.AutoDisableChannel.Statuses = []AutoDisableChannelStatus{}
+	}
+	switch policy.AutoDisableChannel.Mode {
+	case AutoDisableModeAny, AutoDisableModeCodes:
+	default:
+		policy.AutoDisableChannel.Mode = AutoDisableModeCodes
+	}
+	if policy.AutoDisableChannel.Times < 1 {
+		policy.AutoDisableChannel.Times = 3
+	}
+
+	// AutoDisableAPIKey: an all-zero value means it was never configured
+	// (legacy data), so fall back to the defaults: enabled, any error, 3
+	// consecutive failures, 30 minutes.
+	if !policy.AutoDisableAPIKey.Enabled &&
+		policy.AutoDisableAPIKey.Mode == "" &&
+		policy.AutoDisableAPIKey.Times == 0 &&
+		policy.AutoDisableAPIKey.DisableDurationMinutes == 0 &&
+		policy.AutoDisableAPIKey.Statuses == nil {
+		policy.AutoDisableAPIKey = defaultRetryPolicy.AutoDisableAPIKey
+	} else {
+		switch policy.AutoDisableAPIKey.Mode {
+		case AutoDisableModeAny, AutoDisableModeCodes:
+		default:
+			policy.AutoDisableAPIKey.Mode = AutoDisableModeAny
+		}
+		if policy.AutoDisableAPIKey.Times < 1 {
+			policy.AutoDisableAPIKey.Times = 3
+		}
+		if policy.AutoDisableAPIKey.DisableDurationMinutes < 0 {
+			policy.AutoDisableAPIKey.DisableDurationMinutes = 0
+		}
+		if policy.AutoDisableAPIKey.Statuses == nil {
+			policy.AutoDisableAPIKey.Statuses = []AutoDisableAPIKeyStatus{}
+		}
 	}
 
 	switch policy.UpstreamErrorPolicy.Mode {

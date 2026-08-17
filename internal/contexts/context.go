@@ -136,6 +136,38 @@ func GetChannelAPIKey(ctx context.Context) (string, bool) {
 	return "", false
 }
 
+// ExcludeChannelAPIKey marks a key as attempted for the current request.
+func ExcludeChannelAPIKey(ctx context.Context, apiKey string) {
+	if apiKey == "" {
+		return
+	}
+	container := getContainer(ctx)
+	container.mu.Lock()
+	defer container.mu.Unlock()
+	if container.ExcludedChannelAPIKeys == nil {
+		container.ExcludedChannelAPIKeys = make(map[string]struct{})
+	}
+	container.ExcludedChannelAPIKeys[apiKey] = struct{}{}
+}
+
+// IsChannelAPIKeyExcluded reports whether a key has already been attempted.
+func IsChannelAPIKeyExcluded(ctx context.Context, apiKey string) bool {
+	container := getContainer(ctx)
+	container.mu.RLock()
+	defer container.mu.RUnlock()
+	_, excluded := container.ExcludedChannelAPIKeys[apiKey]
+	return excluded
+}
+
+// ResetChannelAPIKeySelection clears per-candidate key retry state.
+func ResetChannelAPIKeySelection(ctx context.Context) {
+	container := getContainer(ctx)
+	container.mu.Lock()
+	defer container.mu.Unlock()
+	container.ChannelAPIKey = nil
+	container.ExcludedChannelAPIKeys = nil
+}
+
 // WithProjectID stores the project ID in the context.
 func WithProjectID(ctx context.Context, projectID int) context.Context {
 	container := getContainer(ctx)

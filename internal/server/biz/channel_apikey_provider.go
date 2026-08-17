@@ -60,17 +60,27 @@ func (p *TraceStickyKeyProvider) Get(ctx context.Context) string {
 		return p.channel.Credentials.APIKeys[0]
 	}
 
-	if len(enabled) == 1 {
-		return enabled[0]
+	available := make([]string, 0, len(enabled))
+	for _, key := range enabled {
+		if !contexts.IsChannelAPIKeyExcluded(ctx, key) {
+			available = append(available, key)
+		}
+	}
+	if len(available) == 0 {
+		available = enabled
+	}
+	if len(available) == 1 {
+		contexts.WithChannelAPIKey(ctx, available[0])
+		return available[0]
 	}
 
 	var selectedKey string
 
 	if trace, ok := contexts.GetTrace(ctx); ok && trace != nil {
-		if cached, ok := p.cache.Get(trace.TraceID); ok {
+		if cached, ok := p.cache.Get(trace.TraceID); ok && !contexts.IsChannelAPIKeyExcluded(ctx, cached) {
 			selectedKey = cached
 		} else {
-			selectedKey = rendezvousSelect(enabled, trace.TraceID)
+			selectedKey = rendezvousSelect(available, trace.TraceID)
 			p.cache.Add(trace.TraceID, selectedKey)
 		}
 
@@ -82,7 +92,7 @@ func (p *TraceStickyKeyProvider) Get(ctx context.Context) string {
 		}
 	} else {
 		//nolint:gosec // not a security issue, just a random selection.
-		selectedKey = enabled[rand.IntN(len(enabled))]
+		selectedKey = available[rand.IntN(len(available))]
 		if log.DebugEnabled(ctx) {
 			log.Debug(ctx, "Random key selected",
 				log.String("key_prefix", safeAPIKeyPrefix(selectedKey)),

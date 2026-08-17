@@ -312,7 +312,7 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 		delete(svc.channelErrorCounts, perf.ChannelID)
 		svc.channelErrorCountsLock.Unlock()
 
-		// Also clear API key error counts on success
+		// Also clear API key error counts on success.
 		if perf.APIKey != "" {
 			svc.apiKeyErrorCountsLock.Lock()
 
@@ -332,6 +332,12 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 			}
 
 			svc.apiKeyErrorCountsLock.Unlock()
+			if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
+				log.Warn(ctx, "Failed to reset persistent API key failure state",
+					log.Int("channel_id", perf.ChannelID),
+					log.Cause(err),
+				)
+			}
 		}
 	} else if !perf.Canceled {
 		matched := false
@@ -340,12 +346,13 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 		}
 		if !matched {
 			policy := svc.SystemService.RetryPolicyOrDefault(ctx)
-			if policy.AutoDisableChannel.Enabled {
-				if perf.APIKey != "" {
-					svc.checkAndHandleAPIKeyError(ctx, perf, policy)
-				} else {
-					svc.checkAndHandleChannelError(ctx, perf, policy)
-				}
+			// Channel-scoped API key rules take priority; the global settings are
+			// split by dimension: AutoDisableChannel for channel-level failures,
+			// AutoDisableAPIKey for per-key failures.
+			if perf.APIKey != "" {
+				svc.checkAndHandleAPIKeyError(ctx, perf, policy)
+			} else {
+				svc.checkAndHandleChannelError(ctx, perf, policy)
 			}
 		}
 	}

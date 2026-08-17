@@ -104,6 +104,33 @@ func (svc *ChannelService) markChannelUnavailable(ctx context.Context, channelID
 
 // checkAndHandleChannelError checks if the channel should be disabled based on the error status code.
 func (svc *ChannelService) checkAndHandleChannelError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) bool {
+	if !policy.AutoDisableChannel.Enabled {
+		return false
+	}
+
+	// "any" mode: count every failed request (no status code filter).
+	// The special key 0 in channelErrorCounts holds the any-mode counter.
+	if policy.AutoDisableChannel.Mode == AutoDisableModeAny {
+		threshold := max(policy.AutoDisableChannel.Times, 1)
+
+		svc.channelErrorCountsLock.Lock()
+		if svc.channelErrorCounts[perf.ChannelID] == nil {
+			svc.channelErrorCounts[perf.ChannelID] = make(map[int]int)
+		}
+		svc.channelErrorCounts[perf.ChannelID][0]++
+		count := svc.channelErrorCounts[perf.ChannelID][0]
+		svc.channelErrorCountsLock.Unlock()
+
+		if count >= threshold {
+			svc.markChannelUnavailable(ctx, perf.ChannelID, 0, threshold, count)
+			svc.channelErrorCountsLock.Lock()
+			delete(svc.channelErrorCounts, perf.ChannelID)
+			svc.channelErrorCountsLock.Unlock()
+			return true
+		}
+		return false
+	}
+
 	for _, statusConfig := range policy.AutoDisableChannel.Statuses {
 		if statusConfig.Status != perf.ResponseStatusCode {
 			continue
@@ -132,46 +159,69 @@ func (svc *ChannelService) checkAndHandleChannelError(ctx context.Context, perf 
 	return false
 }
 
-// checkAndHandleAPIKeyError checks if the API key should be disabled based on the error status code.
-// Returns true if the API key was disabled.
+// checkAndHandleAPIKeyError persists per-key failure state and disables the key
+// when the matching global threshold is reached. The global API key setting is
+// used only when no channel-scoped API key rule matched the failure.
 func (svc *ChannelService) checkAndHandleAPIKeyError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) bool {
-	for _, statusConfig := range policy.AutoDisableChannel.Statuses {
+	cfg := policy.AutoDisableAPIKey
+	if !cfg.Enabled {
+		return false
+	}
+
+	duration := time.Duration(cfg.DisableDurationMinutes) * time.Minute
+
+	// "any" mode: every failed request counts toward a single threshold.
+	if cfg.Mode == AutoDisableModeAny {
+		threshold := max(cfg.Times, 1)
+		reason := fmt.Sprintf("Auto-disabled after %d consecutive errors", threshold)
+		_, acted, err := svc.recordAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, perf.ErrorMessage, apiKeyFailurePolicy{
+			Key:             "system:any",
+			Threshold:       threshold,
+			Reason:          reason,
+			DisableDuration: duration,
+		})
+		if err != nil {
+			log.Error(ctx, "Failed to record API key failure",
+				log.Int("channel_id", perf.ChannelID),
+				log.Int("error_code", perf.ResponseStatusCode),
+				log.Cause(err),
+			)
+			return false
+		}
+		if acted {
+			svc.apiKeyErrorCountsLock.Lock()
+			delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
+			svc.apiKeyErrorCountsLock.Unlock()
+		}
+		return acted
+	}
+
+	for _, statusConfig := range cfg.Statuses {
 		if statusConfig.Status != perf.ResponseStatusCode {
 			continue
 		}
 
-		svc.apiKeyErrorCountsLock.Lock()
-
-		if svc.apiKeyErrorCounts[perf.ChannelID] == nil {
-			svc.apiKeyErrorCounts[perf.ChannelID] = make(map[string]map[int]int)
+		reason := fmt.Sprintf("Auto-disabled after %d consecutive errors with status %d", statusConfig.Times, perf.ResponseStatusCode)
+		_, acted, err := svc.recordAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, perf.ErrorMessage, apiKeyFailurePolicy{
+			Key:             fmt.Sprintf("system:%d:%d", statusConfig.Status, statusConfig.Times),
+			Threshold:       statusConfig.Times,
+			Reason:          reason,
+			DisableDuration: duration,
+		})
+		if err != nil {
+			log.Error(ctx, "Failed to record API key failure",
+				log.Int("channel_id", perf.ChannelID),
+				log.Int("error_code", perf.ResponseStatusCode),
+				log.Cause(err),
+			)
+			return false
 		}
-
-		if svc.apiKeyErrorCounts[perf.ChannelID][perf.APIKey] == nil {
-			svc.apiKeyErrorCounts[perf.ChannelID][perf.APIKey] = make(map[int]int)
-		}
-
-		svc.apiKeyErrorCounts[perf.ChannelID][perf.APIKey][perf.ResponseStatusCode]++
-		count := svc.apiKeyErrorCounts[perf.ChannelID][perf.APIKey][perf.ResponseStatusCode]
-		svc.apiKeyErrorCountsLock.Unlock()
-
-		if count >= statusConfig.Times {
-			reason := fmt.Sprintf("Auto-disabled after %d consecutive errors with status %d", count, perf.ResponseStatusCode)
-			if err := svc.DisableAPIKey(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, reason); err != nil {
-				log.Error(ctx, "Failed to disable API key",
-					log.Int("channel_id", perf.ChannelID),
-					log.Int("error_code", perf.ResponseStatusCode),
-					log.Cause(err),
-				)
-
-				return false
-			}
-
+		if acted {
 			svc.apiKeyErrorCountsLock.Lock()
 			delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
 			svc.apiKeyErrorCountsLock.Unlock()
-
-			return true
 		}
+		return acted
 	}
 
 	return false
@@ -203,10 +253,14 @@ func (svc *ChannelService) EvaluateAPIKeyRulesForFailure(
 // first matching rule owns the failure so one request cannot increment several
 // overlapping counters or execute multiple actions.
 func (svc *ChannelService) checkAndHandleChannelAPIKeyRules(ctx context.Context, perf *PerformanceRecord) (matched, acted bool) {
-	rulePrefix := perf.APIKey + ":rule:"
 	ch := svc.GetEnabledChannel(perf.ChannelID)
 	if ch == nil || len(ch.Policies.APIKeyAutoDisableRules) == 0 {
-		svc.clearAPIKeyRuleCounts(perf.ChannelID, rulePrefix)
+		if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
+			log.Warn(ctx, "Failed to reset API key failure streak without matching rules",
+				log.Int("channel_id", perf.ChannelID),
+				log.Cause(err),
+			)
+		}
 		return false, false
 	}
 
@@ -215,73 +269,63 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRules(ctx context.Context,
 			continue
 		}
 
-		ruleKey := apiKeyRuleCounterKey(perf.APIKey, ruleIndex, rule)
-		// Every failure accepted by one rule contributes to that rule's single
-		// consecutive counter, including alternating configured status codes.
-		const countKey = 0
-
-		svc.apiKeyErrorCountsLock.Lock()
-		if svc.apiKeyErrorCounts[perf.ChannelID] == nil {
-			svc.apiKeyErrorCounts[perf.ChannelID] = make(map[string]map[int]int)
-		}
-		if svc.apiKeyRuleActionsInFlight == nil {
-			svc.apiKeyRuleActionsInFlight = make(map[int]map[string]bool)
-		}
-		if svc.apiKeyRuleActionsInFlight[perf.ChannelID] == nil {
-			svc.apiKeyRuleActionsInFlight[perf.ChannelID] = make(map[string]bool)
-		}
-		for key := range svc.apiKeyErrorCounts[perf.ChannelID] {
-			if strings.HasPrefix(key, rulePrefix) && key != ruleKey {
-				delete(svc.apiKeyErrorCounts[perf.ChannelID], key)
-			}
-		}
-		for key := range svc.apiKeyRuleActionsInFlight[perf.ChannelID] {
-			if strings.HasPrefix(key, rulePrefix) && key != ruleKey {
-				delete(svc.apiKeyRuleActionsInFlight[perf.ChannelID], key)
-			}
-		}
-		if svc.apiKeyErrorCounts[perf.ChannelID][ruleKey] == nil {
-			svc.apiKeyErrorCounts[perf.ChannelID][ruleKey] = make(map[int]int)
-		}
-		svc.apiKeyErrorCounts[perf.ChannelID][ruleKey][countKey]++
-		count := svc.apiKeyErrorCounts[perf.ChannelID][ruleKey][countKey]
-		threshold := max(rule.Times, 1)
-		_, actionInFlight := svc.apiKeyRuleActionsInFlight[perf.ChannelID][ruleKey]
-		shouldAct := count >= threshold && !actionInFlight
-		if shouldAct {
-			svc.apiKeyErrorCounts[perf.ChannelID][ruleKey][countKey] -= threshold
-			svc.apiKeyRuleActionsInFlight[perf.ChannelID][ruleKey] = false
-		}
-		svc.apiKeyErrorCountsLock.Unlock()
-
-		if shouldAct {
-			actionSucceeded := svc.executeAPIKeyRuleAction(ctx, perf, rule, count)
-			svc.apiKeyErrorCountsLock.Lock()
-			if streakReset, stillClaimed := svc.apiKeyRuleActionsInFlight[perf.ChannelID][ruleKey]; stillClaimed {
-				delete(svc.apiKeyRuleActionsInFlight[perf.ChannelID], ruleKey)
-				if !actionSucceeded && !streakReset {
-					if svc.apiKeyErrorCounts[perf.ChannelID] == nil {
-						svc.apiKeyErrorCounts[perf.ChannelID] = make(map[string]map[int]int)
-					}
-					if svc.apiKeyErrorCounts[perf.ChannelID][ruleKey] == nil {
-						svc.apiKeyErrorCounts[perf.ChannelID][ruleKey] = make(map[int]int)
-					}
-					svc.apiKeyErrorCounts[perf.ChannelID][ruleKey][countKey] += threshold
-				}
-				if svc.apiKeyErrorCounts[perf.ChannelID][ruleKey][countKey] == 0 {
-					delete(svc.apiKeyErrorCounts[perf.ChannelID], ruleKey)
-				}
-			}
-			svc.apiKeyErrorCountsLock.Unlock()
-			return true, actionSucceeded
+		policyKey := apiKeyRuleCounterKey(perf.APIKey, ruleIndex, rule)
+		if svc.apiKeyRuleActionInFlight(perf.ChannelID, policyKey) {
+			svc.rememberFailedAPIKeyRuleAction(perf.ChannelID, policyKey)
+			return true, false
 		}
 
-		return true, false
+		failurePolicy := apiKeyFailurePolicy{
+			Key:               policyKey,
+			Threshold:         max(rule.Times, 1),
+			DeleteOnThreshold: rule.Action == objects.APIKeyAutoDisableActionPermanent,
+			Reason:            fmt.Sprintf("Disabled by channel API key rule after %d consecutive errors", max(rule.Times, 1)),
+		}
+		if rule.Action == objects.APIKeyAutoDisableActionTemporary && rule.DisableDurationMinutes != nil {
+			failurePolicy.DisableDuration = time.Duration(*rule.DisableDurationMinutes) * time.Minute
+			failurePolicy.Reason = fmt.Sprintf("Temporarily disabled for %d minutes by channel API key rule after %d consecutive errors", *rule.DisableDurationMinutes, max(rule.Times, 1))
+		}
+
+		_, acted, err := svc.recordAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, perf.ErrorMessage, failurePolicy)
+		if err != nil {
+			svc.rememberFailedAPIKeyRuleAction(perf.ChannelID, policyKey)
+			log.Error(ctx, "Failed to persist channel API key rule failure",
+				log.Int("channel_id", perf.ChannelID),
+				log.Cause(err),
+			)
+			return true, false
+		}
+		return true, acted
 	}
 
-	svc.clearAPIKeyRuleCounts(perf.ChannelID, rulePrefix)
-
+	if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
+		log.Warn(ctx, "Failed to reset API key failure streak after non-matching error",
+			log.Int("channel_id", perf.ChannelID),
+			log.Cause(err),
+		)
+	}
 	return false, false
+}
+
+func (svc *ChannelService) apiKeyRuleActionInFlight(channelID int, ruleKey string) bool {
+	svc.apiKeyErrorCountsLock.Lock()
+	defer svc.apiKeyErrorCountsLock.Unlock()
+	return svc.apiKeyRuleActionsInFlight[channelID] != nil && !svc.apiKeyRuleActionsInFlight[channelID][ruleKey] && func() bool {
+		_, ok := svc.apiKeyRuleActionsInFlight[channelID][ruleKey]
+		return ok
+	}()
+}
+
+func (svc *ChannelService) rememberFailedAPIKeyRuleAction(channelID int, ruleKey string) {
+	svc.apiKeyErrorCountsLock.Lock()
+	defer svc.apiKeyErrorCountsLock.Unlock()
+	if svc.apiKeyErrorCounts[channelID] == nil {
+		svc.apiKeyErrorCounts[channelID] = make(map[string]map[int]int)
+	}
+	if svc.apiKeyErrorCounts[channelID][ruleKey] == nil {
+		svc.apiKeyErrorCounts[channelID][ruleKey] = make(map[int]int)
+	}
+	svc.apiKeyErrorCounts[channelID][ruleKey][0] = 1
 }
 
 func (svc *ChannelService) clearAPIKeyRuleCounts(channelID int, rulePrefix string) {

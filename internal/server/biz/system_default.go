@@ -32,6 +32,17 @@ var defaultRetryPolicy = RetryPolicy{
 	LoadBalancerStrategy:    "adaptive",
 	TraceStickyMode:         TraceStickyPreferPreviousChannel,
 	Enabled:                 true,
+	AutoDisableChannel: AutoDisableChannel{
+		Enabled: false,
+		Mode:    AutoDisableModeCodes,
+	},
+	AutoDisableAPIKey: AutoDisableAPIKey{
+		Enabled:                true,
+		Mode:                   AutoDisableModeAny,
+		Times:                  3,
+		DisableDurationMinutes: 30,
+		Statuses:               []AutoDisableAPIKeyStatus{},
+	},
 	UpstreamErrorPolicy: UpstreamErrorPolicy{
 		Mode: UpstreamErrorModePassthrough,
 	},

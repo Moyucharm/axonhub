@@ -12,6 +12,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/looplj/axonhub/internal/authz"
+	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/ent/request"
@@ -1059,6 +1060,34 @@ func TestPersistentOutboundTransformer_CanRetry_429_WithRetryAfter(t *testing.T)
 
 		require.False(t, outbound.CanRetry(httpErr))
 	})
+}
+
+func TestPersistentOutboundTransformer_CanRetry_429_KeyPool(t *testing.T) {
+	retryCount := 2
+	channel := &biz.Channel{
+		Channel: &ent.Channel{
+			ID:          1,
+			Name:        "key-pool-channel",
+			Credentials: objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: []string{"key1", "key2"}},
+			Settings:    &objects.ChannelSettings{APIKeyPool: &objects.APIKeyPoolSettings{RetryCount: &retryCount}},
+		},
+		Outbound: &mockTransformer{},
+	}
+	outbound := &PersistentOutboundTransformer{
+		wrapped: &mockTransformer{},
+		state: &PersistenceState{CurrentCandidate: &ChannelModelsCandidate{
+			Channel: channel,
+			Models:  []biz.ChannelModelEntry{{RequestModel: "gpt-4", ActualModel: "gpt-4"}},
+		}},
+	}
+	require.True(t, outbound.CanRetry(&httpclient.Error{StatusCode: http.StatusTooManyRequests}))
+	require.Equal(t, 1, outbound.SameChannelRetryLimit(5))
+
+	ctx := contexts.EnsureContainer(context.Background())
+	contexts.WithChannelAPIKey(ctx, "key1")
+	require.NoError(t, outbound.PrepareForRetry(ctx))
+	require.True(t, contexts.IsChannelAPIKeyExcluded(ctx, "key1"))
+	require.Equal(t, 1, outbound.keyPoolRetries)
 }
 
 func TestPersistentOutboundTransformer_CanRetry_429_WithoutRetryAfter(t *testing.T) {
