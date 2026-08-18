@@ -24,6 +24,11 @@ func filterResolvedCandidatesForRequest(
 		return []*ChannelModelsCandidate{}
 	}
 
+	resolvedCandidates = filterCoolingDownResolvedCandidates(ctx, resolvedCandidates)
+	if len(resolvedCandidates) == 0 {
+		return []*ChannelModelsCandidate{}
+	}
+
 	hasConditionalCandidates := lo.ContainsBy(resolvedCandidates, func(candidate *resolvedAssociationCandidate) bool {
 		return candidate != nil && candidate.when != nil
 	})

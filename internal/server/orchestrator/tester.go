@@ -418,14 +418,6 @@ func (processor *TestChannelOrchestrator) TestChannelAPIKeys(
 			results[index] = result
 
 			if result.Success {
-				// A successful probe means the key is healthy again — clear the
-				// consecutive failure streak recorded by the request path.
-				if err := processor.channelService.ResetAPIKeyFailure(groupCtx, channelID.ID, apiKey); err != nil {
-					log.Warn(ctx, "Failed to reset API key failure streak after successful test",
-						log.Int("channel_id", channelID.ID),
-						log.Cause(err),
-					)
-				}
 				atomic.AddInt32(&successCount, 1)
 				return nil
 			}
@@ -493,17 +485,6 @@ func (processor *TestChannelOrchestrator) TestSingleAPIKey(
 	result := processor.testSingleKey(ctx, channelID, key, testModel, useStream, proxy, systemPrompt, userPrompt)
 	_, isDisabled := disabledSet[key]
 	result.Disabled = isDisabled
-
-	if result.Success {
-		// A successful probe means the key is healthy again — clear the
-		// consecutive failure streak recorded by the request path.
-		if err := processor.channelService.ResetAPIKeyFailure(ctx, channelID.ID, key); err != nil {
-			log.Warn(ctx, "Failed to reset API key failure streak after successful test",
-				log.Int("channel_id", channelID.ID),
-				log.Cause(err),
-			)
-		}
-	}
 
 	return result, nil
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/model"
+	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/server/biz"
@@ -124,7 +125,12 @@ func (s *DefaultSelector) selectChannelCadidates(ctx context.Context, req *llm.R
 	channels := s.ChannelService.GetEnabledChannels()
 
 	candidates := make([]*ChannelModelsCandidate, 0, len(channels))
+	now := time.Now()
 	for _, ch := range channels {
+		if ch == nil || ch.IsCoolingDown(now) {
+			continue
+		}
+
 		entries := ch.GetModelEntries()
 
 		entry, ok := entries[req.Model]
@@ -918,6 +924,50 @@ func (s *LoadBalancedSelector) sortCandidates(
 	}
 
 	return result
+}
+
+// ChannelCooldownFilterSelector removes channels that became unavailable after
+// an association or profile selector cached its candidate list.
+type ChannelCooldownFilterSelector struct {
+	wrapped CandidateSelector
+}
+
+// WithChannelCooldownFilterSelector adds the final production cooldown guard.
+// Diagnostic requests intentionally bypass this filter and use the specified
+// channel selector directly.
+func WithChannelCooldownFilterSelector(wrapped CandidateSelector) *ChannelCooldownFilterSelector {
+	return &ChannelCooldownFilterSelector{wrapped: wrapped}
+}
+
+func (s *ChannelCooldownFilterSelector) Select(ctx context.Context, req *llm.Request) ([]*ChannelModelsCandidate, error) {
+	candidates, err := s.wrapped.Select(ctx, req)
+	if err != nil || shouldBypassChannelCooldown(ctx) {
+		return candidates, err
+	}
+
+	return filterCoolingDownCandidates(candidates), nil
+}
+
+func shouldBypassChannelCooldown(ctx context.Context) bool {
+	return contexts.GetSourceOrDefault(ctx, request.SourceAPI) == request.SourceTest
+}
+
+func filterCoolingDownCandidates(candidates []*ChannelModelsCandidate) []*ChannelModelsCandidate {
+	now := time.Now()
+	return lo.Filter(candidates, func(candidate *ChannelModelsCandidate, _ int) bool {
+		return candidate != nil && candidate.Channel != nil && !candidate.Channel.IsCoolingDown(now)
+	})
+}
+
+func filterCoolingDownResolvedCandidates(ctx context.Context, candidates []*resolvedAssociationCandidate) []*resolvedAssociationCandidate {
+	if shouldBypassChannelCooldown(ctx) {
+		return candidates
+	}
+
+	now := time.Now()
+	return lo.Filter(candidates, func(candidate *resolvedAssociationCandidate, _ int) bool {
+		return candidate != nil && candidate.channel != nil && !candidate.channel.IsCoolingDown(now)
+	})
 }
 
 // TagsFilterSelector is a decorator that filters candidates by allowed channel tags.

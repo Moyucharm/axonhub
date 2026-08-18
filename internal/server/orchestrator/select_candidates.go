@@ -63,6 +63,7 @@ func selectCandidates(inbound *PersistentInboundTransformer, quotaProvider Provi
 		}
 
 		selector = WithStreamPolicySelector(selector)
+		selector = WithChannelCooldownFilterSelector(selector)
 
 		quotaSelector := WithProviderQuotaSelector(selector, quotaProvider, systemService)
 		selector = quotaSelector
