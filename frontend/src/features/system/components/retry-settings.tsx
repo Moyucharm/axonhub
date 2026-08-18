@@ -40,6 +40,8 @@ export function RetrySettings() {
       mode: 'codes',
       times: 3,
       statuses: [],
+      action: 'disable',
+      cooldownDurationMinutes: 30,
     },
     autoDisableAPIKey: {
       enabled: true,
@@ -71,6 +73,8 @@ export function RetrySettings() {
           mode: retryPolicy.autoDisableChannel?.mode || 'codes',
           times: retryPolicy.autoDisableChannel?.times || 3,
           statuses: retryPolicy.autoDisableChannel?.statuses || [],
+          action: retryPolicy.autoDisableChannel?.action || 'disable',
+          cooldownDurationMinutes: retryPolicy.autoDisableChannel?.cooldownDurationMinutes || 30,
         },
         autoDisableAPIKey: {
           enabled: retryPolicy.autoDisableAPIKey?.enabled ?? true,
@@ -101,7 +105,7 @@ export function RetrySettings() {
   }, []);
 
   const handleAutoDisableChannelChange = useCallback(
-    (field: 'enabled' | 'mode' | 'times', value: boolean | string | number) => {
+    (field: 'enabled' | 'mode' | 'times' | 'action' | 'cooldownDurationMinutes', value: boolean | string | number) => {
       setFormData((prev) => ({
         ...prev,
         autoDisableChannel: {
@@ -454,6 +458,39 @@ export function RetrySettings() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div className='flex items-center justify-between'>
+                      <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.action.label')}</Label>
+                      <Select
+                        value={formData.autoDisableChannel?.action || 'disable'}
+                        onValueChange={(value) => handleAutoDisableChannelChange('action', value)}
+                      >
+                        <SelectTrigger className='w-44'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='disable'>{t('system.retry.autoDisableChannel.action.disable')}</SelectItem>
+                          <SelectItem value='cooldown'>{t('system.retry.autoDisableChannel.action.cooldown')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.autoDisableChannel?.action === 'cooldown' && (
+                      <div className='flex items-center justify-between'>
+                        <Label className='text-sm font-medium'>{t('system.retry.autoDisableChannel.cooldownMinutes.label')}</Label>
+                        <div className='flex items-center gap-2'>
+                          <Input
+                            type='number'
+                            min='1'
+                            max='10080'
+                            value={formData.autoDisableChannel?.cooldownDurationMinutes || 30}
+                            onChange={(e) => handleAutoDisableChannelChange('cooldownDurationMinutes', parseInt(e.target.value) || 0)}
+                            className='w-24'
+                          />
+                          <span className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.cooldownMinutes.unit')}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {formData.autoDisableChannel?.mode === 'any' ? (
                       <div className='flex items-center justify-between'>

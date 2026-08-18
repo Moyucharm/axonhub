@@ -25,6 +25,7 @@ import { ChannelsCodexSimulationDialog } from './channels-codex-simulation-dialo
 import { ChannelsEndpointsDialog } from './channels-endpoints-dialog';
 import { ChannelsSystemSettingsDialog } from './channels-system-settings-dialog';
 import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
+import { ChannelAutoDisableRulesDialog } from './channel-auto-disable-rules-dialog';
 
 export function ChannelsDialogs() {
   const { open, setOpen, currentRow, setCurrentRow, selectedChannels } = useChannels();
@@ -310,6 +311,18 @@ export function ChannelsDialogs() {
               }
             }}
             channel={currentRow}
+          />
+
+          <ChannelAutoDisableRulesDialog
+            key={`channel-auto-disable-${currentRow.id}`}
+            open={open === 'channelAutoDisable'}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setOpen(null);
+                setTimeout(() => setCurrentRow(null), 500);
+              }
+            }}
+            currentRow={currentRow}
           />
 
           <ChannelAPIKeyPoolPanel

@@ -111,6 +111,8 @@ const RETRY_POLICY_QUERY = `
         enabled
         mode
         times
+        action
+        cooldownDurationMinutes
         statuses {
           status
           times
@@ -355,6 +357,8 @@ export interface AutoDisableChannel {
   enabled: boolean;
   mode: string;
   times: number;
+  action: 'disable' | 'cooldown';
+  cooldownDurationMinutes: number;
   statuses: AutoDisableChannelStatus[];
 }
 
@@ -400,6 +404,8 @@ export interface AutoDisableChannelInput {
   enabled?: boolean;
   mode?: string;
   times?: number;
+  action?: 'disable' | 'cooldown';
+  cooldownDurationMinutes?: number;
   statuses?: AutoDisableChannelStatusInput[];
 }
 

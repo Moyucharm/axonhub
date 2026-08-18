@@ -1284,6 +1284,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         const switchingToPool = isPoolMode && !wasPool;
         const switchingToSingle = !isPoolMode && wasPool;
 
+        if (switchingToSingle) {
+          updateInput.policies = {
+            ...(updateInput.policies ?? {}),
+            apiKeyAutoDisableRules: null,
+          };
+        }
+
         if (isPoolMode && !switchingToPool) {
           // Existing pool keys are managed by dedicated mutations in the pool panel.
           // Sending the stale form snapshot would overwrite keys imported there.

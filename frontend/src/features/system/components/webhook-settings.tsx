@@ -15,6 +15,7 @@ import { proxyTypeSchema, type ProxyConfig, type ProxyType } from '@/features/ch
 import { useProxyPresets, useUpdateWebhookNotifierConfig, useWebhookNotifierConfig, type WebhookNotifierConfig, type WebhookTarget } from '../data/system';
 
 const AUTO_DISABLED_EVENT = 'channel.auto_disabled';
+const AUTO_COOLED_EVENT = 'channel.auto_cooled';
 
 const DEFAULT_WEBHOOK_BODY_TEMPLATE = `{
   "event": "{{.Event}}",
@@ -30,6 +31,8 @@ const DEFAULT_WEBHOOK_BODY_TEMPLATE = `{
     "status_code": {{.Trigger.StatusCode}},
     "threshold": {{.Trigger.Threshold}},
     "actual_count": {{.Trigger.ActualCount}},
+    "action": "{{.Trigger.Action}}",
+    "cooldown_until": "{{.Trigger.CooldownUntil}}",
     "reason": "{{.Trigger.Reason}}"
   }
 }`;
@@ -68,12 +71,12 @@ export function WebhookSettings() {
   }, [webhookConfig]);
 
   const getSubscribedTargetNames = useCallback(
-    () => new Set(formData.subscriptions.find((subscription) => subscription.event === AUTO_DISABLED_EVENT)?.targetNames || []),
+    (event: string) => new Set(formData.subscriptions.find((subscription) => subscription.event === event)?.targetNames || []),
     [formData.subscriptions]
   );
 
   const isTargetSubscribed = useCallback(
-    (targetName: string) => getSubscribedTargetNames().has(targetName),
+    (event: string, targetName: string) => getSubscribedTargetNames(event).has(targetName),
     [getSubscribedTargetNames]
   );
 
@@ -226,17 +229,17 @@ export function WebhookSettings() {
     }));
   }, []);
 
-  const handleSubscriptionChange = useCallback((targetName: string, checked: boolean) => {
+  const handleSubscriptionChange = useCallback((event: string, targetName: string, checked: boolean) => {
     setFormData((prev) => {
-      const current = prev.subscriptions.find((subscription) => subscription.event === AUTO_DISABLED_EVENT);
+      const current = prev.subscriptions.find((subscription) => subscription.event === event);
       const nextTargetNames = checked
         ? Array.from(new Set([...(current?.targetNames || []), targetName]))
         : (current?.targetNames || []).filter((name) => name !== targetName);
 
-      const nextSubscriptions = prev.subscriptions.filter((subscription) => subscription.event !== AUTO_DISABLED_EVENT);
+      const nextSubscriptions = prev.subscriptions.filter((subscription) => subscription.event !== event);
       if (nextTargetNames.length > 0) {
         nextSubscriptions.push({
-          event: AUTO_DISABLED_EVENT,
+          event,
           targetNames: nextTargetNames,
         });
       }
@@ -326,7 +329,8 @@ export function WebhookSettings() {
     );
   }
 
-  const subscribedTargetCount = getSubscribedTargetNames().size;
+  const subscribedDisabledTargetCount = getSubscribedTargetNames(AUTO_DISABLED_EVENT).size;
+  const subscribedCooledTargetCount = getSubscribedTargetNames(AUTO_COOLED_EVENT).size;
   const normalizedNameCounts = formData.targets.reduce<Record<string, number>>((acc, target) => {
     const normalizedName = target.name.trim();
     if (!normalizedName) {
@@ -354,7 +358,16 @@ export function WebhookSettings() {
                 <div className='text-muted-foreground text-sm'>{t('system.webhook.events.channelAutoDisabled')}</div>
               </div>
               <div className='text-muted-foreground text-sm'>
-                {t('system.webhook.subscriptionCount', { count: subscribedTargetCount })}
+                {t('system.webhook.subscriptionCount', { count: subscribedDisabledTargetCount })}
+              </div>
+            </div>
+            <div className='bg-background flex items-center justify-between rounded-md border p-3'>
+              <div className='space-y-1'>
+                <div className='font-mono text-xs'>{AUTO_COOLED_EVENT}</div>
+                <div className='text-muted-foreground text-sm'>{t('system.webhook.events.channelAutoCooled')}</div>
+              </div>
+              <div className='text-muted-foreground text-sm'>
+                {t('system.webhook.subscriptionCount', { count: subscribedCooledTargetCount })}
               </div>
             </div>
           </div>
@@ -376,7 +389,8 @@ export function WebhookSettings() {
             <div className='space-y-4'>
               {formData.targets.map((target, targetIndex) => {
                 const targetName = target.name.trim();
-                const targetSubscribed = targetName ? isTargetSubscribed(targetName) : false;
+                const targetDisabledSubscribed = targetName ? isTargetSubscribed(AUTO_DISABLED_EVENT, targetName) : false;
+                const targetCooledSubscribed = targetName ? isTargetSubscribed(AUTO_COOLED_EVENT, targetName) : false;
                 const hasDuplicateName = !!targetName && normalizedNameCounts[targetName] > 1;
                 const proxyType = target.proxy?.type || proxyTypeSchema.enum.disabled;
 
@@ -538,14 +552,26 @@ export function WebhookSettings() {
                       </div>
                       <label className='flex items-start gap-3'>
                         <Checkbox
-                          checked={targetSubscribed}
-                          onCheckedChange={(checked) => handleSubscriptionChange(target.name.trim(), checked === true)}
+                          checked={targetDisabledSubscribed}
+                          onCheckedChange={(checked) => handleSubscriptionChange(AUTO_DISABLED_EVENT, target.name.trim(), checked === true)}
                           disabled={!target.name.trim()}
                           className='shrink-0 mt-0.5'
                         />
                         <div className='space-y-1 min-w-0 flex-1'>
                           <div className='font-mono text-xs break-all'>{AUTO_DISABLED_EVENT}</div>
                           <div className='text-muted-foreground text-sm'>{t('system.webhook.events.channelAutoDisabled')}</div>
+                        </div>
+                      </label>
+                      <label className='flex items-start gap-3'>
+                        <Checkbox
+                          checked={targetCooledSubscribed}
+                          onCheckedChange={(checked) => handleSubscriptionChange(AUTO_COOLED_EVENT, target.name.trim(), checked === true)}
+                          disabled={!target.name.trim()}
+                          className='shrink-0 mt-0.5'
+                        />
+                        <div className='space-y-1 min-w-0 flex-1'>
+                          <div className='font-mono text-xs break-all'>{AUTO_COOLED_EVENT}</div>
+                          <div className='text-muted-foreground text-sm'>{t('system.webhook.events.channelAutoCooled')}</div>
                         </div>
                       </label>
                     </div>

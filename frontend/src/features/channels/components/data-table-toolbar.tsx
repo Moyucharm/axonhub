@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from 'react';
 import { Cross2Icon } from '@radix-ui/react-icons';
-import { IconChevronsDown, IconChevronsUp, IconSearch } from '@tabler/icons-react';
+import { IconChevronsDown, IconChevronsUp, IconHistory, IconSearch } from '@tabler/icons-react';
 import { Table } from '@tanstack/react-table';
 import { useQueryModels } from '@/gql/models';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +20,8 @@ interface DataTableToolbarProps<TData> {
   selectedTypeTab?: string;
   showErrorOnly?: boolean;
   onExitErrorOnlyMode?: () => void;
+  cooldownOnly?: boolean;
+  onCooldownOnlyChange?: (enabled: boolean) => void;
 }
 
 export function DataTableToolbar<TData>({
@@ -29,12 +31,14 @@ export function DataTableToolbar<TData>({
   selectedTypeTab = 'all',
   showErrorOnly,
   onExitErrorOnlyMode,
+  cooldownOnly = false,
+  onCooldownOnlyChange,
 }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation();
   const scrollRef = useHorizontalScroll<HTMLDivElement>();
   const { showTypeTabs, setShowTypeTabs } = useChannels();
   const tableState = table.getState();
-  const isFiltered = externalIsFiltered ?? tableState.columnFilters.length > 0;
+  const isFiltered = (externalIsFiltered ?? tableState.columnFilters.length > 0) || cooldownOnly;
 
   // Get all channel tags from GraphQL
   const { data: allTags = [] } = useAllChannelTags();
@@ -118,6 +122,15 @@ export function DataTableToolbar<TData>({
       {table.getColumn('status') && (
         <DataTableFacetedFilter column={table.getColumn('status')} title={t('channels.filters.status')} options={channelStatuses} />
       )}
+      <Button
+        variant={cooldownOnly ? 'default' : 'outline'}
+        size='sm'
+        className='h-8 shrink-0'
+        onClick={() => onCooldownOnlyChange?.(!cooldownOnly)}
+      >
+        <IconHistory className='mr-1 h-4 w-4' />
+        {t('channels.filters.coolingDown')}
+      </Button>
       {table.getColumn('tags') && tagOptions?.length > 0 && (
         <DataTableFacetedFilter column={table.getColumn('tags')} title={t('channels.filters.tags')} options={tagOptions} singleSelect />
       )}
@@ -127,7 +140,10 @@ export function DataTableToolbar<TData>({
       {isFiltered && (
         <Button
           variant='ghost'
-          onClick={() => table.resetColumnFilters()}
+          onClick={() => {
+            table.resetColumnFilters();
+            onCooldownOnlyChange?.(false);
+          }}
           className='h-8 px-2 lg:px-3'
         >
           {t('common.filters.reset')}

@@ -33,6 +33,8 @@ function ChannelsContent() {
   const [modelFilter, setModelFilter] = useState<string>('');
   const [selectedTypeTab, setSelectedTypeTab] = useState<string>('all');
   const [showErrorOnly, setShowErrorOnly] = useState<boolean>(false);
+  const [cooldownOnly, setCooldownOnly] = useState<boolean>(false);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const [sorting, setSorting] = useState<SortingState>(() => {
     const stored = localStorage.getItem('channels-table-sorting');
     if (stored) {
@@ -77,6 +79,15 @@ function ChannelsContent() {
   // Debounce the name filter to avoid excessive API calls
   const debouncedNameFilter = useDebounce(nameFilter, 300);
 
+  useEffect(() => {
+    if (!cooldownOnly) {
+      return;
+    }
+
+    const timer = window.setInterval(() => setCooldownNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [cooldownOnly]);
+
   // Get types for the selected tab
   const tabFilteredTypes = useMemo(() => {
     if (selectedTypeTab === 'all') {
@@ -88,7 +99,7 @@ function ChannelsContent() {
 
   // Build where clause with filters using useMemo
   const whereClause = useMemo(() => {
-    const where: Record<string, string | string[] | boolean> = {};
+    const where: Record<string, unknown> = {};
     if (debouncedNameFilter) {
       where.nameContainsFold = debouncedNameFilter;
     }
@@ -110,8 +121,11 @@ function ChannelsContent() {
     if (showErrorOnly) {
       where.errorMessageNotNil = true;
     }
+    if (cooldownOnly) {
+      where.cooldownUntilGT = new Date(cooldownNow).toISOString();
+    }
     return Object.keys(where).length > 0 ? where : undefined;
-  }, [debouncedNameFilter, tabFilteredTypes, statusFilter, showErrorOnly]);
+  }, [cooldownNow, cooldownOnly, debouncedNameFilter, tabFilteredTypes, statusFilter, showErrorOnly]);
 
   const currentOrderBy = useMemo(() => {
     if (sorting.length === 0) {
@@ -273,6 +287,11 @@ function ChannelsContent() {
         nameFilter={nameFilter}
         typeFilter={typeFilter}
         statusFilter={statusFilter}
+        cooldownOnly={cooldownOnly}
+        onCooldownOnlyChange={(enabled) => {
+          setCooldownOnly(enabled);
+          resetCursor();
+        }}
         tagFilter={tagFilter}
         modelFilter={modelFilter}
         selectedTypeTab={selectedTypeTab}

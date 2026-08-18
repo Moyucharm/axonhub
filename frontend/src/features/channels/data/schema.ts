@@ -150,8 +150,27 @@ export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema.refin
   }
 );
 
+export const autoDisableActionSchema = z.enum(['disable', 'cooldown']);
+export type AutoDisableAction = z.infer<typeof autoDisableActionSchema>;
+
+export const channelAutoDisableStatusSchema = z.object({
+  status: z.number().int().min(100).max(599),
+  times: z.number().int().min(1),
+});
+export type ChannelAutoDisableStatus = z.infer<typeof channelAutoDisableStatusSchema>;
+
+export const channelAutoDisablePolicySchema = z.object({
+  mode: z.enum(['any', 'codes']),
+  times: z.number().int().min(1),
+  statuses: z.array(channelAutoDisableStatusSchema).optional().nullable(),
+  action: autoDisableActionSchema,
+  cooldownDurationMinutes: z.number().int().nonnegative(),
+});
+export type ChannelAutoDisablePolicy = z.infer<typeof channelAutoDisablePolicySchema>;
+
 export const channelPoliciesSchema = z.object({
   stream: capabilityPolicySchema.optional(),
+  channelAutoDisable: channelAutoDisablePolicySchema.optional().nullable(),
   apiKeyAutoDisableRules: z.array(apiKeyAutoDisableRuleSchema).optional().nullable(),
 });
 export type ChannelPolicies = z.infer<typeof channelPoliciesSchema>;
@@ -522,6 +541,9 @@ export const channelSchema = z.object({
   defaultTestModel: z.string(),
   settings: channelSettingsSchema.optional().nullable(),
   orderingWeight: z.number().optional().default(0),
+  cooldownUntil: z.string().optional().nullable(),
+  cooldownErrorCode: z.number().int().optional().nullable(),
+  cooldownErrorMessage: z.string().optional().nullable(),
   errorMessage: z.string().optional().nullable(),
   remark: z.string().optional().nullable(),
   allModelEntries: z.array(channelModelEntrySchema).optional(),

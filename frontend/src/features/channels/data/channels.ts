@@ -79,6 +79,7 @@ const CREATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
+        channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
         apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
       }
       supportedModels
@@ -146,6 +147,9 @@ const CREATE_CHANNEL_MUTATION = `
         }
       }
       orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
       remark
       defaultEndpoints {
         apiFormat
@@ -175,6 +179,7 @@ const DUPLICATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
+        channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
         apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
       }
       supportedModels
@@ -242,6 +247,9 @@ const DUPLICATE_CHANNEL_MUTATION = `
         }
       }
       orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
       remark
       defaultEndpoints {
         apiFormat
@@ -271,6 +279,7 @@ const BULK_CREATE_CHANNELS_MUTATION = `
       status
       policies {
         stream
+        channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
         apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
       }
       supportedModels
@@ -338,6 +347,9 @@ const BULK_CREATE_CHANNELS_MUTATION = `
         }
       }
       orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
       remark
       defaultEndpoints {
         apiFormat
@@ -367,6 +379,7 @@ const UPDATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
+        channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
         apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
       }
       supportedModels
@@ -434,6 +447,9 @@ const UPDATE_CHANNEL_MUTATION = `
         }
       }
       orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
       errorMessage
       remark
       defaultEndpoints {
@@ -458,6 +474,12 @@ const UPDATE_CHANNEL_STATUS_MUTATION = `
       id
       status
     }
+  }
+`;
+
+const RECOVER_CHANNEL_COOLDOWN_MUTATION = `
+  mutation RecoverChannelCooldown($channelID: ID!) {
+    recoverChannelCooldown(channelID: $channelID)
   }
 `;
 
@@ -857,6 +879,9 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
         manualModels
         defaultTestModel
         orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
         defaultEndpoints {
           apiFormat
           path
@@ -934,6 +959,9 @@ const ALL_CHANNEL_SUMMARYS_QUERY = `
       status
       baseURL
       orderingWeight
+      cooldownUntil
+      cooldownErrorCode
+      cooldownErrorMessage
       tags
       endpoints {
         apiFormat
@@ -990,6 +1018,7 @@ const QUERY_CHANNELS_QUERY = `
           status
           policies {
             stream
+            channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
             apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
           }
           credentials {
@@ -1111,6 +1140,9 @@ const QUERY_CHANNELS_QUERY = `
             }
           }
           orderingWeight
+          cooldownUntil
+          cooldownErrorCode
+          cooldownErrorMessage
           errorMessage
           remark
           defaultEndpoints {
@@ -1560,6 +1592,28 @@ export function useUpdateChannelStatus() {
       const messageKey = variables.status === 'archived' ? 'channels.messages.archiveSuccess' : 'channels.messages.statusUpdateSuccess';
 
       toast.success(variables.status === 'archived' ? t(messageKey) : t(messageKey, { status: statusText }));
+    },
+  });
+}
+
+export function useRecoverChannelCooldown() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+
+  return useMutation({
+    mutationFn: async (channelID: string) => {
+      try {
+        const data = await graphqlRequest<{ recoverChannelCooldown: boolean }>(RECOVER_CHANNEL_COOLDOWN_MUTATION, { channelID });
+        return data.recoverChannelCooldown;
+      } catch (error) {
+        handleError(error, { context: 'Recover Channel Cooldown' });
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      toast.success(t('channels.messages.cooldownRecovered'));
     },
   });
 }

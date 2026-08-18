@@ -31,6 +31,7 @@ type ChannelsDialogType =
   | 'transformOptions'
   | 'rateLimit'
   | 'keyPool'
+  | 'channelAutoDisable'
   | 'endpoints'
   | 'codexSimulation';
 

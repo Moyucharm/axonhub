@@ -25,6 +25,7 @@ import {
   IconPlugConnected,
   IconKey,
   IconFingerprint,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -44,13 +45,14 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { DataTableColumnHeader } from '@/components/data-table-column-header';
 import { useChannels } from '../context/channels-context';
-import { useTestChannel, useUpdateChannel } from '../data/channels';
+import { useRecoverChannelCooldown, useTestChannel, useUpdateChannel } from '../data/channels';
 import { CHANNEL_CONFIGS, getProvider } from '../data/config_channels';
 import { Channel } from '../data/schema';
 import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { ChannelHealthCell } from './channel-health-cell';
 import { ChannelLimiterCell } from './channel-limiter-cell';
 import { ChannelsStatusDialog } from './channels-status-dialog';
+import { useGeneralSettings } from '@/features/system/data/system';
 
 const WEIGHT_PRECISION = 4;
 const MIN_WEIGHT = 0;
@@ -95,7 +97,9 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
   const { setOpen, setCurrentRow } = useChannels();
   const { channelPermissions } = usePermissions();
   const testChannel = useTestChannel();
+  const recoverCooldown = useRecoverChannelCooldown();
   const isArchived = channel.status === 'archived';
+  const isCoolingDown = !!channel.cooldownUntil && new Date(channel.cooldownUntil).getTime() > Date.now();
   const hasError = !!channel.errorMessage;
   const apiKeysCount = channel.credentials?.apiKeys?.filter((key) => key.trim().length > 0).length ?? 0;
   const isKeyPool = channelPermissions.canWrite && (channel.credentials?.mode === 'pool' || apiKeysCount > 1);
@@ -118,6 +122,14 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
     setCurrentRow(channel);
     setOpen('edit');
   }, [channel, setCurrentRow, setOpen]);
+
+  const handleRecoverCooldown = useCallback(async () => {
+    try {
+      await recoverCooldown.mutateAsync(channel.id);
+    } catch (_error) {
+      // Error handled by the mutation hook.
+    }
+  }, [channel.id, recoverCooldown]);
 
   return (
     <div className='flex items-center justify-center gap-1'>
@@ -233,6 +245,17 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             <IconPlugConnected size={16} className='mr-2' />
             {t('channels.endpoints.title')}
           </DropdownMenuItem>
+          {channelPermissions.canWrite && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(channel);
+                setOpen('channelAutoDisable');
+              }}
+            >
+              <IconAdjustments size={16} className='mr-2' />
+              {t('channels.dialogs.channelAutoDisableRules.title')}
+            </DropdownMenuItem>
+          )}
           {isKeyPool && (
             <DropdownMenuItem
               onClick={() => {
@@ -242,6 +265,12 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             >
               <IconKey size={16} className='mr-2' />
               {t('channels.keyPool.action')}
+            </DropdownMenuItem>
+          )}
+          {isCoolingDown && channelPermissions.canWrite && (
+            <DropdownMenuItem onClick={handleRecoverCooldown} disabled={recoverCooldown.isPending}>
+              <IconRefresh size={16} className='mr-2' />
+              {t('channels.actions.recoverCooldown')}
             </DropdownMenuItem>
           )}
           {hasError && (
@@ -312,6 +341,40 @@ function getChannelWebsiteURL(baseURL: string): string | null {
   }
 }
 
+function formatCooldownUntil(value: string, timezone: string, locale: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  try {
+    const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const timeFormatter = new Intl.DateTimeFormat(locale, {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const dateFormatter = new Intl.DateTimeFormat(locale, {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const todayKey = dateKeyFormatter.format(new Date());
+    const dateKey = dateKeyFormatter.format(date);
+    const time = timeFormatter.format(date);
+    return dateKey === todayKey ? time : `${dateFormatter.format(date)} ${time}`;
+  } catch {
+    return date.toLocaleString(locale, { hour: '2-digit', minute: '2-digit' });
+  }
+}
+
 function getProxyURLSummary(proxyURL: string): { label: string; detail?: string } {
   try {
     const url = new URL(proxyURL);
@@ -327,8 +390,9 @@ function getProxyURLSummary(proxyURL: string): { label: string; detail?: string 
 
 // Memoized cell components to avoid recreating on every render
 const NameCell = memo(({ row }: { row: Row<Channel> }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const channel = row.original;
+  const { data: generalSettings } = useGeneralSettings();
   const { setCurrentRow, setOpen } = useChannels();
   const { channelPermissions } = usePermissions();
   const hasError = !!channel.errorMessage;
@@ -337,6 +401,11 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
   const websiteURL = getChannelWebsiteURL(channel.baseURL);
   const { total, enabled, isPool } = getChannelAPIKeySummary(channel);
   const keyPoolSummary = t('channels.keyPool.summary', { enabled, total });
+  const cooldownUntil = channel.cooldownUntil;
+  const isCoolingDown = !!cooldownUntil && new Date(cooldownUntil).getTime() > Date.now();
+  const cooldownTime = isCoolingDown
+    ? formatCooldownUntil(cooldownUntil || '', generalSettings?.timezone || 'UTC', i18n.language === 'zh' ? 'zh-CN' : 'en-US')
+    : null;
 
   const nameElement = websiteURL ? (
     <a
@@ -358,6 +427,12 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
         {hasError && <IconAlertTriangle className='text-destructive h-4 w-4 shrink-0' />}
         {!hasError && hasDisabledKeys && <IconKeyOff className='h-4 w-4 shrink-0 text-amber-500' />}
         {nameElement}
+        {isCoolingDown && cooldownTime && (
+          <Badge variant='secondary' className='shrink-0 gap-1 text-xs tabular-nums'>
+            <IconHistory className='h-3 w-3' />
+            {t('channels.cooldown.badge', { time: cooldownTime })}
+          </Badge>
+        )}
         {isPool &&
           (channelPermissions.canWrite ? (
             <Badge
@@ -386,6 +461,25 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
       </div>
     </div>
   );
+
+  if (isCoolingDown && cooldownTime) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{content}</TooltipTrigger>
+        <TooltipContent className='max-w-sm'>
+          <div className='space-y-1 text-sm'>
+            {channel.cooldownErrorCode != null && (
+              <p>{t('channels.cooldown.tooltip.statusCode', { code: channel.cooldownErrorCode })}</p>
+            )}
+            {channel.cooldownErrorMessage && (
+              <p className='break-words'>{t('channels.cooldown.tooltip.message', { message: channel.cooldownErrorMessage })}</p>
+            )}
+            <p>{t('channels.cooldown.tooltip.recoverAt', { time: cooldownTime })}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   if (hasError) {
     return (
