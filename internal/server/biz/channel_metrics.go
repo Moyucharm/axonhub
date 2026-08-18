@@ -308,51 +308,69 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 	}()
 
 	if perf.Success {
-		svc.channelErrorCountsLock.Lock()
-		delete(svc.channelErrorCounts, perf.ChannelID)
-		svc.channelErrorCountsLock.Unlock()
+		if !perf.SkipAutoDisable {
+			svc.channelErrorCountsLock.Lock()
+			delete(svc.channelErrorCounts, perf.ChannelID)
+			svc.channelErrorCountsLock.Unlock()
 
-		// Also clear API key error counts on success.
-		if perf.APIKey != "" {
-			svc.apiKeyErrorCountsLock.Lock()
-
-			rulePrefix := perf.APIKey + ":rule:"
-			if svc.apiKeyErrorCounts[perf.ChannelID] != nil {
-				delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
-				for key := range svc.apiKeyErrorCounts[perf.ChannelID] {
-					if strings.HasPrefix(key, rulePrefix) {
-						delete(svc.apiKeyErrorCounts[perf.ChannelID], key)
-					}
-				}
-			}
-			for key := range svc.apiKeyRuleActionsInFlight[perf.ChannelID] {
-				if strings.HasPrefix(key, rulePrefix) {
-					svc.apiKeyRuleActionsInFlight[perf.ChannelID][key] = true
-				}
-			}
-
-			svc.apiKeyErrorCountsLock.Unlock()
-			if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
-				log.Warn(ctx, "Failed to reset persistent API key failure state",
+			if err := svc.resetChannelFailure(ctx, perf.ChannelID); err != nil {
+				log.Warn(ctx, "Failed to reset persistent channel failure state",
 					log.Int("channel_id", perf.ChannelID),
 					log.Cause(err),
 				)
 			}
-		}
-	} else if !perf.Canceled {
-		matched := false
-		if perf.APIKey != "" {
-			matched, _ = svc.checkAndHandleChannelAPIKeyRules(ctx, perf)
-		}
-		if !matched {
-			policy := svc.SystemService.RetryPolicyOrDefault(ctx)
-			// Channel-scoped API key rules take priority; the global settings are
-			// split by dimension: AutoDisableChannel for channel-level failures,
-			// AutoDisableAPIKey for per-key failures.
+
+			// Clear in-memory key counters for every keyed request, but only
+			// persist a key streak reset for managed key pools.
 			if perf.APIKey != "" {
+				svc.apiKeyErrorCountsLock.Lock()
+
+				rulePrefix := perf.APIKey + ":rule:"
+				if svc.apiKeyErrorCounts[perf.ChannelID] != nil {
+					delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
+					for key := range svc.apiKeyErrorCounts[perf.ChannelID] {
+						if strings.HasPrefix(key, rulePrefix) {
+							delete(svc.apiKeyErrorCounts[perf.ChannelID], key)
+						}
+					}
+				}
+				for key := range svc.apiKeyRuleActionsInFlight[perf.ChannelID] {
+					if strings.HasPrefix(key, rulePrefix) {
+						svc.apiKeyRuleActionsInFlight[perf.ChannelID][key] = true
+					}
+				}
+
+				svc.apiKeyErrorCountsLock.Unlock()
+				if svc.isAPIKeyPool(ctx, perf.ChannelID) {
+					if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
+						log.Warn(ctx, "Failed to reset persistent API key failure state",
+							log.Int("channel_id", perf.ChannelID),
+							log.Cause(err),
+						)
+					}
+				}
+			}
+		}
+	} else if !perf.Canceled && !perf.SkipAutoDisable {
+		policy := svc.SystemService.RetryPolicyOrDefault(ctx)
+
+		// Capture the key-rule channel before channel handling can remove a
+		// disabled/cooling channel from the enabled cache. The two dimensions
+		// must still execute independently for the same production failure.
+		var keyRuleChannel *Channel
+		if perf.APIKey != "" {
+			keyRuleChannel = svc.GetEnabledChannel(perf.ChannelID)
+		}
+
+		// Channel and API key failures are independent dimensions. A keyed
+		// request contributes to both dimensions; channel-scoped key rules only
+		// decide whether the key dimension falls back to the global key policy.
+		svc.checkAndHandleChannelError(ctx, perf, policy)
+
+		if perf.APIKey != "" {
+			matched, _ := svc.checkAndHandleChannelAPIKeyRulesWithChannel(ctx, perf, keyRuleChannel)
+			if !matched {
 				svc.checkAndHandleAPIKeyError(ctx, perf, policy)
-			} else {
-				svc.checkAndHandleChannelError(ctx, perf, policy)
 			}
 		}
 	}
@@ -521,6 +539,9 @@ type PerformanceRecord struct {
 	Success            bool
 	Canceled           bool
 	RequestCompleted   bool
+	// SkipAutoDisable marks diagnostic requests that must not mutate automatic
+	// channel or API key disposition state while still recording performance.
+	SkipAutoDisable bool
 
 	// If response status code is 0, it means the request is successful.
 	ResponseStatusCode int

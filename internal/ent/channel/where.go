@@ -80,6 +80,11 @@ func Name(v string) predicate.Channel {
 	return predicate.Channel(sql.FieldEQ(FieldName, v))
 }
 
+// CooldownUntil applies equality check predicate on the "cooldown_until" field. It's identical to CooldownUntilEQ.
+func CooldownUntil(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldEQ(FieldCooldownUntil, v))
+}
+
 // AutoSyncSupportedModels applies equality check predicate on the "auto_sync_supported_models" field. It's identical to AutoSyncSupportedModelsEQ.
 func AutoSyncSupportedModels(v bool) predicate.Channel {
 	return predicate.Channel(sql.FieldEQ(FieldAutoSyncSupportedModels, v))
@@ -408,6 +413,66 @@ func StatusIn(vs ...Status) predicate.Channel {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Channel {
 	return predicate.Channel(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// CooldownUntilEQ applies the EQ predicate on the "cooldown_until" field.
+func CooldownUntilEQ(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldEQ(FieldCooldownUntil, v))
+}
+
+// CooldownUntilNEQ applies the NEQ predicate on the "cooldown_until" field.
+func CooldownUntilNEQ(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldNEQ(FieldCooldownUntil, v))
+}
+
+// CooldownUntilIn applies the In predicate on the "cooldown_until" field.
+func CooldownUntilIn(vs ...time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldIn(FieldCooldownUntil, vs...))
+}
+
+// CooldownUntilNotIn applies the NotIn predicate on the "cooldown_until" field.
+func CooldownUntilNotIn(vs ...time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldNotIn(FieldCooldownUntil, vs...))
+}
+
+// CooldownUntilGT applies the GT predicate on the "cooldown_until" field.
+func CooldownUntilGT(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldGT(FieldCooldownUntil, v))
+}
+
+// CooldownUntilGTE applies the GTE predicate on the "cooldown_until" field.
+func CooldownUntilGTE(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldGTE(FieldCooldownUntil, v))
+}
+
+// CooldownUntilLT applies the LT predicate on the "cooldown_until" field.
+func CooldownUntilLT(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldLT(FieldCooldownUntil, v))
+}
+
+// CooldownUntilLTE applies the LTE predicate on the "cooldown_until" field.
+func CooldownUntilLTE(v time.Time) predicate.Channel {
+	return predicate.Channel(sql.FieldLTE(FieldCooldownUntil, v))
+}
+
+// CooldownUntilIsNil applies the IsNil predicate on the "cooldown_until" field.
+func CooldownUntilIsNil() predicate.Channel {
+	return predicate.Channel(sql.FieldIsNull(FieldCooldownUntil))
+}
+
+// CooldownUntilNotNil applies the NotNil predicate on the "cooldown_until" field.
+func CooldownUntilNotNil() predicate.Channel {
+	return predicate.Channel(sql.FieldNotNull(FieldCooldownUntil))
+}
+
+// AutoDisableStateIsNil applies the IsNil predicate on the "auto_disable_state" field.
+func AutoDisableStateIsNil() predicate.Channel {
+	return predicate.Channel(sql.FieldIsNull(FieldAutoDisableState))
+}
+
+// AutoDisableStateNotNil applies the NotNil predicate on the "auto_disable_state" field.
+func AutoDisableStateNotNil() predicate.Channel {
+	return predicate.Channel(sql.FieldNotNull(FieldAutoDisableState))
 }
 
 // DisabledAPIKeysIsNil applies the IsNil predicate on the "disabled_api_keys" field.

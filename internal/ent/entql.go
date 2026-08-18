@@ -102,6 +102,8 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channel.FieldBaseURL:                 {Type: field.TypeString, Column: channel.FieldBaseURL},
 			channel.FieldName:                    {Type: field.TypeString, Column: channel.FieldName},
 			channel.FieldStatus:                  {Type: field.TypeEnum, Column: channel.FieldStatus},
+			channel.FieldCooldownUntil:           {Type: field.TypeTime, Column: channel.FieldCooldownUntil},
+			channel.FieldAutoDisableState:        {Type: field.TypeJSON, Column: channel.FieldAutoDisableState},
 			channel.FieldCredentials:             {Type: field.TypeJSON, Column: channel.FieldCredentials},
 			channel.FieldDisabledAPIKeys:         {Type: field.TypeJSON, Column: channel.FieldDisabledAPIKeys},
 			channel.FieldSupportedModels:         {Type: field.TypeJSON, Column: channel.FieldSupportedModels},
@@ -1711,6 +1713,16 @@ func (f *ChannelFilter) WhereName(p entql.StringP) {
 // WhereStatus applies the entql string predicate on the status field.
 func (f *ChannelFilter) WhereStatus(p entql.StringP) {
 	f.Where(p.Field(channel.FieldStatus))
+}
+
+// WhereCooldownUntil applies the entql time.Time predicate on the cooldown_until field.
+func (f *ChannelFilter) WhereCooldownUntil(p entql.TimeP) {
+	f.Where(p.Field(channel.FieldCooldownUntil))
+}
+
+// WhereAutoDisableState applies the entql json.RawMessage predicate on the auto_disable_state field.
+func (f *ChannelFilter) WhereAutoDisableState(p entql.BytesP) {
+	f.Where(p.Field(channel.FieldAutoDisableState))
 }
 
 // WhereCredentials applies the entql json.RawMessage predicate on the credentials field.

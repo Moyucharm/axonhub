@@ -901,6 +901,18 @@ type ChannelWhereInput struct {
 	StatusIn    []channel.Status `json:"statusIn,omitempty"`
 	StatusNotIn []channel.Status `json:"statusNotIn,omitempty"`
 
+	// "cooldown_until" field predicates.
+	CooldownUntil       *time.Time  `json:"cooldownUntil,omitempty"`
+	CooldownUntilNEQ    *time.Time  `json:"cooldownUntilNEQ,omitempty"`
+	CooldownUntilIn     []time.Time `json:"cooldownUntilIn,omitempty"`
+	CooldownUntilNotIn  []time.Time `json:"cooldownUntilNotIn,omitempty"`
+	CooldownUntilGT     *time.Time  `json:"cooldownUntilGT,omitempty"`
+	CooldownUntilGTE    *time.Time  `json:"cooldownUntilGTE,omitempty"`
+	CooldownUntilLT     *time.Time  `json:"cooldownUntilLT,omitempty"`
+	CooldownUntilLTE    *time.Time  `json:"cooldownUntilLTE,omitempty"`
+	CooldownUntilIsNil  bool        `json:"cooldownUntilIsNil,omitempty"`
+	CooldownUntilNotNil bool        `json:"cooldownUntilNotNil,omitempty"`
+
 	// "auto_sync_supported_models" field predicates.
 	AutoSyncSupportedModels    *bool `json:"autoSyncSupportedModels,omitempty"`
 	AutoSyncSupportedModelsNEQ *bool `json:"autoSyncSupportedModelsNEQ,omitempty"`
@@ -1256,6 +1268,36 @@ func (i *ChannelWhereInput) P() (predicate.Channel, error) {
 	}
 	if len(i.StatusNotIn) > 0 {
 		predicates = append(predicates, channel.StatusNotIn(i.StatusNotIn...))
+	}
+	if i.CooldownUntil != nil {
+		predicates = append(predicates, channel.CooldownUntilEQ(*i.CooldownUntil))
+	}
+	if i.CooldownUntilNEQ != nil {
+		predicates = append(predicates, channel.CooldownUntilNEQ(*i.CooldownUntilNEQ))
+	}
+	if len(i.CooldownUntilIn) > 0 {
+		predicates = append(predicates, channel.CooldownUntilIn(i.CooldownUntilIn...))
+	}
+	if len(i.CooldownUntilNotIn) > 0 {
+		predicates = append(predicates, channel.CooldownUntilNotIn(i.CooldownUntilNotIn...))
+	}
+	if i.CooldownUntilGT != nil {
+		predicates = append(predicates, channel.CooldownUntilGT(*i.CooldownUntilGT))
+	}
+	if i.CooldownUntilGTE != nil {
+		predicates = append(predicates, channel.CooldownUntilGTE(*i.CooldownUntilGTE))
+	}
+	if i.CooldownUntilLT != nil {
+		predicates = append(predicates, channel.CooldownUntilLT(*i.CooldownUntilLT))
+	}
+	if i.CooldownUntilLTE != nil {
+		predicates = append(predicates, channel.CooldownUntilLTE(*i.CooldownUntilLTE))
+	}
+	if i.CooldownUntilIsNil {
+		predicates = append(predicates, channel.CooldownUntilIsNil())
+	}
+	if i.CooldownUntilNotNil {
+		predicates = append(predicates, channel.CooldownUntilNotNil())
 	}
 	if i.AutoSyncSupportedModels != nil {
 		predicates = append(predicates, channel.AutoSyncSupportedModelsEQ(*i.AutoSyncSupportedModels))

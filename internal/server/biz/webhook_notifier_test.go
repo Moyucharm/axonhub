@@ -66,7 +66,7 @@ func TestWebhookNotifier_NotifyChannelAutoDisabled(t *testing.T) {
 				Headers: []objects.HeaderEntry{
 					{Key: "X-AxonHub-Event", Value: "{{.Event}}"},
 				},
-				Body: `{"event":"{{.Event}}","channel":"{{.Channel.Name}}","status_code":{{.Trigger.StatusCode}},"threshold":{{.Trigger.Threshold}},"actual_count":{{.Trigger.ActualCount}}}`,
+				Body: `{"event":"{{.Event}}","channel":"{{.Channel.Name}}","action":"{{.Trigger.Action}}","status_code":{{.Trigger.StatusCode}},"threshold":{{.Trigger.Threshold}},"actual_count":{{.Trigger.ActualCount}}}`,
 			},
 		},
 		Subscriptions: []WebhookSubscription{
@@ -93,9 +93,58 @@ func TestWebhookNotifier_NotifyChannelAutoDisabled(t *testing.T) {
 	require.Equal(t, EventChannelAutoDisabled, receivedHeader)
 	require.Contains(t, receivedBody, `"event":"channel.auto_disabled"`)
 	require.Contains(t, receivedBody, `"channel":"primary"`)
+	require.Contains(t, receivedBody, `"action":"disable"`)
 	require.Contains(t, receivedBody, `"status_code":429`)
 	require.Contains(t, receivedBody, `"threshold":3`)
 	require.Contains(t, receivedBody, `"actual_count":3`)
+}
+
+func TestWebhookNotifier_NotifyChannelAutoCooled(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	var receivedBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		receivedBody = string(body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := WebhookNotifierConfig{
+		Targets: []WebhookTarget{{
+			Name:      "default",
+			Enabled:   true,
+			URL:       server.URL,
+			TimeoutMs: 1000,
+			Body:      `{"event":"{{.Event}}","status":"{{.Channel.Status}}","action":"{{.Trigger.Action}}","cooldown_until":"{{.Trigger.CooldownUntil}}","reason":"{{.Trigger.Reason}}"}`,
+		}},
+		Subscriptions: []WebhookSubscription{{Event: EventChannelAutoCooled, TargetNames: []string{"default"}}},
+	}
+
+	systemService := newTestSystemServiceWithWebhookConfig(t, client, cfg)
+	notifier := NewWebhookNotifier(systemService, httpclient.NewHttpClient())
+	cooldownUntil := time.Unix(1712814600, 0)
+	notifier.NotifyChannelAutoCooled(context.Background(), ChannelAutoCooledEvent{
+		ChannelID:       1,
+		ChannelName:     "primary",
+		ChannelProvider: "openai",
+		ChannelBaseURL:  "https://api.openai.com",
+		ChannelStatus:   "enabled",
+		StatusCode:      503,
+		Threshold:       3,
+		ActualCount:     3,
+		Reason:          "provider unavailable",
+		CooldownUntil:   cooldownUntil,
+		OccurredAt:      time.Unix(1712812800, 0),
+	})
+
+	require.Contains(t, receivedBody, `"event":"channel.auto_cooled"`)
+	require.Contains(t, receivedBody, `"status":"enabled"`)
+	require.Contains(t, receivedBody, `"action":"cooldown"`)
+	require.Contains(t, receivedBody, `"cooldown_until":"2024-04-11T05:50:00Z"`)
+	require.Contains(t, receivedBody, `"reason":"provider unavailable"`)
 }
 
 func TestWebhookNotifier_SkipWhenTemplateInvalid(t *testing.T) {

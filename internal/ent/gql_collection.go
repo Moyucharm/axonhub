@@ -778,6 +778,11 @@ func (_q *ChannelQuery) collectField(ctx context.Context, oneNode bool, opCtx *g
 				selectedFields = append(selectedFields, channel.FieldStatus)
 				fieldSeen[channel.FieldStatus] = struct{}{}
 			}
+		case "cooldownUntil":
+			if _, ok := fieldSeen[channel.FieldCooldownUntil]; !ok {
+				selectedFields = append(selectedFields, channel.FieldCooldownUntil)
+				fieldSeen[channel.FieldCooldownUntil] = struct{}{}
+			}
 		case "supportedModels":
 			if _, ok := fieldSeen[channel.FieldSupportedModels]; !ok {
 				selectedFields = append(selectedFields, channel.FieldSupportedModels)

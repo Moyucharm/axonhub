@@ -126,6 +126,46 @@ func (_u *ChannelUpdate) SetNillableStatus(v *channel.Status) *ChannelUpdate {
 	return _u
 }
 
+// SetCooldownUntil sets the "cooldown_until" field.
+func (_u *ChannelUpdate) SetCooldownUntil(v time.Time) *ChannelUpdate {
+	_u.mutation.SetCooldownUntil(v)
+	return _u
+}
+
+// SetNillableCooldownUntil sets the "cooldown_until" field if the given value is not nil.
+func (_u *ChannelUpdate) SetNillableCooldownUntil(v *time.Time) *ChannelUpdate {
+	if v != nil {
+		_u.SetCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (_u *ChannelUpdate) ClearCooldownUntil() *ChannelUpdate {
+	_u.mutation.ClearCooldownUntil()
+	return _u
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (_u *ChannelUpdate) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelUpdate {
+	_u.mutation.SetAutoDisableState(v)
+	return _u
+}
+
+// SetNillableAutoDisableState sets the "auto_disable_state" field if the given value is not nil.
+func (_u *ChannelUpdate) SetNillableAutoDisableState(v *objects.ChannelAutoDisableState) *ChannelUpdate {
+	if v != nil {
+		_u.SetAutoDisableState(*v)
+	}
+	return _u
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (_u *ChannelUpdate) ClearAutoDisableState() *ChannelUpdate {
+	_u.mutation.ClearAutoDisableState()
+	return _u
+}
+
 // SetCredentials sets the "credentials" field.
 func (_u *ChannelUpdate) SetCredentials(v objects.ChannelCredentials) *ChannelUpdate {
 	_u.mutation.SetCredentials(v)
@@ -674,6 +714,18 @@ func (_u *ChannelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(channel.FieldStatus, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.CooldownUntil(); ok {
+		_spec.SetField(channel.FieldCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.CooldownUntilCleared() {
+		_spec.ClearField(channel.FieldCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.AutoDisableState(); ok {
+		_spec.SetField(channel.FieldAutoDisableState, field.TypeJSON, value)
+	}
+	if _u.mutation.AutoDisableStateCleared() {
+		_spec.ClearField(channel.FieldAutoDisableState, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.Credentials(); ok {
 		_spec.SetField(channel.FieldCredentials, field.TypeJSON, value)
 	}
@@ -1133,6 +1185,46 @@ func (_u *ChannelUpdateOne) SetNillableStatus(v *channel.Status) *ChannelUpdateO
 	if v != nil {
 		_u.SetStatus(*v)
 	}
+	return _u
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (_u *ChannelUpdateOne) SetCooldownUntil(v time.Time) *ChannelUpdateOne {
+	_u.mutation.SetCooldownUntil(v)
+	return _u
+}
+
+// SetNillableCooldownUntil sets the "cooldown_until" field if the given value is not nil.
+func (_u *ChannelUpdateOne) SetNillableCooldownUntil(v *time.Time) *ChannelUpdateOne {
+	if v != nil {
+		_u.SetCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (_u *ChannelUpdateOne) ClearCooldownUntil() *ChannelUpdateOne {
+	_u.mutation.ClearCooldownUntil()
+	return _u
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (_u *ChannelUpdateOne) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelUpdateOne {
+	_u.mutation.SetAutoDisableState(v)
+	return _u
+}
+
+// SetNillableAutoDisableState sets the "auto_disable_state" field if the given value is not nil.
+func (_u *ChannelUpdateOne) SetNillableAutoDisableState(v *objects.ChannelAutoDisableState) *ChannelUpdateOne {
+	if v != nil {
+		_u.SetAutoDisableState(*v)
+	}
+	return _u
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (_u *ChannelUpdateOne) ClearAutoDisableState() *ChannelUpdateOne {
+	_u.mutation.ClearAutoDisableState()
 	return _u
 }
 
@@ -1713,6 +1805,18 @@ func (_u *ChannelUpdateOne) sqlSave(ctx context.Context) (_node *Channel, err er
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(channel.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.CooldownUntil(); ok {
+		_spec.SetField(channel.FieldCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.CooldownUntilCleared() {
+		_spec.ClearField(channel.FieldCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.AutoDisableState(); ok {
+		_spec.SetField(channel.FieldAutoDisableState, field.TypeJSON, value)
+	}
+	if _u.mutation.AutoDisableStateCleared() {
+		_spec.ClearField(channel.FieldAutoDisableState, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Credentials(); ok {
 		_spec.SetField(channel.FieldCredentials, field.TypeJSON, value)

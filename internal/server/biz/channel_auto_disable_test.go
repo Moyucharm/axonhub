@@ -270,136 +270,57 @@ func TestChannelService_APIKeyFailureStatePersistsAndResets(t *testing.T) {
 }
 
 func TestChannelService_checkAndHandleChannelError(t *testing.T) {
-	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
-	defer client.Close()
-
-	ctx := context.Background()
-	ctx = ent.NewContext(ctx, client)
-	ctx = authz.WithTestBypass(ctx)
-
-	svc := newTestChannelService(client)
-
-	// Create a channel without API keys (single key scenario)
-	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel-no-keys", []string{})
-
 	tests := []struct {
-		name             string
-		policy           *RetryPolicy
-		perf             *PerformanceRecord
-		expectedDisabled bool
-		setupFunc        func()
+		name                string
+		initialFailureCount int
+		expectedDisabled    bool
 	}{
-		{
-			name: "first error - should not disable",
-			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
-					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
-						{Status: 401, Times: 2},
-					},
-				},
-			},
-			perf: &PerformanceRecord{
-				ChannelID:          ch.ID,
-				ResponseStatusCode: 401,
-				Success:            false,
-			},
-			expectedDisabled: false,
-			setupFunc: func() {
-				svc.channelErrorCounts = make(map[int]map[int]int)
-				// Reset channel status
-				_, err := client.Channel.UpdateOneID(ch.ID).
-					SetStatus(channel.StatusEnabled).
-					ClearErrorMessage().
-					Save(ctx)
-				require.NoError(t, err)
-			},
-		},
-		{
-			name: "second error - should disable channel",
-			policy: &RetryPolicy{
-				AutoDisableChannel: AutoDisableChannel{
-					Enabled: true,
-					Statuses: []AutoDisableChannelStatus{
-						{Status: 401, Times: 2},
-					},
-				},
-			},
-			perf: &PerformanceRecord{
-				ChannelID:          ch.ID,
-				ResponseStatusCode: 401,
-				Success:            false,
-			},
-			expectedDisabled: true,
-			setupFunc: func() {
-				// Reset channel status
-				_, err := client.Channel.UpdateOneID(ch.ID).
-					SetStatus(channel.StatusEnabled).
-					ClearErrorMessage().
-					Save(ctx)
-				require.NoError(t, err)
-
-				svc.channelErrorCounts = map[int]map[int]int{
-					ch.ID: {401: 1},
-				}
-			},
-		},
+		{name: "first error - should not disable", initialFailureCount: 0, expectedDisabled: false},
+		{name: "second error - should disable channel", initialFailureCount: 1, expectedDisabled: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupFunc != nil {
-				tt.setupFunc()
+			client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+			defer client.Close()
+
+			ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+			svc := newTestChannelService(client)
+			ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel-no-keys", nil)
+			policy := &RetryPolicy{AutoDisableChannel: AutoDisableChannel{
+				Enabled:  true,
+				Mode:     AutoDisableModeCodes,
+				Statuses: []AutoDisableChannelStatus{{Status: 401, Times: 2}},
+			}}
+			perf := &PerformanceRecord{ChannelID: ch.ID, ResponseStatusCode: 401}
+
+			failurePolicy, matched := channelFailurePolicyFromGlobal(policy.AutoDisableChannel, perf)
+			require.True(t, matched)
+			if tt.initialFailureCount > 0 {
+				_, err := client.Channel.UpdateOneID(ch.ID).
+					SetAutoDisableState(objects.ChannelAutoDisableState{
+						FailureCount:     tt.initialFailureCount,
+						FailurePolicyKey: failurePolicy.Key,
+					}).
+					Save(ctx)
+				require.NoError(t, err)
 			}
 
-			result := svc.checkAndHandleChannelError(ctx, tt.perf, tt.policy)
-			require.Equal(t, tt.expectedDisabled, result)
+			acted := svc.checkAndHandleChannelError(ctx, perf, policy)
+			require.Equal(t, tt.expectedDisabled, acted)
 
+			updatedCh, err := client.Channel.Get(ctx, ch.ID)
+			require.NoError(t, err)
 			if tt.expectedDisabled {
-				// Give goroutine time to complete (markChannelUnavailable uses xcontext.DetachWithTimeout)
-				time.Sleep(100 * time.Millisecond)
-
-				// Verify channel is disabled
-				updatedCh, err := client.Channel.Get(ctx, ch.ID)
-				require.NoError(t, err)
 				require.Equal(t, channel.StatusDisabled, updatedCh.Status)
 				require.NotNil(t, updatedCh.ErrorMessage)
-
-				// Verify error counts are cleared
-				svc.channelErrorCountsLock.Lock()
-				_, exists := svc.channelErrorCounts[ch.ID]
-				svc.channelErrorCountsLock.Unlock()
-				require.False(t, exists)
+				require.Zero(t, updatedCh.AutoDisableState.FailureCount)
+				return
 			}
+			require.Equal(t, channel.StatusEnabled, updatedCh.Status)
+			require.Equal(t, 1, updatedCh.AutoDisableState.FailureCount)
 		})
 	}
-}
-
-func TestChannelService_markChannelUnavailable_RefreshesStaleLocalCacheWhenAlreadyDisabled(t *testing.T) {
-	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
-	defer client.Close()
-
-	ctx := context.Background()
-	ctx = ent.NewContext(ctx, client)
-	ctx = authz.WithTestBypass(ctx)
-
-	svc := newTestChannelService(client)
-	defer svc.enabledChannelsCache.Stop()
-
-	ch := createTestChannelWithAPIKeys(t, client, ctx, "stale-cache-channel", []string{"key1"})
-
-	require.NoError(t, svc.enabledChannelsCache.Load(ctx, true))
-	require.NotNil(t, svc.GetEnabledChannel(ch.ID), "precondition: local cache should contain enabled channel")
-
-	_, err := client.Channel.UpdateOneID(ch.ID).
-		SetStatus(channel.StatusDisabled).
-		SetErrorMessage("disabled elsewhere").
-		Save(ctx)
-	require.NoError(t, err)
-
-	svc.markChannelUnavailable(ctx, ch.ID, 401, 2, 2)
-
-	require.Nil(t, svc.GetEnabledChannel(ch.ID), "local cache should be refreshed even when DB row was already disabled")
 }
 
 func TestChannelService_DisableAllAPIKeysDisablesChannel(t *testing.T) {
@@ -804,6 +725,7 @@ func TestChannelService_ChannelAPIKeyRulePermanentActionKeepsLastKeyDisabled(t *
 	svc := newTestChannelService(client)
 	ch := createTestChannelWithAPIKeys(t, client, ctx, "permanent-rule", []string{"only-key"})
 	ch, err := client.Channel.UpdateOneID(ch.ID).
+		SetCredentials(objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: []string{"only-key"}}).
 		SetPolicies(objects.ChannelPolicies{APIKeyAutoDisableRules: []objects.APIKeyAutoDisableRule{
 			{
 				StatusCodes: []int{401},
@@ -868,7 +790,7 @@ func TestChannelService_ChannelAPIKeyRuleCountsAlternatingStatusesTogether(t *te
 	require.Equal(t, "key1", updated.DisabledAPIKeys[0].Key)
 }
 
-func TestChannelService_ChannelAPIKeyRuleResetsStreakAfterNonMatchingFailure(t *testing.T) {
+func TestChannelService_ChannelAPIKeyRuleKeepsStreakAfterNonMatchingFailure(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()
 
@@ -905,7 +827,7 @@ func TestChannelService_ChannelAPIKeyRuleResetsStreakAfterNonMatchingFailure(t *
 		ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 401,
 	})
 	require.True(t, matched)
-	require.False(t, acted)
+	require.True(t, acted)
 }
 
 func TestChannelService_ChannelAPIKeyRuleResetsStreakWhenEarlierRuleOwnsFailure(t *testing.T) {
@@ -1033,7 +955,7 @@ func TestChannelService_ChannelAPIKeyRuleKeepsStreakWhenActionFails(t *testing.T
 	}
 }
 
-func TestChannelService_RemovedAPIKeyRuleDoesNotRestoreOldStreak(t *testing.T) {
+func TestChannelService_RemovedAPIKeyRuleKeepsOldStreak(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()
 
@@ -1069,7 +991,7 @@ func TestChannelService_RemovedAPIKeyRuleDoesNotRestoreOldStreak(t *testing.T) {
 	svc.SetEnabledChannelsForTest([]*Channel{buildChannel(ch, nil)})
 	matched, acted = svc.checkAndHandleChannelAPIKeyRules(ctx, perf)
 	require.True(t, matched)
-	require.False(t, acted)
+	require.True(t, acted)
 }
 
 func TestChannelService_ChannelAPIKeyRuleDoesNotStartConcurrentAction(t *testing.T) {

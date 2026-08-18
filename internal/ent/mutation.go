@@ -2106,6 +2106,8 @@ type ChannelMutation struct {
 	base_url                     *string
 	name                         *string
 	status                       *channel.Status
+	cooldown_until               *time.Time
+	auto_disable_state           *objects.ChannelAutoDisableState
 	credentials                  *objects.ChannelCredentials
 	disabled_api_keys            *[]objects.DisabledAPIKey
 	appenddisabled_api_keys      []objects.DisabledAPIKey
@@ -2530,6 +2532,104 @@ func (m *ChannelMutation) OldStatus(ctx context.Context) (v channel.Status, err 
 // ResetStatus resets all changes to the "status" field.
 func (m *ChannelMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (m *ChannelMutation) SetCooldownUntil(t time.Time) {
+	m.cooldown_until = &t
+}
+
+// CooldownUntil returns the value of the "cooldown_until" field in the mutation.
+func (m *ChannelMutation) CooldownUntil() (r time.Time, exists bool) {
+	v := m.cooldown_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCooldownUntil returns the old "cooldown_until" field's value of the Channel entity.
+// If the Channel object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMutation) OldCooldownUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCooldownUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCooldownUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCooldownUntil: %w", err)
+	}
+	return oldValue.CooldownUntil, nil
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (m *ChannelMutation) ClearCooldownUntil() {
+	m.cooldown_until = nil
+	m.clearedFields[channel.FieldCooldownUntil] = struct{}{}
+}
+
+// CooldownUntilCleared returns if the "cooldown_until" field was cleared in this mutation.
+func (m *ChannelMutation) CooldownUntilCleared() bool {
+	_, ok := m.clearedFields[channel.FieldCooldownUntil]
+	return ok
+}
+
+// ResetCooldownUntil resets all changes to the "cooldown_until" field.
+func (m *ChannelMutation) ResetCooldownUntil() {
+	m.cooldown_until = nil
+	delete(m.clearedFields, channel.FieldCooldownUntil)
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (m *ChannelMutation) SetAutoDisableState(oads objects.ChannelAutoDisableState) {
+	m.auto_disable_state = &oads
+}
+
+// AutoDisableState returns the value of the "auto_disable_state" field in the mutation.
+func (m *ChannelMutation) AutoDisableState() (r objects.ChannelAutoDisableState, exists bool) {
+	v := m.auto_disable_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoDisableState returns the old "auto_disable_state" field's value of the Channel entity.
+// If the Channel object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMutation) OldAutoDisableState(ctx context.Context) (v objects.ChannelAutoDisableState, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoDisableState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoDisableState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoDisableState: %w", err)
+	}
+	return oldValue.AutoDisableState, nil
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (m *ChannelMutation) ClearAutoDisableState() {
+	m.auto_disable_state = nil
+	m.clearedFields[channel.FieldAutoDisableState] = struct{}{}
+}
+
+// AutoDisableStateCleared returns if the "auto_disable_state" field was cleared in this mutation.
+func (m *ChannelMutation) AutoDisableStateCleared() bool {
+	_, ok := m.clearedFields[channel.FieldAutoDisableState]
+	return ok
+}
+
+// ResetAutoDisableState resets all changes to the "auto_disable_state" field.
+func (m *ChannelMutation) ResetAutoDisableState() {
+	m.auto_disable_state = nil
+	delete(m.clearedFields, channel.FieldAutoDisableState)
 }
 
 // SetCredentials sets the "credentials" field.
@@ -3595,7 +3695,7 @@ func (m *ChannelMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ChannelMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 23)
 	if m.created_at != nil {
 		fields = append(fields, channel.FieldCreatedAt)
 	}
@@ -3616,6 +3716,12 @@ func (m *ChannelMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, channel.FieldStatus)
+	}
+	if m.cooldown_until != nil {
+		fields = append(fields, channel.FieldCooldownUntil)
+	}
+	if m.auto_disable_state != nil {
+		fields = append(fields, channel.FieldAutoDisableState)
 	}
 	if m.credentials != nil {
 		fields = append(fields, channel.FieldCredentials)
@@ -3681,6 +3787,10 @@ func (m *ChannelMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case channel.FieldStatus:
 		return m.Status()
+	case channel.FieldCooldownUntil:
+		return m.CooldownUntil()
+	case channel.FieldAutoDisableState:
+		return m.AutoDisableState()
 	case channel.FieldCredentials:
 		return m.Credentials()
 	case channel.FieldDisabledAPIKeys:
@@ -3732,6 +3842,10 @@ func (m *ChannelMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldName(ctx)
 	case channel.FieldStatus:
 		return m.OldStatus(ctx)
+	case channel.FieldCooldownUntil:
+		return m.OldCooldownUntil(ctx)
+	case channel.FieldAutoDisableState:
+		return m.OldAutoDisableState(ctx)
 	case channel.FieldCredentials:
 		return m.OldCredentials(ctx)
 	case channel.FieldDisabledAPIKeys:
@@ -3817,6 +3931,20 @@ func (m *ChannelMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case channel.FieldCooldownUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCooldownUntil(v)
+		return nil
+	case channel.FieldAutoDisableState:
+		v, ok := value.(objects.ChannelAutoDisableState)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoDisableState(v)
 		return nil
 	case channel.FieldCredentials:
 		v, ok := value.(objects.ChannelCredentials)
@@ -3976,6 +4104,12 @@ func (m *ChannelMutation) ClearedFields() []string {
 	if m.FieldCleared(channel.FieldBaseURL) {
 		fields = append(fields, channel.FieldBaseURL)
 	}
+	if m.FieldCleared(channel.FieldCooldownUntil) {
+		fields = append(fields, channel.FieldCooldownUntil)
+	}
+	if m.FieldCleared(channel.FieldAutoDisableState) {
+		fields = append(fields, channel.FieldAutoDisableState)
+	}
 	if m.FieldCleared(channel.FieldDisabledAPIKeys) {
 		fields = append(fields, channel.FieldDisabledAPIKeys)
 	}
@@ -4019,6 +4153,12 @@ func (m *ChannelMutation) ClearField(name string) error {
 	switch name {
 	case channel.FieldBaseURL:
 		m.ClearBaseURL()
+		return nil
+	case channel.FieldCooldownUntil:
+		m.ClearCooldownUntil()
+		return nil
+	case channel.FieldAutoDisableState:
+		m.ClearAutoDisableState()
 		return nil
 	case channel.FieldDisabledAPIKeys:
 		m.ClearDisabledAPIKeys()
@@ -4075,6 +4215,12 @@ func (m *ChannelMutation) ResetField(name string) error {
 		return nil
 	case channel.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case channel.FieldCooldownUntil:
+		m.ResetCooldownUntil()
+		return nil
+	case channel.FieldAutoDisableState:
+		m.ResetAutoDisableState()
 		return nil
 	case channel.FieldCredentials:
 		m.ResetCredentials()

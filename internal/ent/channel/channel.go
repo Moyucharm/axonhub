@@ -33,6 +33,10 @@ const (
 	FieldName = "name"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldCooldownUntil holds the string denoting the cooldown_until field in the database.
+	FieldCooldownUntil = "cooldown_until"
+	// FieldAutoDisableState holds the string denoting the auto_disable_state field in the database.
+	FieldAutoDisableState = "auto_disable_state"
 	// FieldCredentials holds the string denoting the credentials field in the database.
 	FieldCredentials = "credentials"
 	// FieldDisabledAPIKeys holds the string denoting the disabled_api_keys field in the database.
@@ -129,6 +133,8 @@ var Columns = []string{
 	FieldBaseURL,
 	FieldName,
 	FieldStatus,
+	FieldCooldownUntil,
+	FieldAutoDisableState,
 	FieldCredentials,
 	FieldDisabledAPIKeys,
 	FieldSupportedModels,
@@ -172,6 +178,8 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// DefaultDeletedAt holds the default value on creation for the "deleted_at" field.
 	DefaultDeletedAt int
+	// DefaultAutoDisableState holds the default value on creation for the "auto_disable_state" field.
+	DefaultAutoDisableState objects.ChannelAutoDisableState
 	// DefaultDisabledAPIKeys holds the default value on creation for the "disabled_api_keys" field.
 	DefaultDisabledAPIKeys []objects.DisabledAPIKey
 	// DefaultManualModels holds the default value on creation for the "manual_models" field.
@@ -342,6 +350,11 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByCooldownUntil orders the results by the cooldown_until field.
+func ByCooldownUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCooldownUntil, opts...).ToFunc()
 }
 
 // ByAutoSyncSupportedModels orders the results by the auto_sync_supported_models field.

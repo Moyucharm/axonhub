@@ -10,8 +10,10 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/looplj/axonhub/internal/authz"
+	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
+	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/pkg/xcontext"
@@ -123,7 +125,7 @@ func (svc *ChannelService) DisableAPIKey(
 
 	if channelDisabled {
 		// Synchronously reload the local cache to immediately stop selecting this channel.
-		// This matches the behavior of markChannelUnavailable.
+		// This matches channel-level automatic disposition behavior.
 		reloadCtx, cancel := xcontext.DetachWithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
@@ -650,6 +652,9 @@ func (svc *ChannelService) resetAPIKeyFailure(ctx context.Context, channelID int
 			}
 			return fmt.Errorf("failed to get channel: %w", err)
 		}
+		if !ch.Credentials.IsAPIKeyPool() {
+			return nil
+		}
 
 		credentials := ch.Credentials
 		credentials.APIKeyStates = slices.Clone(credentials.APIKeyStates)
@@ -707,7 +712,8 @@ func (svc *ChannelService) CheckChannelAPIKeys(
 			timeout = time.Duration(*ch.Settings.APIKeyPool.AutoCheckTimeoutSeconds) * time.Second
 		}
 	}
-	results := tester.CheckChannelAPIKeys(ctx, channelID, keys, concurrency, timeout)
+	checkCtx := contexts.WithSource(ctx, request.SourceTest)
+	results := tester.CheckChannelAPIKeys(checkCtx, channelID, keys, concurrency, timeout)
 	disabledSet := make(map[string]struct{}, len(ch.DisabledAPIKeys))
 	for _, entry := range ch.DisabledAPIKeys {
 		if !entry.IsExpired() {

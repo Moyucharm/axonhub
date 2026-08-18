@@ -195,10 +195,11 @@ type ChannelService struct {
 
 	// apiKeyErrorCounts stores the error counts for each API key and status code
 	// channelID -> apiKey -> statusCode -> count
-	apiKeyErrorCounts         map[int]map[string]map[int]int
-	apiKeyRuleActionsInFlight map[int]map[string]bool
-	apiKeyErrorCountsLock     sync.Mutex
-	apiKeyOpsLock             sync.Mutex
+	apiKeyErrorCounts          map[int]map[string]map[int]int
+	apiKeyRuleActionsInFlight  map[int]map[string]bool
+	apiKeyErrorCountsLock      sync.Mutex
+	apiKeyOpsLock              sync.Mutex
+	channelAutoDisableOpsLocks [channelAutoDisableLockShardCount]sync.Mutex
 
 	modelSyncMu sync.Mutex
 
@@ -213,6 +214,12 @@ type ChannelService struct {
 
 	// perfCh is the channel for performance records for async processing.
 	perfCh chan *PerformanceRecord
+}
+
+const channelAutoDisableLockShardCount = 64
+
+func (svc *ChannelService) channelAutoDisableLock(channelID int) *sync.Mutex {
+	return &svc.channelAutoDisableOpsLocks[channelID%channelAutoDisableLockShardCount]
 }
 
 func (svc *ChannelService) SetAPIKeyTester(tester ChannelAPIKeyTester) {
@@ -390,14 +397,16 @@ func (svc *ChannelService) GetCacheVersion() int64 {
 	return svc.cacheVersion.Load()
 }
 
-// GetEnabledChannels returns all enabled channels.
-// This method hides the internal field and provides a stable interface.
+// GetEnabledChannels returns enabled channels that are not in an active cooldown.
+// Cooldown expiration is evaluated lazily at read time.
 //
-// WARNING: The returned slice and its elements are internal cached state.
-// DO NOT modify the returned slice or any of its Channel elements.
-// Modifications will not persist and may cause data inconsistency.
+// WARNING: The returned elements are internal cached state.
+// DO NOT modify any returned Channel elements.
 func (svc *ChannelService) GetEnabledChannels() []*Channel {
-	return svc.enabledChannelsCache.GetData()
+	now := time.Now()
+	return lo.Filter(svc.enabledChannelsCache.GetData(), func(ch *Channel, _ int) bool {
+		return ch != nil && !ch.IsCoolingDown(now)
+	})
 }
 
 // GetEnabledChannel returns the enabled channel by id, or nil if not found.
@@ -557,7 +566,7 @@ func (svc *ChannelService) ListModels(ctx context.Context, input ListModelsInput
 // createChannel creates a new channel without triggering a reload.
 // This is useful for batch operations where reload should happen once at the end.
 func (svc *ChannelService) createChannel(ctx context.Context, input ent.CreateChannelInput) (*ent.Channel, error) {
-	if err := NormalizeAPIKeyAutoDisableRules(input.Policies); err != nil {
+	if err := NormalizeChannelPolicies(input.Policies); err != nil {
 		return nil, err
 	}
 	if err := NormalizeChannelCredentials(&input.Credentials); err != nil {
@@ -826,6 +835,65 @@ func NormalizeChannelCredentials(credentials *objects.ChannelCredentials) error 
 	return nil
 }
 
+// NormalizeChannelPolicies validates and canonicalizes channel-scoped automatic
+// error handling before it is persisted.
+func NormalizeChannelPolicies(policies *objects.ChannelPolicies) error {
+	if policies == nil {
+		return nil
+	}
+
+	if cfg := policies.ChannelAutoDisable; cfg != nil {
+		if cfg.Times < 1 {
+			cfg.Times = 3
+		}
+
+		switch cfg.Mode {
+		case AutoDisableModeAny:
+			cfg.Statuses = nil
+		case AutoDisableModeCodes:
+			if len(cfg.Statuses) == 0 {
+				policies.ChannelAutoDisable = nil
+				break
+			}
+
+			statuses := slices.Clone(cfg.Statuses)
+			slices.SortFunc(statuses, func(a, b objects.ChannelAutoDisableStatus) int {
+				return a.Status - b.Status
+			})
+			for i, status := range statuses {
+				if status.Status < 100 || status.Status > 599 {
+					return fmt.Errorf("channel rule has invalid HTTP status code %d", status.Status)
+				}
+				if status.Times < 1 {
+					return fmt.Errorf("channel rule for status %d must require at least 1 consecutive error", status.Status)
+				}
+				if i > 0 && statuses[i-1].Status == status.Status {
+					return fmt.Errorf("channel rule has duplicate HTTP status code %d", status.Status)
+				}
+			}
+			cfg.Statuses = statuses
+		default:
+			return fmt.Errorf("channel auto-disable mode must be %q or %q", AutoDisableModeAny, AutoDisableModeCodes)
+		}
+
+		if policies.ChannelAutoDisable != nil {
+			switch cfg.Action {
+			case "", objects.AutoDisableActionDisable:
+				cfg.Action = objects.AutoDisableActionDisable
+				cfg.CooldownDurationMinutes = 0
+			case objects.AutoDisableActionCooldown:
+				if cfg.CooldownDurationMinutes < 1 || cfg.CooldownDurationMinutes > maxChannelCooldownDurationMinutes {
+					return fmt.Errorf("channel cooldown duration must be between 1 and %d minutes", maxChannelCooldownDurationMinutes)
+				}
+			default:
+				return fmt.Errorf("channel auto-disable has unsupported action %q", cfg.Action)
+			}
+		}
+	}
+
+	return NormalizeAPIKeyAutoDisableRules(policies)
+}
+
 // NormalizeAPIKeyAutoDisableRules validates and canonicalizes channel-scoped
 // API key rules before they are persisted.
 func NormalizeAPIKeyAutoDisableRules(policies *objects.ChannelPolicies) error {
@@ -894,8 +962,20 @@ func (svc *ChannelService) UpdateChannel(ctx context.Context, id int, input *ent
 		// API key operational state is server-managed. Preserve the latest state
 		// for retained keys instead of trusting GraphQL mutation input.
 		input.Credentials.APIKeyStates = slices.Clone(existing.Credentials.APIKeyStates)
+
+		// API key rules are meaningful only for pools. When a pool is changed to
+		// single-key mode, clear the rules even if the mutation omits policies.
+		if existing.Credentials.IsAPIKeyPool() && !input.Credentials.IsAPIKeyPool() {
+			if input.Policies == nil {
+				policies := existing.Policies
+				policies.APIKeyAutoDisableRules = nil
+				input.Policies = &policies
+			} else {
+				input.Policies.APIKeyAutoDisableRules = nil
+			}
+		}
 	}
-	if err := NormalizeAPIKeyAutoDisableRules(input.Policies); err != nil {
+	if err := NormalizeChannelPolicies(input.Policies); err != nil {
 		return nil, err
 	}
 	if input.Credentials != nil {
@@ -1099,10 +1179,62 @@ func (svc *ChannelService) UpdateChannel(ctx context.Context, id int, input *ent
 	return updated, nil
 }
 
+// RecoverChannelCooldown clears only automatic cooldown state. It deliberately
+// leaves the manually managed channel status and error message unchanged.
+func (svc *ChannelService) RecoverChannelCooldown(ctx context.Context, id int) (bool, error) {
+	recovered, err := svc.recoverChannelCooldownLocked(ctx, id)
+	if err != nil || !recovered {
+		return recovered, err
+	}
+
+	if err := svc.enabledChannelsCache.Load(ctx, true); err != nil {
+		log.Warn(ctx, "Failed to refresh channels after cooldown recovery", log.Int("channel_id", id), log.Cause(err))
+	}
+	svc.asyncReloadChannels()
+
+	return true, nil
+}
+
+func (svc *ChannelService) recoverChannelCooldownLocked(ctx context.Context, id int) (bool, error) {
+	lock := svc.channelAutoDisableLock(id)
+	lock.Lock()
+	defer lock.Unlock()
+
+	return svc.recoverChannelCooldown(ctx, id)
+}
+
+func (svc *ChannelService) recoverChannelCooldown(ctx context.Context, id int) (bool, error) {
+	for attempt := 0; attempt < apiKeyStateUpdateMaxRetries; attempt++ {
+		current, err := svc.entFromContext(ctx).Channel.Get(ctx, id)
+		if err != nil {
+			return false, fmt.Errorf("failed to get channel: %w", err)
+		}
+		if current.CooldownUntil == nil {
+			return false, nil
+		}
+
+		if _, err := svc.entFromContext(ctx).Channel.UpdateOneID(id).
+			Where(channel.UpdatedAtEQ(current.UpdatedAt)).
+			ClearCooldownUntil().
+			SetAutoDisableState(objects.ChannelAutoDisableState{}).
+			Save(ctx); err != nil {
+			if ent.IsNotFound(err) {
+				continue
+			}
+			return false, fmt.Errorf("failed to recover channel cooldown: %w", err)
+		}
+		return true, nil
+	}
+
+	return false, fmt.Errorf("failed to recover channel cooldown after %d retries", apiKeyStateUpdateMaxRetries)
+}
+
 // UpdateChannelStatus updates the status of a channel.
 func (svc *ChannelService) UpdateChannelStatus(ctx context.Context, id int, status channel.Status) (*ent.Channel, error) {
 	channel, err := svc.entFromContext(ctx).Channel.UpdateOneID(id).
 		SetStatus(status).
+		ClearCooldownUntil().
+		SetAutoDisableState(objects.ChannelAutoDisableState{}).
 		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update channel status: %w", err)
@@ -1169,6 +1301,12 @@ func (svc *ChannelService) DeleteChannel(ctx context.Context, id int) error {
 	svc.asyncReloadChannels()
 
 	return nil
+}
+
+// IsCoolingDown reports whether the channel is in an active automatic cooldown.
+// A missing or expired deadline is treated as available so expiration is lazy.
+func (c *Channel) IsCoolingDown(now time.Time) bool {
+	return c != nil && c.CooldownUntil != nil && c.CooldownUntil.After(now)
 }
 
 // GetEnabledAPIKeys returns cached enabled API keys.

@@ -175,7 +175,9 @@ func (svc *ChannelService) bulkUpdateChannelStatus(ctx context.Context, ids []in
 
 	updater := client.Channel.Update().
 		Where(channel.IDIn(ids...)).
-		SetStatus(status)
+		SetStatus(status).
+		ClearCooldownUntil().
+		SetAutoDisableState(objects.ChannelAutoDisableState{})
 
 	if clearErrorMessage {
 		updater.ClearErrorMessage()

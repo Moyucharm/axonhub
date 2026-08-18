@@ -34,6 +34,10 @@ type Channel struct {
 	Name string `json:"name,omitempty"`
 	// Status holds the value of the "status" field.
 	Status channel.Status `json:"status,omitempty"`
+	// CooldownUntil holds the value of the "cooldown_until" field.
+	CooldownUntil *time.Time `json:"cooldown_until,omitempty"`
+	// Persistent channel auto-disable failure state (sensitive; server-managed)
+	AutoDisableState objects.ChannelAutoDisableState `json:"-"`
 	// Credentials holds the value of the "credentials" field.
 	Credentials objects.ChannelCredentials `json:"-"`
 	// Disabled API keys with metadata (sensitive; requires channel write permission)
@@ -156,7 +160,7 @@ func (*Channel) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case channel.FieldCredentials, channel.FieldDisabledAPIKeys, channel.FieldSupportedModels, channel.FieldManualModels, channel.FieldTags, channel.FieldPolicies, channel.FieldSettings, channel.FieldEndpoints:
+		case channel.FieldAutoDisableState, channel.FieldCredentials, channel.FieldDisabledAPIKeys, channel.FieldSupportedModels, channel.FieldManualModels, channel.FieldTags, channel.FieldPolicies, channel.FieldSettings, channel.FieldEndpoints:
 			values[i] = new([]byte)
 		case channel.FieldAutoSyncSupportedModels:
 			values[i] = new(sql.NullBool)
@@ -164,7 +168,7 @@ func (*Channel) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case channel.FieldType, channel.FieldBaseURL, channel.FieldName, channel.FieldStatus, channel.FieldAutoSyncModelPattern, channel.FieldDefaultTestModel, channel.FieldErrorMessage, channel.FieldRemark:
 			values[i] = new(sql.NullString)
-		case channel.FieldCreatedAt, channel.FieldUpdatedAt:
+		case channel.FieldCreatedAt, channel.FieldUpdatedAt, channel.FieldCooldownUntil:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -228,6 +232,21 @@ func (_m *Channel) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = channel.Status(value.String)
+			}
+		case channel.FieldCooldownUntil:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field cooldown_until", values[i])
+			} else if value.Valid {
+				_m.CooldownUntil = new(time.Time)
+				*_m.CooldownUntil = value.Time
+			}
+		case channel.FieldAutoDisableState:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_disable_state", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.AutoDisableState); err != nil {
+					return fmt.Errorf("unmarshal field auto_disable_state: %w", err)
+				}
 			}
 		case channel.FieldCredentials:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -417,6 +436,13 @@ func (_m *Channel) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	if v := _m.CooldownUntil; v != nil {
+		builder.WriteString("cooldown_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("auto_disable_state=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("credentials=<sensitive>")
 	builder.WriteString(", ")

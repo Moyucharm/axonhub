@@ -506,6 +506,41 @@ type ChannelRateLimit struct {
 	QueueTimeoutMs *int64 `json:"queueTimeoutMs,omitempty"`
 }
 
+// ChannelAutoDisableState stores persistent channel-level failure state.
+// It is kept separate from user-editable channel settings and keyed by the
+// channel itself so threshold tracking remains consistent across instances.
+type ChannelAutoDisableState struct {
+	FailureCount     int        `json:"failureCount,omitempty"`
+	FailurePolicyKey string     `json:"failurePolicyKey,omitempty"`
+	LastFailedAt     *time.Time `json:"lastFailedAt,omitempty"`
+	LastErrorCode    int        `json:"lastErrorCode,omitempty"`
+	LastError        string     `json:"lastError,omitempty"`
+}
+
+// AutoDisableAction defines what an automatic channel rule does at its threshold.
+type AutoDisableAction string
+
+const (
+	AutoDisableActionDisable  AutoDisableAction = "disable"
+	AutoDisableActionCooldown AutoDisableAction = "cooldown"
+)
+
+// ChannelAutoDisablePolicy configures channel-level automatic error handling.
+// An omitted policy or an empty status list in codes mode leaves channel-level
+// handling disabled and allows the global policy to be considered.
+type ChannelAutoDisablePolicy struct {
+	Mode                    string                     `json:"mode,omitempty"`
+	Times                   int                        `json:"times,omitempty"`
+	Statuses                []ChannelAutoDisableStatus `json:"statuses,omitempty"`
+	Action                  AutoDisableAction          `json:"action,omitempty"`
+	CooldownDurationMinutes int                        `json:"cooldownDurationMinutes,omitempty"`
+}
+
+type ChannelAutoDisableStatus struct {
+	Status int `json:"status"`
+	Times  int `json:"times"`
+}
+
 // DisabledAPIKey 记录被禁用的 API key 信息（敏感，按 credentials 同级保护）
 // 注意：禁用判断以 Key 明文为主键。
 type DisabledAPIKey struct {
@@ -691,8 +726,9 @@ const (
 )
 
 type ChannelPolicies struct {
-	Stream                 CapabilityPolicy        `json:"stream,omitempty"`
-	APIKeyAutoDisableRules []APIKeyAutoDisableRule `json:"apiKeyAutoDisableRules,omitempty"`
+	Stream                 CapabilityPolicy          `json:"stream,omitempty"`
+	ChannelAutoDisable     *ChannelAutoDisablePolicy `json:"channelAutoDisable,omitempty"`
+	APIKeyAutoDisableRules []APIKeyAutoDisableRule   `json:"apiKeyAutoDisableRules,omitempty"`
 }
 
 type APIKeyAutoDisableAction string

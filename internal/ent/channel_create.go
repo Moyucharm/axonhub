@@ -111,6 +111,34 @@ func (_c *ChannelCreate) SetNillableStatus(v *channel.Status) *ChannelCreate {
 	return _c
 }
 
+// SetCooldownUntil sets the "cooldown_until" field.
+func (_c *ChannelCreate) SetCooldownUntil(v time.Time) *ChannelCreate {
+	_c.mutation.SetCooldownUntil(v)
+	return _c
+}
+
+// SetNillableCooldownUntil sets the "cooldown_until" field if the given value is not nil.
+func (_c *ChannelCreate) SetNillableCooldownUntil(v *time.Time) *ChannelCreate {
+	if v != nil {
+		_c.SetCooldownUntil(*v)
+	}
+	return _c
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (_c *ChannelCreate) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelCreate {
+	_c.mutation.SetAutoDisableState(v)
+	return _c
+}
+
+// SetNillableAutoDisableState sets the "auto_disable_state" field if the given value is not nil.
+func (_c *ChannelCreate) SetNillableAutoDisableState(v *objects.ChannelAutoDisableState) *ChannelCreate {
+	if v != nil {
+		_c.SetAutoDisableState(*v)
+	}
+	return _c
+}
+
 // SetCredentials sets the "credentials" field.
 func (_c *ChannelCreate) SetCredentials(v objects.ChannelCredentials) *ChannelCreate {
 	_c.mutation.SetCredentials(v)
@@ -396,6 +424,10 @@ func (_c *ChannelCreate) defaults() error {
 		v := channel.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.AutoDisableState(); !ok {
+		v := channel.DefaultAutoDisableState
+		_c.mutation.SetAutoDisableState(v)
+	}
 	if _, ok := _c.mutation.DisabledAPIKeys(); !ok {
 		v := channel.DefaultDisabledAPIKeys
 		_c.mutation.SetDisabledAPIKeys(v)
@@ -528,6 +560,14 @@ func (_c *ChannelCreate) createSpec() (*Channel, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(channel.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.CooldownUntil(); ok {
+		_spec.SetField(channel.FieldCooldownUntil, field.TypeTime, value)
+		_node.CooldownUntil = &value
+	}
+	if value, ok := _c.mutation.AutoDisableState(); ok {
+		_spec.SetField(channel.FieldAutoDisableState, field.TypeJSON, value)
+		_node.AutoDisableState = value
 	}
 	if value, ok := _c.mutation.Credentials(); ok {
 		_spec.SetField(channel.FieldCredentials, field.TypeJSON, value)
@@ -814,6 +854,42 @@ func (u *ChannelUpsert) SetStatus(v channel.Status) *ChannelUpsert {
 // UpdateStatus sets the "status" field to the value that was provided on create.
 func (u *ChannelUpsert) UpdateStatus() *ChannelUpsert {
 	u.SetExcluded(channel.FieldStatus)
+	return u
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (u *ChannelUpsert) SetCooldownUntil(v time.Time) *ChannelUpsert {
+	u.Set(channel.FieldCooldownUntil, v)
+	return u
+}
+
+// UpdateCooldownUntil sets the "cooldown_until" field to the value that was provided on create.
+func (u *ChannelUpsert) UpdateCooldownUntil() *ChannelUpsert {
+	u.SetExcluded(channel.FieldCooldownUntil)
+	return u
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (u *ChannelUpsert) ClearCooldownUntil() *ChannelUpsert {
+	u.SetNull(channel.FieldCooldownUntil)
+	return u
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (u *ChannelUpsert) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelUpsert {
+	u.Set(channel.FieldAutoDisableState, v)
+	return u
+}
+
+// UpdateAutoDisableState sets the "auto_disable_state" field to the value that was provided on create.
+func (u *ChannelUpsert) UpdateAutoDisableState() *ChannelUpsert {
+	u.SetExcluded(channel.FieldAutoDisableState)
+	return u
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (u *ChannelUpsert) ClearAutoDisableState() *ChannelUpsert {
+	u.SetNull(channel.FieldAutoDisableState)
 	return u
 }
 
@@ -1185,6 +1261,48 @@ func (u *ChannelUpsertOne) SetStatus(v channel.Status) *ChannelUpsertOne {
 func (u *ChannelUpsertOne) UpdateStatus() *ChannelUpsertOne {
 	return u.Update(func(s *ChannelUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (u *ChannelUpsertOne) SetCooldownUntil(v time.Time) *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.SetCooldownUntil(v)
+	})
+}
+
+// UpdateCooldownUntil sets the "cooldown_until" field to the value that was provided on create.
+func (u *ChannelUpsertOne) UpdateCooldownUntil() *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.UpdateCooldownUntil()
+	})
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (u *ChannelUpsertOne) ClearCooldownUntil() *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.ClearCooldownUntil()
+	})
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (u *ChannelUpsertOne) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.SetAutoDisableState(v)
+	})
+}
+
+// UpdateAutoDisableState sets the "auto_disable_state" field to the value that was provided on create.
+func (u *ChannelUpsertOne) UpdateAutoDisableState() *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.UpdateAutoDisableState()
+	})
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (u *ChannelUpsertOne) ClearAutoDisableState() *ChannelUpsertOne {
+	return u.Update(func(s *ChannelUpsert) {
+		s.ClearAutoDisableState()
 	})
 }
 
@@ -1760,6 +1878,48 @@ func (u *ChannelUpsertBulk) SetStatus(v channel.Status) *ChannelUpsertBulk {
 func (u *ChannelUpsertBulk) UpdateStatus() *ChannelUpsertBulk {
 	return u.Update(func(s *ChannelUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetCooldownUntil sets the "cooldown_until" field.
+func (u *ChannelUpsertBulk) SetCooldownUntil(v time.Time) *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.SetCooldownUntil(v)
+	})
+}
+
+// UpdateCooldownUntil sets the "cooldown_until" field to the value that was provided on create.
+func (u *ChannelUpsertBulk) UpdateCooldownUntil() *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.UpdateCooldownUntil()
+	})
+}
+
+// ClearCooldownUntil clears the value of the "cooldown_until" field.
+func (u *ChannelUpsertBulk) ClearCooldownUntil() *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.ClearCooldownUntil()
+	})
+}
+
+// SetAutoDisableState sets the "auto_disable_state" field.
+func (u *ChannelUpsertBulk) SetAutoDisableState(v objects.ChannelAutoDisableState) *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.SetAutoDisableState(v)
+	})
+}
+
+// UpdateAutoDisableState sets the "auto_disable_state" field to the value that was provided on create.
+func (u *ChannelUpsertBulk) UpdateAutoDisableState() *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.UpdateAutoDisableState()
+	})
+}
+
+// ClearAutoDisableState clears the value of the "auto_disable_state" field.
+func (u *ChannelUpsertBulk) ClearAutoDisableState() *ChannelUpsertBulk {
+	return u.Update(func(s *ChannelUpsert) {
+		s.ClearAutoDisableState()
 	})
 }
 

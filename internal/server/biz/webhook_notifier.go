@@ -17,7 +17,10 @@ import (
 	"github.com/looplj/axonhub/llm/httpclient"
 )
 
-const EventChannelAutoDisabled = "channel.auto_disabled"
+const (
+	EventChannelAutoDisabled = "channel.auto_disabled"
+	EventChannelAutoCooled   = "channel.auto_cooled"
+)
 
 const (
 	defaultWebhookMethod    = http.MethodPost
@@ -37,6 +40,20 @@ type ChannelAutoDisabledEvent struct {
 	OccurredAt      time.Time
 }
 
+type ChannelAutoCooledEvent struct {
+	ChannelID       int
+	ChannelName     string
+	ChannelProvider string
+	ChannelBaseURL  string
+	ChannelStatus   string
+	StatusCode      int
+	Threshold       int
+	ActualCount     int
+	Reason          string
+	CooldownUntil   time.Time
+	OccurredAt      time.Time
+}
+
 type WebhookRenderContext struct {
 	Event      string `json:"event"`
 	Severity   string `json:"severity"`
@@ -51,11 +68,13 @@ type WebhookRenderContext struct {
 	} `json:"channel"`
 
 	Trigger struct {
-		Type        string `json:"type"`
-		StatusCode  int    `json:"status_code"`
-		Threshold   int    `json:"threshold"`
-		ActualCount int    `json:"actual_count"`
-		Reason      string `json:"reason"`
+		Type          string `json:"type"`
+		Action        string `json:"action,omitempty"`
+		StatusCode    int    `json:"status_code"`
+		Threshold     int    `json:"threshold"`
+		ActualCount   int    `json:"actual_count"`
+		Reason        string `json:"reason"`
+		CooldownUntil string `json:"cooldown_until,omitempty"`
 	} `json:"trigger"`
 }
 
@@ -72,7 +91,10 @@ func NewWebhookNotifier(systemService *SystemService, httpClient *httpclient.Htt
 }
 
 func (n *WebhookNotifier) NotifyChannelAutoDisabled(ctx context.Context, event ChannelAutoDisabledEvent) {
-	log.Info(ctx, "notify channel auto disabled", log.Any("event", event))
+	log.Info(ctx, "notify channel auto disabled",
+		log.Int("channel_id", event.ChannelID),
+		log.Int("status_code", event.StatusCode),
+	)
 
 	renderCtx := WebhookRenderContext{
 		Event:      EventChannelAutoDisabled,
@@ -85,6 +107,7 @@ func (n *WebhookNotifier) NotifyChannelAutoDisabled(ctx context.Context, event C
 	renderCtx.Channel.BaseURL = event.ChannelBaseURL
 	renderCtx.Channel.Status = event.ChannelStatus
 	renderCtx.Trigger.Type = "error_status_rule"
+	renderCtx.Trigger.Action = "disable"
 	renderCtx.Trigger.StatusCode = event.StatusCode
 	renderCtx.Trigger.Threshold = event.Threshold
 	renderCtx.Trigger.ActualCount = event.ActualCount
@@ -93,8 +116,35 @@ func (n *WebhookNotifier) NotifyChannelAutoDisabled(ctx context.Context, event C
 	n.notify(ctx, EventChannelAutoDisabled, renderCtx)
 }
 
+func (n *WebhookNotifier) NotifyChannelAutoCooled(ctx context.Context, event ChannelAutoCooledEvent) {
+	log.Info(ctx, "notify channel auto cooled",
+		log.Int("channel_id", event.ChannelID),
+		log.Int("status_code", event.StatusCode),
+	)
+
+	renderCtx := WebhookRenderContext{
+		Event:      EventChannelAutoCooled,
+		Severity:   "warning",
+		OccurredAt: event.OccurredAt.UTC().Format(time.RFC3339),
+	}
+	renderCtx.Channel.ID = event.ChannelID
+	renderCtx.Channel.Name = event.ChannelName
+	renderCtx.Channel.Provider = event.ChannelProvider
+	renderCtx.Channel.BaseURL = event.ChannelBaseURL
+	renderCtx.Channel.Status = event.ChannelStatus
+	renderCtx.Trigger.Type = "error_status_rule"
+	renderCtx.Trigger.Action = "cooldown"
+	renderCtx.Trigger.StatusCode = event.StatusCode
+	renderCtx.Trigger.Threshold = event.Threshold
+	renderCtx.Trigger.ActualCount = event.ActualCount
+	renderCtx.Trigger.Reason = event.Reason
+	renderCtx.Trigger.CooldownUntil = event.CooldownUntil.UTC().Format(time.RFC3339)
+
+	n.notify(ctx, EventChannelAutoCooled, renderCtx)
+}
+
 func (n *WebhookNotifier) notify(ctx context.Context, eventName string, renderCtx WebhookRenderContext) {
-	ctx = authz.WithSystemBypass(context.WithoutCancel(ctx), "webhook-notifier")
+	ctx = authz.WithSystemBypass(ctx, "webhook-notifier")
 	cfg := *n.SystemService.WebhookNotifierConfigOrDefault(ctx)
 	targets := n.selectTargets(cfg, eventName)
 

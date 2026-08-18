@@ -111,6 +111,20 @@ func (Channel) Fields() []ent.Field {
 				entgql.Skip(entgql.SkipMutationCreateInput),
 				entgql.OrderField("STATUS"),
 			),
+		field.Time("cooldown_until").
+			Optional().
+			Nillable().
+			Annotations(
+				entgql.Skip(entgql.SkipMutationCreateInput, entgql.SkipMutationUpdateInput),
+			),
+		field.JSON("auto_disable_state", objects.ChannelAutoDisableState{}).
+			Default(objects.ChannelAutoDisableState{}).
+			Optional().
+			Sensitive().
+			Comment("Persistent channel auto-disable failure state (sensitive; server-managed)").
+			Annotations(
+				entgql.Skip(entgql.SkipMutationCreateInput, entgql.SkipMutationUpdateInput),
+			),
 		field.JSON("credentials", objects.ChannelCredentials{}).Sensitive(),
 		field.JSON("disabled_api_keys", []objects.DisabledAPIKey{}).
 			Default([]objects.DisabledAPIKey{}).

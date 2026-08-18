@@ -430,6 +430,8 @@ const (
 	AutoDisableModeAny = "any"
 	// AutoDisableModeCodes only counts failures matching the configured status codes.
 	AutoDisableModeCodes = "codes"
+
+	maxChannelCooldownDurationMinutes = 7 * 24 * 60
 )
 
 type AutoDisableChannel struct {
@@ -445,6 +447,13 @@ type AutoDisableChannel struct {
 
 	// Statuses defines the status codes and times to auto-disable a channel
 	Statuses []AutoDisableChannelStatus `json:"statuses"`
+
+	// Action controls whether a threshold permanently disables or temporarily
+	// cools down the channel. Empty legacy values normalize to disable.
+	Action objects.AutoDisableAction `json:"action,omitempty"`
+
+	// CooldownDurationMinutes is required when Action is cooldown.
+	CooldownDurationMinutes int `json:"cooldown_duration_minutes,omitempty"`
 }
 
 type AutoDisableChannelStatus struct {
@@ -1142,6 +1151,13 @@ func (s *SystemService) RetryPolicyOrDefault(ctx context.Context) *RetryPolicy {
 
 // SetRetryPolicy sets the retry policy configuration.
 func (s *SystemService) SetRetryPolicy(ctx context.Context, policy *RetryPolicy) error {
+	if policy != nil && policy.AutoDisableChannel.Action == objects.AutoDisableActionCooldown {
+		minutes := policy.AutoDisableChannel.CooldownDurationMinutes
+		if minutes < 1 || minutes > maxChannelCooldownDurationMinutes {
+			return fmt.Errorf("channel cooldown duration must be between 1 and %d minutes", maxChannelCooldownDurationMinutes)
+		}
+	}
+
 	normalizeRetryPolicy(policy)
 
 	jsonBytes, err := json.Marshal(policy)
@@ -1205,6 +1221,18 @@ func normalizeRetryPolicy(policy *RetryPolicy) {
 	}
 	if policy.AutoDisableChannel.Times < 1 {
 		policy.AutoDisableChannel.Times = 3
+	}
+	switch policy.AutoDisableChannel.Action {
+	case objects.AutoDisableActionCooldown:
+		if policy.AutoDisableChannel.CooldownDurationMinutes < 1 || policy.AutoDisableChannel.CooldownDurationMinutes > maxChannelCooldownDurationMinutes {
+			policy.AutoDisableChannel.CooldownDurationMinutes = 30
+		}
+	case "", objects.AutoDisableActionDisable:
+		policy.AutoDisableChannel.Action = objects.AutoDisableActionDisable
+		policy.AutoDisableChannel.CooldownDurationMinutes = 0
+	default:
+		policy.AutoDisableChannel.Action = objects.AutoDisableActionDisable
+		policy.AutoDisableChannel.CooldownDurationMinutes = 0
 	}
 
 	// AutoDisableAPIKey: an all-zero value means it was never configured

@@ -1374,6 +1374,24 @@ func TestNormalizeRetryPolicy_AutoDisableDefaults(t *testing.T) {
 		require.Equal(t, AutoDisableModeCodes, policy.AutoDisableChannel.Mode)
 		require.Equal(t, 3, policy.AutoDisableChannel.Times)
 	})
+
+	t.Run("legacy excessive channel cooldown falls back to default", func(t *testing.T) {
+		policy := &RetryPolicy{AutoDisableChannel: AutoDisableChannel{
+			Action:                  objects.AutoDisableActionCooldown,
+			CooldownDurationMinutes: maxChannelCooldownDurationMinutes + 1,
+		}}
+		normalizeRetryPolicy(policy)
+		require.Equal(t, 30, policy.AutoDisableChannel.CooldownDurationMinutes)
+	})
+}
+
+func TestSystemService_SetRetryPolicyRejectsExcessiveChannelCooldown(t *testing.T) {
+	service := &SystemService{}
+	err := service.SetRetryPolicy(context.Background(), &RetryPolicy{AutoDisableChannel: AutoDisableChannel{
+		Action:                  objects.AutoDisableActionCooldown,
+		CooldownDurationMinutes: maxChannelCooldownDurationMinutes + 1,
+	}})
+	require.ErrorContains(t, err, "must be between")
 }
 
 func TestDefaultRetryPolicy_AutoDisable(t *testing.T) {

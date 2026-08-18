@@ -103,6 +103,8 @@ var (
 		{Name: "base_url", Type: field.TypeString, Nullable: true},
 		{Name: "name", Type: field.TypeString},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"enabled", "disabled", "archived"}, Default: "disabled"},
+		{Name: "cooldown_until", Type: field.TypeTime, Nullable: true},
+		{Name: "auto_disable_state", Type: field.TypeJSON, Nullable: true},
 		{Name: "credentials", Type: field.TypeJSON},
 		{Name: "disabled_api_keys", Type: field.TypeJSON, Nullable: true},
 		{Name: "supported_models", Type: field.TypeJSON},

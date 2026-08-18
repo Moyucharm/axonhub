@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
@@ -17,152 +18,343 @@ import (
 
 var compiledAPIKeyRuleRegexes sync.Map
 
-func (svc *ChannelService) markChannelUnavailable(ctx context.Context, channelID int, responseStatusCode int, threshold int, actualCount int) {
-	ctx, cancel := xcontext.DetachWithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	// Only disable channels that are currently enabled to avoid repeated disabling
-	// of the same channel under sustained error traffic, which would keep resetting
-	// the cache debounce timer and prevent the cache from ever refreshing.
-	affected, err := svc.db.Channel.Update().
-		Where(
-			channel.ID(channelID),
-			channel.StatusEQ(channel.StatusEnabled),
-		).
-		SetStatus(channel.StatusDisabled).
-		SetErrorMessage(deriveErrorMessage(responseStatusCode)).
-		Save(ctx)
-	if err != nil {
-		log.Error(ctx, "Failed to disable channel on unrecoverable error",
-			log.Int("channel_id", channelID),
-			log.Int("error_code", responseStatusCode),
-			log.Cause(err),
-		)
-
-		return
-	}
-
-	if affected == 0 {
-		log.Debug(ctx, "Channel already disabled, skipping",
-			log.Int("channel_id", channelID),
-			log.Int("error_code", responseStatusCode),
-		)
-
-		// Another instance may have already disabled the channel in DB while this
-		// instance still serves it from a stale in-memory cache. Force a local
-		// refresh so candidate selection stops using the channel immediately.
-		if err := svc.enabledChannelsCache.Load(ctx, true); err != nil {
-			log.Warn(ctx, "Failed to refresh local cache for already-disabled channel",
-				log.Int("channel_id", channelID),
-				log.Cause(err),
-			)
-		}
-
-		return
-	}
-
-	log.Warn(ctx, "Channel disabled due to unrecoverable error",
-		log.Int("channel_id", channelID),
-		log.Int("error_code", responseStatusCode),
-	)
-
-	// Fetch the updated channel for webhook notification
-	updatedChannel, err := svc.db.Channel.Get(ctx, channelID)
-	if err != nil {
-		log.Error(ctx, "Failed to fetch disabled channel for webhook notification",
-			log.Int("channel_id", channelID),
-			log.Cause(err),
-		)
-	} else {
-		notifyCtx := context.WithoutCancel(ctx)
-		go svc.WebhookNotifier.NotifyChannelAutoDisabled(notifyCtx, ChannelAutoDisabledEvent{
-			ChannelID:       updatedChannel.ID,
-			ChannelName:     updatedChannel.Name,
-			ChannelProvider: updatedChannel.Type.String(),
-			ChannelBaseURL:  updatedChannel.BaseURL,
-			ChannelStatus:   updatedChannel.Status.String(),
-			StatusCode:      responseStatusCode,
-			Threshold:       threshold,
-			ActualCount:     actualCount,
-			Reason:          deriveErrorMessage(responseStatusCode),
-			OccurredAt:      time.Now(),
-		})
-	}
-
-	// Synchronously reload the local cache to immediately stop selecting this channel.
-	// This avoids the debounce delay that could keep the disabled channel in the candidate pool.
-	if err := svc.enabledChannelsCache.Load(ctx, true); err != nil {
-		log.Warn(ctx, "Failed to synchronously reload channels after auto-disable",
-			log.Int("channel_id", channelID),
-			log.Cause(err),
-		)
-	}
-
-	// Also notify other instances via the watcher for cross-instance cache invalidation.
-	svc.asyncReloadChannels()
+type channelFailurePolicy struct {
+	Key              string
+	Threshold        int
+	Action           objects.AutoDisableAction
+	CooldownDuration time.Duration
 }
 
-// checkAndHandleChannelError checks if the channel should be disabled based on the error status code.
+const (
+	channelAutoActionReasonMaxRunes = 512
+	channelAutoActionNotifyTimeout  = 30 * time.Second
+)
+
 func (svc *ChannelService) checkAndHandleChannelError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) bool {
-	if !policy.AutoDisableChannel.Enabled {
+	if perf == nil || perf.ChannelID == 0 {
 		return false
 	}
 
-	// "any" mode: count every failed request (no status code filter).
-	// The special key 0 in channelErrorCounts holds the any-mode counter.
-	if policy.AutoDisableChannel.Mode == AutoDisableModeAny {
-		threshold := max(policy.AutoDisableChannel.Times, 1)
-
-		svc.channelErrorCountsLock.Lock()
-		if svc.channelErrorCounts[perf.ChannelID] == nil {
-			svc.channelErrorCounts[perf.ChannelID] = make(map[int]int)
-		}
-		svc.channelErrorCounts[perf.ChannelID][0]++
-		count := svc.channelErrorCounts[perf.ChannelID][0]
-		svc.channelErrorCountsLock.Unlock()
-
-		if count >= threshold {
-			svc.markChannelUnavailable(ctx, perf.ChannelID, 0, threshold, count)
-			svc.channelErrorCountsLock.Lock()
-			delete(svc.channelErrorCounts, perf.ChannelID)
-			svc.channelErrorCountsLock.Unlock()
-			return true
-		}
+	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, perf.ChannelID)
+	if err != nil {
+		log.Warn(ctx, "Failed to load channel for auto-disable evaluation", log.Int("channel_id", perf.ChannelID), log.Cause(err))
 		return false
 	}
 
-	for _, statusConfig := range policy.AutoDisableChannel.Statuses {
-		if statusConfig.Status != perf.ResponseStatusCode {
-			continue
+	if local, matched := channelFailurePolicyFromLocal(ch.Policies.ChannelAutoDisable, perf); matched {
+		_, acted, err := svc.recordChannelFailure(ctx, ch.ID, perf, local)
+		if err != nil {
+			log.Error(ctx, "Failed to record channel-local failure", log.Int("channel_id", ch.ID), log.Cause(err))
 		}
-
-		svc.channelErrorCountsLock.Lock()
-
-		if svc.channelErrorCounts[perf.ChannelID] == nil {
-			svc.channelErrorCounts[perf.ChannelID] = make(map[int]int)
-		}
-
-		svc.channelErrorCounts[perf.ChannelID][perf.ResponseStatusCode]++
-		count := svc.channelErrorCounts[perf.ChannelID][perf.ResponseStatusCode]
-		svc.channelErrorCountsLock.Unlock()
-
-		if count >= statusConfig.Times {
-			svc.markChannelUnavailable(ctx, perf.ChannelID, perf.ResponseStatusCode, statusConfig.Times, count)
-			svc.channelErrorCountsLock.Lock()
-			delete(svc.channelErrorCounts, perf.ChannelID)
-			svc.channelErrorCountsLock.Unlock()
-
-			return true
-		}
+		return acted
 	}
 
-	return false
+	if policy == nil || !policy.AutoDisableChannel.Enabled {
+		return false
+	}
+
+	global, matched := channelFailurePolicyFromGlobal(policy.AutoDisableChannel, perf)
+	if !matched {
+		return false
+	}
+	_, acted, err := svc.recordChannelFailure(ctx, ch.ID, perf, global)
+	if err != nil {
+		log.Error(ctx, "Failed to record global channel failure", log.Int("channel_id", ch.ID), log.Cause(err))
+	}
+	return acted
+}
+
+func channelFailurePolicyFromLocal(cfg *objects.ChannelAutoDisablePolicy, perf *PerformanceRecord) (channelFailurePolicy, bool) {
+	if cfg == nil {
+		return channelFailurePolicy{}, false
+	}
+
+	action := cfg.Action
+	if action == "" {
+		action = objects.AutoDisableActionDisable
+	}
+	duration := time.Duration(cfg.CooldownDurationMinutes) * time.Minute
+	if action != objects.AutoDisableActionCooldown {
+		duration = 0
+	}
+
+	if cfg.Mode == AutoDisableModeAny {
+		return channelFailurePolicy{
+			Key:              fmt.Sprintf("channel:local:any:%d:%s:%d", cfg.Times, action, cfg.CooldownDurationMinutes),
+			Threshold:        cfg.Times,
+			Action:           action,
+			CooldownDuration: duration,
+		}, true
+	}
+	for _, status := range cfg.Statuses {
+		if status.Status == perf.ResponseStatusCode {
+			return channelFailurePolicy{
+				Key:              fmt.Sprintf("channel:local:status:%d:%d:%s:%d", status.Status, status.Times, action, cfg.CooldownDurationMinutes),
+				Threshold:        status.Times,
+				Action:           action,
+				CooldownDuration: duration,
+			}, true
+		}
+	}
+	return channelFailurePolicy{}, false
+}
+
+func channelFailurePolicyFromGlobal(cfg AutoDisableChannel, perf *PerformanceRecord) (channelFailurePolicy, bool) {
+	action := cfg.Action
+	if action == "" {
+		action = objects.AutoDisableActionDisable
+	}
+	duration := time.Duration(cfg.CooldownDurationMinutes) * time.Minute
+	if action != objects.AutoDisableActionCooldown {
+		duration = 0
+	}
+
+	if cfg.Mode == AutoDisableModeAny {
+		return channelFailurePolicy{
+			Key:              fmt.Sprintf("channel:global:any:%d:%s:%d", cfg.Times, action, cfg.CooldownDurationMinutes),
+			Threshold:        cfg.Times,
+			Action:           action,
+			CooldownDuration: duration,
+		}, true
+	}
+	for _, status := range cfg.Statuses {
+		if status.Status == perf.ResponseStatusCode {
+			return channelFailurePolicy{
+				Key:              fmt.Sprintf("channel:global:status:%d:%d:%s:%d", status.Status, status.Times, action, cfg.CooldownDurationMinutes),
+				Threshold:        status.Times,
+				Action:           action,
+				CooldownDuration: duration,
+			}, true
+		}
+	}
+	return channelFailurePolicy{}, false
+}
+
+func (svc *ChannelService) recordChannelFailure(ctx context.Context, channelID int, perf *PerformanceRecord, policy channelFailurePolicy) (int, bool, error) {
+	if policy.Threshold < 1 {
+		return 0, false, nil
+	}
+
+	ch, count, acted, occurredAt, err := svc.persistChannelFailureLocked(ctx, channelID, perf, policy)
+	if err != nil || !acted {
+		return count, acted, err
+	}
+
+	svc.channelErrorCountsLock.Lock()
+	delete(svc.channelErrorCounts, channelID)
+	svc.channelErrorCountsLock.Unlock()
+
+	if err := svc.enabledChannelsCache.Load(ctx, true); err != nil {
+		log.Warn(ctx, "Failed to refresh channels after automatic action", log.Int("channel_id", channelID), log.Cause(err))
+	}
+	svc.asyncReloadChannels()
+	svc.dispatchChannelAutoAction(ctx, ch, perf, policy, count, occurredAt)
+
+	return count, true, nil
+}
+
+func (svc *ChannelService) persistChannelFailureLocked(
+	ctx context.Context,
+	channelID int,
+	perf *PerformanceRecord,
+	policy channelFailurePolicy,
+) (*ent.Channel, int, bool, time.Time, error) {
+	lock := svc.channelAutoDisableLock(channelID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	return svc.persistChannelFailure(ctx, channelID, perf, policy)
+}
+
+func (svc *ChannelService) persistChannelFailure(
+	ctx context.Context,
+	channelID int,
+	perf *PerformanceRecord,
+	policy channelFailurePolicy,
+) (*ent.Channel, int, bool, time.Time, error) {
+	for attempt := 0; attempt < apiKeyStateUpdateMaxRetries; attempt++ {
+		ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
+		if err != nil {
+			return nil, 0, false, time.Time{}, fmt.Errorf("failed to get channel: %w", err)
+		}
+
+		now := time.Now()
+		if ch.Status != channel.StatusEnabled || (ch.CooldownUntil != nil && ch.CooldownUntil.After(now)) {
+			return ch, 0, false, now, nil
+		}
+
+		cooldownExpired := ch.CooldownUntil != nil
+		state := ch.AutoDisableState
+		if state.FailurePolicyKey != policy.Key {
+			state.FailureCount = 0
+			state.FailurePolicyKey = policy.Key
+		}
+		state.FailureCount++
+		state.LastFailedAt = &now
+		state.LastErrorCode = perf.ResponseStatusCode
+		state.LastError = perf.ErrorMessage
+		if state.LastError == "" {
+			state.LastError = deriveErrorMessage(perf.ResponseStatusCode)
+		}
+
+		count := state.FailureCount
+		acted := count >= policy.Threshold
+		update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
+			Where(channel.UpdatedAtEQ(ch.UpdatedAt))
+		if cooldownExpired {
+			update.ClearCooldownUntil()
+		}
+		if acted {
+			state.FailureCount = 0
+			state.FailurePolicyKey = ""
+			switch policy.Action {
+			case objects.AutoDisableActionCooldown:
+				update.SetCooldownUntil(now.Add(policy.CooldownDuration))
+			case objects.AutoDisableActionDisable:
+				update.SetStatus(channel.StatusDisabled).
+					SetErrorMessage(deriveErrorMessage(perf.ResponseStatusCode)).
+					ClearCooldownUntil()
+			default:
+				return nil, 0, false, time.Time{}, fmt.Errorf("unsupported channel auto-disable action %q", policy.Action)
+			}
+		}
+		update.SetAutoDisableState(state)
+		if _, err := update.Save(ctx); err != nil {
+			if ent.IsNotFound(err) {
+				continue
+			}
+			return nil, 0, false, time.Time{}, fmt.Errorf("failed to persist channel failure state: %w", err)
+		}
+
+		return ch, count, acted, now, nil
+	}
+
+	return nil, 0, false, time.Time{}, fmt.Errorf("failed to persist channel failure state after %d retries", apiKeyStateUpdateMaxRetries)
+}
+
+func (svc *ChannelService) dispatchChannelAutoAction(
+	ctx context.Context,
+	ch *ent.Channel,
+	perf *PerformanceRecord,
+	policy channelFailurePolicy,
+	actualCount int,
+	occurredAt time.Time,
+) {
+	reason := summarizeChannelAutoActionReason(perf.ErrorMessage, perf.ResponseStatusCode)
+	disabledEvent := ChannelAutoDisabledEvent{
+		ChannelID:       ch.ID,
+		ChannelName:     ch.Name,
+		ChannelProvider: ch.Type.String(),
+		ChannelBaseURL:  ch.BaseURL,
+		ChannelStatus:   string(channel.StatusDisabled),
+		StatusCode:      perf.ResponseStatusCode,
+		Threshold:       policy.Threshold,
+		ActualCount:     actualCount,
+		Reason:          reason,
+		OccurredAt:      occurredAt,
+	}
+
+	notifyCtx, cancel := xcontext.DetachWithTimeout(ctx, channelAutoActionNotifyTimeout)
+	go func() {
+		defer cancel()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Error(notifyCtx, "panic while notifying channel automatic action",
+					log.Int("channel_id", ch.ID),
+					log.Any("panic", recovered),
+				)
+			}
+		}()
+
+		if policy.Action == objects.AutoDisableActionCooldown {
+			svc.WebhookNotifier.NotifyChannelAutoCooled(notifyCtx, ChannelAutoCooledEvent{
+				ChannelID:       disabledEvent.ChannelID,
+				ChannelName:     disabledEvent.ChannelName,
+				ChannelProvider: disabledEvent.ChannelProvider,
+				ChannelBaseURL:  disabledEvent.ChannelBaseURL,
+				ChannelStatus:   string(channel.StatusEnabled),
+				StatusCode:      disabledEvent.StatusCode,
+				Threshold:       disabledEvent.Threshold,
+				ActualCount:     disabledEvent.ActualCount,
+				Reason:          disabledEvent.Reason,
+				CooldownUntil:   occurredAt.Add(policy.CooldownDuration),
+				OccurredAt:      disabledEvent.OccurredAt,
+			})
+			return
+		}
+
+		svc.WebhookNotifier.NotifyChannelAutoDisabled(notifyCtx, disabledEvent)
+	}()
+}
+
+func summarizeChannelAutoActionReason(errorMessage string, statusCode int) string {
+	reason := strings.TrimSpace(errorMessage)
+	if firstLine, _, found := strings.Cut(reason, "\n"); found {
+		reason = strings.TrimSpace(firstLine)
+	}
+	if reason == "" {
+		reason = deriveErrorMessage(statusCode)
+	}
+
+	runes := []rune(reason)
+	if len(runes) > channelAutoActionReasonMaxRunes {
+		reason = string(runes[:channelAutoActionReasonMaxRunes])
+	}
+	return reason
+}
+
+func (svc *ChannelService) resetChannelFailure(ctx context.Context, channelID int) error {
+	if svc.db == nil {
+		return nil
+	}
+
+	lock := svc.channelAutoDisableLock(channelID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	for attempt := 0; attempt < apiKeyStateUpdateMaxRetries; attempt++ {
+		ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
+		if err != nil {
+			return err
+		}
+		if ch.AutoDisableState.FailureCount == 0 && ch.AutoDisableState.FailurePolicyKey == "" {
+			return nil
+		}
+		if _, err := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
+			Where(channel.UpdatedAtEQ(ch.UpdatedAt)).
+			SetAutoDisableState(objects.ChannelAutoDisableState{}).
+			Save(ctx); err != nil {
+			if ent.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("failed to reset channel failure state after %d retries", apiKeyStateUpdateMaxRetries)
+}
+
+func (svc *ChannelService) isAPIKeyPool(ctx context.Context, channelID int) bool {
+	if svc.db == nil || channelID == 0 {
+		return false
+	}
+
+	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
+	return err == nil && ch.Credentials.IsAPIKeyPool()
 }
 
 // checkAndHandleAPIKeyError persists per-key failure state and disables the key
 // when the matching global threshold is reached. The global API key setting is
 // used only when no channel-scoped API key rule matched the failure.
 func (svc *ChannelService) checkAndHandleAPIKeyError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) bool {
+	if perf == nil || perf.APIKey == "" || policy == nil {
+		return false
+	}
+	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, perf.ChannelID)
+	if err != nil || !ch.Credentials.IsAPIKeyPool() {
+		return false
+	}
+
 	cfg := policy.AutoDisableAPIKey
 	if !cfg.Enabled {
 		return false
@@ -253,14 +445,30 @@ func (svc *ChannelService) EvaluateAPIKeyRulesForFailure(
 // first matching rule owns the failure so one request cannot increment several
 // overlapping counters or execute multiple actions.
 func (svc *ChannelService) checkAndHandleChannelAPIKeyRules(ctx context.Context, perf *PerformanceRecord) (matched, acted bool) {
-	ch := svc.GetEnabledChannel(perf.ChannelID)
-	if ch == nil || len(ch.Policies.APIKeyAutoDisableRules) == 0 {
-		if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
-			log.Warn(ctx, "Failed to reset API key failure streak without matching rules",
-				log.Int("channel_id", perf.ChannelID),
-				log.Cause(err),
-			)
+	if perf == nil || perf.APIKey == "" {
+		return false, false
+	}
+
+	return svc.checkAndHandleChannelAPIKeyRulesWithChannel(ctx, perf, svc.GetEnabledChannel(perf.ChannelID))
+}
+
+func (svc *ChannelService) checkAndHandleChannelAPIKeyRulesWithChannel(
+	ctx context.Context,
+	perf *PerformanceRecord,
+	cachedChannel *Channel,
+) (matched, acted bool) {
+	if perf == nil || perf.APIKey == "" {
+		return false, false
+	}
+
+	ch := cachedChannel
+	if ch == nil && svc.db != nil {
+		entity, err := svc.entFromContext(ctx).Channel.Get(ctx, perf.ChannelID)
+		if err == nil {
+			ch = &Channel{Channel: entity}
 		}
+	}
+	if ch == nil || !ch.Credentials.IsAPIKeyPool() || len(ch.Policies.APIKeyAutoDisableRules) == 0 {
 		return false, false
 	}
 
@@ -298,12 +506,6 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRules(ctx context.Context,
 		return true, acted
 	}
 
-	if err := svc.resetAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey); err != nil {
-		log.Warn(ctx, "Failed to reset API key failure streak after non-matching error",
-			log.Int("channel_id", perf.ChannelID),
-			log.Cause(err),
-		)
-	}
 	return false, false
 }
 
