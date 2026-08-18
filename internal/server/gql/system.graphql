@@ -68,6 +68,8 @@ type AutoDisableChannel {
   mode: String!
   times: Int!
   statuses: [AutoDisableChannelStatus!]!
+  action: ChannelAutoDisableAction!
+  cooldownDurationMinutes: Int!
 }
 
 type AutoDisableAPIKeyStatus {
@@ -158,6 +160,8 @@ input AutoDisableChannelInput {
   mode: String
   times: Int
   statuses: [AutoDisableChannelStatusInput!]
+  action: ChannelAutoDisableAction
+  cooldownDurationMinutes: Int
 }
 
 input AutoDisableAPIKeyStatusInput {

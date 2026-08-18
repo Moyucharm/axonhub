@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
@@ -87,6 +88,24 @@ func (r *channelResolver) DisabledAPIKeys(ctx context.Context, obj *ent.Channel)
 	}
 
 	return lo.ToSlicePtr(obj.DisabledAPIKeys), nil
+}
+
+// CooldownErrorMessage is the resolver for the cooldownErrorMessage field.
+func (r *channelResolver) CooldownErrorMessage(ctx context.Context, obj *ent.Channel) (*string, error) {
+	if obj == nil || obj.CooldownUntil == nil || !obj.CooldownUntil.After(time.Now()) || obj.AutoDisableState.LastError == "" {
+		return nil, nil
+	}
+
+	return &obj.AutoDisableState.LastError, nil
+}
+
+// CooldownErrorCode is the resolver for the cooldownErrorCode field.
+func (r *channelResolver) CooldownErrorCode(ctx context.Context, obj *ent.Channel) (*int, error) {
+	if obj == nil || obj.CooldownUntil == nil || !obj.CooldownUntil.After(time.Now()) || obj.AutoDisableState.LastErrorCode == 0 {
+		return nil, nil
+	}
+
+	return &obj.AutoDisableState.LastErrorCode, nil
 }
 
 // LiveLimiterStats is the resolver for the liveLimiterStats field.
@@ -185,6 +204,15 @@ func (r *mutationResolver) SaveChannelEndpoints(ctx context.Context, input biz.S
 // UpdateChannelStatus is the resolver for the updateChannelStatus field.
 func (r *mutationResolver) UpdateChannelStatus(ctx context.Context, id objects.GUID, status channel.Status) (*ent.Channel, error) {
 	return r.channelService.UpdateChannelStatus(ctx, id.ID, status)
+}
+
+// RecoverChannelCooldown is the resolver for the recoverChannelCooldown field.
+func (r *mutationResolver) RecoverChannelCooldown(ctx context.Context, channelID objects.GUID) (bool, error) {
+	if err := authz.RequireScope(ctx, scopes.ScopeWriteChannels); err != nil {
+		return false, err
+	}
+
+	return r.channelService.RecoverChannelCooldown(ctx, channelID.ID)
 }
 
 // RandomizeChannelCodexSimulation is the resolver for the randomizeChannelCodexSimulation field.

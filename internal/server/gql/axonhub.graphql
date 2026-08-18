@@ -275,13 +275,46 @@ input APIKeyAutoDisableRuleInput {
   disableDurationMinutes: Int
 }
 
+enum ChannelAutoDisableAction {
+  disable
+  cooldown
+}
+
+type ChannelAutoDisableStatus {
+  status: Int!
+  times: Int!
+}
+
+input ChannelAutoDisableStatusInput {
+  status: Int!
+  times: Int!
+}
+
+type ChannelAutoDisablePolicy {
+  mode: String!
+  times: Int!
+  statuses: [ChannelAutoDisableStatus!]
+  action: ChannelAutoDisableAction!
+  cooldownDurationMinutes: Int!
+}
+
+input ChannelAutoDisablePolicyInput {
+  mode: String!
+  times: Int
+  statuses: [ChannelAutoDisableStatusInput!]
+  action: ChannelAutoDisableAction!
+  cooldownDurationMinutes: Int
+}
+
 type ChannelPolicies {
   stream: CapabilityPolicy
+  channelAutoDisable: ChannelAutoDisablePolicy
   apiKeyAutoDisableRules: [APIKeyAutoDisableRule!]
 }
 
 input ChannelPoliciesInput {
   stream: CapabilityPolicy
+  channelAutoDisable: ChannelAutoDisablePolicyInput
   apiKeyAutoDisableRules: [APIKeyAutoDisableRuleInput!]
 }
 
@@ -803,6 +836,16 @@ extend type Channel {
   disabledAPIKeys: [DisabledAPIKey!] @goField(forceResolver: true)
 
   """
+  Full upstream error text captured when the channel entered cooldown.
+  """
+  cooldownErrorMessage: String @goField(forceResolver: true)
+
+  """
+  Upstream status code captured when the channel entered cooldown.
+  """
+  cooldownErrorCode: Int @goField(forceResolver: true)
+
+  """
   Real-time per-channel concurrency limiter snapshot. Returns null when the channel
   has no MaxConcurrent configured (no admission control).
   """
@@ -965,6 +1008,7 @@ type Mutation {
   updateChannel(id: ID!, input: UpdateChannelInput!): Channel!
   saveChannelEndpoints(input: SaveChannelEndpointsInput!): Channel!
   updateChannelStatus(id: ID!, status: ChannelStatus!): Channel!
+  recoverChannelCooldown(channelID: ID!): Boolean!
   randomizeChannelCodexSimulation(id: ID!): Channel!
   deleteChannel(id: ID!): Boolean!
   bulkArchiveChannels(ids: [ID!]!): Boolean!

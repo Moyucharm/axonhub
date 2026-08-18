@@ -73,11 +73,23 @@ func (r *channelResolver) ID(ctx context.Context, obj *ent.Channel) (*objects.GU
 // Policies is the resolver for the policies field.
 // It is used to return the default value if the field is not set.
 func (r *channelResolver) Policies(ctx context.Context, obj *ent.Channel) (*objects.ChannelPolicies, error) {
-	if obj.Policies.Stream == "" {
-		obj.Policies.Stream = objects.CapabilityPolicyUnlimited
+	policies := obj.Policies
+	if policies.Stream == "" {
+		policies.Stream = objects.CapabilityPolicyUnlimited
+	}
+	if policy := policies.ChannelAutoDisable; policy != nil {
+		// Legacy channel policies predate the action field and therefore mean
+		// permanent disable. Normalize only the compatibility fields here so a
+		// GraphQL read never serializes an invalid empty enum value.
+		if policy.Action == "" {
+			policyCopy := *policy
+			policyCopy.Action = objects.AutoDisableActionDisable
+			policyCopy.CooldownDurationMinutes = 0
+			policies.ChannelAutoDisable = &policyCopy
+		}
 	}
 
-	return &obj.Policies, nil
+	return &policies, nil
 }
 
 // ProviderQuotaStatus is the resolver for the providerQuotaStatus field.

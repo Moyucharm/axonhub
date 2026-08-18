@@ -412,6 +412,7 @@ type Channel implements Node {
   baseURL: String
   name: String!
   status: ChannelStatus!
+  cooldownUntil: Time
   supportedModels: [String!]!
   manualModels: [String!]
   autoSyncSupportedModels: Boolean!
@@ -1410,6 +1411,19 @@ input ChannelWhereInput {
   statusNEQ: ChannelStatus
   statusIn: [ChannelStatus!]
   statusNotIn: [ChannelStatus!]
+  """
+  cooldown_until field predicates
+  """
+  cooldownUntil: Time
+  cooldownUntilNEQ: Time
+  cooldownUntilIn: [Time!]
+  cooldownUntilNotIn: [Time!]
+  cooldownUntilGT: Time
+  cooldownUntilGTE: Time
+  cooldownUntilLT: Time
+  cooldownUntilLTE: Time
+  cooldownUntilIsNil: Boolean
+  cooldownUntilNotNil: Boolean
   """
   auto_sync_supported_models field predicates
   """
