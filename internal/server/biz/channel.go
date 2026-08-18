@@ -750,8 +750,8 @@ func NormalizeAPIKeyPoolSettings(settings *objects.ChannelSettings) error {
 	}
 
 	pool := settings.APIKeyPool
-	if pool.RetryCount != nil && *pool.RetryCount < 0 {
-		return fmt.Errorf("API key pool retry count cannot be negative")
+	if pool.RetryCount != nil && *pool.RetryCount < 1 {
+		return fmt.Errorf("API key pool total request count must be at least 1")
 	}
 	if !pool.AutoCheckEnabled {
 		pool.LastAutoCheckAt = nil

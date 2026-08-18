@@ -353,8 +353,9 @@ type TransformOptions struct {
 }
 
 type APIKeyPoolSettings struct {
-	// RetryCount is the maximum number of retries with another key in the same channel.
-	// Nil inherits the system-wide same-channel retry limit.
+	// RetryCount is the total number of requests allowed for one same-channel attempt,
+	// including the initial request and retries with another key. Nil inherits the
+	// system-wide same-channel retry limit.
 	RetryCount *int `json:"retryCount,omitempty"`
 
 	// AutoCheckEnabled controls scheduled validation of disabled keys. It is opt-in.

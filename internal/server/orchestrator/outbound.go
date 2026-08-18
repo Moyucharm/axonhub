@@ -682,6 +682,8 @@ func (p *PersistentOutboundTransformer) PrepareForRetry(ctx context.Context) err
 }
 
 // SameChannelRetryLimit lets a channel key pool override the system retry count.
+// An explicit pool value is the total request count, so the initial request is
+// removed before returning the retry-only limit expected by the pipeline.
 func (p *PersistentOutboundTransformer) SameChannelRetryLimit(defaultLimit int) int {
 	if p.state == nil || p.state.CurrentCandidate == nil || p.state.CurrentCandidate.Channel == nil {
 		return defaultLimit
@@ -690,7 +692,7 @@ func (p *PersistentOutboundTransformer) SameChannelRetryLimit(defaultLimit int) 
 	if ch.Credentials.IsAPIKeyPool() {
 		limit := defaultLimit
 		if ch.Settings != nil && ch.Settings.APIKeyPool != nil && ch.Settings.APIKeyPool.RetryCount != nil {
-			limit = *ch.Settings.APIKeyPool.RetryCount
+			limit = max(*ch.Settings.APIKeyPool.RetryCount-1, 0)
 		}
 		// Never cycle back to an already attempted key within one candidate.
 		return min(limit, max(len(ch.Credentials.GetEnabledAPIKeys(ch.DisabledAPIKeys))-1, 0))

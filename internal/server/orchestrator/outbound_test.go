@@ -1090,6 +1090,37 @@ func TestPersistentOutboundTransformer_CanRetry_429_KeyPool(t *testing.T) {
 	require.Equal(t, 1, outbound.keyPoolRetries)
 }
 
+func TestPersistentOutboundTransformer_SameChannelRetryLimit_KeyPoolTotalRequests(t *testing.T) {
+	tests := []struct {
+		name          string
+		requestCount  *int
+		enabledKeys   int
+		defaultLimit  int
+		expectedLimit int
+	}{
+		{name: "one total request disables retries", requestCount: lo.ToPtr(1), enabledKeys: 4, defaultLimit: 5, expectedLimit: 0},
+		{name: "three total requests allow two retries", requestCount: lo.ToPtr(3), enabledKeys: 4, defaultLimit: 5, expectedLimit: 2},
+		{name: "available keys cap retries", requestCount: lo.ToPtr(5), enabledKeys: 2, defaultLimit: 5, expectedLimit: 1},
+		{name: "missing pool override inherits system retries", requestCount: nil, enabledKeys: 4, defaultLimit: 2, expectedLimit: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keys := make([]string, tt.enabledKeys)
+			for i := range keys {
+				keys[i] = fmt.Sprintf("key%d", i+1)
+			}
+			channel := &biz.Channel{Channel: &ent.Channel{
+				Credentials: objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: keys},
+				Settings:    &objects.ChannelSettings{APIKeyPool: &objects.APIKeyPoolSettings{RetryCount: tt.requestCount}},
+			}}
+			outbound := &PersistentOutboundTransformer{state: &PersistenceState{CurrentCandidate: &ChannelModelsCandidate{Channel: channel}}}
+
+			require.Equal(t, tt.expectedLimit, outbound.SameChannelRetryLimit(tt.defaultLimit))
+		})
+	}
+}
+
 func TestPersistentOutboundTransformer_CanRetry_429_WithoutRetryAfter(t *testing.T) {
 	channel := &biz.Channel{
 		Channel: &ent.Channel{
