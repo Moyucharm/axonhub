@@ -168,3 +168,6 @@ config.schema.json
 .playwright-mcp/
 .ace-tool/
 .omx/
+
+# Local planning/working documents
+.agent/
