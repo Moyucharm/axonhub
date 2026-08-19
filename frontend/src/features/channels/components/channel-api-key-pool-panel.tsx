@@ -433,9 +433,9 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       </Dialog>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent>
+        <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-lg'>
           <DialogHeader><DialogTitle>{t('channels.keyPool.importTitle')}</DialogTitle><DialogDescription>{t('channels.keyPool.importDescription')}</DialogDescription></DialogHeader>
-          <Textarea value={importText} onChange={(event) => setImportText(event.target.value)} rows={12} className='font-mono' />
+          <Textarea value={importText} onChange={(event) => setImportText(event.target.value)} rows={12} className='min-h-0 resize-y overflow-y-auto font-mono' />
           <DialogFooter><Button variant='outline' onClick={() => setImportOpen(false)}>{t('common.buttons.cancel')}</Button><Button onClick={handleImport} disabled={!importText.trim() || importKeys.isPending}>{t('channels.keyPool.import')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>

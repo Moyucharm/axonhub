@@ -1771,7 +1771,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         }}
       >
         <DialogContent
-          className={`flex max-h-[90vh] flex-col transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}
+          className={`grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}
         >
           <DialogHeader className='flex-shrink-0 text-left'>
             <DialogTitle>{isEdit ? t('channels.dialogs.edit.title') : t('channels.dialogs.create.title')}</DialogTitle>
@@ -1779,10 +1779,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               {isEdit ? t('channels.dialogs.edit.description') : t('channels.dialogs.create.description')}
             </DialogDescription>
           </DialogHeader>
-          <div className='flex min-h-0 flex-1 overflow-hidden md:gap-4'>
+          <div className='flex min-h-0 min-w-0 flex-1 overflow-hidden md:gap-4'>
             {/* Main Form Section */}
             <div
-              className={`flex min-h-0 flex-1 flex-col overflow-hidden py-1 transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'pr-2' : 'pr-0'}`}
+              className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-1 transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'pr-2' : 'pr-0'}`}
             >
               <Form {...form}>
                 <form id='channel-form' onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col space-y-6 p-0.5'>
