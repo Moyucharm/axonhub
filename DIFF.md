@@ -1,32 +1,39 @@
 # DIFF.md — 自用分支与官方仓库差异记录
 
 > 本文件记录 `自用` 分支相对官方仓库 [looplj/axonhub](https://github.com/looplj/axonhub) 的全部差异，供升级合并、功能回溯与版本管理参考。大功能与小修改均需记录。
+>
+> **版本基准约定（2026-08-18 定）：自用版本的基准 = 官方最新发行版（release tag），以发行版代码为主；unstable 上未发行的代码忽略，除非用户明确要求。** 详见第 5 节。
 
 ## 1. 分支与基线信息
 
 | 项目 | 值 |
 |---|---|
-| 本分支 | `自用`（HEAD: `a80d2b89`） |
+| 本分支 | `自用`（HEAD: `fa04299f`） |
 | 官方仓库 | `https://github.com/looplj/axonhub.git` |
-| 对比分支 | 官方 `unstable` |
-| 基线提交（分叉点） | `b9af5ae2`（2026-08-05）feat(channels): add Groq channel (#2144) |
-| 官方最新对比点 | `af423003`（2026-08-18）feat: GC 支持剥离已存储的请求/响应载荷 (#2246) |
-| 本分支版本号 | `v1.0.0-beta8+azusa.v0.1` |
+| 对比基准 | 官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11） |
+| 当前基线提交（分叉点） | `b9af5ae2`（2026-08-04，官方 unstable，约定生效前遗留）feat(channels): add Groq channel (#2144) |
+| 官方 unstable 最新（仅参考，按约定忽略） | `af423003`（2026-08-18）feat: GC 支持剥离已存储的请求/响应载荷 (#2246) |
+| 本分支版本号 | `v1.0.0-beta8+azusa.v0.1`（约定生效前遗留，见第 5 节） |
 
 ### 更新本文件的方法
 
 ```bash
-# 获取官方最新分支（临时 refs，不修改 remote 配置）
-git fetch https://github.com/looplj/axonhub.git '+refs/heads/*:refs/remotes/upstream-tmp/*'
+# 获取官方发行版 tag 与 unstable 参考分支（临时 refs，不修改 remote 配置）
+git fetch https://github.com/looplj/axonhub.git \
+  'refs/tags/v1.0.0-beta*:refs/tags/upstream/v1.0.0-beta*' \
+  'refs/heads/unstable:refs/remotes/upstream-tmp/unstable'
 
-# 查看本地独有提交（自用增量）
-git log --oneline upstream-tmp/unstable..自用
+# 查看本地独有提交（自用增量，相对官方最新发行版）
+git log --oneline upstream/v1.0.0-beta7..自用
 
-# 查看官方独有提交（未合并内容）
-git log --oneline 自用..upstream-tmp/unstable
+# 查看官方发行版独有提交（未合并内容）
+git log --oneline 自用..upstream/v1.0.0-beta7
+
+# 查看官方 unstable 未发行代码（仅参考，按约定忽略）
+git log --oneline upstream/v1.0.0-beta7..upstream-tmp/unstable
 
 # 查看文件级差异
-git diff upstream-tmp/unstable 自用 --stat
+git diff upstream/v1.0.0-beta7 自用 --stat
 ```
 
 ## 2. 自用功能增量 — 大功能
@@ -94,30 +101,46 @@ git diff upstream-tmp/unstable 自用 --stat
 - `internal/build/VERSION` 设为 `v1.0.0-beta8+azusa.v0.1`（详见第 5 节版本号约定）。
 - 创建 git tag `v1.0.0-beta8+azusa.v0.1`。
 
-## 4. 官方差异 — 尚未合并的内容（升级参考）
+## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的未合并内容（升级参考）
 
-本地 `自用` 分支停留在官方 unstable `b9af5ae2`（2026-08-05），官方 unstable 已前进 **63 个提交**（截至 `af423003`，2026-08-18），**尚未合并**。主要功能：
+本地 `自用` 分支基线 `b9af5ae2`（2026-08-04）比官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11）**旧 26 个提交**（发行版内代码，升级时必须面对）；官方 unstable 相对 beta7 另有 **37 个未发行提交**（截至 `af423003`，按版本基准约定**忽略**）。beta7 相对自用基线的 26 个提交主要功能：
 
-- **请求链路**：请求日志表重设计（#2162）、请求体「对话阅览」模式（#2182）、SSE keep alive（#2157）、失败流 chunk 持久化（#2224）、request cache rate 展示（#2193）、统一 opencode transformer（#2260）、GC 剥离已存储请求/响应载荷（#2246）。
-- **渠道/配额**：unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、qiniu/fenno 渠道（#2188）、xai_responses 渠道类型（#2212）、xAI subscription SSO（#2225）、配额豁免（#2214）、provider quota estimate（#2228）、Charm Hyper / OpenCode Go 余额检查（#2199/#2204）。
-- **前端体验**：模型价格对话框虚拟化（#2163）、统一自动刷新与列表动画（#2198）、列拖拽排序（#2222）、字体选项（#2234）。
-- 其余为 fix/opt/chore（完整清单见附录 B）。
+- **渠道**：qiniu/fenno 渠道类型（#2188）、unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、渠道级 `downgradeMidConversationSystem` 开关（#2124）。
+- **请求链路**：SSE keep alive（#2157）、请求日志表重设计（#2162）、请求日志记录 reasoning_effort（#2158）、请求体「对话阅览」模式（#2182）、request cache rate 展示（#2193）、SQLite TEXT 时间戳兼容与 backup 时区修复（#2189）、失败流/stream 系列修复（#2171/#2178/#2185/#2187/#2192/#2057）。
+- **前端体验**：模型价格对话框虚拟化（#2163）、analytics 筛选 UX 对齐（#2154）。
+- 其余为 fix/chore（#2155/#2172/#2176/#2177/#2190/#2191/#2194；完整清单见附录 B）。
 
 ### ⚠️ 合并冲突预警
 
-官方 **#2180「per-credential auto disable with scheduled recovery」** 与本分支自用功能（Key Pool 自动禁用 + 渠道冷却）在 `channel_apikey.go`、`channel_auto_disable.go`、渠道 UI 及 webhook 事件上**功能重叠**；官方 **#2156「unified API key management dialog」** 与本分支 `channel-api-key-pool-panel.tsx` 等 UI 重叠。升级合并时需逐功能评审取舍，避免双份实现互相干扰。
+官方 **#2180「per-credential auto disable with scheduled recovery」** 与本分支自用功能（Key Pool 自动禁用 + 渠道冷却）在 `channel_apikey.go`、`channel_auto_disable.go`、渠道 UI 及 webhook 事件上**功能重叠**；官方 **#2156「unified API key management dialog」** 与本分支 `channel-api-key-pool-panel.tsx` 等 UI 重叠；官方 **#2188** 新增的 qiniu/fenno 渠道类型与自用渠道类型 enum 并存。升级合并时需逐功能评审取舍，避免双份实现互相干扰。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）的共存——ent AutoMigrate 的 `WithDropColumn(true)` 会删除对方版本独有的列，迁移前必须备份。
 
-## 5. 版本号约定
+## 5. 版本号约定与基准规则
 
 本仓库为 axonhub 自用版，版本号基于官方版本号追加增强后缀：
 
 ```
-<官方版本号>+azusa.v<增强版本号>
+<官方最新发行版版本号>+azusa.v<增强版本号>
 ```
 
-- **基础部分**：跟随官方 release（当前 `v1.0.0-beta8`），升级官方代码时同步更新。
-- **增强部分**：`azusa.v0.1` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
+### 基准规则（2026-08-18 定）
+
+- **基准版本**：始终为上游仓库**最新发行版（release tag）**的版本号，以发行版代码为主。
+- **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
+- **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
+- **当前状态（约定生效前遗留）**：`v1.0.0-beta8+azusa.v0.1` 的 beta8 继承自 unstable 开发线超前标记，基线为 2026-08-04 的 unstable 未发行代码（比官方 beta7 发行版旧 26 个提交）。**官方下一个发行版发布时按本约定对齐基准并更新版本号**，届时更新检查自然恢复正确。
+
+### 官方新发行版发布时的升级流程
+
+```
+1. 以官方新发行版（如 v1.0.0-beta8）代码为基准
+2. 重放/合并自用功能（Key Pool 自动化、Codex 模拟、渠道冷却、本地配置等；官方 #2180/#2156 与本分支功能重叠，需逐项评审取舍）
+3. 更新版本号为 <新发行版>+azusa.v<x>：internal/build/VERSION + git tag + 重新触发镜像构建
+4. 更新本文件（DIFF.md）：基线信息、差异清单、附录 A/B
+```
+
+### 生效路径与约束
+
 - **生效路径**：本地/CI 构建经 `//go:embed VERSION` 与 Dockerfile 注入；正式发布经 goreleaser `{{ .Tag }}` 注入。
 - **注意**：`VERSION` 文件只能包含纯版本号（代码用 `strings.TrimSpace` 后直接经 semver 解析），不可加注释。
 
@@ -136,8 +159,13 @@ git diff upstream-tmp/unstable 自用 --stat
 | `531ff9d2` | feat(frontend) | 冷却 UI 与 i18n |
 | `91de02a2` | fix(keypool) | RetryCount 总请求数语义 |
 | `a80d2b89` | build | 自用版本号 v1.0.0-beta8+azusa.v0.1 |
+| `7a7ae1d1` | docs | 新增 DIFF.md 差异记录 |
+| `3558b214` | chore | 自用 Docker 构建工作流 + .agent 忽略 |
+| `fa04299f` | fix(frontend) | pnpm 10 重新生成 lockfile（Docker 构建修复） |
 
-## 附录 B：官方未合并提交清单（`自用..upstream-tmp/unstable`）
+## 附录 B：官方未合并提交清单（`自用..upstream-tmp/unstable`，63 个）
+
+> 其中 `2bdfcb61`…`b4d1fd04` 前 **26 个属于 v1.0.0-beta7 发行版内容**（升级基准）；`b4d1fd04` 之后为 unstable **未发行代码**（按基准约定忽略，除非用户要求）。
 
 ```
 2bdfcb61 feat(transform): add channel switch to downgrade mid-conversation system messages (#2124)

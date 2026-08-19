@@ -191,7 +191,7 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex h-[90vh] max-h-[700px] w-full max-w-full flex-col sm:max-w-4xl'>
+      <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] h-[90vh] max-h-[700px] w-full max-w-full overflow-x-hidden overflow-y-hidden sm:max-w-4xl'>
         <DialogHeader className='shrink-0'>
           <DialogTitle>{t('channels.endpoints.title')}</DialogTitle>
           <DialogDescription>{channel.name}</DialogDescription>

@@ -31,8 +31,6 @@ import {
   testChannelAPIKeysPayloadSchema,
   TestAPIKeyResult,
   testAPIKeyResultSchema,
-  CodexSimulationSettings,
-  codexSimulationSettingsSchema,
 } from './schema';
 
 const QUERY_CHANNEL_NAMES_QUERY = `
@@ -382,6 +380,17 @@ const UPDATE_CHANNEL_MUTATION = `
         channelAutoDisable { mode times statuses { status times } action cooldownDurationMinutes }
         apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes }
       }
+      credentials {
+        mode
+        apiKey
+        apiKeys
+        apiKeyStates { key failureCount lastFailedAt lastErrorCode lastError }
+        gcp {
+          region
+          projectID
+          jsonData
+        }
+      }
       supportedModels
       autoSyncSupportedModels
       autoSyncModelPattern
@@ -419,6 +428,34 @@ const UPDATE_CHANNEL_MUTATION = `
         hideOriginalModels
         hideMappedModels
         lowercaseModelId
+        bodyOverrideOperations {
+          op
+          path
+          from
+          to
+          value
+          condition
+          match {
+            path
+            eq
+          }
+          index
+          splat
+        }
+        headerOverrideOperations {
+          op
+          path
+          from
+          to
+          value
+          condition
+          match {
+            path
+            eq
+          }
+          index
+          splat
+        }
         proxy {
           type
           url
@@ -434,6 +471,13 @@ const UPDATE_CHANNEL_MUTATION = `
         }
         passThroughUserAgent
         passThroughBody
+        rateLimit {
+          rpm
+          tpm
+          maxConcurrent
+          queueSize
+          queueTimeoutMs
+        }
         retryableStatusCodes
         retryableErrorPatterns {
           pattern
@@ -444,6 +488,14 @@ const UPDATE_CHANNEL_MUTATION = `
             workspaceId
             authCookie
           }
+        }
+        apiKeyPool {
+          retryCount
+          autoCheckEnabled
+          autoCheckIntervalHours
+          autoCheckConcurrency
+          autoCheckTimeoutSeconds
+          lastAutoCheckAt
         }
       }
       orderingWeight
@@ -463,6 +515,21 @@ const UPDATE_CHANNEL_MUTATION = `
         path
         baseURL
         transport
+      }
+      disabledAPIKeys {
+        key
+        disabledAt
+        errorCode
+        reason
+        expiresAt
+        failureCount
+        lastFailedAt
+      }
+      liveLimiterStats {
+        inFlight
+        waiting
+        capacity
+        queueSize
       }
     }
   }
@@ -1427,86 +1494,6 @@ export function useUpdateChannel() {
       handleError(error, { context: t('channels.dialogs.edit.title') });
     },
   });
-}
-
-const RANDOMIZE_CHANNEL_CODEX_SIMULATION_MUTATION = `
-  mutation RandomizeChannelCodexSimulation($id: ID!) {
-    randomizeChannelCodexSimulation(id: $id) {
-      id
-      settings {
-        codexSimulation {
-          enabled
-          preset
-          version
-          platform
-          standardUserAgent
-          liteUserAgent
-          options {
-            prompt
-            userAgent
-            codexHeaders
-            clientMetadata
-            responsesShape
-            additionalTool
-          }
-          strategy {
-            installationId
-            threadId
-            windowGeneration
-          }
-        }
-      }
-    }
-  }
-`;
-
-interface CodexSimulationMutationResult {
-  settings?: {
-    codexSimulation?: CodexSimulationSettings | null;
-  } | null;
-}
-
-function codexSimulationFromResult(data: Record<string, CodexSimulationMutationResult>): CodexSimulationSettings | null {
-  const result = Object.values(data)[0];
-  const sim = result?.settings?.codexSimulation;
-  if (!sim) {
-    return null;
-  }
-  return codexSimulationSettingsSchema.parse(sim);
-}
-
-function useChannelCodexSimulationMutation(
-  mutation: string,
-  messageKey: string
-): {
-  mutateAsync: (channelID: string) => Promise<CodexSimulationSettings | null>;
-  isPending: boolean;
-} {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-  const { handleError } = useErrorHandler();
-
-  const { mutateAsync, isPending } = useMutation({
-    mutationFn: async (channelID: string) => {
-      const data = await graphqlRequest<Record<string, CodexSimulationMutationResult>>(mutation, { id: channelID });
-      return codexSimulationFromResult(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
-      queryClient.invalidateQueries({ queryKey: ['channel'] });
-      toast.success(t(messageKey));
-    },
-    onError: (error) => {
-      handleError(error, { context: t('channels.codexSimulation.title') });
-    },
-  });
-
-  return { mutateAsync, isPending };
-}
-
-/** Randomizes the codex simulation identity and system profile, keeping preset, options, and version. */
-export function useRandomizeChannelCodexSimulation() {
-  return useChannelCodexSimulationMutation(RANDOMIZE_CHANNEL_CODEX_SIMULATION_MUTATION, 'channels.codexSimulation.messages.randomizeSuccess');
 }
 
 export interface SaveChannelEndpointsInput {

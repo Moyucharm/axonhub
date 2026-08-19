@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -161,6 +162,58 @@ func TestNormalizeCodexSimulation(t *testing.T) {
 		}
 		require.NoError(t, NormalizeCodexSimulation(channel.TypeOpenaiResponses, settings))
 		require.Equal(t, strategy, settings.CodexSimulation.Strategy)
+	})
+
+	t.Run("invalid submitted strategy rejected", func(t *testing.T) {
+		valid := objects.NewCodexSimulationStrategy()
+		for name, strategy := range map[string]objects.CodexSimulationStrategy{
+			"invalid installation ID": {
+				InstallationID:   "not-a-uuid",
+				ThreadID:         valid.ThreadID,
+				WindowGeneration: 0,
+			},
+			"non-canonical installation ID": {
+				InstallationID:   strings.ToUpper(valid.InstallationID),
+				ThreadID:         valid.ThreadID,
+				WindowGeneration: 0,
+			},
+			"invalid thread ID": {
+				InstallationID:   valid.InstallationID,
+				ThreadID:         "thread_invalid",
+				WindowGeneration: 0,
+			},
+			"negative window generation": {
+				InstallationID:   valid.InstallationID,
+				ThreadID:         valid.ThreadID,
+				WindowGeneration: -1,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				settings := &objects.ChannelSettings{
+					CodexSimulation: &objects.CodexSimulationSettings{
+						Enabled:  true,
+						Strategy: strategy,
+					},
+				}
+
+				require.Error(t, NormalizeCodexSimulation(channel.TypeOpenaiResponses, settings))
+			})
+		}
+	})
+
+	t.Run("invalid submitted strategy rejected while disabled", func(t *testing.T) {
+		settings := &objects.ChannelSettings{
+			CodexSimulation: &objects.CodexSimulationSettings{
+				Enabled: false,
+				Strategy: objects.CodexSimulationStrategy{
+					InstallationID:   "not-a-uuid",
+					ThreadID:         "thread_invalid",
+					WindowGeneration: -1,
+				},
+			},
+		}
+
+		require.Error(t, NormalizeCodexSimulation(channel.TypeOpenaiResponses, settings))
 	})
 }
 
@@ -332,6 +385,39 @@ func TestChannelCodexSimulationService(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, originalStrategy, updated.Settings.CodexSimulation.Strategy)
 		require.Equal(t, objects.CodexSimulationPresetEnhanced, updated.Settings.CodexSimulation.Preset)
+	})
+
+	t.Run("update persists submitted fingerprint exactly", func(t *testing.T) {
+		id := createChannel(t, channel.TypeOpenaiResponses, "sim-explicit-fingerprint", true)
+		strategy := objects.NewCodexSimulationStrategy()
+		standardUA, liteUA := objects.DefaultCodexSimulationUserAgents("0.145.0", objects.CodexSimulationPlatformUbuntu)
+		next := &objects.ChannelSettings{
+			CodexSimulation: &objects.CodexSimulationSettings{
+				Enabled:           true,
+				Preset:            objects.CodexSimulationPresetNormal,
+				Options:           lo.ToPtr(objects.PresetDefaultOptions(objects.CodexSimulationPresetNormal)),
+				Version:           "0.145.0",
+				Platform:          objects.CodexSimulationPlatformUbuntu,
+				StandardUserAgent: standardUA,
+				LiteUserAgent:     liteUA,
+				Strategy:          strategy,
+			},
+		}
+
+		updated, err := channelSvc.UpdateChannel(ctx, id, &ent.UpdateChannelInput{Settings: next})
+		require.NoError(t, err)
+		require.Equal(t, strategy, updated.Settings.CodexSimulation.Strategy)
+		require.Equal(t, objects.CodexSimulationPlatformUbuntu, updated.Settings.CodexSimulation.Platform)
+		require.Equal(t, standardUA, updated.Settings.CodexSimulation.StandardUserAgent)
+		require.Equal(t, liteUA, updated.Settings.CodexSimulation.LiteUserAgent)
+	})
+
+	t.Run("saving disabled state clears simulation settings", func(t *testing.T) {
+		id := createChannel(t, channel.TypeOpenaiResponses, "sim-clear-disabled", true)
+
+		updated, err := channelSvc.UpdateChannel(ctx, id, &ent.UpdateChannelInput{Settings: &objects.ChannelSettings{}})
+		require.NoError(t, err)
+		require.Nil(t, updated.Settings.CodexSimulation)
 	})
 
 	t.Run("randomize rotates the complete fingerprint", func(t *testing.T) {

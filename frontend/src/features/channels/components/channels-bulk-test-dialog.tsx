@@ -259,7 +259,7 @@ export function ChannelsBulkTestDialog() {
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-      <DialogContent ref={setDialogContent} className='flex max-h-[90vh] flex-col sm:max-w-5xl'>
+      <DialogContent ref={setDialogContent} className='grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-5xl'>
         <DialogHeader className='shrink-0'>
           <DialogTitle>{t('channels.dialogs.bulkTest.title')}</DialogTitle>
           <DialogDescription>{t('channels.dialogs.bulkTest.description', { count: selectedChannels.length })}</DialogDescription>

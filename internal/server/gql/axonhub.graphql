@@ -209,6 +209,12 @@ type CodexSimulationStrategy {
   windowGeneration: Int!
 }
 
+input CodexSimulationStrategyInput {
+  installationId: String!
+  threadId: String!
+  windowGeneration: Int!
+}
+
 enum CodexSimulationPlatform {
   windows10
   windows11
@@ -246,6 +252,7 @@ input CodexSimulationSettingsInput {
   platform: CodexSimulationPlatform
   standardUserAgent: String
   liteUserAgent: String
+  strategy: CodexSimulationStrategyInput
 }
 
 enum CapabilityPolicy {

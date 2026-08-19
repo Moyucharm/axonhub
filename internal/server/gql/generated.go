@@ -11990,6 +11990,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputClearChannelOverrideTemplatesInput,
 		ec.unmarshalInputCodexSimulationOptionsInput,
 		ec.unmarshalInputCodexSimulationSettingsInput,
+		ec.unmarshalInputCodexSimulationStrategyInput,
 		ec.unmarshalInputCompleteAutoDisableChannelOnboardingInput,
 		ec.unmarshalInputCompleteOnboardingInput,
 		ec.unmarshalInputCompleteSystemModelSettingOnboardingInput,
@@ -72018,7 +72019,7 @@ func (ec *executionContext) unmarshalInputCodexSimulationSettingsInput(ctx conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"enabled", "preset", "options", "version", "platform", "standardUserAgent", "liteUserAgent"}
+	fieldsInOrder := [...]string{"enabled", "preset", "options", "version", "platform", "standardUserAgent", "liteUserAgent", "strategy"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -72074,6 +72075,54 @@ func (ec *executionContext) unmarshalInputCodexSimulationSettingsInput(ctx conte
 				return it, err
 			}
 			it.LiteUserAgent = data
+		case "strategy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("strategy"))
+			data, err := ec.unmarshalOCodexSimulationStrategyInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCodexSimulationStrategy(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Strategy = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCodexSimulationStrategyInput(ctx context.Context, obj any) (objects.CodexSimulationStrategy, error) {
+	var it objects.CodexSimulationStrategy
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"installationId", "threadId", "windowGeneration"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "installationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("installationId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InstallationID = data
+		case "threadId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("threadId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ThreadID = data
+		case "windowGeneration":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("windowGeneration"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WindowGeneration = data
 		}
 	}
 
@@ -121528,6 +121577,11 @@ func (ec *executionContext) unmarshalOCodexSimulationSettingsInput2ᚖgithubᚗc
 	}
 	res, err := ec.unmarshalInputCodexSimulationSettingsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOCodexSimulationStrategyInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCodexSimulationStrategy(ctx context.Context, v any) (objects.CodexSimulationStrategy, error) {
+	res, err := ec.unmarshalInputCodexSimulationStrategyInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOCostItem2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCostItemᚄ(ctx context.Context, sel ast.SelectionSet, v []objects.CostItem) graphql.Marshaler {

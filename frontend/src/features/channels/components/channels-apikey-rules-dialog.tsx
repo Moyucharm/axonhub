@@ -1,17 +1,18 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { APIKeyAutoDisableRule } from '../data/schema';
+import { APIKeyAutoDisableRule, Channel } from '../data/schema';
 import { useUpdateChannel } from '../data/channels';
 import { APIKeyAutoDisableRulesDialog } from './api-key-auto-disable-rules-dialog';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentRow: { id: string; name: string; policies?: { apiKeyAutoDisableRules?: APIKeyAutoDisableRule[]; stream?: { enabled: boolean } } | null } | null;
+  currentRow: Channel | null;
+  onChannelChange?: (channel: Channel) => void;
 }
 
-export function ChannelsAPIKeyRulesDialog({ open, onOpenChange, currentRow }: Props) {
+export function ChannelsAPIKeyRulesDialog({ open, onOpenChange, currentRow, onChannelChange }: Props) {
   const { t } = useTranslation();
   const updateChannel = useUpdateChannel();
   const currentPolicies = currentRow?.policies ?? null;
@@ -25,22 +26,23 @@ export function ChannelsAPIKeyRulesDialog({ open, onOpenChange, currentRow }: Pr
       }
 
       try {
-        await updateChannel.mutateAsync({
+        const updatedChannel = await updateChannel.mutateAsync({
           id: channelId,
           input: {
             policies: {
-              stream: currentPolicies?.stream,
+              ...(currentPolicies ?? {}),
               apiKeyAutoDisableRules: rules.length > 0 ? rules : null,
             },
           },
         });
+        onChannelChange?.(updatedChannel);
         toast.success(t('channels.messages.updateSuccess'));
         onOpenChange(false);
       } catch {
         // useUpdateChannel reports the request error.
       }
     },
-    [currentPolicies?.stream, currentRow?.id, onOpenChange, t, updateChannel]
+    [currentPolicies, currentRow?.id, onChannelChange, onOpenChange, t, updateChannel]
   );
 
   const rules = currentPolicies?.apiKeyAutoDisableRules ?? [];

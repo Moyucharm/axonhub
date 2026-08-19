@@ -19,11 +19,17 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
   for (const operation of ['importChannelAPIKeys', 'exportChannelAPIKeys', 'removeChannelAPIKeys', 'checkChannelAPIKeys']) {
     assert.match(data, new RegExp(operation), `${operation} should be wired in the channel data layer`);
   }
+
+  const updateMutation = data.match(/const UPDATE_CHANNEL_MUTATION = `([\s\S]*?)`;/)?.[1] ?? '';
+  for (const field of ['credentials', 'apiKeyPool', 'bodyOverrideOperations', 'headerOverrideOperations', 'rateLimit']) {
+    assert.match(updateMutation, new RegExp(`\\b${field}\\b`), `updateChannel must return ${field} for snapshot replacement`);
+  }
 });
 
 test('key pool UI exposes mode selection and standalone management', () => {
   const dialog = read('features/channels/components/channels-action-dialog.tsx');
   const panel = read('features/channels/components/channel-api-key-pool-panel.tsx');
+  const rulesDialog = read('features/channels/components/channels-apikey-rules-dialog.tsx');
   const columns = read('features/channels/components/channels-columns.tsx');
   const dialogs = read('features/channels/components/channels-dialogs.tsx');
   const contextFile = read('features/channels/context/channels-context.tsx');
@@ -31,8 +37,12 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(dialog, /name='settings\.apiKeyPool\.autoCheckEnabled'/);
   assert.match(dialog, /DEFAULT_API_KEY_POOL_REQUEST_COUNT/);
   assert.match(dialog, /channels\.keyPool\.retryCountDescription/);
-  // Edit saves must not overwrite existing pool keys with the stale form snapshot.
+  // Edit saves must use the latest panel snapshot and never overwrite managed pool keys.
+  assert.match(dialog, /const persistedChannel = managedChannel \?\? currentRow/);
+  assert.match(dialog, /persistedChannel\.credentials\?\.mode === 'pool'/);
   assert.match(dialog, /isPoolMode && !switchingToPool/);
+  assert.match(dialog, /handleManagedChannelChange/);
+  assert.match(dialog, /form\.setValue\('credentials\.apiKeys'/);
   assert.match(dialog, /switchingToSingle/);
   // Edit mode pool shows a summary card plus a manage entry instead of the raw textarea.
   assert.match(dialog, /isEdit && apiKeyMode === 'pool'/);
@@ -55,11 +65,14 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(panel, /state\.failureCount > 0/);
   assert.match(panel, /ChannelsAPIKeyRulesDialog/);
   assert.match(panel, /rulesOpen/);
-  assert.match(panel, /isDefaultDisableRule/);
-  assert.match(panel, /autoDisableEnabled/);
-  assert.match(panel, /channels\.keyPool\.autoDisableThreshold/);
+  assert.match(panel, /mode: 'pool'/);
+  assert.match(panel, /channels\.keyPool\.rulesActiveDescription/);
+  assert.match(panel, /channels\.keyPool\.rulesFallbackDescription/);
+  assert.doesNotMatch(panel, /isDefaultDisableRule/);
+  assert.doesNotMatch(panel, /autoDisableThreshold/);
   assert.match(panel, /channels\.keyPool\.manageRules/);
-  assert.match(panel, /channels\.keyPool\.rulesCount/);
+  assert.match(rulesDialog, /onChannelChange\?\.\(updatedChannel\)/);
+  assert.match(dialogs, /onChannelChange=\{setCurrentRow\}/);
   assert.match(panel, /channels\.keyPool\.selectAll/);
   assert.match(panel, /channels\.keyPool\.selectedCount/);
   assert.match(panel, /channels\.keyPool\.checkSelected/);
@@ -133,13 +146,9 @@ test('key pool strings exist in English and Simplified Chinese', () => {
       'channels.keyPool.exportSelectedResult',
       'channels.keyPool.rules',
       'channels.keyPool.manageRules',
-      'channels.keyPool.rulesCount',
-      'channels.keyPool.autoDisable',
-      'channels.keyPool.autoDisableDescription',
-      'channels.keyPool.autoDisableThreshold',
+      'channels.keyPool.rulesActiveDescription',
+      'channels.keyPool.rulesFallbackDescription',
       'channels.keyPool.times',
-      'channels.keyPool.advancedRulesHint',
-      'channels.keyPool.thresholdTooSmall',
     ]) {
       assert.equal(typeof messages[key], 'string', `${name} should define ${key}`);
       assert.ok(messages[key].length > 0, `${name} ${key} should not be empty`);

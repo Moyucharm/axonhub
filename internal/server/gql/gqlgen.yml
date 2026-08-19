@@ -184,6 +184,9 @@ models:
   CodexSimulationStrategy:
     model:
       - github.com/looplj/axonhub/internal/objects.CodexSimulationStrategy
+  CodexSimulationStrategyInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CodexSimulationStrategy
   APIKeyPoolSettings:
     model:
       - github.com/looplj/axonhub/internal/objects.APIKeyPoolSettings

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/objects"
@@ -17,7 +18,10 @@ import (
 // 与 codex-disguise 的全局策略不同，本项目的模拟策略为渠道独立随机生成，
 // 并持久化在各自 ChannelSettings.CodexSimulation.Strategy 中。
 
-var codexSimulationVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$`)
+var (
+	codexSimulationVersionPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$`)
+	codexSimulationThreadIDPattern = regexp.MustCompile(`^thread_[0-9a-f]{32}$`)
+)
 
 func codexSimulationUserAgentSystem(userAgent string) (string, bool) {
 	open := strings.Index(userAgent, " (")
@@ -105,6 +109,27 @@ func normalizeCodexSimulationProfile(sim *objects.CodexSimulationSettings) error
 	return nil
 }
 
+// validateCodexSimulationStrategy validates a complete browser-generated identity
+// before it can replace the persisted channel fingerprint.
+func validateCodexSimulationStrategy(strategy objects.CodexSimulationStrategy) error {
+	installationID, err := uuid.Parse(strategy.InstallationID)
+	if err != nil || installationID.String() != strategy.InstallationID {
+		return xerrors.ValidationError("codex simulation installation ID must be a canonical UUID")
+	}
+	if !codexSimulationThreadIDPattern.MatchString(strategy.ThreadID) {
+		return xerrors.ValidationError("codex simulation thread ID is invalid")
+	}
+	if strategy.WindowGeneration < 0 {
+		return xerrors.ValidationError("codex simulation window generation must be non-negative")
+	}
+
+	return nil
+}
+
+func isZeroCodexSimulationStrategy(strategy objects.CodexSimulationStrategy) bool {
+	return strategy.InstallationID == "" && strategy.ThreadID == "" && strategy.WindowGeneration == 0
+}
+
 // NormalizeCodexSimulation validates and normalizes per-channel Codex simulation settings.
 // Simulation may only be enabled on openai_responses channels; any other channel type is
 // rejected with an error so the UI restriction cannot be bypassed by writing settings directly.
@@ -131,6 +156,13 @@ func NormalizeCodexSimulation(channelType channel.Type, settings *objects.Channe
 		return err
 	}
 
+	strategyIsZero := isZeroCodexSimulationStrategy(sim.Strategy)
+	if !strategyIsZero {
+		if err := validateCodexSimulationStrategy(sim.Strategy); err != nil {
+			return err
+		}
+	}
+
 	if !sim.Enabled {
 		return nil
 	}
@@ -139,10 +171,10 @@ func NormalizeCodexSimulation(channelType channel.Type, settings *objects.Channe
 		return fmt.Errorf("codex simulation is only supported on openai_responses channels")
 	}
 
-	// The strategy is server-managed and never accepted from the client. When the
-	// client does not supply one (enabled path), it is filled with an existing
-	// persisted strategy by the caller, or generated fresh here as a fallback.
-	if sim.Strategy.InstallationID == "" || sim.Strategy.ThreadID == "" {
+	// A complete submitted strategy is validated and preserved exactly. When no
+	// strategy is submitted, the caller restores the persisted identity or this
+	// normalization path generates a fresh fallback.
+	if strategyIsZero {
 		sim.Strategy = objects.NewCodexSimulationStrategy()
 	}
 
@@ -151,7 +183,7 @@ func NormalizeCodexSimulation(channelType channel.Type, settings *objects.Channe
 
 // IsValidCodexSimulationStrategy reports whether the per-channel fingerprint is usable.
 func IsValidCodexSimulationStrategy(strategy objects.CodexSimulationStrategy) bool {
-	return strategy.InstallationID != "" && strategy.ThreadID != ""
+	return validateCodexSimulationStrategy(strategy) == nil
 }
 
 // RandomizeCodexSimulation rotates the channel identity and UA system profile while
@@ -168,16 +200,16 @@ func RandomizeCodexSimulation(sim *objects.CodexSimulationSettings) {
 	sim.Strategy = objects.NewCodexSimulationStrategy()
 }
 
-// ensureCodexSimulationStrategy preserves the persisted per-channel fingerprint unless a
-// fresh one is required. The strategy field is server-managed: client input must never
-// replace it, and re-saving settings must not silently rotate the fingerprint.
+// ensureCodexSimulationStrategy preserves the persisted per-channel fingerprint when
+// the update omits it. A complete submitted draft passes through for strict validation;
+// an enabled channel with no persisted identity receives a fresh fallback.
 func ensureCodexSimulationStrategy(settings *objects.ChannelSettings, existing *objects.ChannelSettings) {
 	if settings == nil || settings.CodexSimulation == nil {
 		return
 	}
 
 	sim := settings.CodexSimulation
-	if IsValidCodexSimulationStrategy(sim.Strategy) {
+	if !isZeroCodexSimulationStrategy(sim.Strategy) {
 		return
 	}
 

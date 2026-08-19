@@ -46,8 +46,6 @@ interface DataTableProps {
   nameFilter: string;
   typeFilter: string[];
   statusFilter: string[];
-  cooldownOnly: boolean;
-  onCooldownOnlyChange: (enabled: boolean) => void;
   tagFilter: string;
   modelFilter: string;
   selectedTypeTab?: string;
@@ -83,8 +81,6 @@ export function ChannelsTable({
   nameFilter,
   typeFilter,
   statusFilter,
-  cooldownOnly,
-  onCooldownOnlyChange,
   tagFilter,
   modelFilter,
   selectedTypeTab = 'all',
@@ -297,8 +293,6 @@ export function ChannelsTable({
         selectedTypeTab={selectedTypeTab}
         showErrorOnly={showErrorOnly}
         onExitErrorOnlyMode={onExitErrorOnlyMode}
-        cooldownOnly={cooldownOnly}
-        onCooldownOnlyChange={onCooldownOnlyChange}
       />
       <div className='shadow-soft relative mt-4 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'>
         <div className='min-w-max'>

@@ -150,7 +150,7 @@ export function ApiKeyEditTemplateDialog({ open, onOpenChange, template }: ApiKe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent ref={setDialogContent} className='flex max-h-[90vh] flex-col sm:max-w-4xl'>
+      <DialogContent ref={setDialogContent} className='grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-4xl'>
         <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('apikeys.profileTemplates.editTitle')}</DialogTitle>
           <DialogDescription>{t('apikeys.profileTemplates.editDescription')}</DialogDescription>

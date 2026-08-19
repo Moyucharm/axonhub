@@ -20,8 +20,6 @@ interface DataTableToolbarProps<TData> {
   selectedTypeTab?: string;
   showErrorOnly?: boolean;
   onExitErrorOnlyMode?: () => void;
-  cooldownOnly?: boolean;
-  onCooldownOnlyChange?: (enabled: boolean) => void;
 }
 
 export function DataTableToolbar<TData>({
@@ -31,14 +29,12 @@ export function DataTableToolbar<TData>({
   selectedTypeTab = 'all',
   showErrorOnly,
   onExitErrorOnlyMode,
-  cooldownOnly = false,
-  onCooldownOnlyChange,
 }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation();
   const scrollRef = useHorizontalScroll<HTMLDivElement>();
   const { showTypeTabs, setShowTypeTabs } = useChannels();
   const tableState = table.getState();
-  const isFiltered = (externalIsFiltered ?? tableState.columnFilters.length > 0) || cooldownOnly;
+  const isFiltered = externalIsFiltered ?? tableState.columnFilters.length > 0;
 
   // Get all channel tags from GraphQL
   const { data: allTags = [] } = useAllChannelTags();
@@ -96,6 +92,11 @@ export function DataTableToolbar<TData>({
         value: 'archived',
         label: t('channels.status.archived'),
       },
+      {
+        value: 'cooldown',
+        label: t('channels.filters.coolingDown'),
+        icon: IconHistory,
+      },
     ],
     [t]
   );
@@ -122,15 +123,6 @@ export function DataTableToolbar<TData>({
       {table.getColumn('status') && (
         <DataTableFacetedFilter column={table.getColumn('status')} title={t('channels.filters.status')} options={channelStatuses} />
       )}
-      <Button
-        variant={cooldownOnly ? 'default' : 'outline'}
-        size='sm'
-        className='h-8 shrink-0'
-        onClick={() => onCooldownOnlyChange?.(!cooldownOnly)}
-      >
-        <IconHistory className='mr-1 h-4 w-4' />
-        {t('channels.filters.coolingDown')}
-      </Button>
       {table.getColumn('tags') && tagOptions?.length > 0 && (
         <DataTableFacetedFilter column={table.getColumn('tags')} title={t('channels.filters.tags')} options={tagOptions} singleSelect />
       )}
@@ -142,7 +134,6 @@ export function DataTableToolbar<TData>({
           variant='ghost'
           onClick={() => {
             table.resetColumnFilters();
-            onCooldownOnlyChange?.(false);
           }}
           className='h-8 px-2 lg:px-3'
         >

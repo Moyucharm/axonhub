@@ -15,6 +15,18 @@ This file provides guidance to AI coding assistants when working with code in th
 - Backend API: port 8090, Frontend dev server: port 5173 (proxies to backend).
 - Configuration: `conf/conf.go` (YAML + env var), SQLite by default.
 
+## Version & Upstream Baseline Convention
+
+This is a personal fork (`自用` branch). The baseline for self-hosted versions is the **latest upstream release (release tag)**, not the `unstable` development branch:
+
+- **Baseline** = the latest upstream release tag (e.g. `v1.0.0-beta7`), code from the release only.
+- **Unreleased upstream code** (commits on `unstable` newer than the latest release) is **ignored** unless the user explicitly asks to track it.
+- **Version format**: `<upstream release version>+azusa.v<enhancement>` (build metadata; ignored by SemVer comparison so update checks stay correct).
+- Bump the enhancement number by `+0.1` per self-hosted feature update; update `internal/build/VERSION` and the git tag together.
+- `internal/build/VERSION` must contain only the plain version string (no comments) — it is parsed by semver after TrimSpace.
+- When a new upstream release is published, follow the upgrade flow in `DIFF.md` §5: rebase self-hosted features onto the new release, review overlapping features (upstream #2180/#2156 overlap with Key Pool auto-disable and channel cooldown), then update version/tag/image and refresh `DIFF.md`.
+- Current status: `v1.0.0-beta8+azusa.v0.1` is a pre-convention leftover (baseline 2026-08-04 `unstable`, 26 commits behind official v1.0.0-beta7); align at the next official release.
+
 ## Project Overview
 
 AxonHub is an all-in-one AI development platform that serves as a unified API gateway for multiple AI providers. It provides OpenAI and Anthropic-compatible API interfaces with automatic request transformation, enabling seamless communication between clients and various AI providers through a sophisticated bidirectional data transformation pipeline.

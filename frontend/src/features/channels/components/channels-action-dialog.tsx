@@ -746,6 +746,22 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             },
   });
 
+  const handleManagedChannelChange = useCallback(
+    (nextChannel: Channel) => {
+      setManagedChannel(nextChannel);
+      const credentials = nextChannel.credentials;
+      const nextMode = credentials?.mode || ((credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single');
+      form.setValue('credentials.mode', nextMode, { shouldDirty: false });
+      form.setValue('credentials.apiKey', credentials?.apiKey || undefined, { shouldDirty: false });
+      form.setValue('credentials.apiKeys', credentials?.apiKeys ?? [], { shouldDirty: false });
+      form.setValue('settings.apiKeyPool', nextChannel.settings?.apiKeyPool ?? null, { shouldDirty: false });
+      form.setValue('policies.apiKeyAutoDisableRules', nextChannel.policies?.apiKeyAutoDisableRules ?? null, {
+        shouldDirty: false,
+      });
+    },
+    [form]
+  );
+
   const apiKeyMode = form.watch('credentials.mode') || 'single';
   const apiKeys = form.watch('credentials.apiKeys');
   const apiKeysCount = useMemo(() => (apiKeys || []).filter((k) => k.trim().length > 0).length, [apiKeys]);
@@ -1280,7 +1296,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           values.credentials?.gcp?.jsonData &&
           values.credentials.gcp.jsonData.trim() !== '';
         const isPoolMode = values.credentials?.mode === 'pool';
-        const wasPool = currentRow.credentials?.mode === 'pool' || (currentRow.credentials?.apiKeys?.length ?? 0) > 1;
+        const persistedChannel = managedChannel ?? currentRow;
+        const wasPool =
+          persistedChannel.credentials?.mode === 'pool' || (persistedChannel.credentials?.apiKeys?.length ?? 0) > 1;
         const switchingToPool = isPoolMode && !wasPool;
         const switchingToSingle = !isPoolMode && wasPool;
 
@@ -3530,7 +3548,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           channel={managedChannel ?? currentRow}
           open={keyPoolOpen}
           onOpenChange={setKeyPoolOpen}
-          onChannelChange={setManagedChannel}
+          onChannelChange={handleManagedChannelChange}
         />
       )}
     </>

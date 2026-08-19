@@ -515,34 +515,42 @@ export function RetrySettings() {
                         </div>
 
                         {formData.autoDisableChannel?.statuses && formData.autoDisableChannel.statuses.length > 0 ? (
-                          <div className='space-y-2'>
-                            {formData.autoDisableChannel.statuses.map((statusItem, index) => (
-                              <div key={index} className='flex items-center space-x-2'>
-                                <Input
-                                  type='number'
-                                  placeholder={t('system.retry.autoDisableChannel.statuses.statusPlaceholder')}
-                                  value={statusItem.status}
-                                  onChange={(e) => handleStatusChange(index, 'status', parseInt(e.target.value) || 0)}
-                                  className='w-24'
-                                  min='400'
-                                  max='599'
-                                />
-                                <Input
-                                  type='number'
-                                  placeholder={t('system.retry.autoDisableChannel.statuses.timesPlaceholder')}
-                                  value={statusItem.times}
-                                  onChange={(e) => handleStatusChange(index, 'times', parseInt(e.target.value) || 0)}
-                                  className='w-24'
-                                  min='1'
-                                  max='100'
-                                />
-                                <span className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.times')}</span>
-                                <Button type='button' variant='ghost' size='icon' onClick={() => removeStatus(index)}>
-                                  <Trash2 className='h-4 w-4' />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
+                          <>
+                            <div className='grid grid-cols-[6rem_6rem_1fr_2.25rem] items-center gap-2 text-sm font-medium text-muted-foreground'>
+                              <span>{t('system.retry.autoDisableChannel.statuses.statusLabel')}</span>
+                              <span>{t('system.retry.autoDisableChannel.statuses.timesLabel')}</span>
+                              <span />
+                              <span />
+                            </div>
+                            <div className='space-y-2'>
+                              {formData.autoDisableChannel.statuses.map((statusItem, index) => (
+                                <div key={index} className='grid grid-cols-[6rem_6rem_1fr_2.25rem] items-center gap-2'>
+                                  <Input
+                                    type='number'
+                                    placeholder={t('system.retry.autoDisableChannel.statuses.statusPlaceholder')}
+                                    value={statusItem.status}
+                                    onChange={(e) => handleStatusChange(index, 'status', parseInt(e.target.value) || 0)}
+                                    className='w-24'
+                                    min='400'
+                                    max='599'
+                                  />
+                                  <Input
+                                    type='number'
+                                    placeholder={t('system.retry.autoDisableChannel.statuses.timesPlaceholder')}
+                                    value={statusItem.times}
+                                    onChange={(e) => handleStatusChange(index, 'times', parseInt(e.target.value) || 0)}
+                                    className='w-24'
+                                    min='1'
+                                    max='100'
+                                  />
+                                  <span className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.times')}</span>
+                                  <Button type='button' variant='ghost' size='icon' onClick={() => removeStatus(index)}>
+                                    <Trash2 className='h-4 w-4' />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </>
                         ) : (
                           <div className='text-muted-foreground text-sm'>{t('system.retry.autoDisableChannel.statuses.empty')}</div>
                         )}

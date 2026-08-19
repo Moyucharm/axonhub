@@ -335,6 +335,7 @@ export function ChannelsDialogs() {
                 setTimeout(() => setCurrentRow(null), 500);
               }
             }}
+            onChannelChange={setCurrentRow}
           />
 
         </>

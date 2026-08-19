@@ -29,6 +29,7 @@ import {
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { formatLocalDateTime } from '@/utils/format-date-time';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,6 @@ import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { ChannelHealthCell } from './channel-health-cell';
 import { ChannelLimiterCell } from './channel-limiter-cell';
 import { ChannelsStatusDialog } from './channels-status-dialog';
-import { useGeneralSettings } from '@/features/system/data/system';
 
 const WEIGHT_PRECISION = 4;
 const MIN_WEIGHT = 0;
@@ -341,40 +341,6 @@ function getChannelWebsiteURL(baseURL: string): string | null {
   }
 }
 
-function formatCooldownUntil(value: string, timezone: string, locale: string): string | null {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  try {
-    const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const timeFormatter = new Intl.DateTimeFormat(locale, {
-      timeZone: timezone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    const dateFormatter = new Intl.DateTimeFormat(locale, {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const todayKey = dateKeyFormatter.format(new Date());
-    const dateKey = dateKeyFormatter.format(date);
-    const time = timeFormatter.format(date);
-    return dateKey === todayKey ? time : `${dateFormatter.format(date)} ${time}`;
-  } catch {
-    return date.toLocaleString(locale, { hour: '2-digit', minute: '2-digit' });
-  }
-}
-
 function getProxyURLSummary(proxyURL: string): { label: string; detail?: string } {
   try {
     const url = new URL(proxyURL);
@@ -392,7 +358,6 @@ function getProxyURLSummary(proxyURL: string): { label: string; detail?: string 
 const NameCell = memo(({ row }: { row: Row<Channel> }) => {
   const { t, i18n } = useTranslation();
   const channel = row.original;
-  const { data: generalSettings } = useGeneralSettings();
   const { setCurrentRow, setOpen } = useChannels();
   const { channelPermissions } = usePermissions();
   const hasError = !!channel.errorMessage;
@@ -404,7 +369,7 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
   const cooldownUntil = channel.cooldownUntil;
   const isCoolingDown = !!cooldownUntil && new Date(cooldownUntil).getTime() > Date.now();
   const cooldownTime = isCoolingDown
-    ? formatCooldownUntil(cooldownUntil || '', generalSettings?.timezone || 'UTC', i18n.language === 'zh' ? 'zh-CN' : 'en-US')
+    ? formatLocalDateTime(cooldownUntil || '', i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US')
     : null;
 
   const nameElement = websiteURL ? (

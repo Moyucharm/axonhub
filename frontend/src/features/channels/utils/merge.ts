@@ -91,7 +91,8 @@ function isReplacingBodyOverrideOperation(op: OverrideOperation): boolean {
 }
 
 function codexSimulationSettingsForInput(
-  simulation: CodexSimulationSettings | null | undefined
+  simulation: CodexSimulationSettings | null | undefined,
+  includeStrategy = false
 ): CodexSimulationSettingsInput | null {
   if (simulation === null || simulation === undefined) {
     return null;
@@ -105,6 +106,7 @@ function codexSimulationSettingsForInput(
     ...(simulation.platform === undefined ? {} : { platform: simulation.platform }),
     ...(simulation.standardUserAgent === undefined ? {} : { standardUserAgent: simulation.standardUserAgent }),
     ...(simulation.liteUserAgent === undefined ? {} : { liteUserAgent: simulation.liteUserAgent }),
+    ...(includeStrategy && simulation.strategy !== undefined ? { strategy: simulation.strategy } : {}),
   };
 }
 
@@ -146,11 +148,11 @@ export function mergeChannelSettingsForUpdate(
         ? (pool as APIKeyPoolSettings | null)
         : { ...pool, lastAutoCheckAt: undefined };
     })(),
-    // Strategy is server-managed and intentionally excluded from GraphQL input.
-    // Every settings dialog passes through this helper, so existing fingerprints
-    // cannot leak into CodexSimulationSettingsInput as unknown fields.
+    // Submit a fingerprint only when the caller explicitly patches Codex simulation.
+    // Other settings dialogs must not write back a potentially stale strategy snapshot.
     codexSimulation: codexSimulationSettingsForInput(
-      pick('codexSimulation', existing?.codexSimulation ?? null) as CodexSimulationSettings | null
+      pick('codexSimulation', existing?.codexSimulation ?? null) as CodexSimulationSettings | null,
+      hasOwn('codexSimulation')
     ),
   };
 }

@@ -54,7 +54,7 @@ export function ModelSettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[90vh] w-full max-w-full flex-col overflow-hidden sm:max-w-[720px]'>
+      <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] w-full max-w-full overflow-x-hidden overflow-y-hidden sm:max-w-[720px]'>
         <DialogHeader className='shrink-0'>
           <DialogTitle className='flex items-center gap-2 text-lg sm:text-xl'>
             <Settings2 className='h-5 w-5' />

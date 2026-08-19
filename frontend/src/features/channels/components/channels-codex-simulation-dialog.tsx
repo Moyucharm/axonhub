@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { useRandomizeChannelCodexSimulation, useUpdateChannel } from '../data/channels';
+import { createRandomUUID } from '@/utils/random-uuid';
+import { useUpdateChannel } from '../data/channels';
 import {
   Channel,
   CodexSimulationOptions,
@@ -20,7 +21,6 @@ import {
   CodexSimulationSettings,
   CodexSimulationStrategy,
   CODEX_SIMULATION_PRESET_DEFAULTS,
-  DEFAULT_CODEX_SIMULATION_PLATFORM,
   DEFAULT_CODEX_SIMULATION_VERSION,
   buildCodexSimulationUserAgents,
   inferCodexSimulationPlatform,
@@ -45,49 +45,85 @@ const OPTION_KEYS: Array<keyof CodexSimulationOptions> = [
   'additionalTool',
 ];
 
+const RANDOMIZABLE_PLATFORMS: CodexSimulationPlatform[] = ['windows10', 'windows11', 'debian', 'ubuntu', 'macos'];
+
+function createRandomFingerprint(version: string): {
+  version: string;
+  platform: CodexSimulationPlatform;
+  standardUserAgent: string;
+  liteUserAgent: string;
+  strategy: CodexSimulationStrategy;
+} {
+  const effectiveVersion = version.trim() || DEFAULT_CODEX_SIMULATION_VERSION;
+  const randomValue = new Uint32Array(1);
+  crypto.getRandomValues(randomValue);
+  const platform = RANDOMIZABLE_PLATFORMS[(randomValue[0] ?? 0) % RANDOMIZABLE_PLATFORMS.length];
+  const userAgents = buildCodexSimulationUserAgents(effectiveVersion, platform);
+
+  return {
+    version: effectiveVersion,
+    platform,
+    standardUserAgent: userAgents.standard,
+    liteUserAgent: userAgents.lite,
+    strategy: {
+      installationId: createRandomUUID(),
+      threadId: `thread_${createRandomUUID().replaceAll('-', '')}`,
+      windowGeneration: 0,
+    },
+  };
+}
+
 function defaultsFromSettings(sim: CodexSimulationSettings | null | undefined): {
   enabled: boolean;
   preset: CodexSimulationPreset;
   options: CodexSimulationOptions;
   version: string;
-  platform: CodexSimulationPlatform;
+  platform: CodexSimulationPlatform | null;
   standardUserAgent: string;
   liteUserAgent: string;
   strategy: CodexSimulationStrategy | null;
 } {
   const preset: CodexSimulationPreset = sim?.preset ?? 'normal';
-  const version = sim?.version?.trim() || DEFAULT_CODEX_SIMULATION_VERSION;
-  const platform =
-    sim?.platform ?? inferCodexSimulationPlatform(sim?.standardUserAgent, sim?.liteUserAgent);
+  const options = sim?.options ?? CODEX_SIMULATION_PRESET_DEFAULTS[preset];
+  if (!sim?.enabled) {
+    return {
+      enabled: false,
+      preset,
+      options,
+      version: '',
+      platform: null,
+      standardUserAgent: '',
+      liteUserAgent: '',
+      strategy: null,
+    };
+  }
+
+  const version = sim.version?.trim() || DEFAULT_CODEX_SIMULATION_VERSION;
+  const platform = sim.platform ?? inferCodexSimulationPlatform(sim.standardUserAgent, sim.liteUserAgent);
   const defaultUserAgents = buildCodexSimulationUserAgents(version, platform);
   return {
-    enabled: sim?.enabled ?? false,
+    enabled: true,
     preset,
-    options: sim?.options ?? CODEX_SIMULATION_PRESET_DEFAULTS[preset],
+    options,
     version,
     platform,
-    standardUserAgent: sim?.standardUserAgent?.trim() || defaultUserAgents.standard,
-    liteUserAgent: sim?.liteUserAgent?.trim() || defaultUserAgents.lite,
-    strategy: sim?.strategy ?? null,
+    standardUserAgent: sim.standardUserAgent?.trim() || defaultUserAgents.standard,
+    liteUserAgent: sim.liteUserAgent?.trim() || defaultUserAgents.lite,
+    strategy: sim.strategy ?? null,
   };
 }
 
 export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }: Props) {
   const { t } = useTranslation();
   const updateChannel = useUpdateChannel();
-  const randomizeSimulation = useRandomizeChannelCodexSimulation();
 
   const [enabled, setEnabled] = useState(false);
   const [preset, setPreset] = useState<CodexSimulationPreset>('normal');
   const [options, setOptions] = useState<CodexSimulationOptions>(CODEX_SIMULATION_PRESET_DEFAULTS.normal);
-  const [version, setVersion] = useState(DEFAULT_CODEX_SIMULATION_VERSION);
-  const [platform, setPlatform] = useState<CodexSimulationPlatform>(DEFAULT_CODEX_SIMULATION_PLATFORM);
-  const [standardUserAgent, setStandardUserAgent] = useState(
-    buildCodexSimulationUserAgents(DEFAULT_CODEX_SIMULATION_VERSION).standard
-  );
-  const [liteUserAgent, setLiteUserAgent] = useState(
-    buildCodexSimulationUserAgents(DEFAULT_CODEX_SIMULATION_VERSION).lite
-  );
+  const [version, setVersion] = useState('');
+  const [platform, setPlatform] = useState<CodexSimulationPlatform | null>(null);
+  const [standardUserAgent, setStandardUserAgent] = useState('');
+  const [liteUserAgent, setLiteUserAgent] = useState('');
   const [strategy, setStrategy] = useState<CodexSimulationStrategy | null>(null);
 
   useEffect(() => {
@@ -104,28 +140,52 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
     }
   }, [open, currentRow]);
 
-  const defaultUserAgents = buildCodexSimulationUserAgents(version, platform);
-  const persisted = defaultsFromSettings(currentRow.settings?.codexSimulation);
-  const draftDirty =
-    enabled !== persisted.enabled ||
-    preset !== persisted.preset ||
-    JSON.stringify(options) !== JSON.stringify(persisted.options) ||
-    version !== persisted.version ||
-    platform !== persisted.platform ||
-    standardUserAgent !== persisted.standardUserAgent ||
-    liteUserAgent !== persisted.liteUserAgent;
+  const defaultUserAgents = platform
+    ? buildCodexSimulationUserAgents(version, platform)
+    : { standard: '', lite: '' };
   const customized =
-    isCodexSimulationCustomized(preset, options) ||
-    version !== DEFAULT_CODEX_SIMULATION_VERSION ||
-    standardUserAgent !== defaultUserAgents.standard ||
-    liteUserAgent !== defaultUserAgents.lite;
+    enabled &&
+    (isCodexSimulationCustomized(preset, options) ||
+      version !== DEFAULT_CODEX_SIMULATION_VERSION ||
+      standardUserAgent !== defaultUserAgents.standard ||
+      liteUserAgent !== defaultUserAgents.lite);
 
   const updateVersion = (nextVersion: string) => {
-    const previousDefaults = buildCodexSimulationUserAgents(version, platform);
-    const nextDefaults = buildCodexSimulationUserAgents(nextVersion, platform);
+    const previousDefaults = platform
+      ? buildCodexSimulationUserAgents(version, platform)
+      : { standard: '', lite: '' };
+    const nextDefaults = platform
+      ? buildCodexSimulationUserAgents(nextVersion, platform)
+      : { standard: '', lite: '' };
     setVersion(nextVersion);
     setStandardUserAgent((current) => (current === previousDefaults.standard ? nextDefaults.standard : current));
     setLiteUserAgent((current) => (current === previousDefaults.lite ? nextDefaults.lite : current));
+  };
+
+  const clearFingerprint = () => {
+    setVersion('');
+    setPlatform(null);
+    setStandardUserAgent('');
+    setLiteUserAgent('');
+    setStrategy(null);
+  };
+
+  const applyRandomFingerprint = () => {
+    const next = createRandomFingerprint(version);
+    setVersion(next.version);
+    setPlatform(next.platform);
+    setStandardUserAgent(next.standardUserAgent);
+    setLiteUserAgent(next.liteUserAgent);
+    setStrategy(next.strategy);
+  };
+
+  const handleEnabledChange = (checked: boolean) => {
+    setEnabled(checked);
+    if (checked) {
+      applyRandomFingerprint();
+    } else {
+      clearFingerprint();
+    }
   };
 
   const applyPreset = (nextPreset: CodexSimulationPreset) => {
@@ -138,15 +198,22 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
   };
 
   const onSubmit = async () => {
-    const codexSimulation = {
-      enabled,
-      preset,
-      options,
-      version,
-      platform,
-      standardUserAgent,
-      liteUserAgent,
-    };
+    if (enabled && (!platform || !strategy)) {
+      return;
+    }
+
+    const codexSimulation = enabled
+      ? {
+          enabled: true,
+          preset,
+          options,
+          version,
+          platform: platform!,
+          standardUserAgent,
+          liteUserAgent,
+          strategy: strategy!,
+        }
+      : null;
     const nextSettings = mergeChannelSettingsForUpdate(currentRow.settings, { codexSimulation });
 
     await updateChannel.mutateAsync({
@@ -156,22 +223,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
     onOpenChange(false);
   };
 
-  const onRandomize = async () => {
-    const sim = await randomizeSimulation.mutateAsync(currentRow.id);
-    if (sim) {
-      const next = defaultsFromSettings(sim);
-      setEnabled(next.enabled);
-      setPreset(next.preset);
-      setOptions(next.options);
-      setVersion(next.version);
-      setPlatform(next.platform);
-      setStandardUserAgent(next.standardUserAgent);
-      setLiteUserAgent(next.liteUserAgent);
-      setStrategy(next.strategy);
-    }
-  };
-
-  const busy = updateChannel.isPending || randomizeSimulation.isPending;
+  const busy = updateChannel.isPending;
 
   return (
     <Dialog
@@ -182,7 +234,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
         }
       }}
     >
-      <DialogContent className='flex h-[85vh] max-h-[700px] flex-col sm:max-w-2xl'>
+      <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] h-[85vh] max-h-[700px] overflow-x-hidden overflow-y-hidden sm:max-w-3xl'>
         <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('channels.codexSimulation.title')}</DialogTitle>
           <DialogDescription>{t('channels.codexSimulation.description', { name: currentRow.name })}</DialogDescription>
@@ -195,7 +247,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
               <p className='text-sm font-medium'>{t('channels.codexSimulation.enable.label')}</p>
               <p className='text-muted-foreground text-xs'>{t('channels.codexSimulation.enable.description')}</p>
             </div>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <Switch checked={enabled} onCheckedChange={handleEnabledChange} disabled={busy} />
           </div>
 
           {/* 预设等级 */}
@@ -214,6 +266,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                 >
                   <Checkbox
                     checked={preset === value}
+                    disabled={!enabled || busy}
                     onCheckedChange={() => applyPreset(value)}
                     aria-label={t(`channels.codexSimulation.preset.${value}.label`)}
                   />
@@ -241,6 +294,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                   <Checkbox
                     id={`codex-sim-option-${key}`}
                     checked={options[key]}
+                    disabled={!enabled || busy}
                     onCheckedChange={(checked) => toggleOption(key, checked === true)}
                   />
                   <div className='space-y-0.5'>
@@ -275,8 +329,9 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                 </label>
                 <Input
                   id='codex-sim-platform'
-                  value={t(`channels.codexSimulation.fingerprint.platform.values.${platform}`)}
+                  value={platform ? t(`channels.codexSimulation.fingerprint.platform.values.${platform}`) : ''}
                   readOnly
+                  disabled={!enabled}
                   className='font-mono text-xs'
                 />
                 <p className='text-muted-foreground text-xs'>
@@ -291,9 +346,9 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                   id='codex-sim-version'
                   value={version}
                   maxLength={32}
-                  disabled={busy}
+                  disabled={!enabled || busy}
                   onChange={(event) => updateVersion(event.target.value)}
-                  placeholder={DEFAULT_CODEX_SIMULATION_VERSION}
+                  placeholder={enabled ? DEFAULT_CODEX_SIMULATION_VERSION : ''}
                   className='font-mono text-xs'
                 />
                 <p className='text-muted-foreground text-xs'>
@@ -308,7 +363,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                   id='codex-sim-standard-ua'
                   value={standardUserAgent}
                   maxLength={512}
-                  disabled={busy}
+                  disabled={!enabled || busy}
                   onChange={(event) => {
                     setPlatform('custom');
                     setStandardUserAgent(event.target.value);
@@ -324,7 +379,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                   id='codex-sim-lite-ua'
                   value={liteUserAgent}
                   maxLength={512}
-                  disabled={busy}
+                  disabled={!enabled || busy}
                   onChange={(event) => {
                     setPlatform('custom');
                     setLiteUserAgent(event.target.value);
@@ -352,18 +407,17 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
                     <code className='truncate font-mono text-xs'>{strategy.windowGeneration}</code>
                   </div>
                 </>
-              ) : (
+              ) : enabled ? (
                 <p className='text-muted-foreground text-sm'>{t('channels.codexSimulation.strategy.empty')}</p>
-              )}
+              ) : null}
               <Separator className='my-2' />
               <div className='flex items-center justify-end gap-2'>
                 <Button
                   type='button'
                   variant='outline'
                   size='sm'
-                  disabled={!enabled || busy || draftDirty}
-                  title={draftDirty ? t('channels.codexSimulation.messages.saveBeforeRandomize') : undefined}
-                  onClick={onRandomize}
+                  disabled={!enabled || busy}
+                  onClick={applyRandomFingerprint}
                 >
                   <RefreshCw size={14} className='mr-1' />
                   {t('channels.codexSimulation.buttons.randomize')}
@@ -377,7 +431,7 @@ export function ChannelsCodexSimulationDialog({ open, onOpenChange, currentRow }
           <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
             {t('common.buttons.cancel')}
           </Button>
-          <Button type='button' onClick={onSubmit} disabled={busy}>
+          <Button type='button' onClick={onSubmit} disabled={busy || (enabled && (!platform || !strategy))}>
             {busy ? t('common.buttons.saving') : t('common.buttons.save')}
           </Button>
         </DialogFooter>

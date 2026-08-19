@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Ban, Download, Eye, EyeOff, Play, Plus, RefreshCw, Settings2, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { formatLocalDateTime } from '@/utils/format-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,7 +27,7 @@ import {
   useTestChannelAPIKey,
   useUpdateChannel,
 } from '../data/channels';
-import { APIKeyAutoDisableRule, Channel } from '../data/schema';
+import { Channel } from '../data/schema';
 import { DEFAULT_API_KEY_POOL_REQUEST_COUNT } from '../utils/key-pool';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
 import { ChannelsAPIKeyRulesDialog } from './channels-apikey-rules-dialog';
@@ -50,23 +51,9 @@ function parseKeyList(text: string): string[] {
   );
 }
 
-// Default rule shape managed by the Key pool auto-disable toggle. Advanced rules
-// (custom status codes / keyword patterns) are managed via the rules dialog and
-// left untouched here.
-const DEFAULT_DISABLE_STATUS_CODES = [429, 500, 502, 503, 504];
-const DEFAULT_DISABLE_DURATION_MINUTES = 30;
-
-function isDefaultDisableRule(rule: APIKeyAutoDisableRule): boolean {
-  const codes = [...(rule.statusCodes ?? [])].sort((a, b) => a - b);
-  const sameCodes =
-    codes.length === DEFAULT_DISABLE_STATUS_CODES.length &&
-    codes.every((code, index) => code === DEFAULT_DISABLE_STATUS_CODES[index]);
-  const hasPatterns = rule.keywordPatterns?.some((pattern) => pattern.trim() !== '') ?? false;
-  return sameCodes && !hasPatterns && rule.action === 'temporary_disable';
-}
-
 export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelChange }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US';
   const [showKeys, setShowKeys] = useState(false);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ChannelAPIKeyStatusFilter>('all');
@@ -133,9 +120,6 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   const [autoCheckIntervalHours, setAutoCheckIntervalHours] = useState(poolSettings?.autoCheckIntervalHours ?? 24);
   const [autoCheckConcurrency, setAutoCheckConcurrency] = useState(poolSettings?.autoCheckConcurrency ?? 4);
   const [autoCheckTimeoutSeconds, setAutoCheckTimeoutSeconds] = useState(poolSettings?.autoCheckTimeoutSeconds ?? 20);
-  const [autoDisableEnabled, setAutoDisableEnabled] = useState(false);
-  const [autoDisableThreshold, setAutoDisableThreshold] = useState(3);
-  const [hasAdvancedRules, setHasAdvancedRules] = useState(false);
 
   useEffect(() => {
     if (settingsOpen) {
@@ -144,14 +128,8 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       setAutoCheckIntervalHours(poolSettings?.autoCheckIntervalHours ?? 24);
       setAutoCheckConcurrency(poolSettings?.autoCheckConcurrency ?? 4);
       setAutoCheckTimeoutSeconds(poolSettings?.autoCheckTimeoutSeconds ?? 20);
-      const rules = channel.policies?.apiKeyAutoDisableRules ?? [];
-      const defaultRule = rules.find(isDefaultDisableRule);
-      const advancedRules = rules.filter((rule) => !isDefaultDisableRule(rule));
-      setAutoDisableEnabled(rules.length > 0);
-      setAutoDisableThreshold(defaultRule?.times ?? advancedRules[0]?.times ?? 3);
-      setHasAdvancedRules(advancedRules.length > 0);
     }
-  }, [settingsOpen, poolSettings, channel]);
+  }, [settingsOpen, poolSettings]);
 
   // Push an updated channel snapshot to the parent (e.g. edit dialog summary).
   const syncNext = (nextKeys: string[]) => {
@@ -160,6 +138,8 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       ...channel,
       credentials: {
         ...(channel.credentials ?? {}),
+        mode: 'pool',
+        apiKey: '',
         apiKeys: nextKeys,
       },
     });
@@ -259,37 +239,9 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       toast.error(t('channels.keyPool.intervalTooSmall'));
       return;
     }
-    if (autoDisableEnabled && autoDisableThreshold < 1) {
-      toast.error(t('channels.keyPool.thresholdTooSmall'));
-      return;
-    }
-    const existingPolicies = channel.policies ?? {};
-    let nextRules: APIKeyAutoDisableRule[];
-    if (autoDisableEnabled) {
-      // Make sure the default rule exists (advanced rules are kept untouched).
-      const rules = [...(channel.policies?.apiKeyAutoDisableRules ?? [])];
-      const defaultRule: APIKeyAutoDisableRule = {
-        statusCodes: DEFAULT_DISABLE_STATUS_CODES,
-        keywordPatterns: [],
-        times: autoDisableThreshold,
-        action: 'temporary_disable',
-        disableDurationMinutes: DEFAULT_DISABLE_DURATION_MINUTES,
-      };
-      const index = rules.findIndex(isDefaultDisableRule);
-      if (index >= 0) {
-        rules[index] = defaultRule;
-      } else {
-        rules.push(defaultRule);
-      }
-      nextRules = rules;
-    } else {
-      // Remove only the default rule (nothing else remains when there are no advanced rules).
-      nextRules = (channel.policies?.apiKeyAutoDisableRules ?? []).filter((rule) => !isDefaultDisableRule(rule));
-    }
-    await updateChannel.mutateAsync({
+    const updatedChannel = await updateChannel.mutateAsync({
       id: channel.id,
       input: {
-        policies: { ...existingPolicies, apiKeyAutoDisableRules: nextRules },
         settings: mergeChannelSettingsForUpdate(channel.settings, {
           apiKeyPool: {
             retryCount,
@@ -301,17 +253,19 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
         }),
       },
     });
+    onChannelChange?.(updatedChannel);
     setSettingsOpen(false);
   };
 
   const selectedDisabledCount = Array.from(selected).filter((key) => disabledSet.has(key)).length;
   const totalKeys = allKeys.length;
   const enabledKeys = Math.max(0, totalKeys - disabledSet.size);
+  const channelRuleCount = channel.policies?.apiKeyAutoDisableRules?.length ?? 0;
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-4xl'>
+        <DialogContent className='grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-4xl'>
           <DialogHeader>
             <DialogTitle>{t('channels.keyPool.title', { name: channel.name })}</DialogTitle>
             <DialogDescription>{t('channels.keyPool.description')}</DialogDescription>
@@ -383,12 +337,24 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
                       {state && (state.failureCount > 0 || state.lastErrorCode !== 0) ? (
                         <>
                           {state.failureCount > 0 && <span>{t('channels.keyPool.failures', { count: state.failureCount })}</span>}
-                          {state.lastFailedAt && <span>{t('channels.keyPool.lastFailed', { time: state.lastFailedAt })}</span>}
+                          {state.lastFailedAt && (
+                            <span>
+                              {t('channels.keyPool.lastFailed', {
+                                time: formatLocalDateTime(state.lastFailedAt, locale) ?? state.lastFailedAt,
+                              })}
+                            </span>
+                          )}
                           {state.lastErrorCode !== 0 && <span>{t('channels.keyPool.errorCode', { code: state.lastErrorCode })}</span>}
                         </>
                       ) : null}
                       {meta?.reason && <span className='text-muted-foreground truncate'>{meta.reason}</span>}
-                      {meta?.expiresAt && <span>{t('channels.keyPool.expiresAt', { time: meta.expiresAt })}</span>}
+                      {meta?.expiresAt && (
+                        <span>
+                          {t('channels.keyPool.expiresAt', {
+                            time: formatLocalDateTime(meta.expiresAt, locale) ?? meta.expiresAt,
+                          })}
+                        </span>
+                      )}
                       {test && (
                         <span className={test.success ? 'text-green-600' : 'text-destructive'}>
                           {test.success ? t('channels.keyPool.testPassed') : t('channels.keyPool.testFailed', { error: test.error ?? '' })}
@@ -507,37 +473,21 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
             <Card className='gap-4 py-4'>
               <CardHeader className='flex flex-row items-start justify-between gap-4 px-4'>
                 <div className='space-y-1'>
-                  <CardTitle className='text-sm'>{t('channels.keyPool.autoDisable')}</CardTitle>
-                  <CardDescription className='text-xs leading-relaxed'>{t('channels.keyPool.autoDisableDescription')}</CardDescription>
+                  <CardTitle className='text-sm'>{t('channels.keyPool.rules')}</CardTitle>
+                  <CardDescription className='text-xs leading-relaxed'>
+                    {t(
+                      channelRuleCount > 0
+                        ? 'channels.keyPool.rulesActiveDescription'
+                        : 'channels.keyPool.rulesFallbackDescription',
+                      { count: channelRuleCount }
+                    )}
+                  </CardDescription>
                 </div>
-                <Checkbox checked={autoDisableEnabled} disabled={hasAdvancedRules} onCheckedChange={(checked) => setAutoDisableEnabled(!!checked)} />
+                <Button type='button' variant='outline' size='sm' onClick={() => setRulesOpen(true)}>
+                  <Settings2 className='mr-1 h-4 w-4' />
+                  {t('channels.keyPool.manageRules')}
+                </Button>
               </CardHeader>
-              <CardContent className='space-y-3 px-4 pt-0'>
-                {hasAdvancedRules && <p className='text-muted-foreground text-xs'>{t('channels.keyPool.advancedRulesHint')}</p>}
-                {autoDisableEnabled && (
-                  <div className='flex items-center justify-between gap-3'>
-                    <label className='text-sm font-medium'>{t('channels.keyPool.autoDisableThreshold')}</label>
-                    <div className='flex items-center gap-2'>
-                      <Input type='number' min={1} className='w-20' value={autoDisableThreshold} onChange={(event) => setAutoDisableThreshold(Number(event.target.value))} />
-                      <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
-                    </div>
-                  </div>
-                )}
-                <div className='flex items-center justify-between gap-3 border-t pt-3'>
-                  <div>
-                    <p className='text-sm font-medium'>{t('channels.keyPool.rules')}</p>
-                    <p className='text-muted-foreground text-xs'>
-                      {t('channels.keyPool.rulesCount', {
-                        count: channel.policies?.apiKeyAutoDisableRules?.length ?? 0,
-                      })}
-                    </p>
-                  </div>
-                  <Button variant='outline' size='sm' onClick={() => setRulesOpen(true)}>
-                    <Settings2 className='mr-1 h-4 w-4' />
-                    {t('channels.keyPool.manageRules')}
-                  </Button>
-                </div>
-              </CardContent>
             </Card>
           </div>
           <DialogFooter>
@@ -571,7 +521,12 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
         </DialogContent>
       </Dialog>
 
-      <ChannelsAPIKeyRulesDialog open={rulesOpen} onOpenChange={setRulesOpen} currentRow={channel} />
+      <ChannelsAPIKeyRulesDialog
+        open={rulesOpen}
+        onOpenChange={setRulesOpen}
+        currentRow={channel}
+        onChannelChange={onChannelChange}
+      />
     </>
   );
 }

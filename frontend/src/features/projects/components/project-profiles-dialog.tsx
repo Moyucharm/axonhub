@@ -120,7 +120,7 @@ export function ProjectProfilesDialog({ open, onOpenChange, onSubmit, loading = 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-4xl'>
+      <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-4xl'>
         <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('projects.profiles.title')}</DialogTitle>
           <DialogDescription>{t('projects.profiles.description')}</DialogDescription>

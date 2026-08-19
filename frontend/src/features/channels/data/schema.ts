@@ -390,7 +390,7 @@ export const codexSimulationSettingsSchema = z.object({
 export type CodexSimulationSettings = z.infer<typeof codexSimulationSettingsSchema>;
 export type CodexSimulationSettingsInput = Pick<
   CodexSimulationSettings,
-  'enabled' | 'preset' | 'options' | 'version' | 'platform' | 'standardUserAgent' | 'liteUserAgent'
+  'enabled' | 'preset' | 'options' | 'version' | 'platform' | 'standardUserAgent' | 'liteUserAgent' | 'strategy'
 >;
 
 // Preset-default option sets for the three levels.

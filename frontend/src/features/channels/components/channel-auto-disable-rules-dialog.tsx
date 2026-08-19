@@ -161,15 +161,17 @@ export function ChannelAutoDisableRulesDialog({ open, onOpenChange, currentRow }
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='space-y-2'>
-                  <Label>{t('channels.dialogs.channelAutoDisableRules.times')}</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    value={policy.times}
-                    onChange={(event) => updatePolicy('times', Number.parseInt(event.target.value, 10) || 0)}
-                  />
-                </div>
+                {policy.mode === 'any' && (
+                  <div className='space-y-2'>
+                    <Label>{t('channels.dialogs.channelAutoDisableRules.times')}</Label>
+                    <Input
+                      type='number'
+                      min={1}
+                      value={policy.times}
+                      onChange={(event) => updatePolicy('times', Number.parseInt(event.target.value, 10) || 0)}
+                    />
+                  </div>
+                )}
               </div>
 
               {policy.mode === 'codes' && (
@@ -181,13 +183,21 @@ export function ChannelAutoDisableRulesDialog({ open, onOpenChange, currentRow }
                       {t('channels.dialogs.channelAutoDisableRules.addStatus')}
                     </Button>
                   </div>
+                  {statuses.length > 0 && (
+                    <div className='grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_2.25rem] items-center gap-2 text-sm font-medium text-muted-foreground'>
+                      <span />
+                      <span>{t('channels.dialogs.channelAutoDisableRules.statusCodeLabel')}</span>
+                      <span>{t('channels.dialogs.channelAutoDisableRules.statusTimesLabel')}</span>
+                      <span />
+                    </div>
+                  )}
                   {statuses.length === 0 ? (
                     <div className='text-muted-foreground rounded-md border border-dashed p-4 text-sm'>
                       {t('channels.dialogs.channelAutoDisableRules.emptyStatuses')}
                     </div>
                   ) : (
                     statuses.map((status, index) => (
-                      <div key={`${index}-${status.status}`} className='flex items-center gap-2'>
+                      <div key={`status-${index}`} className='grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_2.25rem] items-center gap-2'>
                         <Badge variant='outline'>{index + 1}</Badge>
                         <Input
                           type='number'

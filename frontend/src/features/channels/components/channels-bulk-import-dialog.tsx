@@ -188,7 +188,7 @@ deepseek_anthropic,DeepSeek Anthropic,https://api.deepseek.com/anthropic,sk-xxx,
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[90vh] flex-col overflow-hidden sm:max-w-5xl'>
+      <DialogContent className='grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-5xl'>
         <DialogHeader className='flex-shrink-0 border-b pb-4'>
           <div className='flex items-center gap-3'>
             <div className='bg-primary/10 text-primary dark:bg-primary/20 rounded-lg p-2'>

@@ -17,6 +17,8 @@ import { useProvidersData } from '@/features/models/data/providers';
 
 const ChannelsDialogs = lazy(() => import('./components/channels-dialogs').then((m) => ({ default: m.ChannelsDialogs })));
 
+const COOLDOWN_STATUS_FILTER = 'cooldown';
+
 function ChannelsContent() {
   const { t } = useTranslation();
   useProvidersData();
@@ -33,7 +35,6 @@ function ChannelsContent() {
   const [modelFilter, setModelFilter] = useState<string>('');
   const [selectedTypeTab, setSelectedTypeTab] = useState<string>('all');
   const [showErrorOnly, setShowErrorOnly] = useState<boolean>(false);
-  const [cooldownOnly, setCooldownOnly] = useState<boolean>(false);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const [sorting, setSorting] = useState<SortingState>(() => {
     const stored = localStorage.getItem('channels-table-sorting');
@@ -70,8 +71,16 @@ function ChannelsContent() {
     }
   }, [showTypeTabs, selectedTypeTab, resetCursor]);
 
+  const channelStatusFilter = useMemo(
+    () => statusFilter.filter((status) => status !== COOLDOWN_STATUS_FILTER),
+    [statusFilter]
+  );
+  const cooldownSelected = statusFilter.includes(COOLDOWN_STATUS_FILTER);
+
   // Fetch channel types for tabs
-  const { data: channelTypeCounts = [] } = useChannelTypes(statusFilter.length > 0 ? statusFilter : ['enabled', 'disabled']);
+  const { data: channelTypeCounts = [] } = useChannelTypes(
+    channelStatusFilter.length > 0 ? channelStatusFilter : ['enabled', 'disabled']
+  );
 
   // Fetch error channels count independently
   const { data: errorCount = 0 } = useErrorChannelsCount();
@@ -80,13 +89,13 @@ function ChannelsContent() {
   const debouncedNameFilter = useDebounce(nameFilter, 300);
 
   useEffect(() => {
-    if (!cooldownOnly) {
+    if (!cooldownSelected) {
       return;
     }
 
     const timer = window.setInterval(() => setCooldownNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
-  }, [cooldownOnly]);
+  }, [cooldownSelected]);
 
   // Get types for the selected tab
   const tabFilteredTypes = useMemo(() => {
@@ -112,20 +121,21 @@ function ChannelsContent() {
     if (combinedTypeFilter.length > 0) {
       where.typeIn = Array.from(new Set(combinedTypeFilter)); // Remove duplicates
     }
-    if (statusFilter.length > 0) {
-      where.statusIn = statusFilter;
+    const cooldownThreshold = new Date(cooldownNow).toISOString();
+    if (cooldownSelected && channelStatusFilter.length > 0) {
+      where.or = [{ statusIn: channelStatusFilter }, { cooldownUntilGT: cooldownThreshold }];
     } else {
-      // By default, exclude archived channels when no status filter is applied
-      where.statusIn = ['enabled', 'disabled'];
+      // By default, exclude archived channels when no persisted status filter is applied.
+      where.statusIn = channelStatusFilter.length > 0 ? channelStatusFilter : ['enabled', 'disabled'];
+      if (cooldownSelected) {
+        where.cooldownUntilGT = cooldownThreshold;
+      }
     }
     if (showErrorOnly) {
       where.errorMessageNotNil = true;
     }
-    if (cooldownOnly) {
-      where.cooldownUntilGT = new Date(cooldownNow).toISOString();
-    }
     return Object.keys(where).length > 0 ? where : undefined;
-  }, [cooldownNow, cooldownOnly, debouncedNameFilter, tabFilteredTypes, statusFilter, showErrorOnly]);
+  }, [channelStatusFilter, cooldownNow, cooldownSelected, debouncedNameFilter, tabFilteredTypes, showErrorOnly]);
 
   const currentOrderBy = useMemo(() => {
     if (sorting.length === 0) {
@@ -287,11 +297,6 @@ function ChannelsContent() {
         nameFilter={nameFilter}
         typeFilter={typeFilter}
         statusFilter={statusFilter}
-        cooldownOnly={cooldownOnly}
-        onCooldownOnlyChange={(enabled) => {
-          setCooldownOnly(enabled);
-          resetCursor();
-        }}
         tagFilter={tagFilter}
         modelFilter={modelFilter}
         selectedTypeTab={selectedTypeTab}
