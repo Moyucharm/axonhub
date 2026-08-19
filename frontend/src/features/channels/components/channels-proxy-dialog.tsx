@@ -192,7 +192,7 @@ export function ChannelsProxyDialog({ open, onOpenChange, currentRow }: Props) {
         onOpenChange(state);
       }}
     >
-      <DialogContent className='sm:max-w-2xl'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
         <DialogHeader className='text-left'>
           <DialogTitle>{t('channels.dialogs.proxy.title')}</DialogTitle>
           <DialogDescription>{t('channels.dialogs.proxy.description', { name: currentRow.name })}</DialogDescription>
