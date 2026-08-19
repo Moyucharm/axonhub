@@ -8,6 +8,11 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channel"
 )
 
+func TestNormalizeLegacyType(t *testing.T) {
+	require.Equal(t, channel.TypeOpenai, channel.NormalizeLegacyType(channel.LegacyTypeAtlascloud))
+	require.Equal(t, channel.TypeAnthropic, channel.NormalizeLegacyType(channel.TypeAnthropic))
+}
+
 func TestType_IsAnthropic(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case

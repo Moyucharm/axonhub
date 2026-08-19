@@ -601,6 +601,7 @@ func (svc *BackupService) restoreChannelModelPrices(
 
 func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, channels []*BackupChannel, opts RestoreOptions) error {
 	for _, chData := range channels {
+		channelType := channel.NormalizeLegacyType(chData.Type)
 		existing, err := db.Channel.Query().
 			Where(channel.Name(chData.Name)).
 			First(ctx)
@@ -660,7 +661,7 @@ func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, c
 		} else {
 			create := db.Channel.Create().
 				SetName(chData.Name).
-				SetType(chData.Type).
+				SetType(channelType).
 				SetNillableBaseURL(baseURL).
 				SetStatus(chData.Status).
 				SetCredentials(credentials).

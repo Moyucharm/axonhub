@@ -54,6 +54,44 @@ func TestBackupService_Restore_SystemConfigs(t *testing.T) {
 	require.Equal(t, "target-secret", secretKey.Value)
 }
 
+func TestBackupService_Restore_NormalizesLegacyChannelType(t *testing.T) {
+	client, service, ctx := setupBackupTest(t)
+	defer client.Close()
+
+	data, err := json.Marshal(BackupData{
+		Version: BackupVersion,
+		Channels: []*BackupChannel{
+			{
+				Channel: ent.Channel{
+					Type:             channel.LegacyTypeAtlascloud,
+					Name:             "Legacy AtlasCloud Channel",
+					BaseURL:          "https://api.atlascloud.ai/v1",
+					Status:           channel.StatusEnabled,
+					SupportedModels:  []string{"deepseek-v3"},
+					DefaultTestModel: "deepseek-v3",
+					Settings:         &objects.ChannelSettings{},
+				},
+				Credentials: objects.ChannelCredentials{APIKey: "legacy-api-key"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = service.Restore(ctx, data, RestoreOptions{
+		IncludeChannels:         true,
+		ChannelConflictStrategy: ConflictStrategyError,
+	})
+	require.NoError(t, err)
+
+	restored, err := client.Channel.Query().Where(channel.Name("Legacy AtlasCloud Channel")).Only(ctx)
+	require.NoError(t, err)
+	require.Equal(t, channel.TypeOpenai, restored.Type)
+	require.Equal(t, "https://api.atlascloud.ai/v1", restored.BaseURL)
+	require.Equal(t, "legacy-api-key", restored.Credentials.APIKey)
+	require.Equal(t, []string{"deepseek-v3"}, restored.SupportedModels)
+	require.Equal(t, "deepseek-v3", restored.DefaultTestModel)
+}
+
 func TestBackupService_Restore(t *testing.T) {
 	client, service, ctx := setupBackupTest(t)
 	defer client.Close()

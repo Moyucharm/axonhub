@@ -64,8 +64,13 @@ func NewEntClient(cfg Config) *ent.Client {
 	client := ent.NewClient(opts...)
 
 	if !cfg.DisableAutoMigration {
+		migrationCtx := context.Background()
+		if err := migrateLegacyChannelTypes(migrationCtx, dbDialect, masterDB); err != nil {
+			panic(err)
+		}
+
 		err = client.Schema.Create(
-			context.Background(),
+			migrationCtx,
 			migrate.WithGlobalUniqueID(false),
 			migrate.WithForeignKeys(false),
 			migrate.WithDropIndex(true),
@@ -77,7 +82,7 @@ func NewEntClient(cfg Config) *ent.Client {
 		}
 
 		migrator := datamigrate.NewMigrator(client)
-		if err := migrator.Run(context.Background()); err != nil {
+		if err := migrator.Run(migrationCtx); err != nil {
 			panic(err)
 		}
 	}

@@ -33,7 +33,6 @@ import {
   OpenCode,
   Groq,
 } from '@lobehub/icons';
-import { AtlasCloudIcon } from '../components/atlas-cloud-icon';
 import { EvolinkIcon } from '../components/evolink-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
 import { CHANNEL_CONFIGS } from './config_channels';
@@ -57,12 +56,6 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     icon: OpenAI,
     color: 'bg-white-100 text-white-800 border-white-200',
     channelTypes: ['openai', 'openai_responses'],
-  },
-  atlascloud: {
-    provider: 'atlascloud',
-    icon: AtlasCloudIcon,
-    color: 'bg-sky-100 text-sky-800 border-sky-200',
-    channelTypes: ['atlascloud'],
   },
   deepseek: {
     provider: 'deepseek',
