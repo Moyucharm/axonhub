@@ -15,6 +15,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -144,6 +146,60 @@ func (f TraverseAPIKeyProfileTemplate) Traverse(ctx context.Context, q ent.Query
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.APIKeyProfileTemplateQuery", q)
+}
+
+// The CPACredentialFunc type is an adapter to allow the use of ordinary function as a Querier.
+type CPACredentialFunc func(context.Context, *ent.CPACredentialQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f CPACredentialFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.CPACredentialQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.CPACredentialQuery", q)
+}
+
+// The TraverseCPACredential type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseCPACredential func(context.Context, *ent.CPACredentialQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseCPACredential) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseCPACredential) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPACredentialQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.CPACredentialQuery", q)
+}
+
+// The CPAInstanceFunc type is an adapter to allow the use of ordinary function as a Querier.
+type CPAInstanceFunc func(context.Context, *ent.CPAInstanceQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f CPAInstanceFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.CPAInstanceQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.CPAInstanceQuery", q)
+}
+
+// The TraverseCPAInstance type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseCPAInstance func(context.Context, *ent.CPAInstanceQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseCPAInstance) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseCPAInstance) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPAInstanceQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.CPAInstanceQuery", q)
 }
 
 // The ChannelFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -774,6 +830,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.APIKeyQuery, predicate.APIKey, apikey.OrderOption]{typ: ent.TypeAPIKey, tq: q}, nil
 	case *ent.APIKeyProfileTemplateQuery:
 		return &query[*ent.APIKeyProfileTemplateQuery, predicate.APIKeyProfileTemplate, apikeyprofiletemplate.OrderOption]{typ: ent.TypeAPIKeyProfileTemplate, tq: q}, nil
+	case *ent.CPACredentialQuery:
+		return &query[*ent.CPACredentialQuery, predicate.CPACredential, cpacredential.OrderOption]{typ: ent.TypeCPACredential, tq: q}, nil
+	case *ent.CPAInstanceQuery:
+		return &query[*ent.CPAInstanceQuery, predicate.CPAInstance, cpainstance.OrderOption]{typ: ent.TypeCPAInstance, tq: q}, nil
 	case *ent.ChannelQuery:
 		return &query[*ent.ChannelQuery, predicate.Channel, channel.OrderOption]{typ: ent.TypeChannel, tq: q}, nil
 	case *ent.ChannelModelPriceQuery:

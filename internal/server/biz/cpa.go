@@ -1,0 +1,438 @@
+package biz
+
+import (
+	"context"
+	"fmt"
+	"math/rand/v2"
+	"strings"
+	"sync"
+	"time"
+
+	"go.uber.org/fx"
+	"golang.org/x/sync/semaphore"
+	"golang.org/x/sync/singleflight"
+
+	"github.com/looplj/axonhub/internal/authz"
+	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/objects"
+	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
+)
+
+const (
+	defaultCPARefreshIntervalMinutes = 5
+	minCPARefreshIntervalMinutes     = 5
+	maxCPARefreshIntervalMinutes     = 1440
+	maxCPAInstanceConcurrency        = 4
+	maxCPAGlobalConcurrency          = 8
+	cpaRefreshDispatcherInterval     = 5 * time.Second
+)
+
+// CPAServiceParams contains CPA service dependencies.
+type CPAServiceParams struct {
+	fx.In
+
+	Ent           *ent.Client
+	SystemService *SystemService
+}
+
+// CPAService manages CLIProxyAPI connections, credentials, and quota snapshots.
+type CPAService struct {
+	*AbstractService
+
+	SystemService   *SystemService
+	quotaRegistry   *cpaclient.QuotaRegistry
+	refreshGroup    singleflight.Group
+	syncGroup       singleflight.Group
+	globalQuota     *semaphore.Weighted
+	instanceQuotaMu sync.Mutex
+	instanceQuota   map[int]*semaphore.Weighted
+	now             func() time.Time
+	jitter          func() time.Duration
+}
+
+// NewCPAService creates the CPA management service.
+func NewCPAService(params CPAServiceParams) *CPAService {
+	return &CPAService{
+		AbstractService: &AbstractService{db: params.Ent},
+		SystemService:   params.SystemService,
+		quotaRegistry:   cpaclient.NewQuotaRegistry(),
+		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
+		instanceQuota:   make(map[int]*semaphore.Weighted),
+		now:             func() time.Time { return time.Now().UTC() },
+		jitter: func() time.Duration {
+			return time.Duration(15+rand.IntN(46)) * time.Second
+		},
+	}
+}
+
+// CreateCPAInstanceInput creates one CPA connection.
+type CreateCPAInstanceInput struct {
+	Name                   string
+	BaseURL                string
+	ManagementSecret       string
+	Enabled                *bool
+	InsecureSkipTLS        bool
+	AutoRefreshEnabled     *bool
+	RefreshIntervalMinutes *int
+}
+
+// UpdateCPAInstanceInput updates one CPA connection. An empty secret preserves the stored secret.
+type UpdateCPAInstanceInput struct {
+	Name                   *string
+	BaseURL                *string
+	ManagementSecret       *string
+	Enabled                *bool
+	InsecureSkipTLS        *bool
+	AutoRefreshEnabled     *bool
+	RefreshIntervalMinutes *int
+}
+
+// CPAInstanceView is the safe API representation of a CPA instance.
+type CPAInstanceView struct {
+	ID                     int
+	Name                   string
+	BaseURL                string
+	Enabled                bool
+	InsecureSkipTLS        bool
+	AutoRefreshEnabled     bool
+	RefreshIntervalMinutes int
+	NextRefreshAt          *time.Time
+	ServerVersion          string
+	ServerCommit           string
+	ServerBuildDate        string
+	LastSyncAttemptAt      *time.Time
+	LastSyncSuccessAt      *time.Time
+	LastErrorAt            *time.Time
+	LastError              *string
+	HasSecret              bool
+	ConnectionStatus       string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstanceInput) (*CPAInstanceView, error) {
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return nil, fmt.Errorf("CPA instance name is required")
+	}
+	normalizedURL, err := cpaclient.NormalizeBaseURL(input.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	secret := strings.TrimSpace(input.ManagementSecret)
+	if secret == "" {
+		return nil, fmt.Errorf("CPA management secret is required")
+	}
+	interval, err := normalizeCPARefreshInterval(input.RefreshIntervalMinutes)
+	if err != nil {
+		return nil, err
+	}
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	autoRefresh := true
+	if input.AutoRefreshEnabled != nil {
+		autoRefresh = *input.AutoRefreshEnabled
+	}
+
+	client, err := cpaclient.NewClient(cpaclient.Config{
+		BaseURL:          normalizedURL,
+		ManagementSecret: secret,
+		InsecureSkipTLS:  input.InsecureSkipTLS,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer client.CloseIdleConnections()
+	authFiles, buildInfo, err := client.ListCredentials(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("validate CPA connection: %w", err)
+	}
+
+	encryptedSecret, err := svc.encryptSecret(ctx, secret)
+	if err != nil {
+		return nil, err
+	}
+	now := svc.now()
+	var created *ent.CPAInstance
+	err = svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+		builder := svc.entFromContext(txCtx).CPAInstance.Create().
+			SetName(name).
+			SetBaseURL(normalizedURL).
+			SetEncryptedSecret(encryptedSecret).
+			SetEnabled(enabled).
+			SetInsecureSkipTLS(input.InsecureSkipTLS).
+			SetAutoRefreshEnabled(autoRefresh).
+			SetRefreshIntervalMinutes(interval).
+			SetServerVersion(buildInfo.Version).
+			SetServerCommit(buildInfo.Commit).
+			SetServerBuildDate(buildInfo.BuildDate).
+			SetLastSyncAttemptAt(now).
+			SetLastSyncSuccessAt(now)
+		if enabled && autoRefresh {
+			builder.SetNextRefreshAt(now.Add(svc.jitter()))
+		}
+		created, err = builder.Save(txCtx)
+		if err != nil {
+			return fmt.Errorf("create CPA instance: %w", err)
+		}
+		return svc.syncCredentialSnapshot(txCtx, created, authFiles.Files, now)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return buildCPAInstanceView(created), nil
+}
+
+func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateCPAInstanceInput) (*CPAInstanceView, error) {
+	current, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get CPA instance: %w", err)
+	}
+
+	name := current.Name
+	if input.Name != nil {
+		name = strings.TrimSpace(*input.Name)
+		if name == "" {
+			return nil, fmt.Errorf("CPA instance name is required")
+		}
+	}
+	baseURL := current.BaseURL
+	if input.BaseURL != nil {
+		baseURL, err = cpaclient.NormalizeBaseURL(*input.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	enabled := current.Enabled
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	insecureSkipTLS := current.InsecureSkipTLS
+	if input.InsecureSkipTLS != nil {
+		insecureSkipTLS = *input.InsecureSkipTLS
+	}
+	autoRefresh := current.AutoRefreshEnabled
+	if input.AutoRefreshEnabled != nil {
+		autoRefresh = *input.AutoRefreshEnabled
+	}
+	interval := current.RefreshIntervalMinutes
+	if input.RefreshIntervalMinutes != nil {
+		interval, err = normalizeCPARefreshInterval(input.RefreshIntervalMinutes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	secretChanged := input.ManagementSecret != nil && strings.TrimSpace(*input.ManagementSecret) != ""
+	secret := ""
+	if secretChanged {
+		secret = strings.TrimSpace(*input.ManagementSecret)
+	}
+	connectionChanged := baseURL != current.BaseURL || insecureSkipTLS != current.InsecureSkipTLS || secretChanged || (!current.Enabled && enabled)
+	var authFiles *cpaclient.AuthFilesResponse
+	var buildInfo cpaclient.BuildInfo
+	if connectionChanged {
+		if !secretChanged {
+			secret, err = svc.decryptSecret(ctx, current.EncryptedSecret)
+			if err != nil {
+				return nil, err
+			}
+		}
+		client, clientErr := cpaclient.NewClient(cpaclient.Config{
+			BaseURL:          baseURL,
+			ManagementSecret: secret,
+			InsecureSkipTLS:  insecureSkipTLS,
+		})
+		if clientErr != nil {
+			return nil, clientErr
+		}
+		authFiles, buildInfo, err = client.ListCredentials(ctx)
+		client.CloseIdleConnections()
+		if err != nil {
+			return nil, fmt.Errorf("validate CPA connection: %w", err)
+		}
+	}
+	encryptedSecret := current.EncryptedSecret
+	if secretChanged {
+		encryptedSecret, err = svc.encryptSecret(ctx, secret)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	now := svc.now()
+	var updated *ent.CPAInstance
+	err = svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+		builder := svc.entFromContext(txCtx).CPAInstance.UpdateOneID(id).
+			SetName(name).
+			SetBaseURL(baseURL).
+			SetEncryptedSecret(encryptedSecret).
+			SetEnabled(enabled).
+			SetInsecureSkipTLS(insecureSkipTLS).
+			SetAutoRefreshEnabled(autoRefresh).
+			SetRefreshIntervalMinutes(interval)
+		if !enabled || !autoRefresh {
+			builder.ClearNextRefreshAt()
+		} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
+			builder.SetNextRefreshAt(now.Add(svc.jitter()))
+		}
+		if connectionChanged {
+			builder.
+				SetServerVersion(buildInfo.Version).
+				SetServerCommit(buildInfo.Commit).
+				SetServerBuildDate(buildInfo.BuildDate).
+				SetLastSyncAttemptAt(now).
+				SetLastSyncSuccessAt(now).
+				ClearLastError().
+				ClearLastErrorAt()
+		}
+		updated, err = builder.Save(txCtx)
+		if err != nil {
+			return fmt.Errorf("update CPA instance: %w", err)
+		}
+		if authFiles != nil {
+			return svc.syncCredentialSnapshot(txCtx, updated, authFiles.Files, now)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return buildCPAInstanceView(updated), nil
+}
+
+// DeleteInstance removes an instance and all of its locally synchronized
+// credentials. The credential rows are deleted explicitly in the same
+// transaction instead of relying on the database-level cascade: production
+// migrations run with foreign keys disabled, so the schema's OnDelete(Cascade)
+// annotation would otherwise leave orphaned credential snapshots behind.
+func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
+	err := svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if _, err := svc.entFromContext(txCtx).CPACredential.Delete().
+			Where(cpacredential.CpaInstanceIDEQ(id)).
+			Exec(txCtx); err != nil {
+			return fmt.Errorf("delete CPA instance credentials: %w", err)
+		}
+		if err := svc.entFromContext(txCtx).CPAInstance.DeleteOneID(id).Exec(txCtx); err != nil {
+			return fmt.Errorf("delete CPA instance: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	svc.instanceQuotaMu.Lock()
+	delete(svc.instanceQuota, id)
+	svc.instanceQuotaMu.Unlock()
+	return nil
+}
+
+func (svc *CPAService) ListInstances(ctx context.Context) ([]*CPAInstanceView, error) {
+	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
+		Order(cpainstance.ByName()).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list CPA instances: %w", err)
+	}
+	result := make([]*CPAInstanceView, 0, len(instances))
+	for _, instance := range instances {
+		result = append(result, buildCPAInstanceView(instance))
+	}
+	return result, nil
+}
+
+func (svc *CPAService) GetInstance(ctx context.Context, id int) (*CPAInstanceView, error) {
+	instance, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get CPA instance: %w", err)
+	}
+	return buildCPAInstanceView(instance), nil
+}
+
+func buildCPAInstanceView(instance *ent.CPAInstance) *CPAInstanceView {
+	status := "connected"
+	if !instance.Enabled {
+		status = "disabled"
+	} else if instance.LastError != nil && strings.TrimSpace(*instance.LastError) != "" {
+		status = "error"
+	} else if instance.LastSyncSuccessAt == nil {
+		status = "unknown"
+	}
+	return &CPAInstanceView{
+		ID:                     instance.ID,
+		Name:                   instance.Name,
+		BaseURL:                instance.BaseURL,
+		Enabled:                instance.Enabled,
+		InsecureSkipTLS:        instance.InsecureSkipTLS,
+		AutoRefreshEnabled:     instance.AutoRefreshEnabled,
+		RefreshIntervalMinutes: instance.RefreshIntervalMinutes,
+		NextRefreshAt:          instance.NextRefreshAt,
+		ServerVersion:          instance.ServerVersion,
+		ServerCommit:           instance.ServerCommit,
+		ServerBuildDate:        instance.ServerBuildDate,
+		LastSyncAttemptAt:      instance.LastSyncAttemptAt,
+		LastSyncSuccessAt:      instance.LastSyncSuccessAt,
+		LastErrorAt:            instance.LastErrorAt,
+		LastError:              instance.LastError,
+		HasSecret:              strings.TrimSpace(instance.EncryptedSecret) != "",
+		ConnectionStatus:       status,
+		CreatedAt:              instance.CreatedAt,
+		UpdatedAt:              instance.UpdatedAt,
+	}
+}
+
+func (svc *CPAService) supportsNormalizedQuota(credential cpaclient.NormalizedCredential) bool {
+	return svc.quotaRegistry.Supports(credential.Provider) && !(credential.Provider == "xai" && credential.QuotaContext.Paid)
+}
+
+func (svc *CPAService) supportsStoredQuota(credential *ent.CPACredential) bool {
+	return credential.QuotaState != string(objects.CPAQuotaStateUnsupported) &&
+		svc.quotaRegistry.Supports(credential.Provider) &&
+		!(credential.Provider == "xai" && credential.QuotaContext.Paid)
+}
+
+func normalizeCPARefreshInterval(value *int) (int, error) {
+	if value == nil {
+		return defaultCPARefreshIntervalMinutes, nil
+	}
+	if *value < minCPARefreshIntervalMinutes || *value > maxCPARefreshIntervalMinutes {
+		return 0, fmt.Errorf("CPA refresh interval must be between %d and %d minutes", minCPARefreshIntervalMinutes, maxCPARefreshIntervalMinutes)
+	}
+	return *value, nil
+}
+
+func (svc *CPAService) encryptSecret(ctx context.Context, secret string) (string, error) {
+	systemSecret, err := authz.RunWithSystemBypass(ctx, "cpa-encrypt-secret", func(bypassCtx context.Context) (string, error) {
+		return svc.SystemService.SecretKey(bypassCtx)
+	})
+	if err != nil {
+		return "", fmt.Errorf("load system secret for CPA encryption: %w", err)
+	}
+	return encryptCPASecret(systemSecret, secret)
+}
+
+func (svc *CPAService) decryptSecret(ctx context.Context, ciphertext string) (string, error) {
+	systemSecret, err := authz.RunWithSystemBypass(ctx, "cpa-decrypt-secret", func(bypassCtx context.Context) (string, error) {
+		return svc.SystemService.SecretKey(bypassCtx)
+	})
+	if err != nil {
+		return "", fmt.Errorf("load system secret for CPA decryption: %w", err)
+	}
+	return decryptCPASecret(systemSecret, ciphertext)
+}
+
+func (svc *CPAService) clientForInstance(ctx context.Context, instance *ent.CPAInstance) (*cpaclient.Client, error) {
+	secret, err := svc.decryptSecret(ctx, instance.EncryptedSecret)
+	if err != nil {
+		return nil, err
+	}
+	return cpaclient.NewClient(cpaclient.Config{
+		BaseURL:          instance.BaseURL,
+		ManagementSecret: secret,
+		InsecureSkipTLS:  instance.InsecureSkipTLS,
+	})
+}

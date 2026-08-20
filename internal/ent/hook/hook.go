@@ -33,6 +33,30 @@ func (f APIKeyProfileTemplateFunc) Mutate(ctx context.Context, m ent.Mutation) (
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APIKeyProfileTemplateMutation", m)
 }
 
+// The CPACredentialFunc type is an adapter to allow the use of ordinary
+// function as CPACredential mutator.
+type CPACredentialFunc func(context.Context, *ent.CPACredentialMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CPACredentialFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CPACredentialMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CPACredentialMutation", m)
+}
+
+// The CPAInstanceFunc type is an adapter to allow the use of ordinary
+// function as CPAInstance mutator.
+type CPAInstanceFunc func(context.Context, *ent.CPAInstanceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CPAInstanceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CPAInstanceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CPAInstanceMutation", m)
+}
+
 // The ChannelFunc type is an adapter to allow the use of ordinary
 // function as Channel mutator.
 type ChannelFunc func(context.Context, *ent.ChannelMutation) (ent.Value, error)

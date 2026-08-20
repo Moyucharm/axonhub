@@ -18,6 +18,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -51,6 +53,8 @@ const (
 	// Node types.
 	TypeAPIKey                   = "APIKey"
 	TypeAPIKeyProfileTemplate    = "APIKeyProfileTemplate"
+	TypeCPACredential            = "CPACredential"
+	TypeCPAInstance              = "CPAInstance"
 	TypeChannel                  = "Channel"
 	TypeChannelModelPrice        = "ChannelModelPrice"
 	TypeChannelModelPriceVersion = "ChannelModelPriceVersion"
@@ -2090,6 +2094,3141 @@ func (m *APIKeyProfileTemplateMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown APIKeyProfileTemplate edge %s", name)
+}
+
+// CPACredentialMutation represents an operation that mutates the CPACredential nodes in the graph.
+type CPACredentialMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	created_at            *time.Time
+	updated_at            *time.Time
+	external_key          *string
+	auth_index            *string
+	remote_name           *string
+	label                 *string
+	display_name          *string
+	provider              *string
+	email                 *string
+	status                *string
+	status_message        *string
+	disabled              *bool
+	unavailable           *bool
+	runtime_only          *bool
+	priority              *int
+	addpriority           *int
+	plan_type             *string
+	quota_context         *objects.CPAQuotaContext
+	quota_state           *string
+	quota_data            *objects.CPAQuotaSnapshot
+	quota_last_attempt_at *time.Time
+	quota_last_success_at *time.Time
+	quota_last_failure_at *time.Time
+	quota_last_error      *string
+	clearedFields         map[string]struct{}
+	cpa_instance          *int
+	clearedcpa_instance   bool
+	done                  bool
+	oldValue              func(context.Context) (*CPACredential, error)
+	predicates            []predicate.CPACredential
+}
+
+var _ ent.Mutation = (*CPACredentialMutation)(nil)
+
+// cpacredentialOption allows management of the mutation configuration using functional options.
+type cpacredentialOption func(*CPACredentialMutation)
+
+// newCPACredentialMutation creates new mutation for the CPACredential entity.
+func newCPACredentialMutation(c config, op Op, opts ...cpacredentialOption) *CPACredentialMutation {
+	m := &CPACredentialMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCPACredential,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCPACredentialID sets the ID field of the mutation.
+func withCPACredentialID(id int) cpacredentialOption {
+	return func(m *CPACredentialMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CPACredential
+		)
+		m.oldValue = func(ctx context.Context) (*CPACredential, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CPACredential.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCPACredential sets the old CPACredential of the mutation.
+func withCPACredential(node *CPACredential) cpacredentialOption {
+	return func(m *CPACredentialMutation) {
+		m.oldValue = func(context.Context) (*CPACredential, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CPACredentialMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CPACredentialMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CPACredentialMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CPACredentialMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CPACredential.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CPACredentialMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CPACredentialMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CPACredentialMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CPACredentialMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CPACredentialMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CPACredentialMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetCpaInstanceID sets the "cpa_instance_id" field.
+func (m *CPACredentialMutation) SetCpaInstanceID(i int) {
+	m.cpa_instance = &i
+}
+
+// CpaInstanceID returns the value of the "cpa_instance_id" field in the mutation.
+func (m *CPACredentialMutation) CpaInstanceID() (r int, exists bool) {
+	v := m.cpa_instance
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCpaInstanceID returns the old "cpa_instance_id" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldCpaInstanceID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCpaInstanceID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCpaInstanceID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCpaInstanceID: %w", err)
+	}
+	return oldValue.CpaInstanceID, nil
+}
+
+// ResetCpaInstanceID resets all changes to the "cpa_instance_id" field.
+func (m *CPACredentialMutation) ResetCpaInstanceID() {
+	m.cpa_instance = nil
+}
+
+// SetExternalKey sets the "external_key" field.
+func (m *CPACredentialMutation) SetExternalKey(s string) {
+	m.external_key = &s
+}
+
+// ExternalKey returns the value of the "external_key" field in the mutation.
+func (m *CPACredentialMutation) ExternalKey() (r string, exists bool) {
+	v := m.external_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExternalKey returns the old "external_key" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldExternalKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExternalKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExternalKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExternalKey: %w", err)
+	}
+	return oldValue.ExternalKey, nil
+}
+
+// ResetExternalKey resets all changes to the "external_key" field.
+func (m *CPACredentialMutation) ResetExternalKey() {
+	m.external_key = nil
+}
+
+// SetAuthIndex sets the "auth_index" field.
+func (m *CPACredentialMutation) SetAuthIndex(s string) {
+	m.auth_index = &s
+}
+
+// AuthIndex returns the value of the "auth_index" field in the mutation.
+func (m *CPACredentialMutation) AuthIndex() (r string, exists bool) {
+	v := m.auth_index
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthIndex returns the old "auth_index" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldAuthIndex(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthIndex is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthIndex requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthIndex: %w", err)
+	}
+	return oldValue.AuthIndex, nil
+}
+
+// ResetAuthIndex resets all changes to the "auth_index" field.
+func (m *CPACredentialMutation) ResetAuthIndex() {
+	m.auth_index = nil
+}
+
+// SetRemoteName sets the "remote_name" field.
+func (m *CPACredentialMutation) SetRemoteName(s string) {
+	m.remote_name = &s
+}
+
+// RemoteName returns the value of the "remote_name" field in the mutation.
+func (m *CPACredentialMutation) RemoteName() (r string, exists bool) {
+	v := m.remote_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRemoteName returns the old "remote_name" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRemoteName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRemoteName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRemoteName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRemoteName: %w", err)
+	}
+	return oldValue.RemoteName, nil
+}
+
+// ResetRemoteName resets all changes to the "remote_name" field.
+func (m *CPACredentialMutation) ResetRemoteName() {
+	m.remote_name = nil
+}
+
+// SetLabel sets the "label" field.
+func (m *CPACredentialMutation) SetLabel(s string) {
+	m.label = &s
+}
+
+// Label returns the value of the "label" field in the mutation.
+func (m *CPACredentialMutation) Label() (r string, exists bool) {
+	v := m.label
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabel returns the old "label" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldLabel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabel: %w", err)
+	}
+	return oldValue.Label, nil
+}
+
+// ResetLabel resets all changes to the "label" field.
+func (m *CPACredentialMutation) ResetLabel() {
+	m.label = nil
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *CPACredentialMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *CPACredentialMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *CPACredentialMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetProvider sets the "provider" field.
+func (m *CPACredentialMutation) SetProvider(s string) {
+	m.provider = &s
+}
+
+// Provider returns the value of the "provider" field in the mutation.
+func (m *CPACredentialMutation) Provider() (r string, exists bool) {
+	v := m.provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvider returns the old "provider" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldProvider(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+	}
+	return oldValue.Provider, nil
+}
+
+// ResetProvider resets all changes to the "provider" field.
+func (m *CPACredentialMutation) ResetProvider() {
+	m.provider = nil
+}
+
+// SetEmail sets the "email" field.
+func (m *CPACredentialMutation) SetEmail(s string) {
+	m.email = &s
+}
+
+// Email returns the value of the "email" field in the mutation.
+func (m *CPACredentialMutation) Email() (r string, exists bool) {
+	v := m.email
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmail returns the old "email" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldEmail(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmail is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmail requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmail: %w", err)
+	}
+	return oldValue.Email, nil
+}
+
+// ResetEmail resets all changes to the "email" field.
+func (m *CPACredentialMutation) ResetEmail() {
+	m.email = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *CPACredentialMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *CPACredentialMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *CPACredentialMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetStatusMessage sets the "status_message" field.
+func (m *CPACredentialMutation) SetStatusMessage(s string) {
+	m.status_message = &s
+}
+
+// StatusMessage returns the value of the "status_message" field in the mutation.
+func (m *CPACredentialMutation) StatusMessage() (r string, exists bool) {
+	v := m.status_message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusMessage returns the old "status_message" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldStatusMessage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusMessage: %w", err)
+	}
+	return oldValue.StatusMessage, nil
+}
+
+// ResetStatusMessage resets all changes to the "status_message" field.
+func (m *CPACredentialMutation) ResetStatusMessage() {
+	m.status_message = nil
+}
+
+// SetDisabled sets the "disabled" field.
+func (m *CPACredentialMutation) SetDisabled(b bool) {
+	m.disabled = &b
+}
+
+// Disabled returns the value of the "disabled" field in the mutation.
+func (m *CPACredentialMutation) Disabled() (r bool, exists bool) {
+	v := m.disabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisabled returns the old "disabled" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldDisabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisabled: %w", err)
+	}
+	return oldValue.Disabled, nil
+}
+
+// ResetDisabled resets all changes to the "disabled" field.
+func (m *CPACredentialMutation) ResetDisabled() {
+	m.disabled = nil
+}
+
+// SetUnavailable sets the "unavailable" field.
+func (m *CPACredentialMutation) SetUnavailable(b bool) {
+	m.unavailable = &b
+}
+
+// Unavailable returns the value of the "unavailable" field in the mutation.
+func (m *CPACredentialMutation) Unavailable() (r bool, exists bool) {
+	v := m.unavailable
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUnavailable returns the old "unavailable" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldUnavailable(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUnavailable is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUnavailable requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUnavailable: %w", err)
+	}
+	return oldValue.Unavailable, nil
+}
+
+// ResetUnavailable resets all changes to the "unavailable" field.
+func (m *CPACredentialMutation) ResetUnavailable() {
+	m.unavailable = nil
+}
+
+// SetRuntimeOnly sets the "runtime_only" field.
+func (m *CPACredentialMutation) SetRuntimeOnly(b bool) {
+	m.runtime_only = &b
+}
+
+// RuntimeOnly returns the value of the "runtime_only" field in the mutation.
+func (m *CPACredentialMutation) RuntimeOnly() (r bool, exists bool) {
+	v := m.runtime_only
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRuntimeOnly returns the old "runtime_only" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRuntimeOnly(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRuntimeOnly is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRuntimeOnly requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRuntimeOnly: %w", err)
+	}
+	return oldValue.RuntimeOnly, nil
+}
+
+// ResetRuntimeOnly resets all changes to the "runtime_only" field.
+func (m *CPACredentialMutation) ResetRuntimeOnly() {
+	m.runtime_only = nil
+}
+
+// SetPriority sets the "priority" field.
+func (m *CPACredentialMutation) SetPriority(i int) {
+	m.priority = &i
+	m.addpriority = nil
+}
+
+// Priority returns the value of the "priority" field in the mutation.
+func (m *CPACredentialMutation) Priority() (r int, exists bool) {
+	v := m.priority
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPriority returns the old "priority" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldPriority(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPriority is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPriority requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPriority: %w", err)
+	}
+	return oldValue.Priority, nil
+}
+
+// AddPriority adds i to the "priority" field.
+func (m *CPACredentialMutation) AddPriority(i int) {
+	if m.addpriority != nil {
+		*m.addpriority += i
+	} else {
+		m.addpriority = &i
+	}
+}
+
+// AddedPriority returns the value that was added to the "priority" field in this mutation.
+func (m *CPACredentialMutation) AddedPriority() (r int, exists bool) {
+	v := m.addpriority
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPriority resets all changes to the "priority" field.
+func (m *CPACredentialMutation) ResetPriority() {
+	m.priority = nil
+	m.addpriority = nil
+}
+
+// SetPlanType sets the "plan_type" field.
+func (m *CPACredentialMutation) SetPlanType(s string) {
+	m.plan_type = &s
+}
+
+// PlanType returns the value of the "plan_type" field in the mutation.
+func (m *CPACredentialMutation) PlanType() (r string, exists bool) {
+	v := m.plan_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPlanType returns the old "plan_type" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldPlanType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPlanType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPlanType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPlanType: %w", err)
+	}
+	return oldValue.PlanType, nil
+}
+
+// ResetPlanType resets all changes to the "plan_type" field.
+func (m *CPACredentialMutation) ResetPlanType() {
+	m.plan_type = nil
+}
+
+// SetQuotaContext sets the "quota_context" field.
+func (m *CPACredentialMutation) SetQuotaContext(oqc objects.CPAQuotaContext) {
+	m.quota_context = &oqc
+}
+
+// QuotaContext returns the value of the "quota_context" field in the mutation.
+func (m *CPACredentialMutation) QuotaContext() (r objects.CPAQuotaContext, exists bool) {
+	v := m.quota_context
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaContext returns the old "quota_context" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaContext(ctx context.Context) (v objects.CPAQuotaContext, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaContext is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaContext requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaContext: %w", err)
+	}
+	return oldValue.QuotaContext, nil
+}
+
+// ResetQuotaContext resets all changes to the "quota_context" field.
+func (m *CPACredentialMutation) ResetQuotaContext() {
+	m.quota_context = nil
+}
+
+// SetQuotaState sets the "quota_state" field.
+func (m *CPACredentialMutation) SetQuotaState(s string) {
+	m.quota_state = &s
+}
+
+// QuotaState returns the value of the "quota_state" field in the mutation.
+func (m *CPACredentialMutation) QuotaState() (r string, exists bool) {
+	v := m.quota_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaState returns the old "quota_state" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaState: %w", err)
+	}
+	return oldValue.QuotaState, nil
+}
+
+// ResetQuotaState resets all changes to the "quota_state" field.
+func (m *CPACredentialMutation) ResetQuotaState() {
+	m.quota_state = nil
+}
+
+// SetQuotaData sets the "quota_data" field.
+func (m *CPACredentialMutation) SetQuotaData(oqs objects.CPAQuotaSnapshot) {
+	m.quota_data = &oqs
+}
+
+// QuotaData returns the value of the "quota_data" field in the mutation.
+func (m *CPACredentialMutation) QuotaData() (r objects.CPAQuotaSnapshot, exists bool) {
+	v := m.quota_data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaData returns the old "quota_data" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaData(ctx context.Context) (v objects.CPAQuotaSnapshot, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaData: %w", err)
+	}
+	return oldValue.QuotaData, nil
+}
+
+// ResetQuotaData resets all changes to the "quota_data" field.
+func (m *CPACredentialMutation) ResetQuotaData() {
+	m.quota_data = nil
+}
+
+// SetQuotaLastAttemptAt sets the "quota_last_attempt_at" field.
+func (m *CPACredentialMutation) SetQuotaLastAttemptAt(t time.Time) {
+	m.quota_last_attempt_at = &t
+}
+
+// QuotaLastAttemptAt returns the value of the "quota_last_attempt_at" field in the mutation.
+func (m *CPACredentialMutation) QuotaLastAttemptAt() (r time.Time, exists bool) {
+	v := m.quota_last_attempt_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaLastAttemptAt returns the old "quota_last_attempt_at" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaLastAttemptAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaLastAttemptAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaLastAttemptAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaLastAttemptAt: %w", err)
+	}
+	return oldValue.QuotaLastAttemptAt, nil
+}
+
+// ClearQuotaLastAttemptAt clears the value of the "quota_last_attempt_at" field.
+func (m *CPACredentialMutation) ClearQuotaLastAttemptAt() {
+	m.quota_last_attempt_at = nil
+	m.clearedFields[cpacredential.FieldQuotaLastAttemptAt] = struct{}{}
+}
+
+// QuotaLastAttemptAtCleared returns if the "quota_last_attempt_at" field was cleared in this mutation.
+func (m *CPACredentialMutation) QuotaLastAttemptAtCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldQuotaLastAttemptAt]
+	return ok
+}
+
+// ResetQuotaLastAttemptAt resets all changes to the "quota_last_attempt_at" field.
+func (m *CPACredentialMutation) ResetQuotaLastAttemptAt() {
+	m.quota_last_attempt_at = nil
+	delete(m.clearedFields, cpacredential.FieldQuotaLastAttemptAt)
+}
+
+// SetQuotaLastSuccessAt sets the "quota_last_success_at" field.
+func (m *CPACredentialMutation) SetQuotaLastSuccessAt(t time.Time) {
+	m.quota_last_success_at = &t
+}
+
+// QuotaLastSuccessAt returns the value of the "quota_last_success_at" field in the mutation.
+func (m *CPACredentialMutation) QuotaLastSuccessAt() (r time.Time, exists bool) {
+	v := m.quota_last_success_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaLastSuccessAt returns the old "quota_last_success_at" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaLastSuccessAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaLastSuccessAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaLastSuccessAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaLastSuccessAt: %w", err)
+	}
+	return oldValue.QuotaLastSuccessAt, nil
+}
+
+// ClearQuotaLastSuccessAt clears the value of the "quota_last_success_at" field.
+func (m *CPACredentialMutation) ClearQuotaLastSuccessAt() {
+	m.quota_last_success_at = nil
+	m.clearedFields[cpacredential.FieldQuotaLastSuccessAt] = struct{}{}
+}
+
+// QuotaLastSuccessAtCleared returns if the "quota_last_success_at" field was cleared in this mutation.
+func (m *CPACredentialMutation) QuotaLastSuccessAtCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldQuotaLastSuccessAt]
+	return ok
+}
+
+// ResetQuotaLastSuccessAt resets all changes to the "quota_last_success_at" field.
+func (m *CPACredentialMutation) ResetQuotaLastSuccessAt() {
+	m.quota_last_success_at = nil
+	delete(m.clearedFields, cpacredential.FieldQuotaLastSuccessAt)
+}
+
+// SetQuotaLastFailureAt sets the "quota_last_failure_at" field.
+func (m *CPACredentialMutation) SetQuotaLastFailureAt(t time.Time) {
+	m.quota_last_failure_at = &t
+}
+
+// QuotaLastFailureAt returns the value of the "quota_last_failure_at" field in the mutation.
+func (m *CPACredentialMutation) QuotaLastFailureAt() (r time.Time, exists bool) {
+	v := m.quota_last_failure_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaLastFailureAt returns the old "quota_last_failure_at" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaLastFailureAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaLastFailureAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaLastFailureAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaLastFailureAt: %w", err)
+	}
+	return oldValue.QuotaLastFailureAt, nil
+}
+
+// ClearQuotaLastFailureAt clears the value of the "quota_last_failure_at" field.
+func (m *CPACredentialMutation) ClearQuotaLastFailureAt() {
+	m.quota_last_failure_at = nil
+	m.clearedFields[cpacredential.FieldQuotaLastFailureAt] = struct{}{}
+}
+
+// QuotaLastFailureAtCleared returns if the "quota_last_failure_at" field was cleared in this mutation.
+func (m *CPACredentialMutation) QuotaLastFailureAtCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldQuotaLastFailureAt]
+	return ok
+}
+
+// ResetQuotaLastFailureAt resets all changes to the "quota_last_failure_at" field.
+func (m *CPACredentialMutation) ResetQuotaLastFailureAt() {
+	m.quota_last_failure_at = nil
+	delete(m.clearedFields, cpacredential.FieldQuotaLastFailureAt)
+}
+
+// SetQuotaLastError sets the "quota_last_error" field.
+func (m *CPACredentialMutation) SetQuotaLastError(s string) {
+	m.quota_last_error = &s
+}
+
+// QuotaLastError returns the value of the "quota_last_error" field in the mutation.
+func (m *CPACredentialMutation) QuotaLastError() (r string, exists bool) {
+	v := m.quota_last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaLastError returns the old "quota_last_error" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaLastError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaLastError: %w", err)
+	}
+	return oldValue.QuotaLastError, nil
+}
+
+// ResetQuotaLastError resets all changes to the "quota_last_error" field.
+func (m *CPACredentialMutation) ResetQuotaLastError() {
+	m.quota_last_error = nil
+}
+
+// ClearCpaInstance clears the "cpa_instance" edge to the CPAInstance entity.
+func (m *CPACredentialMutation) ClearCpaInstance() {
+	m.clearedcpa_instance = true
+	m.clearedFields[cpacredential.FieldCpaInstanceID] = struct{}{}
+}
+
+// CpaInstanceCleared reports if the "cpa_instance" edge to the CPAInstance entity was cleared.
+func (m *CPACredentialMutation) CpaInstanceCleared() bool {
+	return m.clearedcpa_instance
+}
+
+// CpaInstanceIDs returns the "cpa_instance" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CpaInstanceID instead. It exists only for internal usage by the builders.
+func (m *CPACredentialMutation) CpaInstanceIDs() (ids []int) {
+	if id := m.cpa_instance; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCpaInstance resets all changes to the "cpa_instance" edge.
+func (m *CPACredentialMutation) ResetCpaInstance() {
+	m.cpa_instance = nil
+	m.clearedcpa_instance = false
+}
+
+// Where appends a list predicates to the CPACredentialMutation builder.
+func (m *CPACredentialMutation) Where(ps ...predicate.CPACredential) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CPACredentialMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CPACredentialMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CPACredential, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CPACredentialMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CPACredentialMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CPACredential).
+func (m *CPACredentialMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CPACredentialMutation) Fields() []string {
+	fields := make([]string, 0, 24)
+	if m.created_at != nil {
+		fields = append(fields, cpacredential.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cpacredential.FieldUpdatedAt)
+	}
+	if m.cpa_instance != nil {
+		fields = append(fields, cpacredential.FieldCpaInstanceID)
+	}
+	if m.external_key != nil {
+		fields = append(fields, cpacredential.FieldExternalKey)
+	}
+	if m.auth_index != nil {
+		fields = append(fields, cpacredential.FieldAuthIndex)
+	}
+	if m.remote_name != nil {
+		fields = append(fields, cpacredential.FieldRemoteName)
+	}
+	if m.label != nil {
+		fields = append(fields, cpacredential.FieldLabel)
+	}
+	if m.display_name != nil {
+		fields = append(fields, cpacredential.FieldDisplayName)
+	}
+	if m.provider != nil {
+		fields = append(fields, cpacredential.FieldProvider)
+	}
+	if m.email != nil {
+		fields = append(fields, cpacredential.FieldEmail)
+	}
+	if m.status != nil {
+		fields = append(fields, cpacredential.FieldStatus)
+	}
+	if m.status_message != nil {
+		fields = append(fields, cpacredential.FieldStatusMessage)
+	}
+	if m.disabled != nil {
+		fields = append(fields, cpacredential.FieldDisabled)
+	}
+	if m.unavailable != nil {
+		fields = append(fields, cpacredential.FieldUnavailable)
+	}
+	if m.runtime_only != nil {
+		fields = append(fields, cpacredential.FieldRuntimeOnly)
+	}
+	if m.priority != nil {
+		fields = append(fields, cpacredential.FieldPriority)
+	}
+	if m.plan_type != nil {
+		fields = append(fields, cpacredential.FieldPlanType)
+	}
+	if m.quota_context != nil {
+		fields = append(fields, cpacredential.FieldQuotaContext)
+	}
+	if m.quota_state != nil {
+		fields = append(fields, cpacredential.FieldQuotaState)
+	}
+	if m.quota_data != nil {
+		fields = append(fields, cpacredential.FieldQuotaData)
+	}
+	if m.quota_last_attempt_at != nil {
+		fields = append(fields, cpacredential.FieldQuotaLastAttemptAt)
+	}
+	if m.quota_last_success_at != nil {
+		fields = append(fields, cpacredential.FieldQuotaLastSuccessAt)
+	}
+	if m.quota_last_failure_at != nil {
+		fields = append(fields, cpacredential.FieldQuotaLastFailureAt)
+	}
+	if m.quota_last_error != nil {
+		fields = append(fields, cpacredential.FieldQuotaLastError)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cpacredential.FieldCreatedAt:
+		return m.CreatedAt()
+	case cpacredential.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cpacredential.FieldCpaInstanceID:
+		return m.CpaInstanceID()
+	case cpacredential.FieldExternalKey:
+		return m.ExternalKey()
+	case cpacredential.FieldAuthIndex:
+		return m.AuthIndex()
+	case cpacredential.FieldRemoteName:
+		return m.RemoteName()
+	case cpacredential.FieldLabel:
+		return m.Label()
+	case cpacredential.FieldDisplayName:
+		return m.DisplayName()
+	case cpacredential.FieldProvider:
+		return m.Provider()
+	case cpacredential.FieldEmail:
+		return m.Email()
+	case cpacredential.FieldStatus:
+		return m.Status()
+	case cpacredential.FieldStatusMessage:
+		return m.StatusMessage()
+	case cpacredential.FieldDisabled:
+		return m.Disabled()
+	case cpacredential.FieldUnavailable:
+		return m.Unavailable()
+	case cpacredential.FieldRuntimeOnly:
+		return m.RuntimeOnly()
+	case cpacredential.FieldPriority:
+		return m.Priority()
+	case cpacredential.FieldPlanType:
+		return m.PlanType()
+	case cpacredential.FieldQuotaContext:
+		return m.QuotaContext()
+	case cpacredential.FieldQuotaState:
+		return m.QuotaState()
+	case cpacredential.FieldQuotaData:
+		return m.QuotaData()
+	case cpacredential.FieldQuotaLastAttemptAt:
+		return m.QuotaLastAttemptAt()
+	case cpacredential.FieldQuotaLastSuccessAt:
+		return m.QuotaLastSuccessAt()
+	case cpacredential.FieldQuotaLastFailureAt:
+		return m.QuotaLastFailureAt()
+	case cpacredential.FieldQuotaLastError:
+		return m.QuotaLastError()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cpacredential.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cpacredential.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cpacredential.FieldCpaInstanceID:
+		return m.OldCpaInstanceID(ctx)
+	case cpacredential.FieldExternalKey:
+		return m.OldExternalKey(ctx)
+	case cpacredential.FieldAuthIndex:
+		return m.OldAuthIndex(ctx)
+	case cpacredential.FieldRemoteName:
+		return m.OldRemoteName(ctx)
+	case cpacredential.FieldLabel:
+		return m.OldLabel(ctx)
+	case cpacredential.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case cpacredential.FieldProvider:
+		return m.OldProvider(ctx)
+	case cpacredential.FieldEmail:
+		return m.OldEmail(ctx)
+	case cpacredential.FieldStatus:
+		return m.OldStatus(ctx)
+	case cpacredential.FieldStatusMessage:
+		return m.OldStatusMessage(ctx)
+	case cpacredential.FieldDisabled:
+		return m.OldDisabled(ctx)
+	case cpacredential.FieldUnavailable:
+		return m.OldUnavailable(ctx)
+	case cpacredential.FieldRuntimeOnly:
+		return m.OldRuntimeOnly(ctx)
+	case cpacredential.FieldPriority:
+		return m.OldPriority(ctx)
+	case cpacredential.FieldPlanType:
+		return m.OldPlanType(ctx)
+	case cpacredential.FieldQuotaContext:
+		return m.OldQuotaContext(ctx)
+	case cpacredential.FieldQuotaState:
+		return m.OldQuotaState(ctx)
+	case cpacredential.FieldQuotaData:
+		return m.OldQuotaData(ctx)
+	case cpacredential.FieldQuotaLastAttemptAt:
+		return m.OldQuotaLastAttemptAt(ctx)
+	case cpacredential.FieldQuotaLastSuccessAt:
+		return m.OldQuotaLastSuccessAt(ctx)
+	case cpacredential.FieldQuotaLastFailureAt:
+		return m.OldQuotaLastFailureAt(ctx)
+	case cpacredential.FieldQuotaLastError:
+		return m.OldQuotaLastError(ctx)
+	}
+	return nil, fmt.Errorf("unknown CPACredential field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cpacredential.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cpacredential.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cpacredential.FieldCpaInstanceID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCpaInstanceID(v)
+		return nil
+	case cpacredential.FieldExternalKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExternalKey(v)
+		return nil
+	case cpacredential.FieldAuthIndex:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthIndex(v)
+		return nil
+	case cpacredential.FieldRemoteName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRemoteName(v)
+		return nil
+	case cpacredential.FieldLabel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabel(v)
+		return nil
+	case cpacredential.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case cpacredential.FieldProvider:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvider(v)
+		return nil
+	case cpacredential.FieldEmail:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmail(v)
+		return nil
+	case cpacredential.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case cpacredential.FieldStatusMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusMessage(v)
+		return nil
+	case cpacredential.FieldDisabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisabled(v)
+		return nil
+	case cpacredential.FieldUnavailable:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUnavailable(v)
+		return nil
+	case cpacredential.FieldRuntimeOnly:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRuntimeOnly(v)
+		return nil
+	case cpacredential.FieldPriority:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPriority(v)
+		return nil
+	case cpacredential.FieldPlanType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlanType(v)
+		return nil
+	case cpacredential.FieldQuotaContext:
+		v, ok := value.(objects.CPAQuotaContext)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaContext(v)
+		return nil
+	case cpacredential.FieldQuotaState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaState(v)
+		return nil
+	case cpacredential.FieldQuotaData:
+		v, ok := value.(objects.CPAQuotaSnapshot)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaData(v)
+		return nil
+	case cpacredential.FieldQuotaLastAttemptAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaLastAttemptAt(v)
+		return nil
+	case cpacredential.FieldQuotaLastSuccessAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaLastSuccessAt(v)
+		return nil
+	case cpacredential.FieldQuotaLastFailureAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaLastFailureAt(v)
+		return nil
+	case cpacredential.FieldQuotaLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaLastError(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CPACredentialMutation) AddedFields() []string {
+	var fields []string
+	if m.addpriority != nil {
+		fields = append(fields, cpacredential.FieldPriority)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CPACredentialMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case cpacredential.FieldPriority:
+		return m.AddedPriority()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPACredentialMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case cpacredential.FieldPriority:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPriority(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CPACredentialMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(cpacredential.FieldQuotaLastAttemptAt) {
+		fields = append(fields, cpacredential.FieldQuotaLastAttemptAt)
+	}
+	if m.FieldCleared(cpacredential.FieldQuotaLastSuccessAt) {
+		fields = append(fields, cpacredential.FieldQuotaLastSuccessAt)
+	}
+	if m.FieldCleared(cpacredential.FieldQuotaLastFailureAt) {
+		fields = append(fields, cpacredential.FieldQuotaLastFailureAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CPACredentialMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CPACredentialMutation) ClearField(name string) error {
+	switch name {
+	case cpacredential.FieldQuotaLastAttemptAt:
+		m.ClearQuotaLastAttemptAt()
+		return nil
+	case cpacredential.FieldQuotaLastSuccessAt:
+		m.ClearQuotaLastSuccessAt()
+		return nil
+	case cpacredential.FieldQuotaLastFailureAt:
+		m.ClearQuotaLastFailureAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CPACredentialMutation) ResetField(name string) error {
+	switch name {
+	case cpacredential.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cpacredential.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cpacredential.FieldCpaInstanceID:
+		m.ResetCpaInstanceID()
+		return nil
+	case cpacredential.FieldExternalKey:
+		m.ResetExternalKey()
+		return nil
+	case cpacredential.FieldAuthIndex:
+		m.ResetAuthIndex()
+		return nil
+	case cpacredential.FieldRemoteName:
+		m.ResetRemoteName()
+		return nil
+	case cpacredential.FieldLabel:
+		m.ResetLabel()
+		return nil
+	case cpacredential.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case cpacredential.FieldProvider:
+		m.ResetProvider()
+		return nil
+	case cpacredential.FieldEmail:
+		m.ResetEmail()
+		return nil
+	case cpacredential.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case cpacredential.FieldStatusMessage:
+		m.ResetStatusMessage()
+		return nil
+	case cpacredential.FieldDisabled:
+		m.ResetDisabled()
+		return nil
+	case cpacredential.FieldUnavailable:
+		m.ResetUnavailable()
+		return nil
+	case cpacredential.FieldRuntimeOnly:
+		m.ResetRuntimeOnly()
+		return nil
+	case cpacredential.FieldPriority:
+		m.ResetPriority()
+		return nil
+	case cpacredential.FieldPlanType:
+		m.ResetPlanType()
+		return nil
+	case cpacredential.FieldQuotaContext:
+		m.ResetQuotaContext()
+		return nil
+	case cpacredential.FieldQuotaState:
+		m.ResetQuotaState()
+		return nil
+	case cpacredential.FieldQuotaData:
+		m.ResetQuotaData()
+		return nil
+	case cpacredential.FieldQuotaLastAttemptAt:
+		m.ResetQuotaLastAttemptAt()
+		return nil
+	case cpacredential.FieldQuotaLastSuccessAt:
+		m.ResetQuotaLastSuccessAt()
+		return nil
+	case cpacredential.FieldQuotaLastFailureAt:
+		m.ResetQuotaLastFailureAt()
+		return nil
+	case cpacredential.FieldQuotaLastError:
+		m.ResetQuotaLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CPACredentialMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cpa_instance != nil {
+		edges = append(edges, cpacredential.EdgeCpaInstance)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CPACredentialMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case cpacredential.EdgeCpaInstance:
+		if id := m.cpa_instance; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CPACredentialMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CPACredentialMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CPACredentialMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcpa_instance {
+		edges = append(edges, cpacredential.EdgeCpaInstance)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CPACredentialMutation) EdgeCleared(name string) bool {
+	switch name {
+	case cpacredential.EdgeCpaInstance:
+		return m.clearedcpa_instance
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CPACredentialMutation) ClearEdge(name string) error {
+	switch name {
+	case cpacredential.EdgeCpaInstance:
+		m.ClearCpaInstance()
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CPACredentialMutation) ResetEdge(name string) error {
+	switch name {
+	case cpacredential.EdgeCpaInstance:
+		m.ResetCpaInstance()
+		return nil
+	}
+	return fmt.Errorf("unknown CPACredential edge %s", name)
+}
+
+// CPAInstanceMutation represents an operation that mutates the CPAInstance nodes in the graph.
+type CPAInstanceMutation struct {
+	config
+	op                          Op
+	typ                         string
+	id                          *int
+	created_at                  *time.Time
+	updated_at                  *time.Time
+	name                        *string
+	base_url                    *string
+	encrypted_secret            *string
+	enabled                     *bool
+	insecure_skip_tls           *bool
+	auto_refresh_enabled        *bool
+	refresh_interval_minutes    *int
+	addrefresh_interval_minutes *int
+	next_refresh_at             *time.Time
+	server_version              *string
+	server_commit               *string
+	server_build_date           *string
+	last_sync_attempt_at        *time.Time
+	last_sync_success_at        *time.Time
+	last_error_at               *time.Time
+	last_error                  *string
+	clearedFields               map[string]struct{}
+	credentials                 map[int]struct{}
+	removedcredentials          map[int]struct{}
+	clearedcredentials          bool
+	done                        bool
+	oldValue                    func(context.Context) (*CPAInstance, error)
+	predicates                  []predicate.CPAInstance
+}
+
+var _ ent.Mutation = (*CPAInstanceMutation)(nil)
+
+// cpainstanceOption allows management of the mutation configuration using functional options.
+type cpainstanceOption func(*CPAInstanceMutation)
+
+// newCPAInstanceMutation creates new mutation for the CPAInstance entity.
+func newCPAInstanceMutation(c config, op Op, opts ...cpainstanceOption) *CPAInstanceMutation {
+	m := &CPAInstanceMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCPAInstance,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCPAInstanceID sets the ID field of the mutation.
+func withCPAInstanceID(id int) cpainstanceOption {
+	return func(m *CPAInstanceMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CPAInstance
+		)
+		m.oldValue = func(ctx context.Context) (*CPAInstance, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CPAInstance.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCPAInstance sets the old CPAInstance of the mutation.
+func withCPAInstance(node *CPAInstance) cpainstanceOption {
+	return func(m *CPAInstanceMutation) {
+		m.oldValue = func(context.Context) (*CPAInstance, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CPAInstanceMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CPAInstanceMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CPAInstanceMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CPAInstanceMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CPAInstance.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CPAInstanceMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CPAInstanceMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CPAInstanceMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CPAInstanceMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CPAInstanceMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CPAInstanceMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetName sets the "name" field.
+func (m *CPAInstanceMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CPAInstanceMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CPAInstanceMutation) ResetName() {
+	m.name = nil
+}
+
+// SetBaseURL sets the "base_url" field.
+func (m *CPAInstanceMutation) SetBaseURL(s string) {
+	m.base_url = &s
+}
+
+// BaseURL returns the value of the "base_url" field in the mutation.
+func (m *CPAInstanceMutation) BaseURL() (r string, exists bool) {
+	v := m.base_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBaseURL returns the old "base_url" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldBaseURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBaseURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBaseURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBaseURL: %w", err)
+	}
+	return oldValue.BaseURL, nil
+}
+
+// ResetBaseURL resets all changes to the "base_url" field.
+func (m *CPAInstanceMutation) ResetBaseURL() {
+	m.base_url = nil
+}
+
+// SetEncryptedSecret sets the "encrypted_secret" field.
+func (m *CPAInstanceMutation) SetEncryptedSecret(s string) {
+	m.encrypted_secret = &s
+}
+
+// EncryptedSecret returns the value of the "encrypted_secret" field in the mutation.
+func (m *CPAInstanceMutation) EncryptedSecret() (r string, exists bool) {
+	v := m.encrypted_secret
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEncryptedSecret returns the old "encrypted_secret" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldEncryptedSecret(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEncryptedSecret is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEncryptedSecret requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEncryptedSecret: %w", err)
+	}
+	return oldValue.EncryptedSecret, nil
+}
+
+// ResetEncryptedSecret resets all changes to the "encrypted_secret" field.
+func (m *CPAInstanceMutation) ResetEncryptedSecret() {
+	m.encrypted_secret = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *CPAInstanceMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *CPAInstanceMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *CPAInstanceMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetInsecureSkipTLS sets the "insecure_skip_tls" field.
+func (m *CPAInstanceMutation) SetInsecureSkipTLS(b bool) {
+	m.insecure_skip_tls = &b
+}
+
+// InsecureSkipTLS returns the value of the "insecure_skip_tls" field in the mutation.
+func (m *CPAInstanceMutation) InsecureSkipTLS() (r bool, exists bool) {
+	v := m.insecure_skip_tls
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInsecureSkipTLS returns the old "insecure_skip_tls" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldInsecureSkipTLS(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInsecureSkipTLS is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInsecureSkipTLS requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInsecureSkipTLS: %w", err)
+	}
+	return oldValue.InsecureSkipTLS, nil
+}
+
+// ResetInsecureSkipTLS resets all changes to the "insecure_skip_tls" field.
+func (m *CPAInstanceMutation) ResetInsecureSkipTLS() {
+	m.insecure_skip_tls = nil
+}
+
+// SetAutoRefreshEnabled sets the "auto_refresh_enabled" field.
+func (m *CPAInstanceMutation) SetAutoRefreshEnabled(b bool) {
+	m.auto_refresh_enabled = &b
+}
+
+// AutoRefreshEnabled returns the value of the "auto_refresh_enabled" field in the mutation.
+func (m *CPAInstanceMutation) AutoRefreshEnabled() (r bool, exists bool) {
+	v := m.auto_refresh_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoRefreshEnabled returns the old "auto_refresh_enabled" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldAutoRefreshEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoRefreshEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoRefreshEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoRefreshEnabled: %w", err)
+	}
+	return oldValue.AutoRefreshEnabled, nil
+}
+
+// ResetAutoRefreshEnabled resets all changes to the "auto_refresh_enabled" field.
+func (m *CPAInstanceMutation) ResetAutoRefreshEnabled() {
+	m.auto_refresh_enabled = nil
+}
+
+// SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
+func (m *CPAInstanceMutation) SetRefreshIntervalMinutes(i int) {
+	m.refresh_interval_minutes = &i
+	m.addrefresh_interval_minutes = nil
+}
+
+// RefreshIntervalMinutes returns the value of the "refresh_interval_minutes" field in the mutation.
+func (m *CPAInstanceMutation) RefreshIntervalMinutes() (r int, exists bool) {
+	v := m.refresh_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshIntervalMinutes returns the old "refresh_interval_minutes" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldRefreshIntervalMinutes(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshIntervalMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshIntervalMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshIntervalMinutes: %w", err)
+	}
+	return oldValue.RefreshIntervalMinutes, nil
+}
+
+// AddRefreshIntervalMinutes adds i to the "refresh_interval_minutes" field.
+func (m *CPAInstanceMutation) AddRefreshIntervalMinutes(i int) {
+	if m.addrefresh_interval_minutes != nil {
+		*m.addrefresh_interval_minutes += i
+	} else {
+		m.addrefresh_interval_minutes = &i
+	}
+}
+
+// AddedRefreshIntervalMinutes returns the value that was added to the "refresh_interval_minutes" field in this mutation.
+func (m *CPAInstanceMutation) AddedRefreshIntervalMinutes() (r int, exists bool) {
+	v := m.addrefresh_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRefreshIntervalMinutes resets all changes to the "refresh_interval_minutes" field.
+func (m *CPAInstanceMutation) ResetRefreshIntervalMinutes() {
+	m.refresh_interval_minutes = nil
+	m.addrefresh_interval_minutes = nil
+}
+
+// SetNextRefreshAt sets the "next_refresh_at" field.
+func (m *CPAInstanceMutation) SetNextRefreshAt(t time.Time) {
+	m.next_refresh_at = &t
+}
+
+// NextRefreshAt returns the value of the "next_refresh_at" field in the mutation.
+func (m *CPAInstanceMutation) NextRefreshAt() (r time.Time, exists bool) {
+	v := m.next_refresh_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextRefreshAt returns the old "next_refresh_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldNextRefreshAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextRefreshAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextRefreshAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextRefreshAt: %w", err)
+	}
+	return oldValue.NextRefreshAt, nil
+}
+
+// ClearNextRefreshAt clears the value of the "next_refresh_at" field.
+func (m *CPAInstanceMutation) ClearNextRefreshAt() {
+	m.next_refresh_at = nil
+	m.clearedFields[cpainstance.FieldNextRefreshAt] = struct{}{}
+}
+
+// NextRefreshAtCleared returns if the "next_refresh_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) NextRefreshAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldNextRefreshAt]
+	return ok
+}
+
+// ResetNextRefreshAt resets all changes to the "next_refresh_at" field.
+func (m *CPAInstanceMutation) ResetNextRefreshAt() {
+	m.next_refresh_at = nil
+	delete(m.clearedFields, cpainstance.FieldNextRefreshAt)
+}
+
+// SetServerVersion sets the "server_version" field.
+func (m *CPAInstanceMutation) SetServerVersion(s string) {
+	m.server_version = &s
+}
+
+// ServerVersion returns the value of the "server_version" field in the mutation.
+func (m *CPAInstanceMutation) ServerVersion() (r string, exists bool) {
+	v := m.server_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerVersion returns the old "server_version" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldServerVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerVersion: %w", err)
+	}
+	return oldValue.ServerVersion, nil
+}
+
+// ResetServerVersion resets all changes to the "server_version" field.
+func (m *CPAInstanceMutation) ResetServerVersion() {
+	m.server_version = nil
+}
+
+// SetServerCommit sets the "server_commit" field.
+func (m *CPAInstanceMutation) SetServerCommit(s string) {
+	m.server_commit = &s
+}
+
+// ServerCommit returns the value of the "server_commit" field in the mutation.
+func (m *CPAInstanceMutation) ServerCommit() (r string, exists bool) {
+	v := m.server_commit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerCommit returns the old "server_commit" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldServerCommit(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerCommit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerCommit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerCommit: %w", err)
+	}
+	return oldValue.ServerCommit, nil
+}
+
+// ResetServerCommit resets all changes to the "server_commit" field.
+func (m *CPAInstanceMutation) ResetServerCommit() {
+	m.server_commit = nil
+}
+
+// SetServerBuildDate sets the "server_build_date" field.
+func (m *CPAInstanceMutation) SetServerBuildDate(s string) {
+	m.server_build_date = &s
+}
+
+// ServerBuildDate returns the value of the "server_build_date" field in the mutation.
+func (m *CPAInstanceMutation) ServerBuildDate() (r string, exists bool) {
+	v := m.server_build_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerBuildDate returns the old "server_build_date" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldServerBuildDate(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerBuildDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerBuildDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerBuildDate: %w", err)
+	}
+	return oldValue.ServerBuildDate, nil
+}
+
+// ResetServerBuildDate resets all changes to the "server_build_date" field.
+func (m *CPAInstanceMutation) ResetServerBuildDate() {
+	m.server_build_date = nil
+}
+
+// SetLastSyncAttemptAt sets the "last_sync_attempt_at" field.
+func (m *CPAInstanceMutation) SetLastSyncAttemptAt(t time.Time) {
+	m.last_sync_attempt_at = &t
+}
+
+// LastSyncAttemptAt returns the value of the "last_sync_attempt_at" field in the mutation.
+func (m *CPAInstanceMutation) LastSyncAttemptAt() (r time.Time, exists bool) {
+	v := m.last_sync_attempt_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastSyncAttemptAt returns the old "last_sync_attempt_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldLastSyncAttemptAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastSyncAttemptAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastSyncAttemptAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastSyncAttemptAt: %w", err)
+	}
+	return oldValue.LastSyncAttemptAt, nil
+}
+
+// ClearLastSyncAttemptAt clears the value of the "last_sync_attempt_at" field.
+func (m *CPAInstanceMutation) ClearLastSyncAttemptAt() {
+	m.last_sync_attempt_at = nil
+	m.clearedFields[cpainstance.FieldLastSyncAttemptAt] = struct{}{}
+}
+
+// LastSyncAttemptAtCleared returns if the "last_sync_attempt_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) LastSyncAttemptAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldLastSyncAttemptAt]
+	return ok
+}
+
+// ResetLastSyncAttemptAt resets all changes to the "last_sync_attempt_at" field.
+func (m *CPAInstanceMutation) ResetLastSyncAttemptAt() {
+	m.last_sync_attempt_at = nil
+	delete(m.clearedFields, cpainstance.FieldLastSyncAttemptAt)
+}
+
+// SetLastSyncSuccessAt sets the "last_sync_success_at" field.
+func (m *CPAInstanceMutation) SetLastSyncSuccessAt(t time.Time) {
+	m.last_sync_success_at = &t
+}
+
+// LastSyncSuccessAt returns the value of the "last_sync_success_at" field in the mutation.
+func (m *CPAInstanceMutation) LastSyncSuccessAt() (r time.Time, exists bool) {
+	v := m.last_sync_success_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastSyncSuccessAt returns the old "last_sync_success_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldLastSyncSuccessAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastSyncSuccessAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastSyncSuccessAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastSyncSuccessAt: %w", err)
+	}
+	return oldValue.LastSyncSuccessAt, nil
+}
+
+// ClearLastSyncSuccessAt clears the value of the "last_sync_success_at" field.
+func (m *CPAInstanceMutation) ClearLastSyncSuccessAt() {
+	m.last_sync_success_at = nil
+	m.clearedFields[cpainstance.FieldLastSyncSuccessAt] = struct{}{}
+}
+
+// LastSyncSuccessAtCleared returns if the "last_sync_success_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) LastSyncSuccessAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldLastSyncSuccessAt]
+	return ok
+}
+
+// ResetLastSyncSuccessAt resets all changes to the "last_sync_success_at" field.
+func (m *CPAInstanceMutation) ResetLastSyncSuccessAt() {
+	m.last_sync_success_at = nil
+	delete(m.clearedFields, cpainstance.FieldLastSyncSuccessAt)
+}
+
+// SetLastErrorAt sets the "last_error_at" field.
+func (m *CPAInstanceMutation) SetLastErrorAt(t time.Time) {
+	m.last_error_at = &t
+}
+
+// LastErrorAt returns the value of the "last_error_at" field in the mutation.
+func (m *CPAInstanceMutation) LastErrorAt() (r time.Time, exists bool) {
+	v := m.last_error_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastErrorAt returns the old "last_error_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldLastErrorAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastErrorAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastErrorAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastErrorAt: %w", err)
+	}
+	return oldValue.LastErrorAt, nil
+}
+
+// ClearLastErrorAt clears the value of the "last_error_at" field.
+func (m *CPAInstanceMutation) ClearLastErrorAt() {
+	m.last_error_at = nil
+	m.clearedFields[cpainstance.FieldLastErrorAt] = struct{}{}
+}
+
+// LastErrorAtCleared returns if the "last_error_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) LastErrorAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldLastErrorAt]
+	return ok
+}
+
+// ResetLastErrorAt resets all changes to the "last_error_at" field.
+func (m *CPAInstanceMutation) ResetLastErrorAt() {
+	m.last_error_at = nil
+	delete(m.clearedFields, cpainstance.FieldLastErrorAt)
+}
+
+// SetLastError sets the "last_error" field.
+func (m *CPAInstanceMutation) SetLastError(s string) {
+	m.last_error = &s
+}
+
+// LastError returns the value of the "last_error" field in the mutation.
+func (m *CPAInstanceMutation) LastError() (r string, exists bool) {
+	v := m.last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastError returns the old "last_error" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldLastError(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastError: %w", err)
+	}
+	return oldValue.LastError, nil
+}
+
+// ClearLastError clears the value of the "last_error" field.
+func (m *CPAInstanceMutation) ClearLastError() {
+	m.last_error = nil
+	m.clearedFields[cpainstance.FieldLastError] = struct{}{}
+}
+
+// LastErrorCleared returns if the "last_error" field was cleared in this mutation.
+func (m *CPAInstanceMutation) LastErrorCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldLastError]
+	return ok
+}
+
+// ResetLastError resets all changes to the "last_error" field.
+func (m *CPAInstanceMutation) ResetLastError() {
+	m.last_error = nil
+	delete(m.clearedFields, cpainstance.FieldLastError)
+}
+
+// AddCredentialIDs adds the "credentials" edge to the CPACredential entity by ids.
+func (m *CPAInstanceMutation) AddCredentialIDs(ids ...int) {
+	if m.credentials == nil {
+		m.credentials = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.credentials[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCredentials clears the "credentials" edge to the CPACredential entity.
+func (m *CPAInstanceMutation) ClearCredentials() {
+	m.clearedcredentials = true
+}
+
+// CredentialsCleared reports if the "credentials" edge to the CPACredential entity was cleared.
+func (m *CPAInstanceMutation) CredentialsCleared() bool {
+	return m.clearedcredentials
+}
+
+// RemoveCredentialIDs removes the "credentials" edge to the CPACredential entity by IDs.
+func (m *CPAInstanceMutation) RemoveCredentialIDs(ids ...int) {
+	if m.removedcredentials == nil {
+		m.removedcredentials = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.credentials, ids[i])
+		m.removedcredentials[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCredentials returns the removed IDs of the "credentials" edge to the CPACredential entity.
+func (m *CPAInstanceMutation) RemovedCredentialsIDs() (ids []int) {
+	for id := range m.removedcredentials {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CredentialsIDs returns the "credentials" edge IDs in the mutation.
+func (m *CPAInstanceMutation) CredentialsIDs() (ids []int) {
+	for id := range m.credentials {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCredentials resets all changes to the "credentials" edge.
+func (m *CPAInstanceMutation) ResetCredentials() {
+	m.credentials = nil
+	m.clearedcredentials = false
+	m.removedcredentials = nil
+}
+
+// Where appends a list predicates to the CPAInstanceMutation builder.
+func (m *CPAInstanceMutation) Where(ps ...predicate.CPAInstance) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CPAInstanceMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CPAInstanceMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CPAInstance, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CPAInstanceMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CPAInstanceMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CPAInstance).
+func (m *CPAInstanceMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CPAInstanceMutation) Fields() []string {
+	fields := make([]string, 0, 17)
+	if m.created_at != nil {
+		fields = append(fields, cpainstance.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cpainstance.FieldUpdatedAt)
+	}
+	if m.name != nil {
+		fields = append(fields, cpainstance.FieldName)
+	}
+	if m.base_url != nil {
+		fields = append(fields, cpainstance.FieldBaseURL)
+	}
+	if m.encrypted_secret != nil {
+		fields = append(fields, cpainstance.FieldEncryptedSecret)
+	}
+	if m.enabled != nil {
+		fields = append(fields, cpainstance.FieldEnabled)
+	}
+	if m.insecure_skip_tls != nil {
+		fields = append(fields, cpainstance.FieldInsecureSkipTLS)
+	}
+	if m.auto_refresh_enabled != nil {
+		fields = append(fields, cpainstance.FieldAutoRefreshEnabled)
+	}
+	if m.refresh_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldRefreshIntervalMinutes)
+	}
+	if m.next_refresh_at != nil {
+		fields = append(fields, cpainstance.FieldNextRefreshAt)
+	}
+	if m.server_version != nil {
+		fields = append(fields, cpainstance.FieldServerVersion)
+	}
+	if m.server_commit != nil {
+		fields = append(fields, cpainstance.FieldServerCommit)
+	}
+	if m.server_build_date != nil {
+		fields = append(fields, cpainstance.FieldServerBuildDate)
+	}
+	if m.last_sync_attempt_at != nil {
+		fields = append(fields, cpainstance.FieldLastSyncAttemptAt)
+	}
+	if m.last_sync_success_at != nil {
+		fields = append(fields, cpainstance.FieldLastSyncSuccessAt)
+	}
+	if m.last_error_at != nil {
+		fields = append(fields, cpainstance.FieldLastErrorAt)
+	}
+	if m.last_error != nil {
+		fields = append(fields, cpainstance.FieldLastError)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CPAInstanceMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cpainstance.FieldCreatedAt:
+		return m.CreatedAt()
+	case cpainstance.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cpainstance.FieldName:
+		return m.Name()
+	case cpainstance.FieldBaseURL:
+		return m.BaseURL()
+	case cpainstance.FieldEncryptedSecret:
+		return m.EncryptedSecret()
+	case cpainstance.FieldEnabled:
+		return m.Enabled()
+	case cpainstance.FieldInsecureSkipTLS:
+		return m.InsecureSkipTLS()
+	case cpainstance.FieldAutoRefreshEnabled:
+		return m.AutoRefreshEnabled()
+	case cpainstance.FieldRefreshIntervalMinutes:
+		return m.RefreshIntervalMinutes()
+	case cpainstance.FieldNextRefreshAt:
+		return m.NextRefreshAt()
+	case cpainstance.FieldServerVersion:
+		return m.ServerVersion()
+	case cpainstance.FieldServerCommit:
+		return m.ServerCommit()
+	case cpainstance.FieldServerBuildDate:
+		return m.ServerBuildDate()
+	case cpainstance.FieldLastSyncAttemptAt:
+		return m.LastSyncAttemptAt()
+	case cpainstance.FieldLastSyncSuccessAt:
+		return m.LastSyncSuccessAt()
+	case cpainstance.FieldLastErrorAt:
+		return m.LastErrorAt()
+	case cpainstance.FieldLastError:
+		return m.LastError()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CPAInstanceMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cpainstance.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cpainstance.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cpainstance.FieldName:
+		return m.OldName(ctx)
+	case cpainstance.FieldBaseURL:
+		return m.OldBaseURL(ctx)
+	case cpainstance.FieldEncryptedSecret:
+		return m.OldEncryptedSecret(ctx)
+	case cpainstance.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case cpainstance.FieldInsecureSkipTLS:
+		return m.OldInsecureSkipTLS(ctx)
+	case cpainstance.FieldAutoRefreshEnabled:
+		return m.OldAutoRefreshEnabled(ctx)
+	case cpainstance.FieldRefreshIntervalMinutes:
+		return m.OldRefreshIntervalMinutes(ctx)
+	case cpainstance.FieldNextRefreshAt:
+		return m.OldNextRefreshAt(ctx)
+	case cpainstance.FieldServerVersion:
+		return m.OldServerVersion(ctx)
+	case cpainstance.FieldServerCommit:
+		return m.OldServerCommit(ctx)
+	case cpainstance.FieldServerBuildDate:
+		return m.OldServerBuildDate(ctx)
+	case cpainstance.FieldLastSyncAttemptAt:
+		return m.OldLastSyncAttemptAt(ctx)
+	case cpainstance.FieldLastSyncSuccessAt:
+		return m.OldLastSyncSuccessAt(ctx)
+	case cpainstance.FieldLastErrorAt:
+		return m.OldLastErrorAt(ctx)
+	case cpainstance.FieldLastError:
+		return m.OldLastError(ctx)
+	}
+	return nil, fmt.Errorf("unknown CPAInstance field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPAInstanceMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cpainstance.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cpainstance.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cpainstance.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case cpainstance.FieldBaseURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBaseURL(v)
+		return nil
+	case cpainstance.FieldEncryptedSecret:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEncryptedSecret(v)
+		return nil
+	case cpainstance.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case cpainstance.FieldInsecureSkipTLS:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInsecureSkipTLS(v)
+		return nil
+	case cpainstance.FieldAutoRefreshEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoRefreshEnabled(v)
+		return nil
+	case cpainstance.FieldRefreshIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshIntervalMinutes(v)
+		return nil
+	case cpainstance.FieldNextRefreshAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextRefreshAt(v)
+		return nil
+	case cpainstance.FieldServerVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerVersion(v)
+		return nil
+	case cpainstance.FieldServerCommit:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerCommit(v)
+		return nil
+	case cpainstance.FieldServerBuildDate:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerBuildDate(v)
+		return nil
+	case cpainstance.FieldLastSyncAttemptAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastSyncAttemptAt(v)
+		return nil
+	case cpainstance.FieldLastSyncSuccessAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastSyncSuccessAt(v)
+		return nil
+	case cpainstance.FieldLastErrorAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastErrorAt(v)
+		return nil
+	case cpainstance.FieldLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastError(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPAInstance field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CPAInstanceMutation) AddedFields() []string {
+	var fields []string
+	if m.addrefresh_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldRefreshIntervalMinutes)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CPAInstanceMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case cpainstance.FieldRefreshIntervalMinutes:
+		return m.AddedRefreshIntervalMinutes()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPAInstanceMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case cpainstance.FieldRefreshIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRefreshIntervalMinutes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPAInstance numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CPAInstanceMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(cpainstance.FieldNextRefreshAt) {
+		fields = append(fields, cpainstance.FieldNextRefreshAt)
+	}
+	if m.FieldCleared(cpainstance.FieldLastSyncAttemptAt) {
+		fields = append(fields, cpainstance.FieldLastSyncAttemptAt)
+	}
+	if m.FieldCleared(cpainstance.FieldLastSyncSuccessAt) {
+		fields = append(fields, cpainstance.FieldLastSyncSuccessAt)
+	}
+	if m.FieldCleared(cpainstance.FieldLastErrorAt) {
+		fields = append(fields, cpainstance.FieldLastErrorAt)
+	}
+	if m.FieldCleared(cpainstance.FieldLastError) {
+		fields = append(fields, cpainstance.FieldLastError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CPAInstanceMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CPAInstanceMutation) ClearField(name string) error {
+	switch name {
+	case cpainstance.FieldNextRefreshAt:
+		m.ClearNextRefreshAt()
+		return nil
+	case cpainstance.FieldLastSyncAttemptAt:
+		m.ClearLastSyncAttemptAt()
+		return nil
+	case cpainstance.FieldLastSyncSuccessAt:
+		m.ClearLastSyncSuccessAt()
+		return nil
+	case cpainstance.FieldLastErrorAt:
+		m.ClearLastErrorAt()
+		return nil
+	case cpainstance.FieldLastError:
+		m.ClearLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown CPAInstance nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CPAInstanceMutation) ResetField(name string) error {
+	switch name {
+	case cpainstance.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cpainstance.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cpainstance.FieldName:
+		m.ResetName()
+		return nil
+	case cpainstance.FieldBaseURL:
+		m.ResetBaseURL()
+		return nil
+	case cpainstance.FieldEncryptedSecret:
+		m.ResetEncryptedSecret()
+		return nil
+	case cpainstance.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case cpainstance.FieldInsecureSkipTLS:
+		m.ResetInsecureSkipTLS()
+		return nil
+	case cpainstance.FieldAutoRefreshEnabled:
+		m.ResetAutoRefreshEnabled()
+		return nil
+	case cpainstance.FieldRefreshIntervalMinutes:
+		m.ResetRefreshIntervalMinutes()
+		return nil
+	case cpainstance.FieldNextRefreshAt:
+		m.ResetNextRefreshAt()
+		return nil
+	case cpainstance.FieldServerVersion:
+		m.ResetServerVersion()
+		return nil
+	case cpainstance.FieldServerCommit:
+		m.ResetServerCommit()
+		return nil
+	case cpainstance.FieldServerBuildDate:
+		m.ResetServerBuildDate()
+		return nil
+	case cpainstance.FieldLastSyncAttemptAt:
+		m.ResetLastSyncAttemptAt()
+		return nil
+	case cpainstance.FieldLastSyncSuccessAt:
+		m.ResetLastSyncSuccessAt()
+		return nil
+	case cpainstance.FieldLastErrorAt:
+		m.ResetLastErrorAt()
+		return nil
+	case cpainstance.FieldLastError:
+		m.ResetLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown CPAInstance field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CPAInstanceMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.credentials != nil {
+		edges = append(edges, cpainstance.EdgeCredentials)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CPAInstanceMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case cpainstance.EdgeCredentials:
+		ids := make([]ent.Value, 0, len(m.credentials))
+		for id := range m.credentials {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CPAInstanceMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedcredentials != nil {
+		edges = append(edges, cpainstance.EdgeCredentials)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CPAInstanceMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case cpainstance.EdgeCredentials:
+		ids := make([]ent.Value, 0, len(m.removedcredentials))
+		for id := range m.removedcredentials {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CPAInstanceMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcredentials {
+		edges = append(edges, cpainstance.EdgeCredentials)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CPAInstanceMutation) EdgeCleared(name string) bool {
+	switch name {
+	case cpainstance.EdgeCredentials:
+		return m.clearedcredentials
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CPAInstanceMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CPAInstance unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CPAInstanceMutation) ResetEdge(name string) error {
+	switch name {
+	case cpainstance.EdgeCredentials:
+		m.ResetCredentials()
+		return nil
+	}
+	return fmt.Errorf("unknown CPAInstance edge %s", name)
 }
 
 // ChannelMutation represents an operation that mutates the Channel nodes in the graph.

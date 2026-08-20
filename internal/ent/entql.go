@@ -10,6 +10,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -38,7 +40,7 @@ import (
 
 // schemaGraph holds a representation of ent/schema at runtime.
 var schemaGraph = func() *sqlgraph.Schema {
-	graph := &sqlgraph.Schema{Nodes: make([]*sqlgraph.Node, 25)}
+	graph := &sqlgraph.Schema{Nodes: make([]*sqlgraph.Node, 27)}
 	graph.Nodes[0] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   apikey.Table,
@@ -86,6 +88,73 @@ var schemaGraph = func() *sqlgraph.Schema {
 	}
 	graph.Nodes[2] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
+			Table:   cpacredential.Table,
+			Columns: cpacredential.Columns,
+			ID: &sqlgraph.FieldSpec{
+				Type:   field.TypeInt,
+				Column: cpacredential.FieldID,
+			},
+		},
+		Type: "CPACredential",
+		Fields: map[string]*sqlgraph.FieldSpec{
+			cpacredential.FieldCreatedAt:          {Type: field.TypeTime, Column: cpacredential.FieldCreatedAt},
+			cpacredential.FieldUpdatedAt:          {Type: field.TypeTime, Column: cpacredential.FieldUpdatedAt},
+			cpacredential.FieldCpaInstanceID:      {Type: field.TypeInt, Column: cpacredential.FieldCpaInstanceID},
+			cpacredential.FieldExternalKey:        {Type: field.TypeString, Column: cpacredential.FieldExternalKey},
+			cpacredential.FieldAuthIndex:          {Type: field.TypeString, Column: cpacredential.FieldAuthIndex},
+			cpacredential.FieldRemoteName:         {Type: field.TypeString, Column: cpacredential.FieldRemoteName},
+			cpacredential.FieldLabel:              {Type: field.TypeString, Column: cpacredential.FieldLabel},
+			cpacredential.FieldDisplayName:        {Type: field.TypeString, Column: cpacredential.FieldDisplayName},
+			cpacredential.FieldProvider:           {Type: field.TypeString, Column: cpacredential.FieldProvider},
+			cpacredential.FieldEmail:              {Type: field.TypeString, Column: cpacredential.FieldEmail},
+			cpacredential.FieldStatus:             {Type: field.TypeString, Column: cpacredential.FieldStatus},
+			cpacredential.FieldStatusMessage:      {Type: field.TypeString, Column: cpacredential.FieldStatusMessage},
+			cpacredential.FieldDisabled:           {Type: field.TypeBool, Column: cpacredential.FieldDisabled},
+			cpacredential.FieldUnavailable:        {Type: field.TypeBool, Column: cpacredential.FieldUnavailable},
+			cpacredential.FieldRuntimeOnly:        {Type: field.TypeBool, Column: cpacredential.FieldRuntimeOnly},
+			cpacredential.FieldPriority:           {Type: field.TypeInt, Column: cpacredential.FieldPriority},
+			cpacredential.FieldPlanType:           {Type: field.TypeString, Column: cpacredential.FieldPlanType},
+			cpacredential.FieldQuotaContext:       {Type: field.TypeJSON, Column: cpacredential.FieldQuotaContext},
+			cpacredential.FieldQuotaState:         {Type: field.TypeString, Column: cpacredential.FieldQuotaState},
+			cpacredential.FieldQuotaData:          {Type: field.TypeJSON, Column: cpacredential.FieldQuotaData},
+			cpacredential.FieldQuotaLastAttemptAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastAttemptAt},
+			cpacredential.FieldQuotaLastSuccessAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastSuccessAt},
+			cpacredential.FieldQuotaLastFailureAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastFailureAt},
+			cpacredential.FieldQuotaLastError:     {Type: field.TypeString, Column: cpacredential.FieldQuotaLastError},
+		},
+	}
+	graph.Nodes[3] = &sqlgraph.Node{
+		NodeSpec: sqlgraph.NodeSpec{
+			Table:   cpainstance.Table,
+			Columns: cpainstance.Columns,
+			ID: &sqlgraph.FieldSpec{
+				Type:   field.TypeInt,
+				Column: cpainstance.FieldID,
+			},
+		},
+		Type: "CPAInstance",
+		Fields: map[string]*sqlgraph.FieldSpec{
+			cpainstance.FieldCreatedAt:              {Type: field.TypeTime, Column: cpainstance.FieldCreatedAt},
+			cpainstance.FieldUpdatedAt:              {Type: field.TypeTime, Column: cpainstance.FieldUpdatedAt},
+			cpainstance.FieldName:                   {Type: field.TypeString, Column: cpainstance.FieldName},
+			cpainstance.FieldBaseURL:                {Type: field.TypeString, Column: cpainstance.FieldBaseURL},
+			cpainstance.FieldEncryptedSecret:        {Type: field.TypeString, Column: cpainstance.FieldEncryptedSecret},
+			cpainstance.FieldEnabled:                {Type: field.TypeBool, Column: cpainstance.FieldEnabled},
+			cpainstance.FieldInsecureSkipTLS:        {Type: field.TypeBool, Column: cpainstance.FieldInsecureSkipTLS},
+			cpainstance.FieldAutoRefreshEnabled:     {Type: field.TypeBool, Column: cpainstance.FieldAutoRefreshEnabled},
+			cpainstance.FieldRefreshIntervalMinutes: {Type: field.TypeInt, Column: cpainstance.FieldRefreshIntervalMinutes},
+			cpainstance.FieldNextRefreshAt:          {Type: field.TypeTime, Column: cpainstance.FieldNextRefreshAt},
+			cpainstance.FieldServerVersion:          {Type: field.TypeString, Column: cpainstance.FieldServerVersion},
+			cpainstance.FieldServerCommit:           {Type: field.TypeString, Column: cpainstance.FieldServerCommit},
+			cpainstance.FieldServerBuildDate:        {Type: field.TypeString, Column: cpainstance.FieldServerBuildDate},
+			cpainstance.FieldLastSyncAttemptAt:      {Type: field.TypeTime, Column: cpainstance.FieldLastSyncAttemptAt},
+			cpainstance.FieldLastSyncSuccessAt:      {Type: field.TypeTime, Column: cpainstance.FieldLastSyncSuccessAt},
+			cpainstance.FieldLastErrorAt:            {Type: field.TypeTime, Column: cpainstance.FieldLastErrorAt},
+			cpainstance.FieldLastError:              {Type: field.TypeString, Column: cpainstance.FieldLastError},
+		},
+	}
+	graph.Nodes[4] = &sqlgraph.Node{
+		NodeSpec: sqlgraph.NodeSpec{
 			Table:   channel.Table,
 			Columns: channel.Columns,
 			ID: &sqlgraph.FieldSpec{
@@ -120,7 +189,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channel.FieldEndpoints:               {Type: field.TypeJSON, Column: channel.FieldEndpoints},
 		},
 	}
-	graph.Nodes[3] = &sqlgraph.Node{
+	graph.Nodes[5] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   channelmodelprice.Table,
 			Columns: channelmodelprice.Columns,
@@ -140,7 +209,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channelmodelprice.FieldReferenceID: {Type: field.TypeString, Column: channelmodelprice.FieldReferenceID},
 		},
 	}
-	graph.Nodes[4] = &sqlgraph.Node{
+	graph.Nodes[6] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   channelmodelpriceversion.Table,
 			Columns: channelmodelpriceversion.Columns,
@@ -163,7 +232,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channelmodelpriceversion.FieldReferenceID:         {Type: field.TypeString, Column: channelmodelpriceversion.FieldReferenceID},
 		},
 	}
-	graph.Nodes[5] = &sqlgraph.Node{
+	graph.Nodes[7] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   channeloverridetemplate.Table,
 			Columns: channeloverridetemplate.Columns,
@@ -186,7 +255,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channeloverridetemplate.FieldBodyOverrideOperations:   {Type: field.TypeJSON, Column: channeloverridetemplate.FieldBodyOverrideOperations},
 		},
 	}
-	graph.Nodes[6] = &sqlgraph.Node{
+	graph.Nodes[8] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   channelprobe.Table,
 			Columns: channelprobe.Columns,
@@ -205,7 +274,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			channelprobe.FieldTimestamp:             {Type: field.TypeInt64, Column: channelprobe.FieldTimestamp},
 		},
 	}
-	graph.Nodes[7] = &sqlgraph.Node{
+	graph.Nodes[9] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   datastorage.Table,
 			Columns: datastorage.Columns,
@@ -227,7 +296,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			datastorage.FieldStatus:      {Type: field.TypeEnum, Column: datastorage.FieldStatus},
 		},
 	}
-	graph.Nodes[8] = &sqlgraph.Node{
+	graph.Nodes[10] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   invitation.Table,
 			Columns: invitation.Columns,
@@ -249,7 +318,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			invitation.FieldUsedCount: {Type: field.TypeInt, Column: invitation.FieldUsedCount},
 		},
 	}
-	graph.Nodes[9] = &sqlgraph.Node{
+	graph.Nodes[11] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   model.Table,
 			Columns: model.Columns,
@@ -275,7 +344,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			model.FieldRemark:    {Type: field.TypeString, Column: model.FieldRemark},
 		},
 	}
-	graph.Nodes[10] = &sqlgraph.Node{
+	graph.Nodes[12] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   oidcidentity.Table,
 			Columns: oidcidentity.Columns,
@@ -297,7 +366,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			oidcidentity.FieldUserID:      {Type: field.TypeInt, Column: oidcidentity.FieldUserID},
 		},
 	}
-	graph.Nodes[11] = &sqlgraph.Node{
+	graph.Nodes[13] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   project.Table,
 			Columns: project.Columns,
@@ -317,7 +386,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			project.FieldProfiles:    {Type: field.TypeJSON, Column: project.FieldProfiles},
 		},
 	}
-	graph.Nodes[12] = &sqlgraph.Node{
+	graph.Nodes[14] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   prompt.Table,
 			Columns: prompt.Columns,
@@ -341,7 +410,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			prompt.FieldSettings:    {Type: field.TypeJSON, Column: prompt.FieldSettings},
 		},
 	}
-	graph.Nodes[13] = &sqlgraph.Node{
+	graph.Nodes[15] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   promptprotectionrule.Table,
 			Columns: promptprotectionrule.Columns,
@@ -362,7 +431,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			promptprotectionrule.FieldSettings:    {Type: field.TypeJSON, Column: promptprotectionrule.FieldSettings},
 		},
 	}
-	graph.Nodes[14] = &sqlgraph.Node{
+	graph.Nodes[16] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   providerquotastatus.Table,
 			Columns: providerquotastatus.Columns,
@@ -385,7 +454,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			providerquotastatus.FieldNextCheckAt:  {Type: field.TypeTime, Column: providerquotastatus.FieldNextCheckAt},
 		},
 	}
-	graph.Nodes[15] = &sqlgraph.Node{
+	graph.Nodes[17] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   request.Table,
 			Columns: request.Columns,
@@ -424,7 +493,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			request.FieldContentSavedAt:             {Type: field.TypeTime, Column: request.FieldContentSavedAt},
 		},
 	}
-	graph.Nodes[16] = &sqlgraph.Node{
+	graph.Nodes[18] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   requestexecution.Table,
 			Columns: requestexecution.Columns,
@@ -459,7 +528,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			requestexecution.FieldPassThroughApplied:         {Type: field.TypeBool, Column: requestexecution.FieldPassThroughApplied},
 		},
 	}
-	graph.Nodes[17] = &sqlgraph.Node{
+	graph.Nodes[19] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   role.Table,
 			Columns: role.Columns,
@@ -479,7 +548,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			role.FieldScopes:    {Type: field.TypeJSON, Column: role.FieldScopes},
 		},
 	}
-	graph.Nodes[18] = &sqlgraph.Node{
+	graph.Nodes[20] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   system.Table,
 			Columns: system.Columns,
@@ -497,7 +566,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			system.FieldValue:     {Type: field.TypeString, Column: system.FieldValue},
 		},
 	}
-	graph.Nodes[19] = &sqlgraph.Node{
+	graph.Nodes[21] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   thread.Table,
 			Columns: thread.Columns,
@@ -515,7 +584,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			thread.FieldStatus:    {Type: field.TypeEnum, Column: thread.FieldStatus},
 		},
 	}
-	graph.Nodes[20] = &sqlgraph.Node{
+	graph.Nodes[22] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   trace.Table,
 			Columns: trace.Columns,
@@ -534,7 +603,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			trace.FieldStatus:    {Type: field.TypeEnum, Column: trace.FieldStatus},
 		},
 	}
-	graph.Nodes[21] = &sqlgraph.Node{
+	graph.Nodes[23] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   usagelog.Table,
 			Columns: usagelog.Columns,
@@ -571,7 +640,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			usagelog.FieldCostPriceReferenceID:               {Type: field.TypeString, Column: usagelog.FieldCostPriceReferenceID},
 		},
 	}
-	graph.Nodes[22] = &sqlgraph.Node{
+	graph.Nodes[24] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   user.Table,
 			Columns: user.Columns,
@@ -596,7 +665,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			user.FieldScopes:         {Type: field.TypeJSON, Column: user.FieldScopes},
 		},
 	}
-	graph.Nodes[23] = &sqlgraph.Node{
+	graph.Nodes[25] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   userproject.Table,
 			Columns: userproject.Columns,
@@ -615,7 +684,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			userproject.FieldScopes:    {Type: field.TypeJSON, Column: userproject.FieldScopes},
 		},
 	}
-	graph.Nodes[24] = &sqlgraph.Node{
+	graph.Nodes[26] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   userrole.Table,
 			Columns: userrole.Columns,
@@ -679,6 +748,30 @@ var schemaGraph = func() *sqlgraph.Schema {
 		},
 		"APIKeyProfileTemplate",
 		"Project",
+	)
+	graph.MustAddE(
+		"cpa_instance",
+		&sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   cpacredential.CpaInstanceTable,
+			Columns: []string{cpacredential.CpaInstanceColumn},
+			Bidi:    false,
+		},
+		"CPACredential",
+		"CPAInstance",
+	)
+	graph.MustAddE(
+		"credentials",
+		&sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   cpainstance.CredentialsTable,
+			Columns: []string{cpainstance.CredentialsColumn},
+			Bidi:    false,
+		},
+		"CPAInstance",
+		"CPACredential",
 	)
 	graph.MustAddE(
 		"requests",
@@ -1641,6 +1734,319 @@ func (f *APIKeyProfileTemplateFilter) WhereHasProjectWith(preds ...predicate.Pro
 }
 
 // addPredicate implements the predicateAdder interface.
+func (_q *CPACredentialQuery) addPredicate(pred func(s *sql.Selector)) {
+	_q.predicates = append(_q.predicates, pred)
+}
+
+// Filter returns a Filter implementation to apply filters on the CPACredentialQuery builder.
+func (_q *CPACredentialQuery) Filter() *CPACredentialFilter {
+	return &CPACredentialFilter{config: _q.config, predicateAdder: _q}
+}
+
+// addPredicate implements the predicateAdder interface.
+func (m *CPACredentialMutation) addPredicate(pred func(s *sql.Selector)) {
+	m.predicates = append(m.predicates, pred)
+}
+
+// Filter returns an entql.Where implementation to apply filters on the CPACredentialMutation builder.
+func (m *CPACredentialMutation) Filter() *CPACredentialFilter {
+	return &CPACredentialFilter{config: m.config, predicateAdder: m}
+}
+
+// CPACredentialFilter provides a generic filtering capability at runtime for CPACredentialQuery.
+type CPACredentialFilter struct {
+	predicateAdder
+	config
+}
+
+// Where applies the entql predicate on the query filter.
+func (f *CPACredentialFilter) Where(p entql.P) {
+	f.addPredicate(func(s *sql.Selector) {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[2].Type, p, s); err != nil {
+			s.AddError(err)
+		}
+	})
+}
+
+// WhereID applies the entql int predicate on the id field.
+func (f *CPACredentialFilter) WhereID(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldID))
+}
+
+// WhereCreatedAt applies the entql time.Time predicate on the created_at field.
+func (f *CPACredentialFilter) WhereCreatedAt(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldCreatedAt))
+}
+
+// WhereUpdatedAt applies the entql time.Time predicate on the updated_at field.
+func (f *CPACredentialFilter) WhereUpdatedAt(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldUpdatedAt))
+}
+
+// WhereCpaInstanceID applies the entql int predicate on the cpa_instance_id field.
+func (f *CPACredentialFilter) WhereCpaInstanceID(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldCpaInstanceID))
+}
+
+// WhereExternalKey applies the entql string predicate on the external_key field.
+func (f *CPACredentialFilter) WhereExternalKey(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldExternalKey))
+}
+
+// WhereAuthIndex applies the entql string predicate on the auth_index field.
+func (f *CPACredentialFilter) WhereAuthIndex(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldAuthIndex))
+}
+
+// WhereRemoteName applies the entql string predicate on the remote_name field.
+func (f *CPACredentialFilter) WhereRemoteName(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldRemoteName))
+}
+
+// WhereLabel applies the entql string predicate on the label field.
+func (f *CPACredentialFilter) WhereLabel(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldLabel))
+}
+
+// WhereDisplayName applies the entql string predicate on the display_name field.
+func (f *CPACredentialFilter) WhereDisplayName(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldDisplayName))
+}
+
+// WhereProvider applies the entql string predicate on the provider field.
+func (f *CPACredentialFilter) WhereProvider(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldProvider))
+}
+
+// WhereEmail applies the entql string predicate on the email field.
+func (f *CPACredentialFilter) WhereEmail(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldEmail))
+}
+
+// WhereStatus applies the entql string predicate on the status field.
+func (f *CPACredentialFilter) WhereStatus(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldStatus))
+}
+
+// WhereStatusMessage applies the entql string predicate on the status_message field.
+func (f *CPACredentialFilter) WhereStatusMessage(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldStatusMessage))
+}
+
+// WhereDisabled applies the entql bool predicate on the disabled field.
+func (f *CPACredentialFilter) WhereDisabled(p entql.BoolP) {
+	f.Where(p.Field(cpacredential.FieldDisabled))
+}
+
+// WhereUnavailable applies the entql bool predicate on the unavailable field.
+func (f *CPACredentialFilter) WhereUnavailable(p entql.BoolP) {
+	f.Where(p.Field(cpacredential.FieldUnavailable))
+}
+
+// WhereRuntimeOnly applies the entql bool predicate on the runtime_only field.
+func (f *CPACredentialFilter) WhereRuntimeOnly(p entql.BoolP) {
+	f.Where(p.Field(cpacredential.FieldRuntimeOnly))
+}
+
+// WherePriority applies the entql int predicate on the priority field.
+func (f *CPACredentialFilter) WherePriority(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldPriority))
+}
+
+// WherePlanType applies the entql string predicate on the plan_type field.
+func (f *CPACredentialFilter) WherePlanType(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldPlanType))
+}
+
+// WhereQuotaContext applies the entql json.RawMessage predicate on the quota_context field.
+func (f *CPACredentialFilter) WhereQuotaContext(p entql.BytesP) {
+	f.Where(p.Field(cpacredential.FieldQuotaContext))
+}
+
+// WhereQuotaState applies the entql string predicate on the quota_state field.
+func (f *CPACredentialFilter) WhereQuotaState(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldQuotaState))
+}
+
+// WhereQuotaData applies the entql json.RawMessage predicate on the quota_data field.
+func (f *CPACredentialFilter) WhereQuotaData(p entql.BytesP) {
+	f.Where(p.Field(cpacredential.FieldQuotaData))
+}
+
+// WhereQuotaLastAttemptAt applies the entql time.Time predicate on the quota_last_attempt_at field.
+func (f *CPACredentialFilter) WhereQuotaLastAttemptAt(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldQuotaLastAttemptAt))
+}
+
+// WhereQuotaLastSuccessAt applies the entql time.Time predicate on the quota_last_success_at field.
+func (f *CPACredentialFilter) WhereQuotaLastSuccessAt(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldQuotaLastSuccessAt))
+}
+
+// WhereQuotaLastFailureAt applies the entql time.Time predicate on the quota_last_failure_at field.
+func (f *CPACredentialFilter) WhereQuotaLastFailureAt(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldQuotaLastFailureAt))
+}
+
+// WhereQuotaLastError applies the entql string predicate on the quota_last_error field.
+func (f *CPACredentialFilter) WhereQuotaLastError(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldQuotaLastError))
+}
+
+// WhereHasCpaInstance applies a predicate to check if query has an edge cpa_instance.
+func (f *CPACredentialFilter) WhereHasCpaInstance() {
+	f.Where(entql.HasEdge("cpa_instance"))
+}
+
+// WhereHasCpaInstanceWith applies a predicate to check if query has an edge cpa_instance with a given conditions (other predicates).
+func (f *CPACredentialFilter) WhereHasCpaInstanceWith(preds ...predicate.CPAInstance) {
+	f.Where(entql.HasEdgeWith("cpa_instance", sqlgraph.WrapFunc(func(s *sql.Selector) {
+		for _, p := range preds {
+			p(s)
+		}
+	})))
+}
+
+// addPredicate implements the predicateAdder interface.
+func (_q *CPAInstanceQuery) addPredicate(pred func(s *sql.Selector)) {
+	_q.predicates = append(_q.predicates, pred)
+}
+
+// Filter returns a Filter implementation to apply filters on the CPAInstanceQuery builder.
+func (_q *CPAInstanceQuery) Filter() *CPAInstanceFilter {
+	return &CPAInstanceFilter{config: _q.config, predicateAdder: _q}
+}
+
+// addPredicate implements the predicateAdder interface.
+func (m *CPAInstanceMutation) addPredicate(pred func(s *sql.Selector)) {
+	m.predicates = append(m.predicates, pred)
+}
+
+// Filter returns an entql.Where implementation to apply filters on the CPAInstanceMutation builder.
+func (m *CPAInstanceMutation) Filter() *CPAInstanceFilter {
+	return &CPAInstanceFilter{config: m.config, predicateAdder: m}
+}
+
+// CPAInstanceFilter provides a generic filtering capability at runtime for CPAInstanceQuery.
+type CPAInstanceFilter struct {
+	predicateAdder
+	config
+}
+
+// Where applies the entql predicate on the query filter.
+func (f *CPAInstanceFilter) Where(p entql.P) {
+	f.addPredicate(func(s *sql.Selector) {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[3].Type, p, s); err != nil {
+			s.AddError(err)
+		}
+	})
+}
+
+// WhereID applies the entql int predicate on the id field.
+func (f *CPAInstanceFilter) WhereID(p entql.IntP) {
+	f.Where(p.Field(cpainstance.FieldID))
+}
+
+// WhereCreatedAt applies the entql time.Time predicate on the created_at field.
+func (f *CPAInstanceFilter) WhereCreatedAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldCreatedAt))
+}
+
+// WhereUpdatedAt applies the entql time.Time predicate on the updated_at field.
+func (f *CPAInstanceFilter) WhereUpdatedAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldUpdatedAt))
+}
+
+// WhereName applies the entql string predicate on the name field.
+func (f *CPAInstanceFilter) WhereName(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldName))
+}
+
+// WhereBaseURL applies the entql string predicate on the base_url field.
+func (f *CPAInstanceFilter) WhereBaseURL(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldBaseURL))
+}
+
+// WhereEncryptedSecret applies the entql string predicate on the encrypted_secret field.
+func (f *CPAInstanceFilter) WhereEncryptedSecret(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldEncryptedSecret))
+}
+
+// WhereEnabled applies the entql bool predicate on the enabled field.
+func (f *CPAInstanceFilter) WhereEnabled(p entql.BoolP) {
+	f.Where(p.Field(cpainstance.FieldEnabled))
+}
+
+// WhereInsecureSkipTLS applies the entql bool predicate on the insecure_skip_tls field.
+func (f *CPAInstanceFilter) WhereInsecureSkipTLS(p entql.BoolP) {
+	f.Where(p.Field(cpainstance.FieldInsecureSkipTLS))
+}
+
+// WhereAutoRefreshEnabled applies the entql bool predicate on the auto_refresh_enabled field.
+func (f *CPAInstanceFilter) WhereAutoRefreshEnabled(p entql.BoolP) {
+	f.Where(p.Field(cpainstance.FieldAutoRefreshEnabled))
+}
+
+// WhereRefreshIntervalMinutes applies the entql int predicate on the refresh_interval_minutes field.
+func (f *CPAInstanceFilter) WhereRefreshIntervalMinutes(p entql.IntP) {
+	f.Where(p.Field(cpainstance.FieldRefreshIntervalMinutes))
+}
+
+// WhereNextRefreshAt applies the entql time.Time predicate on the next_refresh_at field.
+func (f *CPAInstanceFilter) WhereNextRefreshAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldNextRefreshAt))
+}
+
+// WhereServerVersion applies the entql string predicate on the server_version field.
+func (f *CPAInstanceFilter) WhereServerVersion(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldServerVersion))
+}
+
+// WhereServerCommit applies the entql string predicate on the server_commit field.
+func (f *CPAInstanceFilter) WhereServerCommit(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldServerCommit))
+}
+
+// WhereServerBuildDate applies the entql string predicate on the server_build_date field.
+func (f *CPAInstanceFilter) WhereServerBuildDate(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldServerBuildDate))
+}
+
+// WhereLastSyncAttemptAt applies the entql time.Time predicate on the last_sync_attempt_at field.
+func (f *CPAInstanceFilter) WhereLastSyncAttemptAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldLastSyncAttemptAt))
+}
+
+// WhereLastSyncSuccessAt applies the entql time.Time predicate on the last_sync_success_at field.
+func (f *CPAInstanceFilter) WhereLastSyncSuccessAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldLastSyncSuccessAt))
+}
+
+// WhereLastErrorAt applies the entql time.Time predicate on the last_error_at field.
+func (f *CPAInstanceFilter) WhereLastErrorAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldLastErrorAt))
+}
+
+// WhereLastError applies the entql string predicate on the last_error field.
+func (f *CPAInstanceFilter) WhereLastError(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldLastError))
+}
+
+// WhereHasCredentials applies a predicate to check if query has an edge credentials.
+func (f *CPAInstanceFilter) WhereHasCredentials() {
+	f.Where(entql.HasEdge("credentials"))
+}
+
+// WhereHasCredentialsWith applies a predicate to check if query has an edge credentials with a given conditions (other predicates).
+func (f *CPAInstanceFilter) WhereHasCredentialsWith(preds ...predicate.CPACredential) {
+	f.Where(entql.HasEdgeWith("credentials", sqlgraph.WrapFunc(func(s *sql.Selector) {
+		for _, p := range preds {
+			p(s)
+		}
+	})))
+}
+
+// addPredicate implements the predicateAdder interface.
 func (_q *ChannelQuery) addPredicate(pred func(s *sql.Selector)) {
 	_q.predicates = append(_q.predicates, pred)
 }
@@ -1669,7 +2075,7 @@ type ChannelFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ChannelFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[2].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[4].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -1908,7 +2314,7 @@ type ChannelModelPriceFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ChannelModelPriceFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[3].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[5].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2011,7 +2417,7 @@ type ChannelModelPriceVersionFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ChannelModelPriceVersionFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[4].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[6].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2115,7 +2521,7 @@ type ChannelOverrideTemplateFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ChannelOverrideTemplateFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[5].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[7].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2219,7 +2625,7 @@ type ChannelProbeFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ChannelProbeFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[6].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[8].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2303,7 +2709,7 @@ type DataStorageFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *DataStorageFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[7].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[9].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2416,7 +2822,7 @@ type InvitationFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *InvitationFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[8].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[10].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2515,7 +2921,7 @@ type ModelFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ModelFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[9].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[11].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2620,7 +3026,7 @@ type OIDCIdentityFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *OIDCIdentityFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[10].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[12].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2719,7 +3125,7 @@ type ProjectFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ProjectFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[11].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[13].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2948,7 +3354,7 @@ type PromptFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *PromptFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[12].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[14].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3057,7 +3463,7 @@ type PromptProtectionRuleFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *PromptProtectionRuleFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[13].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[15].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3137,7 +3543,7 @@ type ProviderQuotaStatusFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ProviderQuotaStatusFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[14].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[16].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3241,7 +3647,7 @@ type RequestFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *RequestFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[15].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[17].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3509,7 +3915,7 @@ type RequestExecutionFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *RequestExecutionFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[16].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[18].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3701,7 +4107,7 @@ type RoleFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *RoleFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[17].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[19].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3818,7 +4224,7 @@ type SystemFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *SystemFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[18].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[20].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3883,7 +4289,7 @@ type ThreadFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *ThreadFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[19].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[21].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -3976,7 +4382,7 @@ type TraceFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *TraceFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[20].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[22].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -4088,7 +4494,7 @@ type UsageLogFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *UsageLogFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[21].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[23].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -4290,7 +4696,7 @@ type UserFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *UserFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[22].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[24].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -4488,7 +4894,7 @@ type UserProjectFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *UserProjectFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[23].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[25].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -4586,7 +4992,7 @@ type UserRoleFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *UserRoleFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[24].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[26].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})

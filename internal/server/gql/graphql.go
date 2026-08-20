@@ -73,6 +73,7 @@ type Dependencies struct {
 	PromptService                  *biz.PromptService
 	PromptProtectionRuleService    *biz.PromptProtectionRuleService
 	ProviderQuotaService           *biz.ProviderQuotaService
+	CPAService                     *biz.CPAService
 	Scheduler                      *scheduler.Scheduler
 	DefaultSelector                *orchestrator.DefaultSelector
 	CandidateSelectorDiagnostics   *orchestrator.CandidateSelectorDiagnostics
@@ -112,6 +113,7 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 			deps.PromptService,
 			deps.PromptProtectionRuleService,
 			deps.ProviderQuotaService,
+			deps.CPAService,
 			deps.Scheduler,
 			deps.DefaultSelector,
 			deps.CandidateSelectorDiagnostics,
@@ -136,13 +138,19 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 	gqlSrv.Use(&loggingTracer{})
 	skipTestChannelTransaction := entgql.SkipOperations("TestChannel", "TestChannelAPIKeys")
 	skipBulkImportTransaction := entgql.SkipIfHasFields("bulkImportChannels")
+	skipCPANetworkTransaction := entgql.SkipIfHasFields(
+		"createCPAInstance",
+		"updateCPAInstance",
+		"refreshCPAInstance",
+		"refreshCPACredential",
+	)
 	gqlSrv.Use(entgql.Transactioner{
 		TxOpener: deps.Ent,
 		// TestChannel performs long-running parallel provider requests whose database
 		// operations do not require one transaction. BulkImportChannels manages one
 		// transaction per row to preserve its partial-success behavior.
 		SkipTxFunc: func(op *ast.OperationDefinition) bool {
-			return skipTestChannelTransaction(op) || skipBulkImportTransaction(op)
+			return skipTestChannelTransaction(op) || skipBulkImportTransaction(op) || skipCPANetworkTransaction(op)
 		},
 	})
 

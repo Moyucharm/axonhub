@@ -93,6 +93,124 @@ var (
 			},
 		},
 	}
+	// CpaCredentialsColumns holds the columns for the "cpa_credentials" table.
+	CpaCredentialsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "external_key", Type: field.TypeString},
+		{Name: "auth_index", Type: field.TypeString, Default: ""},
+		{Name: "remote_name", Type: field.TypeString},
+		{Name: "label", Type: field.TypeString, Default: ""},
+		{Name: "display_name", Type: field.TypeString},
+		{Name: "provider", Type: field.TypeString, Default: "unknown"},
+		{Name: "email", Type: field.TypeString, Default: ""},
+		{Name: "status", Type: field.TypeString, Default: "unknown"},
+		{Name: "status_message", Type: field.TypeString, Default: ""},
+		{Name: "disabled", Type: field.TypeBool, Default: false},
+		{Name: "unavailable", Type: field.TypeBool, Default: false},
+		{Name: "runtime_only", Type: field.TypeBool, Default: false},
+		{Name: "priority", Type: field.TypeInt, Default: 0},
+		{Name: "plan_type", Type: field.TypeString, Default: ""},
+		{Name: "quota_context", Type: field.TypeJSON},
+		{Name: "quota_state", Type: field.TypeString, Default: "pending"},
+		{Name: "quota_data", Type: field.TypeJSON},
+		{Name: "quota_last_attempt_at", Type: field.TypeTime, Nullable: true},
+		{Name: "quota_last_success_at", Type: field.TypeTime, Nullable: true},
+		{Name: "quota_last_failure_at", Type: field.TypeTime, Nullable: true},
+		{Name: "quota_last_error", Type: field.TypeString, Default: ""},
+		{Name: "cpa_instance_id", Type: field.TypeInt},
+	}
+	// CpaCredentialsTable holds the schema information for the "cpa_credentials" table.
+	CpaCredentialsTable = &schema.Table{
+		Name:       "cpa_credentials",
+		Columns:    CpaCredentialsColumns,
+		PrimaryKey: []*schema.Column{CpaCredentialsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "cpa_credentials_cpa_instances_credentials",
+				Columns:    []*schema.Column{CpaCredentialsColumns[24]},
+				RefColumns: []*schema.Column{CpaInstancesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "cpacredential_cpa_instance_id_external_key",
+				Unique:  true,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[3]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_provider",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[8]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_disabled",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[12]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_unavailable",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[13]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_plan_type",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[16]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_priority_display_name",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[15], CpaCredentialsColumns[7]},
+			},
+		},
+	}
+	// CpaInstancesColumns holds the columns for the "cpa_instances" table.
+	CpaInstancesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "name", Type: field.TypeString},
+		{Name: "base_url", Type: field.TypeString},
+		{Name: "encrypted_secret", Type: field.TypeString},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "insecure_skip_tls", Type: field.TypeBool, Default: false},
+		{Name: "auto_refresh_enabled", Type: field.TypeBool, Default: true},
+		{Name: "refresh_interval_minutes", Type: field.TypeInt, Default: 5},
+		{Name: "next_refresh_at", Type: field.TypeTime, Nullable: true},
+		{Name: "server_version", Type: field.TypeString, Default: ""},
+		{Name: "server_commit", Type: field.TypeString, Default: ""},
+		{Name: "server_build_date", Type: field.TypeString, Default: ""},
+		{Name: "last_sync_attempt_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_sync_success_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_error_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true},
+	}
+	// CpaInstancesTable holds the schema information for the "cpa_instances" table.
+	CpaInstancesTable = &schema.Table{
+		Name:       "cpa_instances",
+		Columns:    CpaInstancesColumns,
+		PrimaryKey: []*schema.Column{CpaInstancesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "cpainstance_name",
+				Unique:  true,
+				Columns: []*schema.Column{CpaInstancesColumns[3]},
+			},
+			{
+				Name:    "cpainstance_base_url",
+				Unique:  true,
+				Columns: []*schema.Column{CpaInstancesColumns[4]},
+			},
+			{
+				Name:    "cpainstance_enabled_auto_refresh_enabled_next_refresh_at",
+				Unique:  false,
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[10]},
+			},
+		},
+	}
 	// ChannelsColumns holds the columns for the "channels" table.
 	ChannelsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -1037,6 +1155,8 @@ var (
 	Tables = []*schema.Table{
 		APIKeysTable,
 		APIKeyProfileTemplatesTable,
+		CpaCredentialsTable,
+		CpaInstancesTable,
 		ChannelsTable,
 		ChannelModelPricesTable,
 		ChannelModelPriceVersionsTable,
@@ -1067,6 +1187,7 @@ func init() {
 	APIKeysTable.ForeignKeys[0].RefTable = ProjectsTable
 	APIKeysTable.ForeignKeys[1].RefTable = UsersTable
 	APIKeyProfileTemplatesTable.ForeignKeys[0].RefTable = ProjectsTable
+	CpaCredentialsTable.ForeignKeys[0].RefTable = CpaInstancesTable
 	ChannelModelPricesTable.ForeignKeys[0].RefTable = ChannelsTable
 	ChannelModelPriceVersionsTable.ForeignKeys[0].RefTable = ChannelModelPricesTable
 	ChannelOverrideTemplatesTable.ForeignKeys[0].RefTable = UsersTable

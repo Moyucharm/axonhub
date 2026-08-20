@@ -1,0 +1,151 @@
+type CPAManagedInstance {
+  id: Int!
+  name: String!
+  baseURL: String!
+  enabled: Boolean!
+  insecureSkipTLS: Boolean!
+  autoRefreshEnabled: Boolean!
+  refreshIntervalMinutes: Int!
+  nextRefreshAt: Time
+  serverVersion: String!
+  serverCommit: String!
+  serverBuildDate: String!
+  lastSyncAttemptAt: Time
+  lastSyncSuccessAt: Time
+  lastErrorAt: Time
+  lastError: String
+  hasSecret: Boolean!
+  connectionStatus: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CPAQuotaItem {
+  id: String!
+  group: String!
+  label: String!
+  description: String!
+  usedPercent: Float
+  remainingPercent: Float
+  used: Float
+  limit: Float
+  remaining: Float
+  unit: String!
+  resetAt: Time
+  periodSeconds: Int
+}
+
+type CPAQuotaSnapshot {
+  items: [CPAQuotaItem!]!
+}
+
+type CPAManagedCredential {
+  id: Int!
+  instanceID: Int!
+  remoteName: String!
+  displayName: String!
+  provider: String!
+  email: String!
+  status: String!
+  statusMessage: String!
+  disabled: Boolean!
+  unavailable: Boolean!
+  runtimeOnly: Boolean!
+  priority: Int!
+  planType: String!
+  quotaState: String!
+  quotaData: CPAQuotaSnapshot!
+  quotaLastAttemptAt: Time
+  quotaLastSuccessAt: Time
+  quotaLastFailureAt: Time
+  quotaLastError: String!
+  available: Boolean!
+  abnormal: Boolean!
+  stale: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CPACredentialEdge {
+  cursor: String!
+  node: CPAManagedCredential!
+}
+
+type CPAPageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type CPACredentialConnection {
+  edges: [CPACredentialEdge!]!
+  pageInfo: CPAPageInfo!
+  totalCount: Int!
+}
+
+type CPACredentialStats {
+  available: Int!
+  total: Int!
+  abnormal: Int!
+}
+
+type CPAProviderCount {
+  provider: String!
+  count: Int!
+}
+
+type CPARefreshResult {
+  requested: Int!
+  succeeded: Int!
+  failed: Int!
+  skipped: Int!
+}
+
+input CreateCPAInstanceInput {
+  name: String!
+  baseURL: String!
+  managementSecret: String!
+  enabled: Boolean
+  insecureSkipTLS: Boolean!
+  autoRefreshEnabled: Boolean
+  refreshIntervalMinutes: Int
+}
+
+input UpdateCPAInstanceInput {
+  name: String
+  baseURL: String
+  managementSecret: String
+  enabled: Boolean
+  insecureSkipTLS: Boolean
+  autoRefreshEnabled: Boolean
+  refreshIntervalMinutes: Int
+}
+
+input QueryCPACredentialsInput {
+  instanceID: Int!
+  first: Int!
+  after: String
+  search: String
+  provider: String
+  statuses: [String!]!
+  planTypes: [String!]!
+  abnormalOnly: Boolean!
+}
+
+extend type Query {
+  cpaInstances: [CPAManagedInstance!]!
+  cpaInstance(id: Int!): CPAManagedInstance!
+  queryCPACredentials(input: QueryCPACredentialsInput!): CPACredentialConnection!
+  cpaCredentialStats(instanceID: Int!): CPACredentialStats!
+  cpaProviderCounts(instanceID: Int!): [CPAProviderCount!]!
+  cpaPlanTypes(instanceID: Int!, provider: String!): [String!]!
+}
+
+extend type Mutation {
+  createCPAInstance(input: CreateCPAInstanceInput!): CPAManagedInstance!
+  updateCPAInstance(id: Int!, input: UpdateCPAInstanceInput!): CPAManagedInstance!
+  deleteCPAInstance(id: Int!): Boolean!
+  refreshCPAInstance(instanceID: Int!, provider: String): CPARefreshResult!
+  refreshCPACredential(credentialID: Int!): CPAManagedCredential!
+}

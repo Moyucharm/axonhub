@@ -17,6 +17,7 @@ schema:
   - price.graphql
   - cost.graphql
   - analytics.graphql
+  - cpa.graphql
 
 omit_gqlgen_version_in_file_notice: true
 
@@ -88,6 +89,27 @@ models:
   JSONRawMessageInput:
     model:
       - github.com/looplj/axonhub/internal/objects.JSONRawMessage
+  CPAQuotaSnapshot:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAQuotaSnapshot
+  CPAQuotaItem:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAQuotaItem
+  CPAManagedInstance:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAInstanceView
+  CPAManagedCredential:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPACredentialView
+  CPACredentialConnection:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPACredentialConnection
+  CPACredentialEdge:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPACredentialEdge
+  CPAPageInfo:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAPageInfo
   Any:
     model:
       - github.com/99designs/gqlgen/graphql.Any

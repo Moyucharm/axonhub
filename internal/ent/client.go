@@ -22,6 +22,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -51,6 +53,10 @@ type Client struct {
 	APIKey *APIKeyClient
 	// APIKeyProfileTemplate is the client for interacting with the APIKeyProfileTemplate builders.
 	APIKeyProfileTemplate *APIKeyProfileTemplateClient
+	// CPACredential is the client for interacting with the CPACredential builders.
+	CPACredential *CPACredentialClient
+	// CPAInstance is the client for interacting with the CPAInstance builders.
+	CPAInstance *CPAInstanceClient
 	// Channel is the client for interacting with the Channel builders.
 	Channel *ChannelClient
 	// ChannelModelPrice is the client for interacting with the ChannelModelPrice builders.
@@ -112,6 +118,8 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIKey = NewAPIKeyClient(c.config)
 	c.APIKeyProfileTemplate = NewAPIKeyProfileTemplateClient(c.config)
+	c.CPACredential = NewCPACredentialClient(c.config)
+	c.CPAInstance = NewCPAInstanceClient(c.config)
 	c.Channel = NewChannelClient(c.config)
 	c.ChannelModelPrice = NewChannelModelPriceClient(c.config)
 	c.ChannelModelPriceVersion = NewChannelModelPriceVersionClient(c.config)
@@ -229,6 +237,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:                   cfg,
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyProfileTemplate:    NewAPIKeyProfileTemplateClient(cfg),
+		CPACredential:            NewCPACredentialClient(cfg),
+		CPAInstance:              NewCPAInstanceClient(cfg),
 		Channel:                  NewChannelClient(cfg),
 		ChannelModelPrice:        NewChannelModelPriceClient(cfg),
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
@@ -273,6 +283,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:                   cfg,
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyProfileTemplate:    NewAPIKeyProfileTemplateClient(cfg),
+		CPACredential:            NewCPACredentialClient(cfg),
+		CPAInstance:              NewCPAInstanceClient(cfg),
 		Channel:                  NewChannelClient(cfg),
 		ChannelModelPrice:        NewChannelModelPriceClient(cfg),
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
@@ -325,12 +337,12 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIKey, c.APIKeyProfileTemplate, c.Channel, c.ChannelModelPrice,
-		c.ChannelModelPriceVersion, c.ChannelOverrideTemplate, c.ChannelProbe,
-		c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity, c.Project, c.Prompt,
-		c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request, c.RequestExecution,
-		c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User, c.UserProject,
-		c.UserRole,
+		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance, c.Channel,
+		c.ChannelModelPrice, c.ChannelModelPriceVersion, c.ChannelOverrideTemplate,
+		c.ChannelProbe, c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity,
+		c.Project, c.Prompt, c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request,
+		c.RequestExecution, c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User,
+		c.UserProject, c.UserRole,
 	} {
 		n.Use(hooks...)
 	}
@@ -340,12 +352,12 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIKey, c.APIKeyProfileTemplate, c.Channel, c.ChannelModelPrice,
-		c.ChannelModelPriceVersion, c.ChannelOverrideTemplate, c.ChannelProbe,
-		c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity, c.Project, c.Prompt,
-		c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request, c.RequestExecution,
-		c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User, c.UserProject,
-		c.UserRole,
+		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance, c.Channel,
+		c.ChannelModelPrice, c.ChannelModelPriceVersion, c.ChannelOverrideTemplate,
+		c.ChannelProbe, c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity,
+		c.Project, c.Prompt, c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request,
+		c.RequestExecution, c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User,
+		c.UserProject, c.UserRole,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -358,6 +370,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIKey.mutate(ctx, m)
 	case *APIKeyProfileTemplateMutation:
 		return c.APIKeyProfileTemplate.mutate(ctx, m)
+	case *CPACredentialMutation:
+		return c.CPACredential.mutate(ctx, m)
+	case *CPAInstanceMutation:
+		return c.CPAInstance.mutate(ctx, m)
 	case *ChannelMutation:
 		return c.Channel.mutate(ctx, m)
 	case *ChannelModelPriceMutation:
@@ -740,6 +756,306 @@ func (c *APIKeyProfileTemplateClient) mutate(ctx context.Context, m *APIKeyProfi
 		return (&APIKeyProfileTemplateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIKeyProfileTemplate mutation op: %q", m.Op())
+	}
+}
+
+// CPACredentialClient is a client for the CPACredential schema.
+type CPACredentialClient struct {
+	config
+}
+
+// NewCPACredentialClient returns a client for the CPACredential from the given config.
+func NewCPACredentialClient(c config) *CPACredentialClient {
+	return &CPACredentialClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cpacredential.Hooks(f(g(h())))`.
+func (c *CPACredentialClient) Use(hooks ...Hook) {
+	c.hooks.CPACredential = append(c.hooks.CPACredential, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cpacredential.Intercept(f(g(h())))`.
+func (c *CPACredentialClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CPACredential = append(c.inters.CPACredential, interceptors...)
+}
+
+// Create returns a builder for creating a CPACredential entity.
+func (c *CPACredentialClient) Create() *CPACredentialCreate {
+	mutation := newCPACredentialMutation(c.config, OpCreate)
+	return &CPACredentialCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CPACredential entities.
+func (c *CPACredentialClient) CreateBulk(builders ...*CPACredentialCreate) *CPACredentialCreateBulk {
+	return &CPACredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CPACredentialClient) MapCreateBulk(slice any, setFunc func(*CPACredentialCreate, int)) *CPACredentialCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CPACredentialCreateBulk{err: fmt.Errorf("calling to CPACredentialClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CPACredentialCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CPACredentialCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CPACredential.
+func (c *CPACredentialClient) Update() *CPACredentialUpdate {
+	mutation := newCPACredentialMutation(c.config, OpUpdate)
+	return &CPACredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CPACredentialClient) UpdateOne(_m *CPACredential) *CPACredentialUpdateOne {
+	mutation := newCPACredentialMutation(c.config, OpUpdateOne, withCPACredential(_m))
+	return &CPACredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CPACredentialClient) UpdateOneID(id int) *CPACredentialUpdateOne {
+	mutation := newCPACredentialMutation(c.config, OpUpdateOne, withCPACredentialID(id))
+	return &CPACredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CPACredential.
+func (c *CPACredentialClient) Delete() *CPACredentialDelete {
+	mutation := newCPACredentialMutation(c.config, OpDelete)
+	return &CPACredentialDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CPACredentialClient) DeleteOne(_m *CPACredential) *CPACredentialDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CPACredentialClient) DeleteOneID(id int) *CPACredentialDeleteOne {
+	builder := c.Delete().Where(cpacredential.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CPACredentialDeleteOne{builder}
+}
+
+// Query returns a query builder for CPACredential.
+func (c *CPACredentialClient) Query() *CPACredentialQuery {
+	return &CPACredentialQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCPACredential},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CPACredential entity by its id.
+func (c *CPACredentialClient) Get(ctx context.Context, id int) (*CPACredential, error) {
+	return c.Query().Where(cpacredential.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CPACredentialClient) GetX(ctx context.Context, id int) *CPACredential {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCpaInstance queries the cpa_instance edge of a CPACredential.
+func (c *CPACredentialClient) QueryCpaInstance(_m *CPACredential) *CPAInstanceQuery {
+	query := (&CPAInstanceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(cpacredential.Table, cpacredential.FieldID, id),
+			sqlgraph.To(cpainstance.Table, cpainstance.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, cpacredential.CpaInstanceTable, cpacredential.CpaInstanceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CPACredentialClient) Hooks() []Hook {
+	hooks := c.hooks.CPACredential
+	return append(hooks[:len(hooks):len(hooks)], cpacredential.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *CPACredentialClient) Interceptors() []Interceptor {
+	return c.inters.CPACredential
+}
+
+func (c *CPACredentialClient) mutate(ctx context.Context, m *CPACredentialMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CPACredentialCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CPACredentialUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CPACredentialUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CPACredentialDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CPACredential mutation op: %q", m.Op())
+	}
+}
+
+// CPAInstanceClient is a client for the CPAInstance schema.
+type CPAInstanceClient struct {
+	config
+}
+
+// NewCPAInstanceClient returns a client for the CPAInstance from the given config.
+func NewCPAInstanceClient(c config) *CPAInstanceClient {
+	return &CPAInstanceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cpainstance.Hooks(f(g(h())))`.
+func (c *CPAInstanceClient) Use(hooks ...Hook) {
+	c.hooks.CPAInstance = append(c.hooks.CPAInstance, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cpainstance.Intercept(f(g(h())))`.
+func (c *CPAInstanceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CPAInstance = append(c.inters.CPAInstance, interceptors...)
+}
+
+// Create returns a builder for creating a CPAInstance entity.
+func (c *CPAInstanceClient) Create() *CPAInstanceCreate {
+	mutation := newCPAInstanceMutation(c.config, OpCreate)
+	return &CPAInstanceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CPAInstance entities.
+func (c *CPAInstanceClient) CreateBulk(builders ...*CPAInstanceCreate) *CPAInstanceCreateBulk {
+	return &CPAInstanceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CPAInstanceClient) MapCreateBulk(slice any, setFunc func(*CPAInstanceCreate, int)) *CPAInstanceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CPAInstanceCreateBulk{err: fmt.Errorf("calling to CPAInstanceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CPAInstanceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CPAInstanceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CPAInstance.
+func (c *CPAInstanceClient) Update() *CPAInstanceUpdate {
+	mutation := newCPAInstanceMutation(c.config, OpUpdate)
+	return &CPAInstanceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CPAInstanceClient) UpdateOne(_m *CPAInstance) *CPAInstanceUpdateOne {
+	mutation := newCPAInstanceMutation(c.config, OpUpdateOne, withCPAInstance(_m))
+	return &CPAInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CPAInstanceClient) UpdateOneID(id int) *CPAInstanceUpdateOne {
+	mutation := newCPAInstanceMutation(c.config, OpUpdateOne, withCPAInstanceID(id))
+	return &CPAInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CPAInstance.
+func (c *CPAInstanceClient) Delete() *CPAInstanceDelete {
+	mutation := newCPAInstanceMutation(c.config, OpDelete)
+	return &CPAInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CPAInstanceClient) DeleteOne(_m *CPAInstance) *CPAInstanceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CPAInstanceClient) DeleteOneID(id int) *CPAInstanceDeleteOne {
+	builder := c.Delete().Where(cpainstance.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CPAInstanceDeleteOne{builder}
+}
+
+// Query returns a query builder for CPAInstance.
+func (c *CPAInstanceClient) Query() *CPAInstanceQuery {
+	return &CPAInstanceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCPAInstance},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CPAInstance entity by its id.
+func (c *CPAInstanceClient) Get(ctx context.Context, id int) (*CPAInstance, error) {
+	return c.Query().Where(cpainstance.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CPAInstanceClient) GetX(ctx context.Context, id int) *CPAInstance {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCredentials queries the credentials edge of a CPAInstance.
+func (c *CPAInstanceClient) QueryCredentials(_m *CPAInstance) *CPACredentialQuery {
+	query := (&CPACredentialClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(cpainstance.Table, cpainstance.FieldID, id),
+			sqlgraph.To(cpacredential.Table, cpacredential.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, cpainstance.CredentialsTable, cpainstance.CredentialsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CPAInstanceClient) Hooks() []Hook {
+	hooks := c.hooks.CPAInstance
+	return append(hooks[:len(hooks):len(hooks)], cpainstance.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *CPAInstanceClient) Interceptors() []Interceptor {
+	return c.inters.CPAInstance
+}
+
+func (c *CPAInstanceClient) mutate(ctx context.Context, m *CPAInstanceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CPAInstanceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CPAInstanceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CPAInstanceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CPAInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CPAInstance mutation op: %q", m.Op())
 	}
 }
 
@@ -4799,17 +5115,17 @@ func (c *UserRoleClient) mutate(ctx context.Context, m *UserRoleMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIKey, APIKeyProfileTemplate, Channel, ChannelModelPrice,
-		ChannelModelPriceVersion, ChannelOverrideTemplate, ChannelProbe, DataStorage,
-		Invitation, Model, OIDCIdentity, Project, Prompt, PromptProtectionRule,
-		ProviderQuotaStatus, Request, RequestExecution, Role, System, Thread, Trace,
-		UsageLog, User, UserProject, UserRole []ent.Hook
+		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, Channel,
+		ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
+		ChannelProbe, DataStorage, Invitation, Model, OIDCIdentity, Project, Prompt,
+		PromptProtectionRule, ProviderQuotaStatus, Request, RequestExecution, Role,
+		System, Thread, Trace, UsageLog, User, UserProject, UserRole []ent.Hook
 	}
 	inters struct {
-		APIKey, APIKeyProfileTemplate, Channel, ChannelModelPrice,
-		ChannelModelPriceVersion, ChannelOverrideTemplate, ChannelProbe, DataStorage,
-		Invitation, Model, OIDCIdentity, Project, Prompt, PromptProtectionRule,
-		ProviderQuotaStatus, Request, RequestExecution, Role, System, Thread, Trace,
-		UsageLog, User, UserProject, UserRole []ent.Interceptor
+		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, Channel,
+		ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
+		ChannelProbe, DataStorage, Invitation, Model, OIDCIdentity, Project, Prompt,
+		PromptProtectionRule, ProviderQuotaStatus, Request, RequestExecution, Role,
+		System, Thread, Trace, UsageLog, User, UserProject, UserRole []ent.Interceptor
 	}
 )

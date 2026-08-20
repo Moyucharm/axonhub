@@ -159,6 +159,54 @@ func (f APIKeyProfileTemplateMutationRuleFunc) EvalMutation(ctx context.Context,
 	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.APIKeyProfileTemplateMutation", m)
 }
 
+// The CPACredentialQueryRuleFunc type is an adapter to allow the use of ordinary
+// functions as a query rule.
+type CPACredentialQueryRuleFunc func(context.Context, *ent.CPACredentialQuery) error
+
+// EvalQuery return f(ctx, q).
+func (f CPACredentialQueryRuleFunc) EvalQuery(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPACredentialQuery); ok {
+		return f(ctx, q)
+	}
+	return Denyf("ent/privacy: unexpected query type %T, expect *ent.CPACredentialQuery", q)
+}
+
+// The CPACredentialMutationRuleFunc type is an adapter to allow the use of ordinary
+// functions as a mutation rule.
+type CPACredentialMutationRuleFunc func(context.Context, *ent.CPACredentialMutation) error
+
+// EvalMutation calls f(ctx, m).
+func (f CPACredentialMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutation) error {
+	if m, ok := m.(*ent.CPACredentialMutation); ok {
+		return f(ctx, m)
+	}
+	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.CPACredentialMutation", m)
+}
+
+// The CPAInstanceQueryRuleFunc type is an adapter to allow the use of ordinary
+// functions as a query rule.
+type CPAInstanceQueryRuleFunc func(context.Context, *ent.CPAInstanceQuery) error
+
+// EvalQuery return f(ctx, q).
+func (f CPAInstanceQueryRuleFunc) EvalQuery(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPAInstanceQuery); ok {
+		return f(ctx, q)
+	}
+	return Denyf("ent/privacy: unexpected query type %T, expect *ent.CPAInstanceQuery", q)
+}
+
+// The CPAInstanceMutationRuleFunc type is an adapter to allow the use of ordinary
+// functions as a mutation rule.
+type CPAInstanceMutationRuleFunc func(context.Context, *ent.CPAInstanceMutation) error
+
+// EvalMutation calls f(ctx, m).
+func (f CPAInstanceMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutation) error {
+	if m, ok := m.(*ent.CPAInstanceMutation); ok {
+		return f(ctx, m)
+	}
+	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.CPAInstanceMutation", m)
+}
+
 // The ChannelQueryRuleFunc type is an adapter to allow the use of ordinary
 // functions as a query rule.
 type ChannelQueryRuleFunc func(context.Context, *ent.ChannelQuery) error
@@ -750,6 +798,10 @@ func queryFilter(q ent.Query) (Filter, error) {
 		return q.Filter(), nil
 	case *ent.APIKeyProfileTemplateQuery:
 		return q.Filter(), nil
+	case *ent.CPACredentialQuery:
+		return q.Filter(), nil
+	case *ent.CPAInstanceQuery:
+		return q.Filter(), nil
 	case *ent.ChannelQuery:
 		return q.Filter(), nil
 	case *ent.ChannelModelPriceQuery:
@@ -806,6 +858,10 @@ func mutationFilter(m ent.Mutation) (Filter, error) {
 	case *ent.APIKeyMutation:
 		return m.Filter(), nil
 	case *ent.APIKeyProfileTemplateMutation:
+		return m.Filter(), nil
+	case *ent.CPACredentialMutation:
+		return m.Filter(), nil
+	case *ent.CPAInstanceMutation:
 		return m.Filter(), nil
 	case *ent.ChannelMutation:
 		return m.Filter(), nil

@@ -13,6 +13,7 @@ import {
   IconAi,
   IconNote,
   IconChartBar,
+  IconServerCog,
 } from '@tabler/icons-react';
 import { Command } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -81,6 +82,11 @@ export function useSidebarData(): SidebarData {
           title: t('sidebar.items.channels'),
           url: '/channels',
           icon: IconAi,
+        } as NavLink,
+        {
+          title: t('sidebar.items.cpa'),
+          url: '/cpa',
+          icon: IconServerCog,
         } as NavLink,
         {
           title: t('sidebar.items.models'),

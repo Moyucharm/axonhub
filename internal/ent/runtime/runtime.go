@@ -12,6 +12,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
+	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -135,6 +137,178 @@ func init() {
 	apikeyprofiletemplateDescProfile := apikeyprofiletemplateFields[3].Descriptor()
 	// apikeyprofiletemplate.DefaultProfile holds the default value on creation for the profile field.
 	apikeyprofiletemplate.DefaultProfile = apikeyprofiletemplateDescProfile.Default.(*objects.APIKeyProfile)
+	cpacredentialMixin := schema.CPACredential{}.Mixin()
+	cpacredential.Policy = privacy.NewPolicies(schema.CPACredential{})
+	cpacredential.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := cpacredential.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	cpacredentialMixinFields0 := cpacredentialMixin[0].Fields()
+	_ = cpacredentialMixinFields0
+	cpacredentialFields := schema.CPACredential{}.Fields()
+	_ = cpacredentialFields
+	// cpacredentialDescCreatedAt is the schema descriptor for created_at field.
+	cpacredentialDescCreatedAt := cpacredentialMixinFields0[0].Descriptor()
+	// cpacredential.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cpacredential.DefaultCreatedAt = cpacredentialDescCreatedAt.Default.(func() time.Time)
+	// cpacredentialDescUpdatedAt is the schema descriptor for updated_at field.
+	cpacredentialDescUpdatedAt := cpacredentialMixinFields0[1].Descriptor()
+	// cpacredential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cpacredential.DefaultUpdatedAt = cpacredentialDescUpdatedAt.Default.(func() time.Time)
+	// cpacredential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cpacredential.UpdateDefaultUpdatedAt = cpacredentialDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// cpacredentialDescExternalKey is the schema descriptor for external_key field.
+	cpacredentialDescExternalKey := cpacredentialFields[1].Descriptor()
+	// cpacredential.ExternalKeyValidator is a validator for the "external_key" field. It is called by the builders before save.
+	cpacredential.ExternalKeyValidator = cpacredentialDescExternalKey.Validators[0].(func(string) error)
+	// cpacredentialDescAuthIndex is the schema descriptor for auth_index field.
+	cpacredentialDescAuthIndex := cpacredentialFields[2].Descriptor()
+	// cpacredential.DefaultAuthIndex holds the default value on creation for the auth_index field.
+	cpacredential.DefaultAuthIndex = cpacredentialDescAuthIndex.Default.(string)
+	// cpacredentialDescRemoteName is the schema descriptor for remote_name field.
+	cpacredentialDescRemoteName := cpacredentialFields[3].Descriptor()
+	// cpacredential.RemoteNameValidator is a validator for the "remote_name" field. It is called by the builders before save.
+	cpacredential.RemoteNameValidator = cpacredentialDescRemoteName.Validators[0].(func(string) error)
+	// cpacredentialDescLabel is the schema descriptor for label field.
+	cpacredentialDescLabel := cpacredentialFields[4].Descriptor()
+	// cpacredential.DefaultLabel holds the default value on creation for the label field.
+	cpacredential.DefaultLabel = cpacredentialDescLabel.Default.(string)
+	// cpacredentialDescDisplayName is the schema descriptor for display_name field.
+	cpacredentialDescDisplayName := cpacredentialFields[5].Descriptor()
+	// cpacredential.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	cpacredential.DisplayNameValidator = cpacredentialDescDisplayName.Validators[0].(func(string) error)
+	// cpacredentialDescProvider is the schema descriptor for provider field.
+	cpacredentialDescProvider := cpacredentialFields[6].Descriptor()
+	// cpacredential.DefaultProvider holds the default value on creation for the provider field.
+	cpacredential.DefaultProvider = cpacredentialDescProvider.Default.(string)
+	// cpacredentialDescEmail is the schema descriptor for email field.
+	cpacredentialDescEmail := cpacredentialFields[7].Descriptor()
+	// cpacredential.DefaultEmail holds the default value on creation for the email field.
+	cpacredential.DefaultEmail = cpacredentialDescEmail.Default.(string)
+	// cpacredentialDescStatus is the schema descriptor for status field.
+	cpacredentialDescStatus := cpacredentialFields[8].Descriptor()
+	// cpacredential.DefaultStatus holds the default value on creation for the status field.
+	cpacredential.DefaultStatus = cpacredentialDescStatus.Default.(string)
+	// cpacredentialDescStatusMessage is the schema descriptor for status_message field.
+	cpacredentialDescStatusMessage := cpacredentialFields[9].Descriptor()
+	// cpacredential.DefaultStatusMessage holds the default value on creation for the status_message field.
+	cpacredential.DefaultStatusMessage = cpacredentialDescStatusMessage.Default.(string)
+	// cpacredentialDescDisabled is the schema descriptor for disabled field.
+	cpacredentialDescDisabled := cpacredentialFields[10].Descriptor()
+	// cpacredential.DefaultDisabled holds the default value on creation for the disabled field.
+	cpacredential.DefaultDisabled = cpacredentialDescDisabled.Default.(bool)
+	// cpacredentialDescUnavailable is the schema descriptor for unavailable field.
+	cpacredentialDescUnavailable := cpacredentialFields[11].Descriptor()
+	// cpacredential.DefaultUnavailable holds the default value on creation for the unavailable field.
+	cpacredential.DefaultUnavailable = cpacredentialDescUnavailable.Default.(bool)
+	// cpacredentialDescRuntimeOnly is the schema descriptor for runtime_only field.
+	cpacredentialDescRuntimeOnly := cpacredentialFields[12].Descriptor()
+	// cpacredential.DefaultRuntimeOnly holds the default value on creation for the runtime_only field.
+	cpacredential.DefaultRuntimeOnly = cpacredentialDescRuntimeOnly.Default.(bool)
+	// cpacredentialDescPriority is the schema descriptor for priority field.
+	cpacredentialDescPriority := cpacredentialFields[13].Descriptor()
+	// cpacredential.DefaultPriority holds the default value on creation for the priority field.
+	cpacredential.DefaultPriority = cpacredentialDescPriority.Default.(int)
+	// cpacredentialDescPlanType is the schema descriptor for plan_type field.
+	cpacredentialDescPlanType := cpacredentialFields[14].Descriptor()
+	// cpacredential.DefaultPlanType holds the default value on creation for the plan_type field.
+	cpacredential.DefaultPlanType = cpacredentialDescPlanType.Default.(string)
+	// cpacredentialDescQuotaContext is the schema descriptor for quota_context field.
+	cpacredentialDescQuotaContext := cpacredentialFields[15].Descriptor()
+	// cpacredential.DefaultQuotaContext holds the default value on creation for the quota_context field.
+	cpacredential.DefaultQuotaContext = cpacredentialDescQuotaContext.Default.(objects.CPAQuotaContext)
+	// cpacredentialDescQuotaState is the schema descriptor for quota_state field.
+	cpacredentialDescQuotaState := cpacredentialFields[16].Descriptor()
+	// cpacredential.DefaultQuotaState holds the default value on creation for the quota_state field.
+	cpacredential.DefaultQuotaState = cpacredentialDescQuotaState.Default.(string)
+	// cpacredentialDescQuotaData is the schema descriptor for quota_data field.
+	cpacredentialDescQuotaData := cpacredentialFields[17].Descriptor()
+	// cpacredential.DefaultQuotaData holds the default value on creation for the quota_data field.
+	cpacredential.DefaultQuotaData = cpacredentialDescQuotaData.Default.(objects.CPAQuotaSnapshot)
+	// cpacredentialDescQuotaLastError is the schema descriptor for quota_last_error field.
+	cpacredentialDescQuotaLastError := cpacredentialFields[21].Descriptor()
+	// cpacredential.DefaultQuotaLastError holds the default value on creation for the quota_last_error field.
+	cpacredential.DefaultQuotaLastError = cpacredentialDescQuotaLastError.Default.(string)
+	cpainstanceMixin := schema.CPAInstance{}.Mixin()
+	cpainstance.Policy = privacy.NewPolicies(schema.CPAInstance{})
+	cpainstance.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := cpainstance.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	cpainstanceMixinFields0 := cpainstanceMixin[0].Fields()
+	_ = cpainstanceMixinFields0
+	cpainstanceFields := schema.CPAInstance{}.Fields()
+	_ = cpainstanceFields
+	// cpainstanceDescCreatedAt is the schema descriptor for created_at field.
+	cpainstanceDescCreatedAt := cpainstanceMixinFields0[0].Descriptor()
+	// cpainstance.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cpainstance.DefaultCreatedAt = cpainstanceDescCreatedAt.Default.(func() time.Time)
+	// cpainstanceDescUpdatedAt is the schema descriptor for updated_at field.
+	cpainstanceDescUpdatedAt := cpainstanceMixinFields0[1].Descriptor()
+	// cpainstance.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cpainstance.DefaultUpdatedAt = cpainstanceDescUpdatedAt.Default.(func() time.Time)
+	// cpainstance.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cpainstance.UpdateDefaultUpdatedAt = cpainstanceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// cpainstanceDescName is the schema descriptor for name field.
+	cpainstanceDescName := cpainstanceFields[0].Descriptor()
+	// cpainstance.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	cpainstance.NameValidator = cpainstanceDescName.Validators[0].(func(string) error)
+	// cpainstanceDescBaseURL is the schema descriptor for base_url field.
+	cpainstanceDescBaseURL := cpainstanceFields[1].Descriptor()
+	// cpainstance.BaseURLValidator is a validator for the "base_url" field. It is called by the builders before save.
+	cpainstance.BaseURLValidator = cpainstanceDescBaseURL.Validators[0].(func(string) error)
+	// cpainstanceDescEnabled is the schema descriptor for enabled field.
+	cpainstanceDescEnabled := cpainstanceFields[3].Descriptor()
+	// cpainstance.DefaultEnabled holds the default value on creation for the enabled field.
+	cpainstance.DefaultEnabled = cpainstanceDescEnabled.Default.(bool)
+	// cpainstanceDescInsecureSkipTLS is the schema descriptor for insecure_skip_tls field.
+	cpainstanceDescInsecureSkipTLS := cpainstanceFields[4].Descriptor()
+	// cpainstance.DefaultInsecureSkipTLS holds the default value on creation for the insecure_skip_tls field.
+	cpainstance.DefaultInsecureSkipTLS = cpainstanceDescInsecureSkipTLS.Default.(bool)
+	// cpainstanceDescAutoRefreshEnabled is the schema descriptor for auto_refresh_enabled field.
+	cpainstanceDescAutoRefreshEnabled := cpainstanceFields[5].Descriptor()
+	// cpainstance.DefaultAutoRefreshEnabled holds the default value on creation for the auto_refresh_enabled field.
+	cpainstance.DefaultAutoRefreshEnabled = cpainstanceDescAutoRefreshEnabled.Default.(bool)
+	// cpainstanceDescRefreshIntervalMinutes is the schema descriptor for refresh_interval_minutes field.
+	cpainstanceDescRefreshIntervalMinutes := cpainstanceFields[6].Descriptor()
+	// cpainstance.DefaultRefreshIntervalMinutes holds the default value on creation for the refresh_interval_minutes field.
+	cpainstance.DefaultRefreshIntervalMinutes = cpainstanceDescRefreshIntervalMinutes.Default.(int)
+	// cpainstance.RefreshIntervalMinutesValidator is a validator for the "refresh_interval_minutes" field. It is called by the builders before save.
+	cpainstance.RefreshIntervalMinutesValidator = func() func(int) error {
+		validators := cpainstanceDescRefreshIntervalMinutes.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(refresh_interval_minutes int) error {
+			for _, fn := range fns {
+				if err := fn(refresh_interval_minutes); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// cpainstanceDescServerVersion is the schema descriptor for server_version field.
+	cpainstanceDescServerVersion := cpainstanceFields[8].Descriptor()
+	// cpainstance.DefaultServerVersion holds the default value on creation for the server_version field.
+	cpainstance.DefaultServerVersion = cpainstanceDescServerVersion.Default.(string)
+	// cpainstanceDescServerCommit is the schema descriptor for server_commit field.
+	cpainstanceDescServerCommit := cpainstanceFields[9].Descriptor()
+	// cpainstance.DefaultServerCommit holds the default value on creation for the server_commit field.
+	cpainstance.DefaultServerCommit = cpainstanceDescServerCommit.Default.(string)
+	// cpainstanceDescServerBuildDate is the schema descriptor for server_build_date field.
+	cpainstanceDescServerBuildDate := cpainstanceFields[10].Descriptor()
+	// cpainstance.DefaultServerBuildDate holds the default value on creation for the server_build_date field.
+	cpainstance.DefaultServerBuildDate = cpainstanceDescServerBuildDate.Default.(string)
 	channelMixin := schema.Channel{}.Mixin()
 	channel.Policy = privacy.NewPolicies(schema.Channel{})
 	channel.Hooks[0] = func(next ent.Mutator) ent.Mutator {
