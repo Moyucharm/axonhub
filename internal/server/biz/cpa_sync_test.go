@@ -103,6 +103,52 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
+func TestCPASyncClearsLegacyOAuthPlanPlaceholder(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_oauth?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+
+	svc := &CPAService{
+		AbstractService: &AbstractService{db: client},
+		quotaRegistry:   cpaclient.NewQuotaRegistry(),
+		now:             func() time.Time { return time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC) },
+	}
+	instance, err := client.CPAInstance.Create().
+		SetName("Legacy CPA").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		Save(ctx)
+	require.NoError(t, err)
+
+	// Legacy row polluted by the old account_type fallback.
+	credential, err := client.CPACredential.Create().
+		SetExternalKey("xai:legacy").
+		SetRemoteName("legacy.json").
+		SetDisplayName("legacy").
+		SetProvider("xai").
+		SetStatus("active").
+		SetPlanType("oauth").
+		SetCpaInstanceID(instance.ID).
+		Save(ctx)
+	require.NoError(t, err)
+
+	// Sync with an auth file that carries no plan claim must clear the
+	// placeholder instead of keeping "oauth" forever.
+	files := []cpaclient.AuthFile{
+		{
+			AuthIndex: "xai:legacy",
+			Name:      "legacy.json",
+			Type:      "xai",
+			Status:    "active",
+		},
+	}
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, files, svc.now()))
+
+	updated, err := client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.Empty(t, updated.PlanType)
+}
+
 func TestDeleteInstanceRemovesCredentials(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_delete?mode=memory&_fk=1")
 	defer client.Close()

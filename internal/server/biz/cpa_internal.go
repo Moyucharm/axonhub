@@ -36,11 +36,14 @@ func (svc *CPAService) RegisterScheduledTasks(ctx context.Context, schedulerServ
 		}
 	}
 
-	return schedulerService.Register(ctx, scheduler.TaskSpec{
+	if err := schedulerService.Register(ctx, scheduler.TaskSpec{
 		Name:        "cpa-quota-refresh",
-		Description: "Refresh CLIProxyAPI credential quota snapshots",
+		Description: "Update CLIProxyAPI credential info from the remote snapshot",
 		FixRate:     cpaRefreshDispatcherInterval,
-	}, svc.runScheduledRefresh)
+	}, svc.runScheduledRefresh); err != nil {
+		return err
+	}
+	return svc.RegisterCPAPatrolTasks(ctx, schedulerService)
 }
 
 func (svc *CPAService) runScheduledRefresh(ctx context.Context) {
@@ -77,40 +80,12 @@ func (svc *CPAService) refreshScheduledInstance(ctx context.Context, instance *e
 	next := svc.now().Add(time.Duration(instance.RefreshIntervalMinutes) * time.Minute)
 	svc.scheduleNextRefresh(ctx, instance, next)
 
-	credentials, err := svc.syncInstanceCredentials(ctx, instance)
-	if err != nil {
+	// Scheduled auto-refresh only keeps credential info in sync with the
+	// remote CPA snapshot; quota collection moved to the dedicated patrols.
+	if _, err := svc.syncInstanceCredentials(ctx, instance); err != nil {
 		log.Warn(ctx, "CPA credential sync failed",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Cause(err),
 		)
-		return
 	}
-	eligible := make([]*ent.CPACredential, 0, len(credentials))
-	for _, credential := range credentials {
-		if credential.Disabled || credential.Unavailable || !svc.supportsStoredQuota(credential) {
-			continue
-		}
-		eligible = append(eligible, credential)
-	}
-	result, err := svc.refreshCredentialBatch(ctx, instance, eligible)
-	if err != nil {
-		log.Warn(ctx, "CPA quota refresh failed to start",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
-	if result.Failed > 0 {
-		log.Warn(ctx, "CPA quota refresh completed with failures",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Int("requested", result.Requested),
-			log.Int("failed", result.Failed),
-		)
-		return
-	}
-	log.Debug(ctx, "CPA quota refresh completed",
-		log.Int("cpa_instance_id", instance.ID),
-		log.Int("requested", result.Requested),
-		log.Int("succeeded", result.Succeeded),
-	)
 }

@@ -23,6 +23,14 @@ func (xaiQuotaAdapter) Fetch(ctx context.Context, client *Client, input Credenti
 	if input.Paid || strings.EqualFold(input.PlanType, "paid") {
 		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: "paid"}, nil
 	}
+	// Non-paid accounts are free regardless of whether billing returns usable
+	// data; normalizing up front lets every return path report a plan so the
+	// credential badge does not stay empty after insufficient_data results.
+	planType := input.PlanType
+	// "oauth" is an auth-method placeholder from legacy sync data, not a plan.
+	if planType == "" || strings.EqualFold(planType, "oauth") {
+		planType = "free"
+	}
 	headers := map[string]string{
 		"Authorization":         "Bearer $TOKEN$",
 		"x-xai-token-auth":      "xai-grok-cli",
@@ -52,13 +60,9 @@ func (xaiQuotaAdapter) Fetch(ctx context.Context, client *Client, input Credenti
 		if weeklyErr != nil && monthlyErr != nil {
 			return QuotaResult{}, fmt.Errorf("xAI billing endpoints failed: %w", weeklyErr)
 		}
-		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: input.PlanType}, nil
+		return QuotaResult{State: objects.CPAQuotaStateInsufficientData, PlanType: planType}, nil
 	}
 
-	planType := input.PlanType
-	if planType == "" {
-		planType = "free"
-	}
 	return QuotaResult{
 		State:    objects.CPAQuotaStateSuccess,
 		PlanType: planType,

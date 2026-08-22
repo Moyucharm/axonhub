@@ -208,6 +208,29 @@ func (c *Client) CallProvider(ctx context.Context, call ProviderCall) (*Provider
 	}, nil
 }
 
+// PatchAuthFileStatus toggles the disabled state of one CPA auth file.
+// It maps to CLIProxyAPI's PATCH /v0/management/auth-files/status endpoint;
+// name is the remote auth file name (or ID), authIndex optionally disambiguates
+// runtime entries sharing the same name.
+func (c *Client) PatchAuthFileStatus(ctx context.Context, name, authIndex string, disabled bool) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("CPA auth file name is required")
+	}
+	payload := map[string]any{
+		"name":     name,
+		"disabled": disabled,
+	}
+	if trimmed := strings.TrimSpace(authIndex); trimmed != "" {
+		payload["auth_index"] = trimmed
+	}
+	var output struct {
+		Status string `json:"status"`
+	}
+	_, err := c.doJSON(ctx, http.MethodPatch, "auth-files/status", payload, 1<<20, &output)
+	return err
+}
+
 func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
 	if c == nil || c.httpClient == nil || c.baseURL == nil {
 		return BuildInfo{}, fmt.Errorf("CPA client is not initialized")

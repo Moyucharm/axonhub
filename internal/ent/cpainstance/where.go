@@ -105,6 +105,31 @@ func NextRefreshAt(v time.Time) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldNextRefreshAt, v))
 }
 
+// AutoManageEnabled applies equality check predicate on the "auto_manage_enabled" field. It's identical to AutoManageEnabledEQ.
+func AutoManageEnabled(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldAutoManageEnabled, v))
+}
+
+// EnabledPatrolIntervalMinutes applies equality check predicate on the "enabled_patrol_interval_minutes" field. It's identical to EnabledPatrolIntervalMinutesEQ.
+func EnabledPatrolIntervalMinutes(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutes applies equality check predicate on the "disabled_patrol_interval_minutes" field. It's identical to DisabledPatrolIntervalMinutesEQ.
+func DisabledPatrolIntervalMinutes(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// NextEnabledPatrolAt applies equality check predicate on the "next_enabled_patrol_at" field. It's identical to NextEnabledPatrolAtEQ.
+func NextEnabledPatrolAt(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldNextEnabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAt applies equality check predicate on the "next_disabled_patrol_at" field. It's identical to NextDisabledPatrolAtEQ.
+func NextDisabledPatrolAt(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldNextDisabledPatrolAt, v))
+}
+
 // ServerVersion applies equality check predicate on the "server_version" field. It's identical to ServerVersionEQ.
 func ServerVersion(v string) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldServerVersion, v))
@@ -533,6 +558,196 @@ func NextRefreshAtIsNil() predicate.CPAInstance {
 // NextRefreshAtNotNil applies the NotNil predicate on the "next_refresh_at" field.
 func NextRefreshAtNotNil() predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldNotNull(FieldNextRefreshAt))
+}
+
+// AutoManageEnabledEQ applies the EQ predicate on the "auto_manage_enabled" field.
+func AutoManageEnabledEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldAutoManageEnabled, v))
+}
+
+// AutoManageEnabledNEQ applies the NEQ predicate on the "auto_manage_enabled" field.
+func AutoManageEnabledNEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldAutoManageEnabled, v))
+}
+
+// EnabledPatrolIntervalMinutesEQ applies the EQ predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesEQ(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// EnabledPatrolIntervalMinutesNEQ applies the NEQ predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesNEQ(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// EnabledPatrolIntervalMinutesIn applies the In predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesIn(vs ...int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIn(FieldEnabledPatrolIntervalMinutes, vs...))
+}
+
+// EnabledPatrolIntervalMinutesNotIn applies the NotIn predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesNotIn(vs ...int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotIn(FieldEnabledPatrolIntervalMinutes, vs...))
+}
+
+// EnabledPatrolIntervalMinutesGT applies the GT predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesGT(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGT(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// EnabledPatrolIntervalMinutesGTE applies the GTE predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesGTE(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGTE(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// EnabledPatrolIntervalMinutesLT applies the LT predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesLT(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLT(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// EnabledPatrolIntervalMinutesLTE applies the LTE predicate on the "enabled_patrol_interval_minutes" field.
+func EnabledPatrolIntervalMinutesLTE(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLTE(FieldEnabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesEQ applies the EQ predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesEQ(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesNEQ applies the NEQ predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesNEQ(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesIn applies the In predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesIn(vs ...int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIn(FieldDisabledPatrolIntervalMinutes, vs...))
+}
+
+// DisabledPatrolIntervalMinutesNotIn applies the NotIn predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesNotIn(vs ...int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotIn(FieldDisabledPatrolIntervalMinutes, vs...))
+}
+
+// DisabledPatrolIntervalMinutesGT applies the GT predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesGT(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGT(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesGTE applies the GTE predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesGTE(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGTE(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesLT applies the LT predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesLT(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLT(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// DisabledPatrolIntervalMinutesLTE applies the LTE predicate on the "disabled_patrol_interval_minutes" field.
+func DisabledPatrolIntervalMinutesLTE(v int) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLTE(FieldDisabledPatrolIntervalMinutes, v))
+}
+
+// NextEnabledPatrolAtEQ applies the EQ predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtEQ(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtNEQ applies the NEQ predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtNEQ(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtIn applies the In predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtIn(vs ...time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIn(FieldNextEnabledPatrolAt, vs...))
+}
+
+// NextEnabledPatrolAtNotIn applies the NotIn predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtNotIn(vs ...time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotIn(FieldNextEnabledPatrolAt, vs...))
+}
+
+// NextEnabledPatrolAtGT applies the GT predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtGT(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGT(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtGTE applies the GTE predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtGTE(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGTE(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtLT applies the LT predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtLT(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLT(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtLTE applies the LTE predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtLTE(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLTE(FieldNextEnabledPatrolAt, v))
+}
+
+// NextEnabledPatrolAtIsNil applies the IsNil predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtIsNil() predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIsNull(FieldNextEnabledPatrolAt))
+}
+
+// NextEnabledPatrolAtNotNil applies the NotNil predicate on the "next_enabled_patrol_at" field.
+func NextEnabledPatrolAtNotNil() predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotNull(FieldNextEnabledPatrolAt))
+}
+
+// NextDisabledPatrolAtEQ applies the EQ predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtEQ(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtNEQ applies the NEQ predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtNEQ(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtIn applies the In predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtIn(vs ...time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIn(FieldNextDisabledPatrolAt, vs...))
+}
+
+// NextDisabledPatrolAtNotIn applies the NotIn predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtNotIn(vs ...time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotIn(FieldNextDisabledPatrolAt, vs...))
+}
+
+// NextDisabledPatrolAtGT applies the GT predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtGT(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGT(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtGTE applies the GTE predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtGTE(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGTE(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtLT applies the LT predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtLT(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLT(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtLTE applies the LTE predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtLTE(v time.Time) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLTE(FieldNextDisabledPatrolAt, v))
+}
+
+// NextDisabledPatrolAtIsNil applies the IsNil predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtIsNil() predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIsNull(FieldNextDisabledPatrolAt))
+}
+
+// NextDisabledPatrolAtNotNil applies the NotNil predicate on the "next_disabled_patrol_at" field.
+func NextDisabledPatrolAtNotNil() predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotNull(FieldNextDisabledPatrolAt))
 }
 
 // ServerVersionEQ applies the EQ predicate on the "server_version" field.

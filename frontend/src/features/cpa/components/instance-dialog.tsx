@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { CPAInstance, useCreateCPAInstance, useUpdateCPAInstance } from '../data';
 
 interface CPAInstanceDialogProps {
@@ -28,6 +29,9 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
   const [insecureSkipTLS, setInsecureSkipTLS] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshIntervalMinutes, setRefreshIntervalMinutes] = useState(5);
+  const [autoManageEnabled, setAutoManageEnabled] = useState(false);
+  const [enabledPatrolIntervalMinutes, setEnabledPatrolIntervalMinutes] = useState(5);
+  const [disabledPatrolIntervalMinutes, setDisabledPatrolIntervalMinutes] = useState(480);
   const [confirmedInsecure, setConfirmedInsecure] = useState(false);
 
   useEffect(() => {
@@ -39,13 +43,28 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
     setInsecureSkipTLS(instance?.insecureSkipTLS ?? false);
     setAutoRefreshEnabled(instance?.autoRefreshEnabled ?? true);
     setRefreshIntervalMinutes(instance?.refreshIntervalMinutes ?? 5);
+    setAutoManageEnabled(instance?.autoManageEnabled ?? false);
+    setEnabledPatrolIntervalMinutes(instance?.enabledPatrolIntervalMinutes ?? 5);
+    setDisabledPatrolIntervalMinutes(instance?.disabledPatrolIntervalMinutes ?? 480);
     setConfirmedInsecure(false);
   }, [instance, open]);
 
   const pending = createMutation.isPending || updateMutation.isPending;
 
+  // Whole-minute bounds mirror the backend normalization, so an out-of-range
+  // or cleared input (Number('') === 0) is caught before submit instead of by
+  // a server-side validation error.
+  const patrolIntervalsInvalid =
+    !Number.isInteger(enabledPatrolIntervalMinutes) ||
+    enabledPatrolIntervalMinutes < 1 ||
+    enabledPatrolIntervalMinutes > 1440 ||
+    !Number.isInteger(disabledPatrolIntervalMinutes) ||
+    disabledPatrolIntervalMinutes < 60 ||
+    disabledPatrolIntervalMinutes > 10080;
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (patrolIntervalsInvalid) return;
     const input = {
       name: name.trim(),
       baseURL: baseURL.trim(),
@@ -54,6 +73,9 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
       insecureSkipTLS,
       autoRefreshEnabled,
       refreshIntervalMinutes,
+      autoManageEnabled,
+      enabledPatrolIntervalMinutes,
+      disabledPatrolIntervalMinutes,
     };
     try {
       const saved = instance
@@ -133,6 +155,65 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
             </div>
             <div className='flex items-center justify-between gap-4'>
               <div>
+                <Label htmlFor='cpa-auto-manage'>{t('cpa.instance.autoManage')}</Label>
+                <p className='text-muted-foreground text-xs'>{t('cpa.instance.autoManageHint')}</p>
+              </div>
+              <Switch id='cpa-auto-manage' checked={autoManageEnabled} onCheckedChange={setAutoManageEnabled} />
+            </div>
+            {autoManageEnabled && (
+              <>
+                <div className='grid gap-2'>
+                  <Label htmlFor='cpa-enabled-patrol-interval'>{t('cpa.instance.enabledPatrolInterval')}</Label>
+                  <Input
+                    id='cpa-enabled-patrol-interval'
+                    type='number'
+                    min={1}
+                    max={1440}
+                    value={enabledPatrolIntervalMinutes}
+                    onChange={(event) => setEnabledPatrolIntervalMinutes(Math.trunc(Number(event.target.value)))}
+                    required
+                    aria-invalid={
+                      !Number.isInteger(enabledPatrolIntervalMinutes) ||
+                      enabledPatrolIntervalMinutes < 1 ||
+                      enabledPatrolIntervalMinutes > 1440
+                    }
+                    className={cn(
+                      (enabledPatrolIntervalMinutes < 1 || enabledPatrolIntervalMinutes > 1440) && 'border-destructive'
+                    )}
+                  />
+                  <p className='text-muted-foreground text-xs'>{t('cpa.instance.enabledPatrolIntervalHint')}</p>
+                  {autoManageEnabled && (enabledPatrolIntervalMinutes < 1 || enabledPatrolIntervalMinutes > 1440) && (
+                    <p className='text-destructive text-xs'>{t('cpa.instance.patrolIntervalInvalid')}</p>
+                  )}
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='cpa-disabled-patrol-interval'>{t('cpa.instance.disabledPatrolInterval')}</Label>
+                  <Input
+                    id='cpa-disabled-patrol-interval'
+                    type='number'
+                    min={60}
+                    max={10080}
+                    value={disabledPatrolIntervalMinutes}
+                    onChange={(event) => setDisabledPatrolIntervalMinutes(Math.trunc(Number(event.target.value)))}
+                    required
+                    aria-invalid={
+                      !Number.isInteger(disabledPatrolIntervalMinutes) ||
+                      disabledPatrolIntervalMinutes < 60 ||
+                      disabledPatrolIntervalMinutes > 10080
+                    }
+                    className={cn(
+                      (disabledPatrolIntervalMinutes < 60 || disabledPatrolIntervalMinutes > 10080) && 'border-destructive'
+                    )}
+                  />
+                  <p className='text-muted-foreground text-xs'>{t('cpa.instance.disabledPatrolIntervalHint')}</p>
+                  {autoManageEnabled && (disabledPatrolIntervalMinutes < 60 || disabledPatrolIntervalMinutes > 10080) && (
+                    <p className='text-destructive text-xs'>{t('cpa.instance.patrolIntervalInvalid')}</p>
+                  )}
+                </div>
+              </>
+            )}
+            <div className='flex items-center justify-between gap-4'>
+              <div>
                 <Label htmlFor='cpa-insecure-tls'>{t('cpa.instance.insecureTLS')}</Label>
                 <p className='text-muted-foreground text-xs'>{t('cpa.instance.insecureTLSHint')}</p>
               </div>
@@ -172,7 +253,8 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
                 !name.trim() ||
                 !baseURL.trim() ||
                 (!instance && !managementSecret.trim()) ||
-                (insecureSkipTLS && !confirmedInsecure)
+                (insecureSkipTLS && !confirmedInsecure) ||
+                patrolIntervalsInvalid
               }
             >
               {pending ? t('common.buttons.saving') : t('common.buttons.save')}

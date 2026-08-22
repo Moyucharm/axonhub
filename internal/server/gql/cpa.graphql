@@ -6,7 +6,12 @@ type CPAManagedInstance {
   insecureSkipTLS: Boolean!
   autoRefreshEnabled: Boolean!
   refreshIntervalMinutes: Int!
+  autoManageEnabled: Boolean!
+  enabledPatrolIntervalMinutes: Int!
+  disabledPatrolIntervalMinutes: Int!
   nextRefreshAt: Time
+  nextEnabledPatrolAt: Time
+  nextDisabledPatrolAt: Time
   serverVersion: String!
   serverCommit: String!
   serverBuildDate: String!
@@ -62,6 +67,9 @@ type CPAManagedCredential {
   available: Boolean!
   abnormal: Boolean!
   stale: Boolean!
+  expired: Boolean!
+  cooling: Boolean!
+  cooldownUntil: Time
   createdAt: Time!
   updatedAt: Time!
 }
@@ -110,6 +118,9 @@ input CreateCPAInstanceInput {
   insecureSkipTLS: Boolean!
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
+  autoManageEnabled: Boolean
+  enabledPatrolIntervalMinutes: Int
+  disabledPatrolIntervalMinutes: Int
 }
 
 input UpdateCPAInstanceInput {
@@ -120,6 +131,9 @@ input UpdateCPAInstanceInput {
   insecureSkipTLS: Boolean
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
+  autoManageEnabled: Boolean
+  enabledPatrolIntervalMinutes: Int
+  disabledPatrolIntervalMinutes: Int
 }
 
 input QueryCPACredentialsInput {
@@ -148,4 +162,5 @@ extend type Mutation {
   deleteCPAInstance(id: Int!): Boolean!
   refreshCPAInstance(instanceID: Int!, provider: String): CPARefreshResult!
   refreshCPACredential(credentialID: Int!): CPAManagedCredential!
+  toggleCPACredential(credentialID: Int!, disabled: Boolean!): CPAManagedCredential!
 }

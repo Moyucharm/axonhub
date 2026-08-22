@@ -30,6 +30,11 @@ func (CPAInstance) Fields() []ent.Field {
 		field.Bool("auto_refresh_enabled").Default(true),
 		field.Int("refresh_interval_minutes").Default(5).Min(5).Max(1440),
 		field.Time("next_refresh_at").Optional().Nillable(),
+		field.Bool("auto_manage_enabled").Default(false),
+		field.Int("enabled_patrol_interval_minutes").Default(5).Min(1).Max(1440),
+		field.Int("disabled_patrol_interval_minutes").Default(480).Min(60).Max(10080),
+		field.Time("next_enabled_patrol_at").Optional().Nillable(),
+		field.Time("next_disabled_patrol_at").Optional().Nillable(),
 		field.String("server_version").Default(""),
 		field.String("server_commit").Default(""),
 		field.String("server_build_date").Default(""),
@@ -51,6 +56,8 @@ func (CPAInstance) Indexes() []ent.Index {
 		index.Fields("name").Unique(),
 		index.Fields("base_url").Unique(),
 		index.Fields("enabled", "auto_refresh_enabled", "next_refresh_at"),
+		index.Fields("enabled", "auto_manage_enabled", "next_enabled_patrol_at"),
+		index.Fields("enabled", "auto_manage_enabled", "next_disabled_patrol_at"),
 	}
 }
 

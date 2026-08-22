@@ -12,7 +12,12 @@ export interface CPAInstance {
   insecureSkipTLS: boolean;
   autoRefreshEnabled: boolean;
   refreshIntervalMinutes: number;
+  autoManageEnabled: boolean;
+  enabledPatrolIntervalMinutes: number;
+  disabledPatrolIntervalMinutes: number;
   nextRefreshAt?: string | null;
+  nextEnabledPatrolAt?: string | null;
+  nextDisabledPatrolAt?: string | null;
   serverVersion: string;
   serverCommit: string;
   serverBuildDate: string;
@@ -64,6 +69,9 @@ export interface CPACredential {
   available: boolean;
   abnormal: boolean;
   stale: boolean;
+  expired: boolean;
+  cooling: boolean;
+  cooldownUntil?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +91,18 @@ export interface CPAStats {
   available: number;
   total: number;
   abnormal: number;
+}
+
+export const KNOWN_PROVIDER_ORDER = ['codex', 'claude', 'antigravity', 'kimi', 'xai'];
+export const SUPPORTED_QUOTA_PROVIDERS = new Set(KNOWN_PROVIDER_ORDER);
+
+export function compareCPAProviders(left: string, right: string): number {
+  const leftIndex = KNOWN_PROVIDER_ORDER.indexOf(left);
+  const rightIndex = KNOWN_PROVIDER_ORDER.indexOf(right);
+  if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
+  if (leftIndex >= 0) return -1;
+  if (rightIndex >= 0) return 1;
+  return left.localeCompare(right);
 }
 
 export interface CPAProviderCount {
@@ -105,6 +125,9 @@ export interface CPAInstanceInput {
   insecureSkipTLS: boolean;
   autoRefreshEnabled?: boolean;
   refreshIntervalMinutes?: number;
+  autoManageEnabled?: boolean;
+  enabledPatrolIntervalMinutes?: number;
+  disabledPatrolIntervalMinutes?: number;
 }
 
 export interface CPACredentialQueryInput {
@@ -120,14 +143,16 @@ export interface CPACredentialQueryInput {
 
 const INSTANCE_FIELDS = `
   id name baseURL enabled insecureSkipTLS autoRefreshEnabled refreshIntervalMinutes
-  nextRefreshAt serverVersion serverCommit serverBuildDate lastSyncAttemptAt
+  autoManageEnabled enabledPatrolIntervalMinutes disabledPatrolIntervalMinutes
+  nextRefreshAt nextEnabledPatrolAt nextDisabledPatrolAt
+  serverVersion serverCommit serverBuildDate lastSyncAttemptAt
   lastSyncSuccessAt lastErrorAt lastError hasSecret connectionStatus createdAt updatedAt
 `;
 
 const CREDENTIAL_FIELDS = `
   id instanceID remoteName displayName provider email status statusMessage disabled unavailable
   runtimeOnly priority planType quotaState quotaLastAttemptAt quotaLastSuccessAt
-  quotaLastFailureAt quotaLastError available abnormal stale createdAt updatedAt
+  quotaLastFailureAt quotaLastError available abnormal stale expired cooling cooldownUntil createdAt updatedAt
   quotaData { items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds } }
 `;
 
@@ -153,6 +178,7 @@ const UPDATE_INSTANCE = `mutation UpdateCPAInstance($id: Int!, $input: UpdateCPA
 const DELETE_INSTANCE = `mutation DeleteCPAInstance($id: Int!) { deleteCPAInstance(id: $id) }`;
 const REFRESH_INSTANCE = `mutation RefreshCPAInstance($instanceID: Int!, $provider: String) { refreshCPAInstance(instanceID: $instanceID, provider: $provider) { requested succeeded failed skipped } }`;
 const REFRESH_CREDENTIAL = `mutation RefreshCPACredential($credentialID: Int!) { refreshCPACredential(credentialID: $credentialID) { ${CREDENTIAL_FIELDS} } }`;
+const TOGGLE_CREDENTIAL = `mutation ToggleCPACredential($credentialID: Int!, $disabled: Boolean!) { toggleCPACredential(credentialID: $credentialID, disabled: $disabled) { ${CREDENTIAL_FIELDS} } }`;
 
 export function useCPAInstances() {
   const { t } = useTranslation();
@@ -312,6 +338,27 @@ export function useRefreshCPAInstance() {
       invalidate();
       if (result.failed > 0) toast.warning(t('cpa.messages.refreshPartial', { count: result.failed }));
       else toast.success(t('cpa.messages.refreshSuccess', { count: result.succeeded }));
+    },
+  });
+}
+
+export function useToggleCPACredential() {
+  const { t } = useTranslation();
+  const invalidate = useInvalidateCPA();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ credentialID, disabled }: { credentialID: number; disabled: boolean }) => {
+      try {
+        const data = await graphqlRequest<{ toggleCPACredential: CPACredential }>(TOGGLE_CREDENTIAL, { credentialID, disabled });
+        return data.toggleCPACredential;
+      } catch (error) {
+        handleError(error, { context: t('cpa.errors.toggleCredential') });
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success(t('cpa.messages.credentialToggled'));
     },
   });
 }

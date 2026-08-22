@@ -43,8 +43,10 @@ func NormalizeAuthFile(file AuthFile) (NormalizedCredential, error) {
 
 	claims := parseIDTokenClaims(file.IDToken)
 	accountType := strings.TrimSpace(file.AccountType)
+	// Auth method values (api_key/oauth) describe how the credential
+	// authenticates, never which plan it is on; keep them out of PlanType.
 	planFallback := accountType
-	if strings.EqualFold(planFallback, "api_key") {
+	if strings.EqualFold(planFallback, "api_key") || strings.EqualFold(planFallback, "oauth") {
 		planFallback = ""
 	}
 	planType := strings.ToLower(firstNonEmpty(

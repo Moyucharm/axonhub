@@ -13,6 +13,7 @@ interface ServerSidePaginationProps {
   dataLength: number;
   totalCount?: number;
   selectedRows: number;
+  selectedInfoLabel?: string;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onFirstPage?: () => void;
@@ -26,6 +27,7 @@ export function ServerSidePagination({
   dataLength,
   totalCount,
   selectedRows,
+  selectedInfoLabel,
   onNextPage,
   onPreviousPage,
   onFirstPage,
@@ -40,9 +42,10 @@ export function ServerSidePagination({
   return (
     <div className='flex items-center justify-between overflow-clip px-2' style={{ overflowClipMargin: 1 }}>
       <div className='text-muted-foreground hidden flex-1 text-sm sm:block'>
-        {totalCount !== undefined
-          ? t('pagination.selectedInfoWithTotal', { selectedRows, dataLength, totalCount })
-          : t('pagination.selectedInfo', { selectedRows, dataLength })}
+        {selectedInfoLabel ??
+          (totalCount !== undefined
+            ? t('pagination.selectedInfoWithTotal', { selectedRows, dataLength, totalCount })
+            : t('pagination.selectedInfo', { selectedRows, dataLength }))}
       </div>
       <div className='flex flex-wrap items-center gap-0 sm:gap-6 lg:gap-8'>
         <div className='flex items-center space-x-2'>

@@ -139,6 +139,76 @@ func (_c *CPAInstanceCreate) SetNillableNextRefreshAt(v *time.Time) *CPAInstance
 	return _c
 }
 
+// SetAutoManageEnabled sets the "auto_manage_enabled" field.
+func (_c *CPAInstanceCreate) SetAutoManageEnabled(v bool) *CPAInstanceCreate {
+	_c.mutation.SetAutoManageEnabled(v)
+	return _c
+}
+
+// SetNillableAutoManageEnabled sets the "auto_manage_enabled" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableAutoManageEnabled(v *bool) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetAutoManageEnabled(*v)
+	}
+	return _c
+}
+
+// SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
+func (_c *CPAInstanceCreate) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceCreate {
+	_c.mutation.SetEnabledPatrolIntervalMinutes(v)
+	return _c
+}
+
+// SetNillableEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableEnabledPatrolIntervalMinutes(v *int) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetEnabledPatrolIntervalMinutes(*v)
+	}
+	return _c
+}
+
+// SetDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field.
+func (_c *CPAInstanceCreate) SetDisabledPatrolIntervalMinutes(v int) *CPAInstanceCreate {
+	_c.mutation.SetDisabledPatrolIntervalMinutes(v)
+	return _c
+}
+
+// SetNillableDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableDisabledPatrolIntervalMinutes(v *int) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetDisabledPatrolIntervalMinutes(*v)
+	}
+	return _c
+}
+
+// SetNextEnabledPatrolAt sets the "next_enabled_patrol_at" field.
+func (_c *CPAInstanceCreate) SetNextEnabledPatrolAt(v time.Time) *CPAInstanceCreate {
+	_c.mutation.SetNextEnabledPatrolAt(v)
+	return _c
+}
+
+// SetNillableNextEnabledPatrolAt sets the "next_enabled_patrol_at" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableNextEnabledPatrolAt(v *time.Time) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetNextEnabledPatrolAt(*v)
+	}
+	return _c
+}
+
+// SetNextDisabledPatrolAt sets the "next_disabled_patrol_at" field.
+func (_c *CPAInstanceCreate) SetNextDisabledPatrolAt(v time.Time) *CPAInstanceCreate {
+	_c.mutation.SetNextDisabledPatrolAt(v)
+	return _c
+}
+
+// SetNillableNextDisabledPatrolAt sets the "next_disabled_patrol_at" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableNextDisabledPatrolAt(v *time.Time) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetNextDisabledPatrolAt(*v)
+	}
+	return _c
+}
+
 // SetServerVersion sets the "server_version" field.
 func (_c *CPAInstanceCreate) SetServerVersion(v string) *CPAInstanceCreate {
 	_c.mutation.SetServerVersion(v)
@@ -319,6 +389,18 @@ func (_c *CPAInstanceCreate) defaults() error {
 		v := cpainstance.DefaultRefreshIntervalMinutes
 		_c.mutation.SetRefreshIntervalMinutes(v)
 	}
+	if _, ok := _c.mutation.AutoManageEnabled(); !ok {
+		v := cpainstance.DefaultAutoManageEnabled
+		_c.mutation.SetAutoManageEnabled(v)
+	}
+	if _, ok := _c.mutation.EnabledPatrolIntervalMinutes(); !ok {
+		v := cpainstance.DefaultEnabledPatrolIntervalMinutes
+		_c.mutation.SetEnabledPatrolIntervalMinutes(v)
+	}
+	if _, ok := _c.mutation.DisabledPatrolIntervalMinutes(); !ok {
+		v := cpainstance.DefaultDisabledPatrolIntervalMinutes
+		_c.mutation.SetDisabledPatrolIntervalMinutes(v)
+	}
 	if _, ok := _c.mutation.ServerVersion(); !ok {
 		v := cpainstance.DefaultServerVersion
 		_c.mutation.SetServerVersion(v)
@@ -370,6 +452,25 @@ func (_c *CPAInstanceCreate) check() error {
 	if v, ok := _c.mutation.RefreshIntervalMinutes(); ok {
 		if err := cpainstance.RefreshIntervalMinutesValidator(v); err != nil {
 			return &ValidationError{Name: "refresh_interval_minutes", err: fmt.Errorf(`ent: validator failed for field "CPAInstance.refresh_interval_minutes": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.AutoManageEnabled(); !ok {
+		return &ValidationError{Name: "auto_manage_enabled", err: errors.New(`ent: missing required field "CPAInstance.auto_manage_enabled"`)}
+	}
+	if _, ok := _c.mutation.EnabledPatrolIntervalMinutes(); !ok {
+		return &ValidationError{Name: "enabled_patrol_interval_minutes", err: errors.New(`ent: missing required field "CPAInstance.enabled_patrol_interval_minutes"`)}
+	}
+	if v, ok := _c.mutation.EnabledPatrolIntervalMinutes(); ok {
+		if err := cpainstance.EnabledPatrolIntervalMinutesValidator(v); err != nil {
+			return &ValidationError{Name: "enabled_patrol_interval_minutes", err: fmt.Errorf(`ent: validator failed for field "CPAInstance.enabled_patrol_interval_minutes": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DisabledPatrolIntervalMinutes(); !ok {
+		return &ValidationError{Name: "disabled_patrol_interval_minutes", err: errors.New(`ent: missing required field "CPAInstance.disabled_patrol_interval_minutes"`)}
+	}
+	if v, ok := _c.mutation.DisabledPatrolIntervalMinutes(); ok {
+		if err := cpainstance.DisabledPatrolIntervalMinutesValidator(v); err != nil {
+			return &ValidationError{Name: "disabled_patrol_interval_minutes", err: fmt.Errorf(`ent: validator failed for field "CPAInstance.disabled_patrol_interval_minutes": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.ServerVersion(); !ok {
@@ -447,6 +548,26 @@ func (_c *CPAInstanceCreate) createSpec() (*CPAInstance, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.NextRefreshAt(); ok {
 		_spec.SetField(cpainstance.FieldNextRefreshAt, field.TypeTime, value)
 		_node.NextRefreshAt = &value
+	}
+	if value, ok := _c.mutation.AutoManageEnabled(); ok {
+		_spec.SetField(cpainstance.FieldAutoManageEnabled, field.TypeBool, value)
+		_node.AutoManageEnabled = value
+	}
+	if value, ok := _c.mutation.EnabledPatrolIntervalMinutes(); ok {
+		_spec.SetField(cpainstance.FieldEnabledPatrolIntervalMinutes, field.TypeInt, value)
+		_node.EnabledPatrolIntervalMinutes = value
+	}
+	if value, ok := _c.mutation.DisabledPatrolIntervalMinutes(); ok {
+		_spec.SetField(cpainstance.FieldDisabledPatrolIntervalMinutes, field.TypeInt, value)
+		_node.DisabledPatrolIntervalMinutes = value
+	}
+	if value, ok := _c.mutation.NextEnabledPatrolAt(); ok {
+		_spec.SetField(cpainstance.FieldNextEnabledPatrolAt, field.TypeTime, value)
+		_node.NextEnabledPatrolAt = &value
+	}
+	if value, ok := _c.mutation.NextDisabledPatrolAt(); ok {
+		_spec.SetField(cpainstance.FieldNextDisabledPatrolAt, field.TypeTime, value)
+		_node.NextDisabledPatrolAt = &value
 	}
 	if value, ok := _c.mutation.ServerVersion(); ok {
 		_spec.SetField(cpainstance.FieldServerVersion, field.TypeString, value)
@@ -661,6 +782,90 @@ func (u *CPAInstanceUpsert) UpdateNextRefreshAt() *CPAInstanceUpsert {
 // ClearNextRefreshAt clears the value of the "next_refresh_at" field.
 func (u *CPAInstanceUpsert) ClearNextRefreshAt() *CPAInstanceUpsert {
 	u.SetNull(cpainstance.FieldNextRefreshAt)
+	return u
+}
+
+// SetAutoManageEnabled sets the "auto_manage_enabled" field.
+func (u *CPAInstanceUpsert) SetAutoManageEnabled(v bool) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldAutoManageEnabled, v)
+	return u
+}
+
+// UpdateAutoManageEnabled sets the "auto_manage_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateAutoManageEnabled() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldAutoManageEnabled)
+	return u
+}
+
+// SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsert) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldEnabledPatrolIntervalMinutes, v)
+	return u
+}
+
+// UpdateEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateEnabledPatrolIntervalMinutes() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldEnabledPatrolIntervalMinutes)
+	return u
+}
+
+// AddEnabledPatrolIntervalMinutes adds v to the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsert) AddEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsert {
+	u.Add(cpainstance.FieldEnabledPatrolIntervalMinutes, v)
+	return u
+}
+
+// SetDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsert) SetDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldDisabledPatrolIntervalMinutes, v)
+	return u
+}
+
+// UpdateDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateDisabledPatrolIntervalMinutes() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldDisabledPatrolIntervalMinutes)
+	return u
+}
+
+// AddDisabledPatrolIntervalMinutes adds v to the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsert) AddDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsert {
+	u.Add(cpainstance.FieldDisabledPatrolIntervalMinutes, v)
+	return u
+}
+
+// SetNextEnabledPatrolAt sets the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsert) SetNextEnabledPatrolAt(v time.Time) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldNextEnabledPatrolAt, v)
+	return u
+}
+
+// UpdateNextEnabledPatrolAt sets the "next_enabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateNextEnabledPatrolAt() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldNextEnabledPatrolAt)
+	return u
+}
+
+// ClearNextEnabledPatrolAt clears the value of the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsert) ClearNextEnabledPatrolAt() *CPAInstanceUpsert {
+	u.SetNull(cpainstance.FieldNextEnabledPatrolAt)
+	return u
+}
+
+// SetNextDisabledPatrolAt sets the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsert) SetNextDisabledPatrolAt(v time.Time) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldNextDisabledPatrolAt, v)
+	return u
+}
+
+// UpdateNextDisabledPatrolAt sets the "next_disabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateNextDisabledPatrolAt() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldNextDisabledPatrolAt)
+	return u
+}
+
+// ClearNextDisabledPatrolAt clears the value of the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsert) ClearNextDisabledPatrolAt() *CPAInstanceUpsert {
+	u.SetNull(cpainstance.FieldNextDisabledPatrolAt)
 	return u
 }
 
@@ -954,6 +1159,104 @@ func (u *CPAInstanceUpsertOne) UpdateNextRefreshAt() *CPAInstanceUpsertOne {
 func (u *CPAInstanceUpsertOne) ClearNextRefreshAt() *CPAInstanceUpsertOne {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.ClearNextRefreshAt()
+	})
+}
+
+// SetAutoManageEnabled sets the "auto_manage_enabled" field.
+func (u *CPAInstanceUpsertOne) SetAutoManageEnabled(v bool) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetAutoManageEnabled(v)
+	})
+}
+
+// UpdateAutoManageEnabled sets the "auto_manage_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateAutoManageEnabled() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateAutoManageEnabled()
+	})
+}
+
+// SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertOne) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetEnabledPatrolIntervalMinutes(v)
+	})
+}
+
+// AddEnabledPatrolIntervalMinutes adds v to the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertOne) AddEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.AddEnabledPatrolIntervalMinutes(v)
+	})
+}
+
+// UpdateEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateEnabledPatrolIntervalMinutes() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateEnabledPatrolIntervalMinutes()
+	})
+}
+
+// SetDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertOne) SetDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetDisabledPatrolIntervalMinutes(v)
+	})
+}
+
+// AddDisabledPatrolIntervalMinutes adds v to the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertOne) AddDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.AddDisabledPatrolIntervalMinutes(v)
+	})
+}
+
+// UpdateDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateDisabledPatrolIntervalMinutes() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateDisabledPatrolIntervalMinutes()
+	})
+}
+
+// SetNextEnabledPatrolAt sets the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsertOne) SetNextEnabledPatrolAt(v time.Time) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetNextEnabledPatrolAt(v)
+	})
+}
+
+// UpdateNextEnabledPatrolAt sets the "next_enabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateNextEnabledPatrolAt() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateNextEnabledPatrolAt()
+	})
+}
+
+// ClearNextEnabledPatrolAt clears the value of the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsertOne) ClearNextEnabledPatrolAt() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.ClearNextEnabledPatrolAt()
+	})
+}
+
+// SetNextDisabledPatrolAt sets the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsertOne) SetNextDisabledPatrolAt(v time.Time) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetNextDisabledPatrolAt(v)
+	})
+}
+
+// UpdateNextDisabledPatrolAt sets the "next_disabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateNextDisabledPatrolAt() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateNextDisabledPatrolAt()
+	})
+}
+
+// ClearNextDisabledPatrolAt clears the value of the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsertOne) ClearNextDisabledPatrolAt() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.ClearNextDisabledPatrolAt()
 	})
 }
 
@@ -1431,6 +1734,104 @@ func (u *CPAInstanceUpsertBulk) UpdateNextRefreshAt() *CPAInstanceUpsertBulk {
 func (u *CPAInstanceUpsertBulk) ClearNextRefreshAt() *CPAInstanceUpsertBulk {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.ClearNextRefreshAt()
+	})
+}
+
+// SetAutoManageEnabled sets the "auto_manage_enabled" field.
+func (u *CPAInstanceUpsertBulk) SetAutoManageEnabled(v bool) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetAutoManageEnabled(v)
+	})
+}
+
+// UpdateAutoManageEnabled sets the "auto_manage_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateAutoManageEnabled() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateAutoManageEnabled()
+	})
+}
+
+// SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertBulk) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetEnabledPatrolIntervalMinutes(v)
+	})
+}
+
+// AddEnabledPatrolIntervalMinutes adds v to the "enabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertBulk) AddEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.AddEnabledPatrolIntervalMinutes(v)
+	})
+}
+
+// UpdateEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateEnabledPatrolIntervalMinutes() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateEnabledPatrolIntervalMinutes()
+	})
+}
+
+// SetDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertBulk) SetDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetDisabledPatrolIntervalMinutes(v)
+	})
+}
+
+// AddDisabledPatrolIntervalMinutes adds v to the "disabled_patrol_interval_minutes" field.
+func (u *CPAInstanceUpsertBulk) AddDisabledPatrolIntervalMinutes(v int) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.AddDisabledPatrolIntervalMinutes(v)
+	})
+}
+
+// UpdateDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateDisabledPatrolIntervalMinutes() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateDisabledPatrolIntervalMinutes()
+	})
+}
+
+// SetNextEnabledPatrolAt sets the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsertBulk) SetNextEnabledPatrolAt(v time.Time) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetNextEnabledPatrolAt(v)
+	})
+}
+
+// UpdateNextEnabledPatrolAt sets the "next_enabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateNextEnabledPatrolAt() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateNextEnabledPatrolAt()
+	})
+}
+
+// ClearNextEnabledPatrolAt clears the value of the "next_enabled_patrol_at" field.
+func (u *CPAInstanceUpsertBulk) ClearNextEnabledPatrolAt() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.ClearNextEnabledPatrolAt()
+	})
+}
+
+// SetNextDisabledPatrolAt sets the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsertBulk) SetNextDisabledPatrolAt(v time.Time) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetNextDisabledPatrolAt(v)
+	})
+}
+
+// UpdateNextDisabledPatrolAt sets the "next_disabled_patrol_at" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateNextDisabledPatrolAt() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateNextDisabledPatrolAt()
+	})
+}
+
+// ClearNextDisabledPatrolAt clears the value of the "next_disabled_patrol_at" field.
+func (u *CPAInstanceUpsertBulk) ClearNextDisabledPatrolAt() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.ClearNextDisabledPatrolAt()
 	})
 }
 

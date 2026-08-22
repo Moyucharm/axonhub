@@ -56,6 +56,14 @@ func (r *mutationResolver) RefreshCPACredential(ctx context.Context, credentialI
 	return r.cpaService.RefreshCredential(ctx, credentialID)
 }
 
+// ToggleCPACredential is the resolver for the toggleCPACredential field.
+func (r *mutationResolver) ToggleCPACredential(ctx context.Context, credentialID int, disabled bool) (*biz.CPACredentialView, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {
+		return nil, fmt.Errorf("permission denied: requires write:settings scope")
+	}
+	return r.cpaService.ToggleCredential(ctx, credentialID, disabled)
+}
+
 // CpaInstances is the resolver for the cpaInstances field.
 func (r *queryResolver) CpaInstances(ctx context.Context) ([]*biz.CPAInstanceView, error) {
 	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {

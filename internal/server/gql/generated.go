@@ -373,10 +373,13 @@ type ComplexityRoot struct {
 	CPAManagedCredential struct {
 		Abnormal           func(childComplexity int) int
 		Available          func(childComplexity int) int
+		CooldownUntil      func(childComplexity int) int
+		Cooling            func(childComplexity int) int
 		CreatedAt          func(childComplexity int) int
 		Disabled           func(childComplexity int) int
 		DisplayName        func(childComplexity int) int
 		Email              func(childComplexity int) int
+		Expired            func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		InstanceID         func(childComplexity int) int
 		PlanType           func(childComplexity int) int
@@ -398,25 +401,30 @@ type ComplexityRoot struct {
 	}
 
 	CPAManagedInstance struct {
-		AutoRefreshEnabled     func(childComplexity int) int
-		BaseURL                func(childComplexity int) int
-		ConnectionStatus       func(childComplexity int) int
-		CreatedAt              func(childComplexity int) int
-		Enabled                func(childComplexity int) int
-		HasSecret              func(childComplexity int) int
-		ID                     func(childComplexity int) int
-		InsecureSkipTLS        func(childComplexity int) int
-		LastError              func(childComplexity int) int
-		LastErrorAt            func(childComplexity int) int
-		LastSyncAttemptAt      func(childComplexity int) int
-		LastSyncSuccessAt      func(childComplexity int) int
-		Name                   func(childComplexity int) int
-		NextRefreshAt          func(childComplexity int) int
-		RefreshIntervalMinutes func(childComplexity int) int
-		ServerBuildDate        func(childComplexity int) int
-		ServerCommit           func(childComplexity int) int
-		ServerVersion          func(childComplexity int) int
-		UpdatedAt              func(childComplexity int) int
+		AutoManageEnabled             func(childComplexity int) int
+		AutoRefreshEnabled            func(childComplexity int) int
+		BaseURL                       func(childComplexity int) int
+		ConnectionStatus              func(childComplexity int) int
+		CreatedAt                     func(childComplexity int) int
+		DisabledPatrolIntervalMinutes func(childComplexity int) int
+		Enabled                       func(childComplexity int) int
+		EnabledPatrolIntervalMinutes  func(childComplexity int) int
+		HasSecret                     func(childComplexity int) int
+		ID                            func(childComplexity int) int
+		InsecureSkipTLS               func(childComplexity int) int
+		LastError                     func(childComplexity int) int
+		LastErrorAt                   func(childComplexity int) int
+		LastSyncAttemptAt             func(childComplexity int) int
+		LastSyncSuccessAt             func(childComplexity int) int
+		Name                          func(childComplexity int) int
+		NextDisabledPatrolAt          func(childComplexity int) int
+		NextEnabledPatrolAt           func(childComplexity int) int
+		NextRefreshAt                 func(childComplexity int) int
+		RefreshIntervalMinutes        func(childComplexity int) int
+		ServerBuildDate               func(childComplexity int) int
+		ServerCommit                  func(childComplexity int) int
+		ServerVersion                 func(childComplexity int) int
+		UpdatedAt                     func(childComplexity int) int
 	}
 
 	CPAPageInfo struct {
@@ -1209,6 +1217,7 @@ type ComplexityRoot struct {
 		TestChannel                           func(childComplexity int, input TestChannelInput) int
 		TestChannelAPIKey                     func(childComplexity int, channelID objects.GUID, key string, modelID *string) int
 		TestChannelAPIKeys                    func(childComplexity int, channelID objects.GUID, modelID *string) int
+		ToggleCPACredential                   func(childComplexity int, credentialID int, disabled bool) int
 		TriggerAutoBackup                     func(childComplexity int) int
 		TriggerGcCleanup                      func(childComplexity int, input gc.TriggerGcCleanupInput) int
 		UnarchiveThread                       func(childComplexity int, id objects.GUID) int
@@ -2513,6 +2522,7 @@ type MutationResolver interface {
 	DeleteCPAInstance(ctx context.Context, id int) (bool, error)
 	RefreshCPAInstance(ctx context.Context, instanceID int, provider *string) (*biz.CPARefreshResult, error)
 	RefreshCPACredential(ctx context.Context, credentialID int) (*biz.CPACredentialView, error)
+	ToggleCPACredential(ctx context.Context, credentialID int, disabled bool) (*biz.CPACredentialView, error)
 }
 type OIDCIdentityResolver interface {
 	ID(ctx context.Context, obj *ent.OIDCIdentity) (*objects.GUID, error)
@@ -3748,6 +3758,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedCredential.Available(childComplexity), true
+	case "CPAManagedCredential.cooldownUntil":
+		if e.complexity.CPAManagedCredential.CooldownUntil == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedCredential.CooldownUntil(childComplexity), true
+	case "CPAManagedCredential.cooling":
+		if e.complexity.CPAManagedCredential.Cooling == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedCredential.Cooling(childComplexity), true
 	case "CPAManagedCredential.createdAt":
 		if e.complexity.CPAManagedCredential.CreatedAt == nil {
 			break
@@ -3772,6 +3794,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedCredential.Email(childComplexity), true
+	case "CPAManagedCredential.expired":
+		if e.complexity.CPAManagedCredential.Expired == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedCredential.Expired(childComplexity), true
 	case "CPAManagedCredential.id":
 		if e.complexity.CPAManagedCredential.ID == nil {
 			break
@@ -3881,6 +3909,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CPAManagedCredential.UpdatedAt(childComplexity), true
 
+	case "CPAManagedInstance.autoManageEnabled":
+		if e.complexity.CPAManagedInstance.AutoManageEnabled == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.AutoManageEnabled(childComplexity), true
 	case "CPAManagedInstance.autoRefreshEnabled":
 		if e.complexity.CPAManagedInstance.AutoRefreshEnabled == nil {
 			break
@@ -3905,12 +3939,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedInstance.CreatedAt(childComplexity), true
+	case "CPAManagedInstance.disabledPatrolIntervalMinutes":
+		if e.complexity.CPAManagedInstance.DisabledPatrolIntervalMinutes == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.DisabledPatrolIntervalMinutes(childComplexity), true
 	case "CPAManagedInstance.enabled":
 		if e.complexity.CPAManagedInstance.Enabled == nil {
 			break
 		}
 
 		return e.complexity.CPAManagedInstance.Enabled(childComplexity), true
+	case "CPAManagedInstance.enabledPatrolIntervalMinutes":
+		if e.complexity.CPAManagedInstance.EnabledPatrolIntervalMinutes == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.EnabledPatrolIntervalMinutes(childComplexity), true
 	case "CPAManagedInstance.hasSecret":
 		if e.complexity.CPAManagedInstance.HasSecret == nil {
 			break
@@ -3959,6 +4005,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedInstance.Name(childComplexity), true
+	case "CPAManagedInstance.nextDisabledPatrolAt":
+		if e.complexity.CPAManagedInstance.NextDisabledPatrolAt == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.NextDisabledPatrolAt(childComplexity), true
+	case "CPAManagedInstance.nextEnabledPatrolAt":
+		if e.complexity.CPAManagedInstance.NextEnabledPatrolAt == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.NextEnabledPatrolAt(childComplexity), true
 	case "CPAManagedInstance.nextRefreshAt":
 		if e.complexity.CPAManagedInstance.NextRefreshAt == nil {
 			break
@@ -7565,6 +7623,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.TestChannelAPIKeys(childComplexity, args["channelID"].(objects.GUID), args["modelID"].(*string)), true
+	case "Mutation.toggleCPACredential":
+		if e.complexity.Mutation.ToggleCPACredential == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_toggleCPACredential_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ToggleCPACredential(childComplexity, args["credentialID"].(int), args["disabled"].(bool)), true
 	case "Mutation.triggerAutoBackup":
 		if e.complexity.Mutation.TriggerAutoBackup == nil {
 			break
@@ -14217,6 +14286,22 @@ func (ec *executionContext) field_Mutation_testChannel_args(ctx context.Context,
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_toggleCPACredential_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "credentialID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["credentialID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "disabled", ec.unmarshalNBoolean2bool)
+	if err != nil {
+		return nil, err
+	}
+	args["disabled"] = arg1
 	return args, nil
 }
 
@@ -21718,6 +21803,12 @@ func (ec *executionContext) fieldContext_CPACredentialEdge_node(_ context.Contex
 				return ec.fieldContext_CPAManagedCredential_abnormal(ctx, field)
 			case "stale":
 				return ec.fieldContext_CPAManagedCredential_stale(ctx, field)
+			case "expired":
+				return ec.fieldContext_CPAManagedCredential_expired(ctx, field)
+			case "cooling":
+				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
+			case "cooldownUntil":
+				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
 			case "updatedAt":
@@ -22458,6 +22549,93 @@ func (ec *executionContext) fieldContext_CPAManagedCredential_stale(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAManagedCredential_expired(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedCredential_expired,
+		func(ctx context.Context) (any, error) {
+			return obj.Expired, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedCredential_expired(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedCredential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedCredential_cooling(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedCredential_cooling,
+		func(ctx context.Context) (any, error) {
+			return obj.Cooling, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedCredential_cooling(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedCredential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedCredential_cooldownUntil(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedCredential_cooldownUntil,
+		func(ctx context.Context) (any, error) {
+			return obj.CooldownUntil, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedCredential_cooldownUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedCredential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAManagedCredential_createdAt(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22719,6 +22897,93 @@ func (ec *executionContext) fieldContext_CPAManagedInstance_refreshIntervalMinut
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAManagedInstance_autoManageEnabled(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_autoManageEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.AutoManageEnabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_autoManageEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedInstance_enabledPatrolIntervalMinutes(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes,
+		func(ctx context.Context) (any, error) {
+			return obj.EnabledPatrolIntervalMinutes, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedInstance_disabledPatrolIntervalMinutes(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes,
+		func(ctx context.Context) (any, error) {
+			return obj.DisabledPatrolIntervalMinutes, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAManagedInstance_nextRefreshAt(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22736,6 +23001,64 @@ func (ec *executionContext) _CPAManagedInstance_nextRefreshAt(ctx context.Contex
 }
 
 func (ec *executionContext) fieldContext_CPAManagedInstance_nextRefreshAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedInstance_nextEnabledPatrolAt(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_nextEnabledPatrolAt,
+		func(ctx context.Context) (any, error) {
+			return obj.NextEnabledPatrolAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_nextEnabledPatrolAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedInstance_nextDisabledPatrolAt(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_nextDisabledPatrolAt,
+		func(ctx context.Context) (any, error) {
+			return obj.NextDisabledPatrolAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_nextDisabledPatrolAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "CPAManagedInstance",
 		Field:      field,
@@ -43493,8 +43816,18 @@ func (ec *executionContext) fieldContext_Mutation_createCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_autoRefreshEnabled(ctx, field)
 			case "refreshIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
+			case "autoManageEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "enabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
+			case "disabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes(ctx, field)
 			case "nextRefreshAt":
 				return ec.fieldContext_CPAManagedInstance_nextRefreshAt(ctx, field)
+			case "nextEnabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextEnabledPatrolAt(ctx, field)
+			case "nextDisabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextDisabledPatrolAt(ctx, field)
 			case "serverVersion":
 				return ec.fieldContext_CPAManagedInstance_serverVersion(ctx, field)
 			case "serverCommit":
@@ -43574,8 +43907,18 @@ func (ec *executionContext) fieldContext_Mutation_updateCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_autoRefreshEnabled(ctx, field)
 			case "refreshIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
+			case "autoManageEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "enabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
+			case "disabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes(ctx, field)
 			case "nextRefreshAt":
 				return ec.fieldContext_CPAManagedInstance_nextRefreshAt(ctx, field)
+			case "nextEnabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextEnabledPatrolAt(ctx, field)
+			case "nextDisabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextDisabledPatrolAt(ctx, field)
 			case "serverVersion":
 				return ec.fieldContext_CPAManagedInstance_serverVersion(ctx, field)
 			case "serverCommit":
@@ -43777,6 +44120,12 @@ func (ec *executionContext) fieldContext_Mutation_refreshCPACredential(ctx conte
 				return ec.fieldContext_CPAManagedCredential_abnormal(ctx, field)
 			case "stale":
 				return ec.fieldContext_CPAManagedCredential_stale(ctx, field)
+			case "expired":
+				return ec.fieldContext_CPAManagedCredential_expired(ctx, field)
+			case "cooling":
+				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
+			case "cooldownUntil":
+				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
 			case "updatedAt":
@@ -43793,6 +44142,103 @@ func (ec *executionContext) fieldContext_Mutation_refreshCPACredential(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_refreshCPACredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_toggleCPACredential(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_toggleCPACredential,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ToggleCPACredential(ctx, fc.Args["credentialID"].(int), fc.Args["disabled"].(bool))
+		},
+		nil,
+		ec.marshalNCPAManagedCredential2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialView,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_toggleCPACredential(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPAManagedCredential_id(ctx, field)
+			case "instanceID":
+				return ec.fieldContext_CPAManagedCredential_instanceID(ctx, field)
+			case "remoteName":
+				return ec.fieldContext_CPAManagedCredential_remoteName(ctx, field)
+			case "displayName":
+				return ec.fieldContext_CPAManagedCredential_displayName(ctx, field)
+			case "provider":
+				return ec.fieldContext_CPAManagedCredential_provider(ctx, field)
+			case "email":
+				return ec.fieldContext_CPAManagedCredential_email(ctx, field)
+			case "status":
+				return ec.fieldContext_CPAManagedCredential_status(ctx, field)
+			case "statusMessage":
+				return ec.fieldContext_CPAManagedCredential_statusMessage(ctx, field)
+			case "disabled":
+				return ec.fieldContext_CPAManagedCredential_disabled(ctx, field)
+			case "unavailable":
+				return ec.fieldContext_CPAManagedCredential_unavailable(ctx, field)
+			case "runtimeOnly":
+				return ec.fieldContext_CPAManagedCredential_runtimeOnly(ctx, field)
+			case "priority":
+				return ec.fieldContext_CPAManagedCredential_priority(ctx, field)
+			case "planType":
+				return ec.fieldContext_CPAManagedCredential_planType(ctx, field)
+			case "quotaState":
+				return ec.fieldContext_CPAManagedCredential_quotaState(ctx, field)
+			case "quotaData":
+				return ec.fieldContext_CPAManagedCredential_quotaData(ctx, field)
+			case "quotaLastAttemptAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastAttemptAt(ctx, field)
+			case "quotaLastSuccessAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastSuccessAt(ctx, field)
+			case "quotaLastFailureAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastFailureAt(ctx, field)
+			case "quotaLastError":
+				return ec.fieldContext_CPAManagedCredential_quotaLastError(ctx, field)
+			case "available":
+				return ec.fieldContext_CPAManagedCredential_available(ctx, field)
+			case "abnormal":
+				return ec.fieldContext_CPAManagedCredential_abnormal(ctx, field)
+			case "stale":
+				return ec.fieldContext_CPAManagedCredential_stale(ctx, field)
+			case "expired":
+				return ec.fieldContext_CPAManagedCredential_expired(ctx, field)
+			case "cooling":
+				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
+			case "cooldownUntil":
+				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_CPAManagedCredential_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAManagedCredential", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_toggleCPACredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -52832,8 +53278,18 @@ func (ec *executionContext) fieldContext_Query_cpaInstances(_ context.Context, f
 				return ec.fieldContext_CPAManagedInstance_autoRefreshEnabled(ctx, field)
 			case "refreshIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
+			case "autoManageEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "enabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
+			case "disabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes(ctx, field)
 			case "nextRefreshAt":
 				return ec.fieldContext_CPAManagedInstance_nextRefreshAt(ctx, field)
+			case "nextEnabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextEnabledPatrolAt(ctx, field)
+			case "nextDisabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextDisabledPatrolAt(ctx, field)
 			case "serverVersion":
 				return ec.fieldContext_CPAManagedInstance_serverVersion(ctx, field)
 			case "serverCommit":
@@ -52902,8 +53358,18 @@ func (ec *executionContext) fieldContext_Query_cpaInstance(ctx context.Context, 
 				return ec.fieldContext_CPAManagedInstance_autoRefreshEnabled(ctx, field)
 			case "refreshIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
+			case "autoManageEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "enabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
+			case "disabledPatrolIntervalMinutes":
+				return ec.fieldContext_CPAManagedInstance_disabledPatrolIntervalMinutes(ctx, field)
 			case "nextRefreshAt":
 				return ec.fieldContext_CPAManagedInstance_nextRefreshAt(ctx, field)
+			case "nextEnabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextEnabledPatrolAt(ctx, field)
+			case "nextDisabledPatrolAt":
+				return ec.fieldContext_CPAManagedInstance_nextDisabledPatrolAt(ctx, field)
 			case "serverVersion":
 				return ec.fieldContext_CPAManagedInstance_serverVersion(ctx, field)
 			case "serverCommit":
@@ -76144,7 +76610,7 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -76200,6 +76666,27 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.RefreshIntervalMinutes = data
+		case "autoManageEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoManageEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoManageEnabled = data
+		case "enabledPatrolIntervalMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabledPatrolIntervalMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EnabledPatrolIntervalMinutes = data
+		case "disabledPatrolIntervalMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("disabledPatrolIntervalMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisabledPatrolIntervalMinutes = data
 		}
 	}
 
@@ -90360,7 +90847,7 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -90416,6 +90903,27 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.RefreshIntervalMinutes = data
+		case "autoManageEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoManageEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoManageEnabled = data
+		case "enabledPatrolIntervalMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabledPatrolIntervalMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EnabledPatrolIntervalMinutes = data
+		case "disabledPatrolIntervalMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("disabledPatrolIntervalMinutes"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisabledPatrolIntervalMinutes = data
 		}
 	}
 
@@ -98560,6 +99068,18 @@ func (ec *executionContext) _CPAManagedCredential(ctx context.Context, sel ast.S
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "expired":
+			out.Values[i] = ec._CPAManagedCredential_expired(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cooling":
+			out.Values[i] = ec._CPAManagedCredential_cooling(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cooldownUntil":
+			out.Values[i] = ec._CPAManagedCredential_cooldownUntil(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._CPAManagedCredential_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -98639,8 +99159,27 @@ func (ec *executionContext) _CPAManagedInstance(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "autoManageEnabled":
+			out.Values[i] = ec._CPAManagedInstance_autoManageEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabledPatrolIntervalMinutes":
+			out.Values[i] = ec._CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disabledPatrolIntervalMinutes":
+			out.Values[i] = ec._CPAManagedInstance_disabledPatrolIntervalMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "nextRefreshAt":
 			out.Values[i] = ec._CPAManagedInstance_nextRefreshAt(ctx, field, obj)
+		case "nextEnabledPatrolAt":
+			out.Values[i] = ec._CPAManagedInstance_nextEnabledPatrolAt(ctx, field, obj)
+		case "nextDisabledPatrolAt":
+			out.Values[i] = ec._CPAManagedInstance_nextDisabledPatrolAt(ctx, field, obj)
 		case "serverVersion":
 			out.Values[i] = ec._CPAManagedInstance_serverVersion(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -105757,6 +106296,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "refreshCPACredential":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_refreshCPACredential(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toggleCPACredential":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_toggleCPACredential(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

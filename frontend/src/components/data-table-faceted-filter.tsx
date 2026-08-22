@@ -19,6 +19,10 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   }[];
   singleSelect?: boolean;
   footer?: React.ReactNode;
+  /** Controlled selected values. When provided, onSelectedValuesChange is required. */
+  selectedValues?: string[];
+  /** Callback for controlled mode. Must trigger a re-render in the parent to keep state in sync. */
+  onSelectedValuesChange?: (values: string[]) => void;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
@@ -27,12 +31,35 @@ export function DataTableFacetedFilter<TData, TValue>({
   options = [],
   singleSelect = false,
   footer,
+  selectedValues: controlledSelectedValues,
+  onSelectedValuesChange,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const { t } = useTranslation();
+  const isControlled = onSelectedValuesChange != null;
 
   const facets = column?.getFacetedUniqueValues() || new Map();
   const filterValue = column?.getFilterValue();
-  const selectedValues = singleSelect ? new Set(filterValue ? [filterValue as string] : []) : new Set((filterValue || []) as string[]);
+  const selectedValues = new Set(
+    isControlled
+      ? (controlledSelectedValues ?? [])
+      : singleSelect
+        ? filterValue
+          ? [filterValue as string]
+          : []
+        : ((filterValue || []) as string[])
+  );
+
+  const applySelection = (next: string[]) => {
+    if (isControlled) {
+      onSelectedValuesChange(next);
+      return;
+    }
+    if (singleSelect) {
+      column?.setFilterValue(next[0]);
+      return;
+    }
+    column?.setFilterValue(next.length ? next : undefined);
+  };
 
   return (
     <Popover>
@@ -78,18 +105,16 @@ export function DataTableFacetedFilter<TData, TValue>({
                     key={option.value}
                     onSelect={() => {
                       if (singleSelect) {
-                        // Single select mode: set value directly or clear if already selected
-                        column?.setFilterValue(isSelected ? undefined : option.value);
-                      } else {
-                        // Multi select mode: toggle selection
-                        if (isSelected) {
-                          selectedValues.delete(option.value);
-                        } else {
-                          selectedValues.add(option.value);
-                        }
-                        const filterValues = Array.from(selectedValues);
-                        column?.setFilterValue(filterValues?.length ? filterValues : undefined);
+                        applySelection(isSelected ? [] : [option.value]);
+                        return;
                       }
+                      const next = new Set(selectedValues);
+                      if (isSelected) {
+                        next.delete(option.value);
+                      } else {
+                        next.add(option.value);
+                      }
+                      applySelection(Array.from(next));
                     }}
                   >
                     <div
@@ -119,7 +144,7 @@ export function DataTableFacetedFilter<TData, TValue>({
               <>
                 <CommandSeparator />
                 <CommandGroup>
-                  <CommandItem onSelect={() => column?.setFilterValue(undefined)} className='justify-center text-center'>
+                  <CommandItem onSelect={() => applySelection([])} className='justify-center text-center'>
                     {t('common.clearFilters')}
                   </CommandItem>
                 </CommandGroup>

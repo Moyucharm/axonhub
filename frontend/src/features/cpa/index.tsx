@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
-import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, RefreshCw, Server, Trash2 } from 'lucide-react';
+import { IconPlus } from '@tabler/icons-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Power, PowerOff, RefreshCw, Server, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDebounce } from '@/hooks/use-debounce';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -16,17 +17,25 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { TableSkeleton } from '@/components/ui/table-skeleton';
 import { Header } from '@/components/layout/header';
 import { Main } from '@/components/layout/main';
+import { ServerSidePagination } from '@/components/server-side-pagination';
+import { QuotaWindowsBlock } from '@/components/quota-capsule';
 import { CPAInstanceDialog } from './components/instance-dialog';
+import { CPAProviderTabs } from './components/provider-tabs';
+import { CPAToolbar } from './components/cpa-toolbar';
+import { QuotaSummaryCapsule } from './components/quota-summary-capsule';
+import { formatTime, cpaQuotaItemsToWindows } from './quota-windows';
+import { planLabel, providerLabel } from './labels';
 import {
   CPAInstance,
   CPACredential,
-  CPAQuotaItem,
+  SUPPORTED_QUOTA_PROVIDERS,
+  compareCPAProviders,
   useCPAInstances,
   useCPAOverview,
   useCPAPlanTypes,
@@ -34,24 +43,8 @@ import {
   useDeleteCPAInstance,
   useRefreshCPACredential,
   useRefreshCPAInstance,
+  useToggleCPACredential,
 } from './data';
-
-const KNOWN_PROVIDER_ORDER = ['codex', 'claude', 'antigravity', 'kimi', 'xai'];
-const SUPPORTED_QUOTA_PROVIDERS = new Set(KNOWN_PROVIDER_ORDER);
-
-function formatTime(value?: string | null) {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
-
-function providerLabel(provider: string, t: TFunction) {
-  return t(`cpa.providerLabels.${provider}`, { defaultValue: provider });
-}
-
-function planLabel(provider: string, plan: string, t: TFunction) {
-  return t(`cpa.planLabels.${provider}.${plan.toLowerCase()}`, { defaultValue: plan });
-}
 
 function versionBelow(version: string, minimum: string) {
   const parse = (value: string) =>
@@ -70,19 +63,27 @@ function versionBelow(version: string, minimum: string) {
 }
 
 const CPA_TABLE_PAGE_SIZE_KEY = 'cpa-table-page-size';
+const CPA_TABLE_PAGE_SIZES = [10, 20, 30, 40, 50] as const;
+
+// Default page size is intentionally 50 (raised from 20): credential tables
+// routinely hold hundreds of rows and quota capsules make rows tall, so fewer
+// pages beats denser paging. Invalid stored values also clamp to 50.
+function clampTablePageSize(value: number): number {
+  return (CPA_TABLE_PAGE_SIZES as readonly number[]).includes(value) ? value : 50;
+}
 
 function readTablePageSize(): number {
   try {
-    return Number(localStorage.getItem(CPA_TABLE_PAGE_SIZE_KEY)) || 20;
+    return clampTablePageSize(Number(localStorage.getItem(CPA_TABLE_PAGE_SIZE_KEY)));
   } catch {
     // Private mode and blocked storage throw here; fall back to the default.
-    return 20;
+    return 50;
   }
 }
 
 function writeTablePageSize(value: number) {
   try {
-    localStorage.setItem(CPA_TABLE_PAGE_SIZE_KEY, String(value));
+    localStorage.setItem(CPA_TABLE_PAGE_SIZE_KEY, String(clampTablePageSize(value)));
   } catch {
     // Best-effort persistence; failing to store the preference is harmless.
   }
@@ -91,59 +92,29 @@ function writeTablePageSize(value: number) {
 // percent formats a backend-normalized percentage. CPA quota adapters always
 // emit 0-100 percent values (see percentPointersFromUsed in quota.go), so no
 // fraction-to-percent rescaling is applied here; applying one would double
-// scale values below 1%.
-function percent(value?: number | null) {
-  if (value == null) return null;
-  const normalized = Math.max(0, Math.min(100, value));
-  return `${normalized.toFixed(normalized < 10 ? 1 : 0)}%`;
-}
-
-function quotaSummary(credential: CPACredential, t: TFunction) {
-  const items = credential.quotaData.items;
+// quotaStateText returns the static status copy for a credential whose quota
+// cannot be rendered as windows (unsupported / insufficient / pending).
+function quotaStateText(credential: CPACredential, t: TFunction): string | null {
   if (credential.quotaState === 'unsupported') return t('cpa.quota.unsupported');
   if (credential.quotaState === 'insufficient_data') return t('cpa.quota.insufficient');
   if (credential.quotaState === 'pending') return t('cpa.quota.pending');
-  if (items.length === 0) return credential.quotaState === 'error' ? t('cpa.quota.error') : '—';
-  const item = items[0];
-  const remaining = percent(item.remainingPercent);
-  if (remaining) return items.length > 1 ? `${remaining} · ${t('cpa.quota.windows', { count: items.length })}` : remaining;
-  if (item.remaining != null && item.limit != null) return `${item.remaining}/${item.limit} ${item.unit}`.trim();
-  if (item.remaining != null) return `${item.remaining} ${item.unit}`.trim();
-  return items.length > 1 ? t('cpa.quota.windows', { count: items.length }) : item.label;
+  return null;
 }
 
-function QuotaDetail({ item }: { item: CPAQuotaItem }) {
+// Table quota column: status copy for unsupported/incomplete states, a compact
+// capsule for the primary window otherwise (multi-window rows show a +N hint).
+function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   const { t } = useTranslation();
-  return (
-    <div className='bg-background rounded-lg border p-3'>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <div>
-          <p className='font-medium'>{item.label}</p>
-          {item.description && <p className='text-muted-foreground text-xs'>{item.description}</p>}
-        </div>
-        {item.group && <Badge variant='outline'>{item.group}</Badge>}
-      </div>
-      <div className='mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4'>
-        <div>
-          <span className='text-muted-foreground'>{t('cpa.quota.remaining')}:</span>{' '}
-          {percent(item.remainingPercent) ?? item.remaining ?? '—'}
-        </div>
-        <div>
-          <span className='text-muted-foreground'>{t('cpa.quota.used')}:</span> {percent(item.usedPercent) ?? item.used ?? '—'}
-        </div>
-        <div>
-          <span className='text-muted-foreground'>{t('cpa.quota.limit')}:</span> {item.limit ?? '—'} {item.unit}
-        </div>
-        <div>
-          <span className='text-muted-foreground'>{t('cpa.quota.resetAt')}:</span> {formatTime(item.resetAt)}
-        </div>
-      </div>
-    </div>
-  );
+  const stateText = quotaStateText(credential, t);
+  if (stateText) return <span>{stateText}</span>;
+  // Error state takes priority even when partial data exists.
+  if (credential.quotaState === 'error') return <span>{t('cpa.quota.error')}</span>;
+  if (credential.quotaData.items.length === 0) return <span>—</span>;
+  return <QuotaSummaryCapsule items={credential.quotaData.items} fallback={<span>—</span>} />;
 }
 
 export default function CPAManagement() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasSystemScope } = usePermissions();
   const canWrite = hasSystemScope('write_settings');
   const instancesQuery = useCPAInstances();
@@ -154,9 +125,8 @@ export default function CPAManagement() {
   const [deletingInstance, setDeletingInstance] = useState<CPAInstance>();
   const [search, setSearch] = useState('');
   const [provider, setProvider] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [statuses, setStatuses] = useState<string[]>([]);
   const [planType, setPlanType] = useState('all');
-  const [abnormalOnly, setAbnormalOnly] = useState(false);
   const [pageSize, setPageSize] = useState(readTablePageSize);
   const [after, setAfter] = useState<string>();
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([]);
@@ -174,15 +144,7 @@ export default function CPAManagement() {
   const overviewQuery = useCPAOverview(selectedInstanceID);
   const providerCounts = overviewQuery.data?.cpaProviderCounts ?? [];
   const providers = useMemo(() => {
-    const values = providerCounts.filter((item) => item.count > 0).map((item) => item.provider);
-    return values.sort((left, right) => {
-      const leftIndex = KNOWN_PROVIDER_ORDER.indexOf(left);
-      const rightIndex = KNOWN_PROVIDER_ORDER.indexOf(right);
-      if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
-      if (leftIndex >= 0) return -1;
-      if (rightIndex >= 0) return 1;
-      return left.localeCompare(right);
-    });
+    return providerCounts.filter((item) => item.count > 0).map((item) => item.provider).sort(compareCPAProviders);
   }, [providerCounts]);
 
   useEffect(() => {
@@ -198,17 +160,19 @@ export default function CPAManagement() {
           after,
           search: debouncedSearch || undefined,
           provider: provider === 'all' ? undefined : provider,
-          statuses: status === 'all' ? [] : [status],
+          statuses,
           planTypes: planType === 'all' || provider === 'all' ? [] : [planType],
-          abnormalOnly,
+          abnormalOnly: false,
         }
       : undefined
   );
   const refreshInstance = useRefreshCPAInstance();
   const refreshCredential = useRefreshCPACredential();
+  const toggleCredential = useToggleCPACredential();
   const deleteInstance = useDeleteCPAInstance();
   const credentials = credentialsQuery.data?.edges.map((edge) => edge.node) ?? [];
   const stats = overviewQuery.data?.cpaCredentialStats;
+  const [togglingCredential, setTogglingCredential] = useState<{ id: number; displayName: string; disable: boolean }>();
 
   const resetPagination = () => {
     setAfter(undefined);
@@ -245,23 +209,34 @@ export default function CPAManagement() {
     }
   };
 
+  const confirmToggleCredential = async () => {
+    if (!togglingCredential) return;
+    try {
+      await toggleCredential.mutateAsync({ credentialID: togglingCredential.id, disabled: togglingCredential.disable });
+      setTogglingCredential(undefined);
+    } catch {
+      // The mutation hook displays the error and keeps the confirmation available.
+    }
+  };
+
   return (
     <>
       <Header fixed>
-        <div className='flex flex-1 flex-wrap items-center justify-between gap-4'>
-          <div>
+        <div className='flex w-full flex-1 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-0'>
+          <div className='min-w-0'>
             <h2 className='text-xl font-bold tracking-tight'>{t('cpa.title')}</h2>
             <p className='text-muted-foreground text-sm'>{t('cpa.description')}</p>
           </div>
           {canWrite && (
             <Button
+              className='space-x-1'
               onClick={() => {
                 setEditingInstance(undefined);
                 setDialogOpen(true);
               }}
             >
-              <Plus className='mr-2 h-4 w-4' />
-              {t('cpa.instance.add')}
+              <span>{t('cpa.instance.add')}</span>
+              <IconPlus size={18} />
             </Button>
           )}
         </div>
@@ -318,6 +293,26 @@ export default function CPAManagement() {
               </Badge>
             )}
             {selectedInstance?.serverVersion && <Badge variant='outline'>CPA {selectedInstance.serverVersion}</Badge>}
+            {selectedInstance && (
+              <div className='text-muted-foreground ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm'>
+                <span className='shrink-0'>
+                  {t('cpa.stats.available')}{' '}
+                  <span className='text-foreground font-medium tabular-nums'>
+                    {stats?.available ?? '—'} / {stats?.total ?? '—'}
+                  </span>
+                </span>
+                <span className='shrink-0'>
+                  {t('cpa.stats.abnormal')}{' '}
+                  <span className={`font-medium tabular-nums ${(stats?.abnormal ?? 0) > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                    {stats?.abnormal ?? '—'}
+                  </span>
+                </span>
+                <span className='min-w-0 truncate' title={formatTime(selectedInstance.lastSyncSuccessAt)}>
+                  {t('cpa.stats.lastSync')}{' '}
+                  <span className='text-foreground font-medium'>{formatTime(selectedInstance.lastSyncSuccessAt)}</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {instances.length === 0 && !instancesQuery.isLoading && (
@@ -326,9 +321,9 @@ export default function CPAManagement() {
               <h3 className='font-semibold'>{t('cpa.empty.title')}</h3>
               <p className='text-muted-foreground mt-1 max-w-lg text-sm'>{t('cpa.empty.description')}</p>
               {canWrite && (
-                <Button className='mt-4' onClick={() => setDialogOpen(true)}>
-                  <Plus className='mr-2 h-4 w-4' />
-                  {t('cpa.instance.add')}
+                <Button className='mt-4 space-x-1' onClick={() => setDialogOpen(true)}>
+                  <span>{t('cpa.instance.add')}</span>
+                  <IconPlus size={18} />
                 </Button>
               )}
             </div>
@@ -358,277 +353,247 @@ export default function CPAManagement() {
 
           {selectedInstance && (
             <>
-              <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-                <div className='rounded-xl border p-4'>
-                  <p className='text-muted-foreground text-sm'>{t('cpa.stats.available')}</p>
-                  <p className='text-2xl font-semibold'>
-                    {stats?.available ?? '—'} / {stats?.total ?? '—'}
-                  </p>
-                </div>
-                <div className='rounded-xl border p-4'>
-                  <p className='text-muted-foreground text-sm'>{t('cpa.stats.abnormal')}</p>
-                  <p className='text-destructive text-2xl font-semibold'>{stats?.abnormal ?? '—'}</p>
-                </div>
-                <div className='rounded-xl border p-4'>
-                  <p className='text-muted-foreground text-sm'>{t('cpa.stats.lastSync')}</p>
-                  <p className='truncate text-sm font-medium'>{formatTime(selectedInstance.lastSyncSuccessAt)}</p>
-                </div>
-              </div>
+              <CPAProviderTabs
+                providers={providers}
+                providerCounts={providerCounts}
+                totalCount={stats?.total ?? 0}
+                selectedProvider={provider}
+                onProviderChange={changeProvider}
+              />
 
-              <div className='flex gap-1 overflow-x-auto border-b pb-2'>
-                <Button size='sm' variant={provider === 'all' ? 'default' : 'ghost'} onClick={() => changeProvider('all')}>
-                  {t('common.all')}{' '}
-                  <Badge variant='secondary' className='ml-2'>
-                    {stats?.total ?? 0}
-                  </Badge>
-                </Button>
-                {providers.map((value) => (
-                  <Button key={value} size='sm' variant={provider === value ? 'default' : 'ghost'} onClick={() => changeProvider(value)}>
-                    {providerLabel(value, t)}{' '}
-                    <Badge variant='secondary' className='ml-2'>
-                      {providerCounts.find((item) => item.provider === value)?.count ?? 0}
-                    </Badge>
-                  </Button>
-                ))}
-              </div>
+              <CPAToolbar
+                search={search}
+                onSearchChange={(value) => {
+                  setSearch(value);
+                  resetPagination();
+                }}
+                statuses={statuses}
+                onStatusesChange={(values) => {
+                  setStatuses(values);
+                  resetPagination();
+                }}
+                provider={provider}
+                planType={planType}
+                planTypes={planTypesQuery.data ?? []}
+                onPlanTypeChange={(value) => {
+                  setPlanType(value);
+                  resetPagination();
+                }}
+                refresh={{
+                  canRefresh:
+                    canWrite &&
+                    selectedInstance.enabled &&
+                    (provider === 'all' || SUPPORTED_QUOTA_PROVIDERS.has(provider)),
+                  pending: refreshInstance.isPending,
+                  onRefresh: refreshSelectedScope,
+                }}
+              />
 
-              <div className='flex flex-wrap items-center gap-2'>
-                <Input
-                  className='w-full sm:w-[280px]'
-                  placeholder={t('cpa.filters.search')}
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                    resetPagination();
-                  }}
-                />
-                <Select
-                  value={status}
-                  onValueChange={(value) => {
-                    setStatus(value);
-                    resetPagination();
-                  }}
-                >
-                  <SelectTrigger className='w-[150px]'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='all'>{t('cpa.filters.allStatus')}</SelectItem>
-                    <SelectItem value='enabled'>{t('cpa.status.enabled')}</SelectItem>
-                    <SelectItem value='disabled'>{t('cpa.status.disabled')}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {provider !== 'all' && (
-                  <Select
-                    value={planType}
-                    onValueChange={(value) => {
-                      setPlanType(value);
-                      resetPagination();
-                    }}
-                  >
-                    <SelectTrigger className='w-[180px]'>
-                      <SelectValue placeholder={t('cpa.filters.plan')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='all'>{t('cpa.filters.allPlans')}</SelectItem>
-                      {(planTypesQuery.data ?? []).map((plan) => (
-                        <SelectItem key={plan} value={plan}>
-                          {planLabel(provider, plan, t)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <label className='flex items-center gap-2 text-sm'>
-                  <Checkbox
-                    checked={abnormalOnly}
-                    onCheckedChange={(value) => {
-                      setAbnormalOnly(value === true);
-                      resetPagination();
-                    }}
-                  />
-                  {t('cpa.filters.abnormalOnly')}
-                </label>
-                <div className='ml-auto'>
-                  <Button
-                    onClick={refreshSelectedScope}
-                    disabled={
-                      !canWrite ||
-                      !selectedInstance.enabled ||
-                      refreshInstance.isPending ||
-                      (provider !== 'all' && !SUPPORTED_QUOTA_PROVIDERS.has(provider))
-                    }
-                  >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${refreshInstance.isPending ? 'animate-spin' : ''}`} />
-                    {provider === 'all'
-                      ? t('cpa.actions.refreshAll')
-                      : t('cpa.actions.refreshProvider', { provider: providerLabel(provider, t) })}
-                  </Button>
-                </div>
-              </div>
-
-              <div className='min-h-0 flex-1 overflow-auto rounded-xl border'>
-                <Table>
-                  <TableHeader className='bg-background sticky top-0 z-10'>
-                    <TableRow>
-                      <TableHead className='w-10' />
-                      <TableHead>{t('cpa.columns.credential')}</TableHead>
-                      <TableHead>{t('cpa.columns.provider')}</TableHead>
-                      <TableHead>{t('cpa.columns.status')}</TableHead>
-                      <TableHead>{t('cpa.columns.quota')}</TableHead>
-                      <TableHead>{t('cpa.columns.refreshedAt')}</TableHead>
-                      <TableHead className='w-16' />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {credentialsQuery.isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className='h-32 text-center'>
-                          {t('common.loading')}
-                        </TableCell>
+              <div className='shadow-soft relative min-h-0 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'>
+                <div className='min-w-max'>
+                  <Table className='border-separate border-spacing-0 rounded-2xl bg-[var(--table-background)]'>
+                    <TableHeader className='sticky top-0 z-20 bg-[var(--table-header)] shadow-sm'>
+                      <TableRow className='group/row border-0'>
+                        <TableHead className='text-muted-foreground w-10 border-0 text-xs font-semibold tracking-wider uppercase' />
+                        <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                          {t('cpa.columns.credential')}
+                        </TableHead>
+                        <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                          {t('cpa.columns.provider')}
+                        </TableHead>
+                        <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                          {t('cpa.columns.status')}
+                        </TableHead>
+                        <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                          {t('cpa.columns.quota')}
+                        </TableHead>
+                        <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                          {t('cpa.columns.refreshedAt')}
+                        </TableHead>
+                        <TableHead className='text-muted-foreground w-24 border-0 text-xs font-semibold tracking-wider uppercase' />
                       </TableRow>
-                    ) : credentials.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className='h-32 text-center'>
-                          {t('common.noData')}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      credentials.map((credential) => (
-                        <Fragment key={credential.id}>
-                          <TableRow>
-                            <TableCell>
-                              <Button variant='ghost' size='icon' onClick={() => toggleExpanded(credential.id)}>
-                                {expanded.has(credential.id) ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
-                              </Button>
-                            </TableCell>
-                            <TableCell>
-                              <div className='font-medium'>{credential.displayName}</div>
-                              <div className='text-muted-foreground text-xs'>
-                                {credential.remoteName}
-                                {credential.email ? ` · ${credential.email}` : ''}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>{providerLabel(credential.provider, t)}</div>
-                              {credential.planType && (
-                                <Badge variant='outline' className='mt-1'>
-                                  {planLabel(credential.provider, credential.planType, t)}
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className='flex flex-wrap gap-1'>
-                                {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
-                                {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
-                                {credential.abnormal && <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>}
-                                {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
-                                {credential.stale && <Badge variant='outline'>{t('cpa.status.stale')}</Badge>}
-                              </div>
-                              {credential.statusMessage && (
-                                <p className='text-muted-foreground mt-1 max-w-[220px] truncate text-xs' title={credential.statusMessage}>
-                                  {credential.statusMessage}
-                                </p>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
-                                {quotaSummary(credential, t)}
-                              </span>
-                              {credential.quotaLastError && (
-                                <p className='text-destructive max-w-[240px] truncate text-xs' title={credential.quotaLastError}>
-                                  {credential.quotaLastError}
-                                </p>
-                              )}
-                            </TableCell>
-                            <TableCell className='text-muted-foreground text-sm'>
-                              {formatTime(credential.quotaLastSuccessAt ?? credential.quotaLastAttemptAt)}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                title={t('common.refresh')}
-                                disabled={
-                                  !canWrite ||
-                                  credential.disabled ||
-                                  credential.quotaState === 'unsupported' ||
-                                  !SUPPORTED_QUOTA_PROVIDERS.has(credential.provider) ||
-                                  refreshCredential.isPending
-                                }
-                                onClick={() => refreshCredential.mutate(credential.id)}
-                              >
-                                <RefreshCw className='h-4 w-4' />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                          {expanded.has(credential.id) && (
-                            <TableRow>
-                              <TableCell colSpan={7} className='bg-muted/30 p-4'>
-                                <div className='grid gap-3'>
-                                  {credential.quotaData.items.length > 0 ? (
-                                    credential.quotaData.items.map((item) => <QuotaDetail key={item.id} item={item} />)
-                                  ) : (
-                                    <p className='text-muted-foreground text-sm'>{quotaSummary(credential, t)}</p>
+                    </TableHeader>
+                    <TableBody className='!bg-[var(--table-background)]'>
+                      {credentialsQuery.isLoading ? (
+                        <TableSkeleton rows={pageSize} />
+                      ) : credentials.length === 0 ? (
+                        <TableRow className='!bg-[var(--table-background)]'>
+                          <TableCell colSpan={7} className='h-24 !bg-[var(--table-background)] text-center'>
+                            {t('common.noData')}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        credentials.map((credential) => (
+                          <Fragment key={credential.id}>
+                            <TableRow className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <Button variant='ghost' size='icon' onClick={() => toggleExpanded(credential.id)}>
+                                  {expanded.has(credential.id) ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
+                                </Button>
+                              </TableCell>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className='font-medium max-w-[200px] cursor-default truncate'>
+                                      {credential.email || credential.displayName || '—'}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='top'>
+                                    {credential.remoteName}
+                                    {credential.displayName && credential.displayName !== credential.remoteName
+                                      ? ` · ${credential.displayName}`
+                                      : ''}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TableCell>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <div>{providerLabel(credential.provider, t)}</div>
+                                {credential.planType && (
+                                  <Badge variant='outline' className='mt-1'>
+                                    {planLabel(credential.provider, credential.planType, t)}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <div className='flex flex-col items-start gap-1'>
+                                  {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
+                                  {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
+                                  {credential.abnormal && <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>}
+                                  {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
+                                  {credential.cooling &&
+                                    (credential.cooldownUntil ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent side='top'>
+                                          {t('cpa.status.cooldownUntil', { time: formatTime(credential.cooldownUntil) })}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ) : (
+                                      <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>
+                                    ))}
+                                  {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
+                                  {credential.stale && <Badge variant='outline'>{t('cpa.status.stale')}</Badge>}
+                                </div>
+                                {credential.statusMessage && (
+                                  <p className='text-muted-foreground mt-1 max-w-[220px] truncate text-xs' title={credential.statusMessage}>
+                                    {credential.statusMessage}
+                                  </p>
+                                )}
+                              </TableCell>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
+                                  <QuotaSummaryCell credential={credential} />
+                                </span>
+                                {credential.quotaLastError && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default break-all text-xs'>
+                                        {credential.quotaLastError}
+                                      </p>
+                                    </TooltipTrigger>
+                                    <TooltipContent side='top' className='max-w-80 break-all'>
+                                      {credential.quotaLastError}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </TableCell>
+                              <TableCell className='text-muted-foreground border-0 bg-inherit px-4 py-3 text-sm'>
+                                {formatTime(credential.quotaLastSuccessAt ?? credential.quotaLastAttemptAt)}
+                              </TableCell>
+                              <TableCell className='border-0 bg-inherit px-4 py-3'>
+                                <div className='flex items-center gap-1'>
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    title={t('common.refresh')}
+                                    disabled={
+                                      !canWrite ||
+                                      credential.quotaState === 'unsupported' ||
+                                      !SUPPORTED_QUOTA_PROVIDERS.has(credential.provider) ||
+                                      refreshCredential.isPending
+                                    }
+                                    onClick={() => refreshCredential.mutate(credential.id)}
+                                  >
+                                    <RefreshCw className='h-4 w-4' />
+                                  </Button>
+                                  {canWrite && (
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      title={credential.disabled ? t('cpa.credential.enable') : t('cpa.credential.disable')}
+                                      disabled={toggleCredential.isPending}
+                                      onClick={() =>
+                                        setTogglingCredential({
+                                          id: credential.id,
+                                          displayName: credential.email || credential.displayName || credential.remoteName,
+                                          disable: !credential.disabled,
+                                        })
+                                      }
+                                    >
+                                      {credential.disabled ? <Power className='h-4 w-4' /> : <PowerOff className='text-destructive h-4 w-4' />}
+                                    </Button>
                                   )}
                                 </div>
                               </TableCell>
                             </TableRow>
-                          )}
-                        </Fragment>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                            {expanded.has(credential.id) && (
+                              <TableRow className='border-0'>
+                                <TableCell colSpan={7} className='bg-muted/30 border-0 p-4'>
+                                  <div className='grid gap-3'>
+                                    {credential.quotaData.items.length > 0 ? (
+                                      <QuotaWindowsBlock
+                                        windows={cpaQuotaItemsToWindows(
+                                          credential.quotaData.items,
+                                          t,
+                                          i18n.language === 'zh' ? 'zh-CN' : 'en-US'
+                                        )}
+                                      />
+                                    ) : (
+                                      <p className='text-muted-foreground text-sm'>
+                                        {quotaStateText(credential, t) ??
+                                          (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
-              <div className='flex flex-wrap items-center justify-between gap-3 text-sm'>
-                <span className='text-muted-foreground'>
-                  {t('cpa.pagination.total', { count: credentialsQuery.data?.totalCount ?? 0 })}
-                </span>
-                <div className='flex items-center gap-2'>
-                  <Select
-                    value={pageSize.toString()}
-                    onValueChange={(value) => {
-                      const size = Number(value);
-                      setPageSize(size);
-                      writeTablePageSize(size);
-                      resetPagination();
-                    }}
-                  >
-                    <SelectTrigger className='w-[110px]'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[10, 20, 30, 50].map((size) => (
-                        <SelectItem key={size} value={size.toString()}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant='outline'
-                    disabled={cursorHistory.length === 0}
-                    onClick={() => {
-                      const history = [...cursorHistory];
-                      setAfter(history.pop());
-                      setCursorHistory(history);
-                    }}
-                  >
-                    {t('pagination.previousPage')}
-                  </Button>
-                  <Button
-                    variant='outline'
-                    disabled={!credentialsQuery.data?.pageInfo.hasNextPage || !credentialsQuery.data.pageInfo.endCursor}
-                    onClick={() => {
-                      setCursorHistory((history) => [...history, after]);
-                      setAfter(credentialsQuery.data?.pageInfo.endCursor ?? undefined);
-                    }}
-                  >
-                    {t('pagination.nextPage')}
-                  </Button>
-                </div>
+              <div className='flex-shrink-0'>
+                <ServerSidePagination
+                  pageInfo={credentialsQuery.data?.pageInfo}
+                  pageSize={pageSize}
+                  dataLength={credentials.length}
+                  totalCount={credentialsQuery.data?.totalCount}
+                  selectedRows={0}
+                  onNextPage={() => {
+                    if (!credentialsQuery.data?.pageInfo.hasNextPage || !credentialsQuery.data.pageInfo.endCursor) return;
+                    setCursorHistory((history) => [...history, after]);
+                    setAfter(credentialsQuery.data.pageInfo.endCursor ?? undefined);
+                  }}
+                  onPreviousPage={() => {
+                    const history = [...cursorHistory];
+                    setAfter(history.pop());
+                    setCursorHistory(history);
+                  }}
+                  onPageSizeChange={(size) => {
+                    const next = clampTablePageSize(size);
+                    setPageSize(next);
+                    writeTablePageSize(next);
+                    resetPagination();
+                  }}
+                  selectedInfoLabel={t('cpa.pagination.total', { count: credentialsQuery.data?.totalCount ?? 0 })}
+                  onResetCursor={resetPagination}
+                />
               </div>
             </>
           )}
@@ -641,6 +606,31 @@ export default function CPAManagement() {
         onOpenChange={setDialogOpen}
         onSaved={(instance) => setSelectedInstanceID(instance.id)}
       />
+      <AlertDialog
+        open={Boolean(togglingCredential)}
+        onOpenChange={(open) => {
+          if (!open) setTogglingCredential(undefined);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {togglingCredential?.disable ? t('cpa.credential.disableTitle') : t('cpa.credential.enableTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {togglingCredential?.disable
+                ? t('cpa.credential.disableDescription', { name: togglingCredential?.displayName })
+                : t('cpa.credential.enableDescription', { name: togglingCredential?.displayName })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.buttons.cancel')}</AlertDialogCancel>
+            <Button variant={togglingCredential?.disable ? 'destructive' : 'default'} onClick={confirmToggleCredential} disabled={toggleCredential.isPending}>
+              {togglingCredential?.disable ? t('cpa.credential.disable') : t('cpa.credential.enable')}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={Boolean(deletingInstance)}
         onOpenChange={(open) => {

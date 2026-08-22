@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from 'react';
 import { Cross2Icon } from '@radix-ui/react-icons';
-import { IconChevronsDown, IconChevronsUp, IconHistory, IconSearch } from '@tabler/icons-react';
+import { IconChevronsDown, IconChevronsUp, IconSearch } from '@tabler/icons-react';
 import { Table } from '@tanstack/react-table';
 import { useQueryModels } from '@/gql/models';
 import { useTranslation } from 'react-i18next';
@@ -95,7 +95,6 @@ export function DataTableToolbar<TData>({
       {
         value: 'cooldown',
         label: t('channels.filters.coolingDown'),
-        icon: IconHistory,
       },
     ],
     [t]

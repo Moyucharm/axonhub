@@ -297,16 +297,60 @@ func init() {
 			return nil
 		}
 	}()
+	// cpainstanceDescAutoManageEnabled is the schema descriptor for auto_manage_enabled field.
+	cpainstanceDescAutoManageEnabled := cpainstanceFields[8].Descriptor()
+	// cpainstance.DefaultAutoManageEnabled holds the default value on creation for the auto_manage_enabled field.
+	cpainstance.DefaultAutoManageEnabled = cpainstanceDescAutoManageEnabled.Default.(bool)
+	// cpainstanceDescEnabledPatrolIntervalMinutes is the schema descriptor for enabled_patrol_interval_minutes field.
+	cpainstanceDescEnabledPatrolIntervalMinutes := cpainstanceFields[9].Descriptor()
+	// cpainstance.DefaultEnabledPatrolIntervalMinutes holds the default value on creation for the enabled_patrol_interval_minutes field.
+	cpainstance.DefaultEnabledPatrolIntervalMinutes = cpainstanceDescEnabledPatrolIntervalMinutes.Default.(int)
+	// cpainstance.EnabledPatrolIntervalMinutesValidator is a validator for the "enabled_patrol_interval_minutes" field. It is called by the builders before save.
+	cpainstance.EnabledPatrolIntervalMinutesValidator = func() func(int) error {
+		validators := cpainstanceDescEnabledPatrolIntervalMinutes.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(enabled_patrol_interval_minutes int) error {
+			for _, fn := range fns {
+				if err := fn(enabled_patrol_interval_minutes); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// cpainstanceDescDisabledPatrolIntervalMinutes is the schema descriptor for disabled_patrol_interval_minutes field.
+	cpainstanceDescDisabledPatrolIntervalMinutes := cpainstanceFields[10].Descriptor()
+	// cpainstance.DefaultDisabledPatrolIntervalMinutes holds the default value on creation for the disabled_patrol_interval_minutes field.
+	cpainstance.DefaultDisabledPatrolIntervalMinutes = cpainstanceDescDisabledPatrolIntervalMinutes.Default.(int)
+	// cpainstance.DisabledPatrolIntervalMinutesValidator is a validator for the "disabled_patrol_interval_minutes" field. It is called by the builders before save.
+	cpainstance.DisabledPatrolIntervalMinutesValidator = func() func(int) error {
+		validators := cpainstanceDescDisabledPatrolIntervalMinutes.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(disabled_patrol_interval_minutes int) error {
+			for _, fn := range fns {
+				if err := fn(disabled_patrol_interval_minutes); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// cpainstanceDescServerVersion is the schema descriptor for server_version field.
-	cpainstanceDescServerVersion := cpainstanceFields[8].Descriptor()
+	cpainstanceDescServerVersion := cpainstanceFields[13].Descriptor()
 	// cpainstance.DefaultServerVersion holds the default value on creation for the server_version field.
 	cpainstance.DefaultServerVersion = cpainstanceDescServerVersion.Default.(string)
 	// cpainstanceDescServerCommit is the schema descriptor for server_commit field.
-	cpainstanceDescServerCommit := cpainstanceFields[9].Descriptor()
+	cpainstanceDescServerCommit := cpainstanceFields[14].Descriptor()
 	// cpainstance.DefaultServerCommit holds the default value on creation for the server_commit field.
 	cpainstance.DefaultServerCommit = cpainstanceDescServerCommit.Default.(string)
 	// cpainstanceDescServerBuildDate is the schema descriptor for server_build_date field.
-	cpainstanceDescServerBuildDate := cpainstanceFields[10].Descriptor()
+	cpainstanceDescServerBuildDate := cpainstanceFields[15].Descriptor()
 	// cpainstance.DefaultServerBuildDate holds the default value on creation for the server_build_date field.
 	cpainstance.DefaultServerBuildDate = cpainstanceDescServerBuildDate.Default.(string)
 	channelMixin := schema.Channel{}.Mixin()

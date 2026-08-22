@@ -37,6 +37,16 @@ type CPAInstance struct {
 	RefreshIntervalMinutes int `json:"refresh_interval_minutes,omitempty"`
 	// NextRefreshAt holds the value of the "next_refresh_at" field.
 	NextRefreshAt *time.Time `json:"next_refresh_at,omitempty"`
+	// AutoManageEnabled holds the value of the "auto_manage_enabled" field.
+	AutoManageEnabled bool `json:"auto_manage_enabled,omitempty"`
+	// EnabledPatrolIntervalMinutes holds the value of the "enabled_patrol_interval_minutes" field.
+	EnabledPatrolIntervalMinutes int `json:"enabled_patrol_interval_minutes,omitempty"`
+	// DisabledPatrolIntervalMinutes holds the value of the "disabled_patrol_interval_minutes" field.
+	DisabledPatrolIntervalMinutes int `json:"disabled_patrol_interval_minutes,omitempty"`
+	// NextEnabledPatrolAt holds the value of the "next_enabled_patrol_at" field.
+	NextEnabledPatrolAt *time.Time `json:"next_enabled_patrol_at,omitempty"`
+	// NextDisabledPatrolAt holds the value of the "next_disabled_patrol_at" field.
+	NextDisabledPatrolAt *time.Time `json:"next_disabled_patrol_at,omitempty"`
 	// ServerVersion holds the value of the "server_version" field.
 	ServerVersion string `json:"server_version,omitempty"`
 	// ServerCommit holds the value of the "server_commit" field.
@@ -82,13 +92,13 @@ func (*CPAInstance) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled:
+		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled, cpainstance.FieldAutoManageEnabled:
 			values[i] = new(sql.NullBool)
-		case cpainstance.FieldID, cpainstance.FieldRefreshIntervalMinutes:
+		case cpainstance.FieldID, cpainstance.FieldRefreshIntervalMinutes, cpainstance.FieldEnabledPatrolIntervalMinutes, cpainstance.FieldDisabledPatrolIntervalMinutes:
 			values[i] = new(sql.NullInt64)
 		case cpainstance.FieldName, cpainstance.FieldBaseURL, cpainstance.FieldEncryptedSecret, cpainstance.FieldServerVersion, cpainstance.FieldServerCommit, cpainstance.FieldServerBuildDate, cpainstance.FieldLastError:
 			values[i] = new(sql.NullString)
-		case cpainstance.FieldCreatedAt, cpainstance.FieldUpdatedAt, cpainstance.FieldNextRefreshAt, cpainstance.FieldLastSyncAttemptAt, cpainstance.FieldLastSyncSuccessAt, cpainstance.FieldLastErrorAt:
+		case cpainstance.FieldCreatedAt, cpainstance.FieldUpdatedAt, cpainstance.FieldNextRefreshAt, cpainstance.FieldNextEnabledPatrolAt, cpainstance.FieldNextDisabledPatrolAt, cpainstance.FieldLastSyncAttemptAt, cpainstance.FieldLastSyncSuccessAt, cpainstance.FieldLastErrorAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -171,6 +181,38 @@ func (_m *CPAInstance) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.NextRefreshAt = new(time.Time)
 				*_m.NextRefreshAt = value.Time
+			}
+		case cpainstance.FieldAutoManageEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_manage_enabled", values[i])
+			} else if value.Valid {
+				_m.AutoManageEnabled = value.Bool
+			}
+		case cpainstance.FieldEnabledPatrolIntervalMinutes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field enabled_patrol_interval_minutes", values[i])
+			} else if value.Valid {
+				_m.EnabledPatrolIntervalMinutes = int(value.Int64)
+			}
+		case cpainstance.FieldDisabledPatrolIntervalMinutes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field disabled_patrol_interval_minutes", values[i])
+			} else if value.Valid {
+				_m.DisabledPatrolIntervalMinutes = int(value.Int64)
+			}
+		case cpainstance.FieldNextEnabledPatrolAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field next_enabled_patrol_at", values[i])
+			} else if value.Valid {
+				_m.NextEnabledPatrolAt = new(time.Time)
+				*_m.NextEnabledPatrolAt = value.Time
+			}
+		case cpainstance.FieldNextDisabledPatrolAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field next_disabled_patrol_at", values[i])
+			} else if value.Valid {
+				_m.NextDisabledPatrolAt = new(time.Time)
+				*_m.NextDisabledPatrolAt = value.Time
 			}
 		case cpainstance.FieldServerVersion:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -287,6 +329,25 @@ func (_m *CPAInstance) String() string {
 	builder.WriteString(", ")
 	if v := _m.NextRefreshAt; v != nil {
 		builder.WriteString("next_refresh_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("auto_manage_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AutoManageEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("enabled_patrol_interval_minutes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.EnabledPatrolIntervalMinutes))
+	builder.WriteString(", ")
+	builder.WriteString("disabled_patrol_interval_minutes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DisabledPatrolIntervalMinutes))
+	builder.WriteString(", ")
+	if v := _m.NextEnabledPatrolAt; v != nil {
+		builder.WriteString("next_enabled_patrol_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.NextDisabledPatrolAt; v != nil {
+		builder.WriteString("next_disabled_patrol_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

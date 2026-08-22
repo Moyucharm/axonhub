@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,6 +51,9 @@ type CPACredentialView struct {
 	Available          bool
 	Abnormal           bool
 	Stale              bool
+	Expired            bool
+	Cooling            bool
+	CooldownUntil      *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	credential         *ent.CPACredential
@@ -113,35 +117,34 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 	if input.Provider != nil && strings.TrimSpace(*input.Provider) != "" {
 		query = query.Where(cpacredential.ProviderEQ(strings.TrimSpace(*input.Provider)))
 	}
-	if len(input.Statuses) > 0 {
-		wantEnabled, wantDisabled := false, false
-		for _, status := range input.Statuses {
-			switch strings.ToLower(strings.TrimSpace(status)) {
-			case "enabled":
-				wantEnabled = true
-			case "disabled":
-				wantDisabled = true
-			}
-		}
-		switch {
-		case wantEnabled && !wantDisabled:
-			query = query.Where(cpacredential.DisabledEQ(false))
-		case wantDisabled && !wantEnabled:
-			query = query.Where(cpacredential.DisabledEQ(true))
-		}
-	}
 	if len(input.PlanTypes) > 0 {
 		query = query.Where(cpacredential.PlanTypeIn(input.PlanTypes...))
 	}
+	statusFilter := parseCPAStatusFilter(input.Statuses)
+	// Enabled/disabled map directly onto a column, so push them into SQL and
+	// keep cursor pagination consistent. When derived flags (abnormal/cooldown)
+	// are also selected the result must stay a union of all requested states,
+	// so the whole filter is evaluated in memory instead.
+	if !statusFilter.abnormal && !statusFilter.cooldown {
+		if statusFilter.enabled && !statusFilter.disabled {
+			query = query.Where(cpacredential.DisabledEQ(false))
+		} else if statusFilter.disabled && !statusFilter.enabled {
+			query = query.Where(cpacredential.DisabledEQ(true))
+		}
+	}
 
+	now := svc.now()
 	credentials, err := query.All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("query CPA credentials: %w", err)
 	}
 	views := make([]*CPACredentialView, 0, len(credentials))
 	for _, credential := range credentials {
-		view := buildCPACredentialView(instance, credential)
+		view := buildCPACredentialView(instance, credential, now)
 		if input.AbnormalOnly && !view.Abnormal {
+			continue
+		}
+		if !statusFilter.matches(view) {
 			continue
 		}
 		views = append(views, view)
@@ -200,8 +203,9 @@ func (svc *CPAService) CredentialStats(ctx context.Context, instanceID int) (*CP
 		return nil, fmt.Errorf("query CPA credential stats: %w", err)
 	}
 	stats := &CPACredentialStats{Total: len(credentials)}
+	now := svc.now()
 	for _, credential := range credentials {
-		view := buildCPACredentialView(instance, credential)
+		view := buildCPACredentialView(instance, credential, now)
 		if view.Available {
 			stats.Available++
 		}
@@ -251,15 +255,18 @@ func (svc *CPAService) PlanTypes(ctx context.Context, instanceID int, provider s
 	return plans, nil
 }
 
-func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACredential) *CPACredentialView {
+// buildCPACredentialView projects a credential row onto the API view. now is
+// injected so expiry/cooldown derivation stays deterministic in tests.
+func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACredential, now time.Time) *CPACredentialView {
 	statusAbnormal := cpaStatusAbnormal(credential.Status)
 	quotaError := credential.QuotaState == string(objects.CPAQuotaStateError)
 	quotaAvailable := credential.QuotaState == string(objects.CPAQuotaStateSuccess) ||
 		credential.QuotaState == string(objects.CPAQuotaStateUnsupported)
+	cooling, cooldownUntil := cpaQuotaCooldown(credential.QuotaData, now)
 	abnormal := !credential.Disabled && (credential.Unavailable || statusAbnormal || quotaError)
-	available := !credential.Disabled && !credential.Unavailable && !statusAbnormal && quotaAvailable
+	available := !credential.Disabled && !credential.Unavailable && !statusAbnormal && quotaAvailable && !cooling
 	instanceStale := !instance.Enabled || (instance.LastError != nil && strings.TrimSpace(*instance.LastError) != "")
-	stale := instanceStale || credential.Disabled || quotaError
+	stale := instanceStale || quotaError
 	return &CPACredentialView{
 		ID:                 credential.ID,
 		InstanceID:         credential.CpaInstanceID,
@@ -283,10 +290,93 @@ func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACreden
 		Available:          available,
 		Abnormal:           abnormal,
 		Stale:              stale,
+		Expired:            deriveCPAExpired(credential, now),
+		Cooling:            cooling,
+		CooldownUntil:      cooldownUntil,
 		CreatedAt:          credential.CreatedAt,
 		UpdatedAt:          credential.UpdatedAt,
 		credential:         credential,
 	}
+}
+
+type cpaStatusFilter struct {
+	enabled  bool
+	disabled bool
+	abnormal bool
+	cooldown bool
+	any      bool
+}
+
+func parseCPAStatusFilter(statuses []string) cpaStatusFilter {
+	filter := cpaStatusFilter{}
+	for _, status := range statuses {
+		switch strings.ToLower(strings.TrimSpace(status)) {
+		case "enabled":
+			filter.enabled = true
+		case "disabled":
+			filter.disabled = true
+		case "abnormal":
+			filter.abnormal = true
+		case "cooldown":
+			filter.cooldown = true
+		}
+	}
+	filter.any = !filter.enabled && !filter.disabled && !filter.abnormal && !filter.cooldown
+	return filter
+}
+
+func (filter cpaStatusFilter) matches(view *CPACredentialView) bool {
+	if filter.any {
+		return true
+	}
+	if filter.enabled && !view.Disabled {
+		return true
+	}
+	if filter.disabled && view.Disabled {
+		return true
+	}
+	if filter.abnormal && view.Abnormal {
+		return true
+	}
+	if filter.cooldown && view.Cooling {
+		return true
+	}
+	return false
+}
+
+// cpaQuotaCooldown reports whether any quota window is exhausted and still
+// cooling down at now. Windows whose reset time already passed are ignored:
+// they recovered server-side and only await the next successful refresh.
+func cpaQuotaCooldown(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time) {
+	var cooling bool
+	var until *time.Time
+	for _, item := range snapshot.Items {
+		if !cpaQuotaItemExhausted(item) {
+			continue
+		}
+		if item.ResetAt != nil && !item.ResetAt.After(now) {
+			continue
+		}
+		cooling = true
+		if item.ResetAt == nil {
+			continue
+		}
+		if until == nil || item.ResetAt.Before(*until) {
+			reset := item.ResetAt.UTC()
+			until = &reset
+		}
+	}
+	return cooling, until
+}
+
+func cpaQuotaItemExhausted(item objects.CPAQuotaItem) bool {
+	if item.UsedPercent != nil && *item.UsedPercent >= 100 {
+		return true
+	}
+	if item.RemainingPercent != nil && *item.RemainingPercent <= 0 {
+		return true
+	}
+	return item.Limit != nil && *item.Limit > 0 && item.Remaining != nil && *item.Remaining <= 0
 }
 
 func cpaStatusAbnormal(status string) bool {
@@ -298,6 +388,72 @@ func cpaStatusAbnormal(status string) bool {
 	default:
 		return true
 	}
+}
+
+// cpaExpiredStatusMessages lists remote status_message values that indicate a
+// permanently unusable credential (HTTP 401/402/403/404 class failures).
+var cpaExpiredStatusMessages = map[string]struct{}{
+	"unauthorized":     {},
+	"payment_required": {},
+	"forbidden":        {},
+	"not_found":        {},
+}
+
+// deriveCPAExpired reports whether a credential should be displayed as expired.
+// It is purely derived: a renewed subscription or a recovered remote status
+// clears the flag without any persisted state.
+func deriveCPAExpired(credential *ent.CPACredential, now time.Time) bool {
+	// A successful quota refresh is live proof the credential still works;
+	// stale JWT subscription dates must not override it.
+	if credential.QuotaState == string(objects.CPAQuotaStateSuccess) {
+		return false
+	}
+	if cpaSubscriptionExpired(credential.QuotaContext.SubscriptionEnd, now) {
+		return true
+	}
+	if !strings.EqualFold(strings.TrimSpace(credential.Status), "error") {
+		return false
+	}
+	_, ok := cpaExpiredStatusMessages[strings.ToLower(strings.TrimSpace(credential.StatusMessage))]
+	return ok
+}
+
+// cpaSubscriptionExpired parses the subscription end value from JWT claims and
+// reports whether it has passed. Date-only values are granted until the end of
+// that day; numeric values are treated as unix seconds.
+func cpaSubscriptionExpired(raw string, now time.Time) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return false
+	}
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return now.After(time.Unix(seconds, 0))
+	}
+	parsed, ok := parseSubscriptionEndTime(value)
+	if !ok {
+		return false
+	}
+	return now.After(parsed)
+}
+
+// parseSubscriptionEndTime accepts common date/time layouts used by providers.
+func parseSubscriptionEndTime(value string) (time.Time, bool) {
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			// Date-only values stay valid through the entire last day.
+			if layout == "2006-01-02" {
+				parsed = parsed.Add(24*time.Hour - time.Second)
+			}
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func compareCPACredentials(left, right *ent.CPACredential) int {

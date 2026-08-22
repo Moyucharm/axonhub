@@ -3817,34 +3817,41 @@ func (m *CPACredentialMutation) ResetEdge(name string) error {
 // CPAInstanceMutation represents an operation that mutates the CPAInstance nodes in the graph.
 type CPAInstanceMutation struct {
 	config
-	op                          Op
-	typ                         string
-	id                          *int
-	created_at                  *time.Time
-	updated_at                  *time.Time
-	name                        *string
-	base_url                    *string
-	encrypted_secret            *string
-	enabled                     *bool
-	insecure_skip_tls           *bool
-	auto_refresh_enabled        *bool
-	refresh_interval_minutes    *int
-	addrefresh_interval_minutes *int
-	next_refresh_at             *time.Time
-	server_version              *string
-	server_commit               *string
-	server_build_date           *string
-	last_sync_attempt_at        *time.Time
-	last_sync_success_at        *time.Time
-	last_error_at               *time.Time
-	last_error                  *string
-	clearedFields               map[string]struct{}
-	credentials                 map[int]struct{}
-	removedcredentials          map[int]struct{}
-	clearedcredentials          bool
-	done                        bool
-	oldValue                    func(context.Context) (*CPAInstance, error)
-	predicates                  []predicate.CPAInstance
+	op                                  Op
+	typ                                 string
+	id                                  *int
+	created_at                          *time.Time
+	updated_at                          *time.Time
+	name                                *string
+	base_url                            *string
+	encrypted_secret                    *string
+	enabled                             *bool
+	insecure_skip_tls                   *bool
+	auto_refresh_enabled                *bool
+	refresh_interval_minutes            *int
+	addrefresh_interval_minutes         *int
+	next_refresh_at                     *time.Time
+	auto_manage_enabled                 *bool
+	enabled_patrol_interval_minutes     *int
+	addenabled_patrol_interval_minutes  *int
+	disabled_patrol_interval_minutes    *int
+	adddisabled_patrol_interval_minutes *int
+	next_enabled_patrol_at              *time.Time
+	next_disabled_patrol_at             *time.Time
+	server_version                      *string
+	server_commit                       *string
+	server_build_date                   *string
+	last_sync_attempt_at                *time.Time
+	last_sync_success_at                *time.Time
+	last_error_at                       *time.Time
+	last_error                          *string
+	clearedFields                       map[string]struct{}
+	credentials                         map[int]struct{}
+	removedcredentials                  map[int]struct{}
+	clearedcredentials                  bool
+	done                                bool
+	oldValue                            func(context.Context) (*CPAInstance, error)
+	predicates                          []predicate.CPAInstance
 }
 
 var _ ent.Mutation = (*CPAInstanceMutation)(nil)
@@ -4338,6 +4345,252 @@ func (m *CPAInstanceMutation) ResetNextRefreshAt() {
 	delete(m.clearedFields, cpainstance.FieldNextRefreshAt)
 }
 
+// SetAutoManageEnabled sets the "auto_manage_enabled" field.
+func (m *CPAInstanceMutation) SetAutoManageEnabled(b bool) {
+	m.auto_manage_enabled = &b
+}
+
+// AutoManageEnabled returns the value of the "auto_manage_enabled" field in the mutation.
+func (m *CPAInstanceMutation) AutoManageEnabled() (r bool, exists bool) {
+	v := m.auto_manage_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoManageEnabled returns the old "auto_manage_enabled" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldAutoManageEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoManageEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoManageEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoManageEnabled: %w", err)
+	}
+	return oldValue.AutoManageEnabled, nil
+}
+
+// ResetAutoManageEnabled resets all changes to the "auto_manage_enabled" field.
+func (m *CPAInstanceMutation) ResetAutoManageEnabled() {
+	m.auto_manage_enabled = nil
+}
+
+// SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) SetEnabledPatrolIntervalMinutes(i int) {
+	m.enabled_patrol_interval_minutes = &i
+	m.addenabled_patrol_interval_minutes = nil
+}
+
+// EnabledPatrolIntervalMinutes returns the value of the "enabled_patrol_interval_minutes" field in the mutation.
+func (m *CPAInstanceMutation) EnabledPatrolIntervalMinutes() (r int, exists bool) {
+	v := m.enabled_patrol_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabledPatrolIntervalMinutes returns the old "enabled_patrol_interval_minutes" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldEnabledPatrolIntervalMinutes(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabledPatrolIntervalMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabledPatrolIntervalMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabledPatrolIntervalMinutes: %w", err)
+	}
+	return oldValue.EnabledPatrolIntervalMinutes, nil
+}
+
+// AddEnabledPatrolIntervalMinutes adds i to the "enabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) AddEnabledPatrolIntervalMinutes(i int) {
+	if m.addenabled_patrol_interval_minutes != nil {
+		*m.addenabled_patrol_interval_minutes += i
+	} else {
+		m.addenabled_patrol_interval_minutes = &i
+	}
+}
+
+// AddedEnabledPatrolIntervalMinutes returns the value that was added to the "enabled_patrol_interval_minutes" field in this mutation.
+func (m *CPAInstanceMutation) AddedEnabledPatrolIntervalMinutes() (r int, exists bool) {
+	v := m.addenabled_patrol_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetEnabledPatrolIntervalMinutes resets all changes to the "enabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) ResetEnabledPatrolIntervalMinutes() {
+	m.enabled_patrol_interval_minutes = nil
+	m.addenabled_patrol_interval_minutes = nil
+}
+
+// SetDisabledPatrolIntervalMinutes sets the "disabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) SetDisabledPatrolIntervalMinutes(i int) {
+	m.disabled_patrol_interval_minutes = &i
+	m.adddisabled_patrol_interval_minutes = nil
+}
+
+// DisabledPatrolIntervalMinutes returns the value of the "disabled_patrol_interval_minutes" field in the mutation.
+func (m *CPAInstanceMutation) DisabledPatrolIntervalMinutes() (r int, exists bool) {
+	v := m.disabled_patrol_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisabledPatrolIntervalMinutes returns the old "disabled_patrol_interval_minutes" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldDisabledPatrolIntervalMinutes(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisabledPatrolIntervalMinutes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisabledPatrolIntervalMinutes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisabledPatrolIntervalMinutes: %w", err)
+	}
+	return oldValue.DisabledPatrolIntervalMinutes, nil
+}
+
+// AddDisabledPatrolIntervalMinutes adds i to the "disabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) AddDisabledPatrolIntervalMinutes(i int) {
+	if m.adddisabled_patrol_interval_minutes != nil {
+		*m.adddisabled_patrol_interval_minutes += i
+	} else {
+		m.adddisabled_patrol_interval_minutes = &i
+	}
+}
+
+// AddedDisabledPatrolIntervalMinutes returns the value that was added to the "disabled_patrol_interval_minutes" field in this mutation.
+func (m *CPAInstanceMutation) AddedDisabledPatrolIntervalMinutes() (r int, exists bool) {
+	v := m.adddisabled_patrol_interval_minutes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDisabledPatrolIntervalMinutes resets all changes to the "disabled_patrol_interval_minutes" field.
+func (m *CPAInstanceMutation) ResetDisabledPatrolIntervalMinutes() {
+	m.disabled_patrol_interval_minutes = nil
+	m.adddisabled_patrol_interval_minutes = nil
+}
+
+// SetNextEnabledPatrolAt sets the "next_enabled_patrol_at" field.
+func (m *CPAInstanceMutation) SetNextEnabledPatrolAt(t time.Time) {
+	m.next_enabled_patrol_at = &t
+}
+
+// NextEnabledPatrolAt returns the value of the "next_enabled_patrol_at" field in the mutation.
+func (m *CPAInstanceMutation) NextEnabledPatrolAt() (r time.Time, exists bool) {
+	v := m.next_enabled_patrol_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextEnabledPatrolAt returns the old "next_enabled_patrol_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldNextEnabledPatrolAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextEnabledPatrolAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextEnabledPatrolAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextEnabledPatrolAt: %w", err)
+	}
+	return oldValue.NextEnabledPatrolAt, nil
+}
+
+// ClearNextEnabledPatrolAt clears the value of the "next_enabled_patrol_at" field.
+func (m *CPAInstanceMutation) ClearNextEnabledPatrolAt() {
+	m.next_enabled_patrol_at = nil
+	m.clearedFields[cpainstance.FieldNextEnabledPatrolAt] = struct{}{}
+}
+
+// NextEnabledPatrolAtCleared returns if the "next_enabled_patrol_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) NextEnabledPatrolAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldNextEnabledPatrolAt]
+	return ok
+}
+
+// ResetNextEnabledPatrolAt resets all changes to the "next_enabled_patrol_at" field.
+func (m *CPAInstanceMutation) ResetNextEnabledPatrolAt() {
+	m.next_enabled_patrol_at = nil
+	delete(m.clearedFields, cpainstance.FieldNextEnabledPatrolAt)
+}
+
+// SetNextDisabledPatrolAt sets the "next_disabled_patrol_at" field.
+func (m *CPAInstanceMutation) SetNextDisabledPatrolAt(t time.Time) {
+	m.next_disabled_patrol_at = &t
+}
+
+// NextDisabledPatrolAt returns the value of the "next_disabled_patrol_at" field in the mutation.
+func (m *CPAInstanceMutation) NextDisabledPatrolAt() (r time.Time, exists bool) {
+	v := m.next_disabled_patrol_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNextDisabledPatrolAt returns the old "next_disabled_patrol_at" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldNextDisabledPatrolAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNextDisabledPatrolAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNextDisabledPatrolAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNextDisabledPatrolAt: %w", err)
+	}
+	return oldValue.NextDisabledPatrolAt, nil
+}
+
+// ClearNextDisabledPatrolAt clears the value of the "next_disabled_patrol_at" field.
+func (m *CPAInstanceMutation) ClearNextDisabledPatrolAt() {
+	m.next_disabled_patrol_at = nil
+	m.clearedFields[cpainstance.FieldNextDisabledPatrolAt] = struct{}{}
+}
+
+// NextDisabledPatrolAtCleared returns if the "next_disabled_patrol_at" field was cleared in this mutation.
+func (m *CPAInstanceMutation) NextDisabledPatrolAtCleared() bool {
+	_, ok := m.clearedFields[cpainstance.FieldNextDisabledPatrolAt]
+	return ok
+}
+
+// ResetNextDisabledPatrolAt resets all changes to the "next_disabled_patrol_at" field.
+func (m *CPAInstanceMutation) ResetNextDisabledPatrolAt() {
+	m.next_disabled_patrol_at = nil
+	delete(m.clearedFields, cpainstance.FieldNextDisabledPatrolAt)
+}
+
 // SetServerVersion sets the "server_version" field.
 func (m *CPAInstanceMutation) SetServerVersion(s string) {
 	m.server_version = &s
@@ -4730,7 +4983,7 @@ func (m *CPAInstanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPAInstanceMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 22)
 	if m.created_at != nil {
 		fields = append(fields, cpainstance.FieldCreatedAt)
 	}
@@ -4760,6 +5013,21 @@ func (m *CPAInstanceMutation) Fields() []string {
 	}
 	if m.next_refresh_at != nil {
 		fields = append(fields, cpainstance.FieldNextRefreshAt)
+	}
+	if m.auto_manage_enabled != nil {
+		fields = append(fields, cpainstance.FieldAutoManageEnabled)
+	}
+	if m.enabled_patrol_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldEnabledPatrolIntervalMinutes)
+	}
+	if m.disabled_patrol_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldDisabledPatrolIntervalMinutes)
+	}
+	if m.next_enabled_patrol_at != nil {
+		fields = append(fields, cpainstance.FieldNextEnabledPatrolAt)
+	}
+	if m.next_disabled_patrol_at != nil {
+		fields = append(fields, cpainstance.FieldNextDisabledPatrolAt)
 	}
 	if m.server_version != nil {
 		fields = append(fields, cpainstance.FieldServerVersion)
@@ -4810,6 +5078,16 @@ func (m *CPAInstanceMutation) Field(name string) (ent.Value, bool) {
 		return m.RefreshIntervalMinutes()
 	case cpainstance.FieldNextRefreshAt:
 		return m.NextRefreshAt()
+	case cpainstance.FieldAutoManageEnabled:
+		return m.AutoManageEnabled()
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		return m.EnabledPatrolIntervalMinutes()
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		return m.DisabledPatrolIntervalMinutes()
+	case cpainstance.FieldNextEnabledPatrolAt:
+		return m.NextEnabledPatrolAt()
+	case cpainstance.FieldNextDisabledPatrolAt:
+		return m.NextDisabledPatrolAt()
 	case cpainstance.FieldServerVersion:
 		return m.ServerVersion()
 	case cpainstance.FieldServerCommit:
@@ -4853,6 +5131,16 @@ func (m *CPAInstanceMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldRefreshIntervalMinutes(ctx)
 	case cpainstance.FieldNextRefreshAt:
 		return m.OldNextRefreshAt(ctx)
+	case cpainstance.FieldAutoManageEnabled:
+		return m.OldAutoManageEnabled(ctx)
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		return m.OldEnabledPatrolIntervalMinutes(ctx)
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		return m.OldDisabledPatrolIntervalMinutes(ctx)
+	case cpainstance.FieldNextEnabledPatrolAt:
+		return m.OldNextEnabledPatrolAt(ctx)
+	case cpainstance.FieldNextDisabledPatrolAt:
+		return m.OldNextDisabledPatrolAt(ctx)
 	case cpainstance.FieldServerVersion:
 		return m.OldServerVersion(ctx)
 	case cpainstance.FieldServerCommit:
@@ -4946,6 +5234,41 @@ func (m *CPAInstanceMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetNextRefreshAt(v)
 		return nil
+	case cpainstance.FieldAutoManageEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoManageEnabled(v)
+		return nil
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabledPatrolIntervalMinutes(v)
+		return nil
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisabledPatrolIntervalMinutes(v)
+		return nil
+	case cpainstance.FieldNextEnabledPatrolAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextEnabledPatrolAt(v)
+		return nil
+	case cpainstance.FieldNextDisabledPatrolAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNextDisabledPatrolAt(v)
+		return nil
 	case cpainstance.FieldServerVersion:
 		v, ok := value.(string)
 		if !ok {
@@ -5006,6 +5329,12 @@ func (m *CPAInstanceMutation) AddedFields() []string {
 	if m.addrefresh_interval_minutes != nil {
 		fields = append(fields, cpainstance.FieldRefreshIntervalMinutes)
 	}
+	if m.addenabled_patrol_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldEnabledPatrolIntervalMinutes)
+	}
+	if m.adddisabled_patrol_interval_minutes != nil {
+		fields = append(fields, cpainstance.FieldDisabledPatrolIntervalMinutes)
+	}
 	return fields
 }
 
@@ -5016,6 +5345,10 @@ func (m *CPAInstanceMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case cpainstance.FieldRefreshIntervalMinutes:
 		return m.AddedRefreshIntervalMinutes()
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		return m.AddedEnabledPatrolIntervalMinutes()
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		return m.AddedDisabledPatrolIntervalMinutes()
 	}
 	return nil, false
 }
@@ -5032,6 +5365,20 @@ func (m *CPAInstanceMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddRefreshIntervalMinutes(v)
 		return nil
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddEnabledPatrolIntervalMinutes(v)
+		return nil
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDisabledPatrolIntervalMinutes(v)
+		return nil
 	}
 	return fmt.Errorf("unknown CPAInstance numeric field %s", name)
 }
@@ -5042,6 +5389,12 @@ func (m *CPAInstanceMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(cpainstance.FieldNextRefreshAt) {
 		fields = append(fields, cpainstance.FieldNextRefreshAt)
+	}
+	if m.FieldCleared(cpainstance.FieldNextEnabledPatrolAt) {
+		fields = append(fields, cpainstance.FieldNextEnabledPatrolAt)
+	}
+	if m.FieldCleared(cpainstance.FieldNextDisabledPatrolAt) {
+		fields = append(fields, cpainstance.FieldNextDisabledPatrolAt)
 	}
 	if m.FieldCleared(cpainstance.FieldLastSyncAttemptAt) {
 		fields = append(fields, cpainstance.FieldLastSyncAttemptAt)
@@ -5071,6 +5424,12 @@ func (m *CPAInstanceMutation) ClearField(name string) error {
 	switch name {
 	case cpainstance.FieldNextRefreshAt:
 		m.ClearNextRefreshAt()
+		return nil
+	case cpainstance.FieldNextEnabledPatrolAt:
+		m.ClearNextEnabledPatrolAt()
+		return nil
+	case cpainstance.FieldNextDisabledPatrolAt:
+		m.ClearNextDisabledPatrolAt()
 		return nil
 	case cpainstance.FieldLastSyncAttemptAt:
 		m.ClearLastSyncAttemptAt()
@@ -5121,6 +5480,21 @@ func (m *CPAInstanceMutation) ResetField(name string) error {
 		return nil
 	case cpainstance.FieldNextRefreshAt:
 		m.ResetNextRefreshAt()
+		return nil
+	case cpainstance.FieldAutoManageEnabled:
+		m.ResetAutoManageEnabled()
+		return nil
+	case cpainstance.FieldEnabledPatrolIntervalMinutes:
+		m.ResetEnabledPatrolIntervalMinutes()
+		return nil
+	case cpainstance.FieldDisabledPatrolIntervalMinutes:
+		m.ResetDisabledPatrolIntervalMinutes()
+		return nil
+	case cpainstance.FieldNextEnabledPatrolAt:
+		m.ResetNextEnabledPatrolAt()
+		return nil
+	case cpainstance.FieldNextDisabledPatrolAt:
+		m.ResetNextDisabledPatrolAt()
 		return nil
 	case cpainstance.FieldServerVersion:
 		m.ResetServerVersion()

@@ -134,23 +134,28 @@ var schemaGraph = func() *sqlgraph.Schema {
 		},
 		Type: "CPAInstance",
 		Fields: map[string]*sqlgraph.FieldSpec{
-			cpainstance.FieldCreatedAt:              {Type: field.TypeTime, Column: cpainstance.FieldCreatedAt},
-			cpainstance.FieldUpdatedAt:              {Type: field.TypeTime, Column: cpainstance.FieldUpdatedAt},
-			cpainstance.FieldName:                   {Type: field.TypeString, Column: cpainstance.FieldName},
-			cpainstance.FieldBaseURL:                {Type: field.TypeString, Column: cpainstance.FieldBaseURL},
-			cpainstance.FieldEncryptedSecret:        {Type: field.TypeString, Column: cpainstance.FieldEncryptedSecret},
-			cpainstance.FieldEnabled:                {Type: field.TypeBool, Column: cpainstance.FieldEnabled},
-			cpainstance.FieldInsecureSkipTLS:        {Type: field.TypeBool, Column: cpainstance.FieldInsecureSkipTLS},
-			cpainstance.FieldAutoRefreshEnabled:     {Type: field.TypeBool, Column: cpainstance.FieldAutoRefreshEnabled},
-			cpainstance.FieldRefreshIntervalMinutes: {Type: field.TypeInt, Column: cpainstance.FieldRefreshIntervalMinutes},
-			cpainstance.FieldNextRefreshAt:          {Type: field.TypeTime, Column: cpainstance.FieldNextRefreshAt},
-			cpainstance.FieldServerVersion:          {Type: field.TypeString, Column: cpainstance.FieldServerVersion},
-			cpainstance.FieldServerCommit:           {Type: field.TypeString, Column: cpainstance.FieldServerCommit},
-			cpainstance.FieldServerBuildDate:        {Type: field.TypeString, Column: cpainstance.FieldServerBuildDate},
-			cpainstance.FieldLastSyncAttemptAt:      {Type: field.TypeTime, Column: cpainstance.FieldLastSyncAttemptAt},
-			cpainstance.FieldLastSyncSuccessAt:      {Type: field.TypeTime, Column: cpainstance.FieldLastSyncSuccessAt},
-			cpainstance.FieldLastErrorAt:            {Type: field.TypeTime, Column: cpainstance.FieldLastErrorAt},
-			cpainstance.FieldLastError:              {Type: field.TypeString, Column: cpainstance.FieldLastError},
+			cpainstance.FieldCreatedAt:                     {Type: field.TypeTime, Column: cpainstance.FieldCreatedAt},
+			cpainstance.FieldUpdatedAt:                     {Type: field.TypeTime, Column: cpainstance.FieldUpdatedAt},
+			cpainstance.FieldName:                          {Type: field.TypeString, Column: cpainstance.FieldName},
+			cpainstance.FieldBaseURL:                       {Type: field.TypeString, Column: cpainstance.FieldBaseURL},
+			cpainstance.FieldEncryptedSecret:               {Type: field.TypeString, Column: cpainstance.FieldEncryptedSecret},
+			cpainstance.FieldEnabled:                       {Type: field.TypeBool, Column: cpainstance.FieldEnabled},
+			cpainstance.FieldInsecureSkipTLS:               {Type: field.TypeBool, Column: cpainstance.FieldInsecureSkipTLS},
+			cpainstance.FieldAutoRefreshEnabled:            {Type: field.TypeBool, Column: cpainstance.FieldAutoRefreshEnabled},
+			cpainstance.FieldRefreshIntervalMinutes:        {Type: field.TypeInt, Column: cpainstance.FieldRefreshIntervalMinutes},
+			cpainstance.FieldNextRefreshAt:                 {Type: field.TypeTime, Column: cpainstance.FieldNextRefreshAt},
+			cpainstance.FieldAutoManageEnabled:             {Type: field.TypeBool, Column: cpainstance.FieldAutoManageEnabled},
+			cpainstance.FieldEnabledPatrolIntervalMinutes:  {Type: field.TypeInt, Column: cpainstance.FieldEnabledPatrolIntervalMinutes},
+			cpainstance.FieldDisabledPatrolIntervalMinutes: {Type: field.TypeInt, Column: cpainstance.FieldDisabledPatrolIntervalMinutes},
+			cpainstance.FieldNextEnabledPatrolAt:           {Type: field.TypeTime, Column: cpainstance.FieldNextEnabledPatrolAt},
+			cpainstance.FieldNextDisabledPatrolAt:          {Type: field.TypeTime, Column: cpainstance.FieldNextDisabledPatrolAt},
+			cpainstance.FieldServerVersion:                 {Type: field.TypeString, Column: cpainstance.FieldServerVersion},
+			cpainstance.FieldServerCommit:                  {Type: field.TypeString, Column: cpainstance.FieldServerCommit},
+			cpainstance.FieldServerBuildDate:               {Type: field.TypeString, Column: cpainstance.FieldServerBuildDate},
+			cpainstance.FieldLastSyncAttemptAt:             {Type: field.TypeTime, Column: cpainstance.FieldLastSyncAttemptAt},
+			cpainstance.FieldLastSyncSuccessAt:             {Type: field.TypeTime, Column: cpainstance.FieldLastSyncSuccessAt},
+			cpainstance.FieldLastErrorAt:                   {Type: field.TypeTime, Column: cpainstance.FieldLastErrorAt},
+			cpainstance.FieldLastError:                     {Type: field.TypeString, Column: cpainstance.FieldLastError},
 		},
 	}
 	graph.Nodes[4] = &sqlgraph.Node{
@@ -1995,6 +2000,31 @@ func (f *CPAInstanceFilter) WhereRefreshIntervalMinutes(p entql.IntP) {
 // WhereNextRefreshAt applies the entql time.Time predicate on the next_refresh_at field.
 func (f *CPAInstanceFilter) WhereNextRefreshAt(p entql.TimeP) {
 	f.Where(p.Field(cpainstance.FieldNextRefreshAt))
+}
+
+// WhereAutoManageEnabled applies the entql bool predicate on the auto_manage_enabled field.
+func (f *CPAInstanceFilter) WhereAutoManageEnabled(p entql.BoolP) {
+	f.Where(p.Field(cpainstance.FieldAutoManageEnabled))
+}
+
+// WhereEnabledPatrolIntervalMinutes applies the entql int predicate on the enabled_patrol_interval_minutes field.
+func (f *CPAInstanceFilter) WhereEnabledPatrolIntervalMinutes(p entql.IntP) {
+	f.Where(p.Field(cpainstance.FieldEnabledPatrolIntervalMinutes))
+}
+
+// WhereDisabledPatrolIntervalMinutes applies the entql int predicate on the disabled_patrol_interval_minutes field.
+func (f *CPAInstanceFilter) WhereDisabledPatrolIntervalMinutes(p entql.IntP) {
+	f.Where(p.Field(cpainstance.FieldDisabledPatrolIntervalMinutes))
+}
+
+// WhereNextEnabledPatrolAt applies the entql time.Time predicate on the next_enabled_patrol_at field.
+func (f *CPAInstanceFilter) WhereNextEnabledPatrolAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldNextEnabledPatrolAt))
+}
+
+// WhereNextDisabledPatrolAt applies the entql time.Time predicate on the next_disabled_patrol_at field.
+func (f *CPAInstanceFilter) WhereNextDisabledPatrolAt(p entql.TimeP) {
+	f.Where(p.Field(cpainstance.FieldNextDisabledPatrolAt))
 }
 
 // WhereServerVersion applies the entql string predicate on the server_version field.

@@ -35,6 +35,16 @@ const (
 	FieldRefreshIntervalMinutes = "refresh_interval_minutes"
 	// FieldNextRefreshAt holds the string denoting the next_refresh_at field in the database.
 	FieldNextRefreshAt = "next_refresh_at"
+	// FieldAutoManageEnabled holds the string denoting the auto_manage_enabled field in the database.
+	FieldAutoManageEnabled = "auto_manage_enabled"
+	// FieldEnabledPatrolIntervalMinutes holds the string denoting the enabled_patrol_interval_minutes field in the database.
+	FieldEnabledPatrolIntervalMinutes = "enabled_patrol_interval_minutes"
+	// FieldDisabledPatrolIntervalMinutes holds the string denoting the disabled_patrol_interval_minutes field in the database.
+	FieldDisabledPatrolIntervalMinutes = "disabled_patrol_interval_minutes"
+	// FieldNextEnabledPatrolAt holds the string denoting the next_enabled_patrol_at field in the database.
+	FieldNextEnabledPatrolAt = "next_enabled_patrol_at"
+	// FieldNextDisabledPatrolAt holds the string denoting the next_disabled_patrol_at field in the database.
+	FieldNextDisabledPatrolAt = "next_disabled_patrol_at"
 	// FieldServerVersion holds the string denoting the server_version field in the database.
 	FieldServerVersion = "server_version"
 	// FieldServerCommit holds the string denoting the server_commit field in the database.
@@ -75,6 +85,11 @@ var Columns = []string{
 	FieldAutoRefreshEnabled,
 	FieldRefreshIntervalMinutes,
 	FieldNextRefreshAt,
+	FieldAutoManageEnabled,
+	FieldEnabledPatrolIntervalMinutes,
+	FieldDisabledPatrolIntervalMinutes,
+	FieldNextEnabledPatrolAt,
+	FieldNextDisabledPatrolAt,
 	FieldServerVersion,
 	FieldServerCommit,
 	FieldServerBuildDate,
@@ -122,6 +137,16 @@ var (
 	DefaultRefreshIntervalMinutes int
 	// RefreshIntervalMinutesValidator is a validator for the "refresh_interval_minutes" field. It is called by the builders before save.
 	RefreshIntervalMinutesValidator func(int) error
+	// DefaultAutoManageEnabled holds the default value on creation for the "auto_manage_enabled" field.
+	DefaultAutoManageEnabled bool
+	// DefaultEnabledPatrolIntervalMinutes holds the default value on creation for the "enabled_patrol_interval_minutes" field.
+	DefaultEnabledPatrolIntervalMinutes int
+	// EnabledPatrolIntervalMinutesValidator is a validator for the "enabled_patrol_interval_minutes" field. It is called by the builders before save.
+	EnabledPatrolIntervalMinutesValidator func(int) error
+	// DefaultDisabledPatrolIntervalMinutes holds the default value on creation for the "disabled_patrol_interval_minutes" field.
+	DefaultDisabledPatrolIntervalMinutes int
+	// DisabledPatrolIntervalMinutesValidator is a validator for the "disabled_patrol_interval_minutes" field. It is called by the builders before save.
+	DisabledPatrolIntervalMinutesValidator func(int) error
 	// DefaultServerVersion holds the default value on creation for the "server_version" field.
 	DefaultServerVersion string
 	// DefaultServerCommit holds the default value on creation for the "server_commit" field.
@@ -186,6 +211,31 @@ func ByRefreshIntervalMinutes(opts ...sql.OrderTermOption) OrderOption {
 // ByNextRefreshAt orders the results by the next_refresh_at field.
 func ByNextRefreshAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldNextRefreshAt, opts...).ToFunc()
+}
+
+// ByAutoManageEnabled orders the results by the auto_manage_enabled field.
+func ByAutoManageEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAutoManageEnabled, opts...).ToFunc()
+}
+
+// ByEnabledPatrolIntervalMinutes orders the results by the enabled_patrol_interval_minutes field.
+func ByEnabledPatrolIntervalMinutes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEnabledPatrolIntervalMinutes, opts...).ToFunc()
+}
+
+// ByDisabledPatrolIntervalMinutes orders the results by the disabled_patrol_interval_minutes field.
+func ByDisabledPatrolIntervalMinutes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisabledPatrolIntervalMinutes, opts...).ToFunc()
+}
+
+// ByNextEnabledPatrolAt orders the results by the next_enabled_patrol_at field.
+func ByNextEnabledPatrolAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNextEnabledPatrolAt, opts...).ToFunc()
+}
+
+// ByNextDisabledPatrolAt orders the results by the next_disabled_patrol_at field.
+func ByNextDisabledPatrolAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNextDisabledPatrolAt, opts...).ToFunc()
 }
 
 // ByServerVersion orders the results by the server_version field.

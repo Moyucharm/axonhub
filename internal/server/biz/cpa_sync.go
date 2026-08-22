@@ -148,7 +148,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 			SetRuntimeOnly(normalized.RuntimeOnly).
 			SetPriority(normalized.Priority).
 			SetQuotaContext(normalized.QuotaContext)
-		if normalized.PlanType != "" || current.PlanType == "" {
+		if normalized.PlanType != "" || current.PlanType == "" || strings.EqualFold(current.PlanType, "oauth") {
 			update.SetPlanType(normalized.PlanType)
 		}
 		if quotaCapabilityChanged {

@@ -126,6 +126,90 @@ func TestPercentNormalizationAcceptsFractionsAndPercentStrings(t *testing.T) {
 	}
 }
 
+func TestXAIWeeklyOmittedPercentStaysEmpty(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			URL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("decode provider call: %v", err)
+			return
+		}
+		body := `{}`
+		if payload.URL == xaiBillingWeeklyURL {
+			body = `{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2030-01-01T00:00:00Z"}}}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status_code": 200,
+			"header":      map[string][]string{"Content-Type": {"application/json"}},
+			"body":        body,
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, ManagementSecret: "management-key"})
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	defer client.CloseIdleConnections()
+
+	result, err := NewQuotaRegistry().Fetch(context.Background(), client, CredentialInput{
+		AuthIndex: "xai-1",
+		Provider:  "xai",
+	})
+	if err != nil {
+		t.Fatalf("fetch weekly xAI quota: %v", err)
+	}
+	// Without fabricated percentages there is no real quota data left, so the
+	// result is honestly reported as insufficient_data instead of a fake 0%
+	// window.
+	if result.State != objects.CPAQuotaStateInsufficientData {
+		t.Fatalf("unexpected weekly omitted-percent state: %s", result.State)
+	}
+	for _, item := range result.Snapshot.Items {
+		if item.ID == "weekly-credits" {
+			t.Fatalf("weekly credits window should not be invented: %+v", item)
+		}
+	}
+}
+
+func TestXAIEmptyBillingConfigIsInsufficientData(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status_code": 200,
+			"header":      map[string][]string{"Content-Type": {"application/json"}},
+			"body":        `{"config":{}}`,
+		})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, ManagementSecret: "management-key"})
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	defer client.CloseIdleConnections()
+
+	result, err := NewQuotaRegistry().Fetch(context.Background(), client, CredentialInput{
+		AuthIndex: "xai-1",
+		Provider:  "xai",
+	})
+	if err != nil {
+		t.Fatalf("empty xAI billing should not fail: %v", err)
+	}
+	if result.State != objects.CPAQuotaStateInsufficientData {
+		t.Fatalf("unexpected empty billing state: %s", result.State)
+	}
+	if result.PlanType != "free" {
+		t.Fatalf("empty billing should still report free plan: %q", result.PlanType)
+	}
+}
+
 func TestQuotaRegistryDegradesMissingManagementCapabilityToUnsupported(t *testing.T) {
 	t.Parallel()
 

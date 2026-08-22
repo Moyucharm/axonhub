@@ -180,6 +180,11 @@ var (
 		{Name: "auto_refresh_enabled", Type: field.TypeBool, Default: true},
 		{Name: "refresh_interval_minutes", Type: field.TypeInt, Default: 5},
 		{Name: "next_refresh_at", Type: field.TypeTime, Nullable: true},
+		{Name: "auto_manage_enabled", Type: field.TypeBool, Default: false},
+		{Name: "enabled_patrol_interval_minutes", Type: field.TypeInt, Default: 5},
+		{Name: "disabled_patrol_interval_minutes", Type: field.TypeInt, Default: 480},
+		{Name: "next_enabled_patrol_at", Type: field.TypeTime, Nullable: true},
+		{Name: "next_disabled_patrol_at", Type: field.TypeTime, Nullable: true},
 		{Name: "server_version", Type: field.TypeString, Default: ""},
 		{Name: "server_commit", Type: field.TypeString, Default: ""},
 		{Name: "server_build_date", Type: field.TypeString, Default: ""},
@@ -208,6 +213,16 @@ var (
 				Name:    "cpainstance_enabled_auto_refresh_enabled_next_refresh_at",
 				Unique:  false,
 				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[10]},
+			},
+			{
+				Name:    "cpainstance_enabled_auto_manage_enabled_next_enabled_patrol_at",
+				Unique:  false,
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[11], CpaInstancesColumns[14]},
+			},
+			{
+				Name:    "cpainstance_enabled_auto_manage_enabled_next_disabled_patrol_at",
+				Unique:  false,
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[11], CpaInstancesColumns[15]},
 			},
 		},
 	}

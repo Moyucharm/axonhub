@@ -16,7 +16,6 @@ import (
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
-	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
@@ -24,6 +23,12 @@ const (
 	defaultCPARefreshIntervalMinutes = 5
 	minCPARefreshIntervalMinutes     = 5
 	maxCPARefreshIntervalMinutes     = 1440
+	defaultCPAEnabledPatrolMinutes   = 5
+	minCPAEnabledPatrolMinutes       = 1
+	maxCPAEnabledPatrolMinutes       = 1440
+	defaultCPADisabledPatrolMinutes  = 480
+	minCPADisabledPatrolMinutes      = 60
+	maxCPADisabledPatrolMinutes      = 10080
 	maxCPAInstanceConcurrency        = 4
 	maxCPAGlobalConcurrency          = 8
 	cpaRefreshDispatcherInterval     = 5 * time.Second
@@ -69,47 +74,58 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 
 // CreateCPAInstanceInput creates one CPA connection.
 type CreateCPAInstanceInput struct {
-	Name                   string
-	BaseURL                string
-	ManagementSecret       string
-	Enabled                *bool
-	InsecureSkipTLS        bool
-	AutoRefreshEnabled     *bool
-	RefreshIntervalMinutes *int
+	Name                          string
+	BaseURL                       string
+	ManagementSecret              string
+	Enabled                       *bool
+	InsecureSkipTLS               bool
+	AutoRefreshEnabled            *bool
+	RefreshIntervalMinutes        *int
+	AutoManageEnabled             *bool
+	EnabledPatrolIntervalMinutes  *int
+	DisabledPatrolIntervalMinutes *int
 }
 
 // UpdateCPAInstanceInput updates one CPA connection. An empty secret preserves the stored secret.
 type UpdateCPAInstanceInput struct {
-	Name                   *string
-	BaseURL                *string
-	ManagementSecret       *string
-	Enabled                *bool
-	InsecureSkipTLS        *bool
-	AutoRefreshEnabled     *bool
-	RefreshIntervalMinutes *int
+	Name                          *string
+	BaseURL                       *string
+	ManagementSecret              *string
+	Enabled                       *bool
+	InsecureSkipTLS               *bool
+	AutoRefreshEnabled            *bool
+	RefreshIntervalMinutes        *int
+	AutoManageEnabled             *bool
+	EnabledPatrolIntervalMinutes  *int
+	DisabledPatrolIntervalMinutes *int
 }
 
 // CPAInstanceView is the safe API representation of a CPA instance.
 type CPAInstanceView struct {
-	ID                     int
-	Name                   string
-	BaseURL                string
-	Enabled                bool
-	InsecureSkipTLS        bool
-	AutoRefreshEnabled     bool
-	RefreshIntervalMinutes int
-	NextRefreshAt          *time.Time
-	ServerVersion          string
-	ServerCommit           string
-	ServerBuildDate        string
-	LastSyncAttemptAt      *time.Time
-	LastSyncSuccessAt      *time.Time
-	LastErrorAt            *time.Time
-	LastError              *string
-	HasSecret              bool
-	ConnectionStatus       string
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	ID                            int
+	Name                          string
+	BaseURL                       string
+	Enabled                       bool
+	InsecureSkipTLS               bool
+	AutoRefreshEnabled            bool
+	RefreshIntervalMinutes        int
+	AutoManageEnabled             bool
+	EnabledPatrolIntervalMinutes  int
+	DisabledPatrolIntervalMinutes int
+	NextRefreshAt                 *time.Time
+	NextEnabledPatrolAt           *time.Time
+	NextDisabledPatrolAt          *time.Time
+	ServerVersion                 string
+	ServerCommit                  string
+	ServerBuildDate               string
+	LastSyncAttemptAt             *time.Time
+	LastSyncSuccessAt             *time.Time
+	LastErrorAt                   *time.Time
+	LastError                     *string
+	HasSecret                     bool
+	ConnectionStatus              string
+	CreatedAt                     time.Time
+	UpdatedAt                     time.Time
 }
 
 func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstanceInput) (*CPAInstanceView, error) {
@@ -129,6 +145,14 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 	if err != nil {
 		return nil, err
 	}
+	enabledPatrolInterval, err := normalizeCPAEnabledPatrolInterval(input.EnabledPatrolIntervalMinutes)
+	if err != nil {
+		return nil, err
+	}
+	disabledPatrolInterval, err := normalizeCPADisabledPatrolInterval(input.DisabledPatrolIntervalMinutes)
+	if err != nil {
+		return nil, err
+	}
 	enabled := true
 	if input.Enabled != nil {
 		enabled = *input.Enabled
@@ -136,6 +160,10 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 	autoRefresh := true
 	if input.AutoRefreshEnabled != nil {
 		autoRefresh = *input.AutoRefreshEnabled
+	}
+	autoManage := false
+	if input.AutoManageEnabled != nil {
+		autoManage = *input.AutoManageEnabled
 	}
 
 	client, err := cpaclient.NewClient(cpaclient.Config{
@@ -167,6 +195,9 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetInsecureSkipTLS(input.InsecureSkipTLS).
 			SetAutoRefreshEnabled(autoRefresh).
 			SetRefreshIntervalMinutes(interval).
+			SetAutoManageEnabled(autoManage).
+			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
+			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval).
 			SetServerVersion(buildInfo.Version).
 			SetServerCommit(buildInfo.Commit).
 			SetServerBuildDate(buildInfo.BuildDate).
@@ -174,6 +205,11 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetLastSyncSuccessAt(now)
 		if enabled && autoRefresh {
 			builder.SetNextRefreshAt(now.Add(svc.jitter()))
+		}
+		if enabled && autoManage {
+			builder.
+				SetNextEnabledPatrolAt(now.Add(svc.jitter())).
+				SetNextDisabledPatrolAt(now.Add(svc.jitter()))
 		}
 		created, err = builder.Save(txCtx)
 		if err != nil {
@@ -226,6 +262,24 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 			return nil, err
 		}
 	}
+	autoManage := current.AutoManageEnabled
+	if input.AutoManageEnabled != nil {
+		autoManage = *input.AutoManageEnabled
+	}
+	enabledPatrolInterval := current.EnabledPatrolIntervalMinutes
+	if input.EnabledPatrolIntervalMinutes != nil {
+		enabledPatrolInterval, err = normalizeCPAEnabledPatrolInterval(input.EnabledPatrolIntervalMinutes)
+		if err != nil {
+			return nil, err
+		}
+	}
+	disabledPatrolInterval := current.DisabledPatrolIntervalMinutes
+	if input.DisabledPatrolIntervalMinutes != nil {
+		disabledPatrolInterval, err = normalizeCPADisabledPatrolInterval(input.DisabledPatrolIntervalMinutes)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	secretChanged := input.ManagementSecret != nil && strings.TrimSpace(*input.ManagementSecret) != ""
 	secret := ""
@@ -274,11 +328,22 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 			SetEnabled(enabled).
 			SetInsecureSkipTLS(insecureSkipTLS).
 			SetAutoRefreshEnabled(autoRefresh).
-			SetRefreshIntervalMinutes(interval)
+			SetRefreshIntervalMinutes(interval).
+			SetAutoManageEnabled(autoManage).
+			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
+			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval)
 		if !enabled || !autoRefresh {
 			builder.ClearNextRefreshAt()
 		} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
 			builder.SetNextRefreshAt(now.Add(svc.jitter()))
+		}
+		patrolChanged := input.AutoManageEnabled != nil || input.EnabledPatrolIntervalMinutes != nil || input.DisabledPatrolIntervalMinutes != nil
+		if !enabled || !autoManage {
+			builder.ClearNextEnabledPatrolAt().ClearNextDisabledPatrolAt()
+		} else if connectionChanged || patrolChanged {
+			builder.
+				SetNextEnabledPatrolAt(now.Add(svc.jitter())).
+				SetNextDisabledPatrolAt(now.Add(svc.jitter()))
 		}
 		if connectionChanged {
 			builder.
@@ -363,14 +428,19 @@ func buildCPAInstanceView(instance *ent.CPAInstance) *CPAInstanceView {
 		status = "unknown"
 	}
 	return &CPAInstanceView{
-		ID:                     instance.ID,
-		Name:                   instance.Name,
-		BaseURL:                instance.BaseURL,
-		Enabled:                instance.Enabled,
-		InsecureSkipTLS:        instance.InsecureSkipTLS,
-		AutoRefreshEnabled:     instance.AutoRefreshEnabled,
-		RefreshIntervalMinutes: instance.RefreshIntervalMinutes,
-		NextRefreshAt:          instance.NextRefreshAt,
+		ID:                            instance.ID,
+		Name:                          instance.Name,
+		BaseURL:                       instance.BaseURL,
+		Enabled:                       instance.Enabled,
+		InsecureSkipTLS:               instance.InsecureSkipTLS,
+		AutoRefreshEnabled:            instance.AutoRefreshEnabled,
+		RefreshIntervalMinutes:        instance.RefreshIntervalMinutes,
+		AutoManageEnabled:             instance.AutoManageEnabled,
+		EnabledPatrolIntervalMinutes:  instance.EnabledPatrolIntervalMinutes,
+		DisabledPatrolIntervalMinutes: instance.DisabledPatrolIntervalMinutes,
+		NextRefreshAt:                 instance.NextRefreshAt,
+		NextEnabledPatrolAt:           instance.NextEnabledPatrolAt,
+		NextDisabledPatrolAt:          instance.NextDisabledPatrolAt,
 		ServerVersion:          instance.ServerVersion,
 		ServerCommit:           instance.ServerCommit,
 		ServerBuildDate:        instance.ServerBuildDate,
@@ -390,8 +460,7 @@ func (svc *CPAService) supportsNormalizedQuota(credential cpaclient.NormalizedCr
 }
 
 func (svc *CPAService) supportsStoredQuota(credential *ent.CPACredential) bool {
-	return credential.QuotaState != string(objects.CPAQuotaStateUnsupported) &&
-		svc.quotaRegistry.Supports(credential.Provider) &&
+	return svc.quotaRegistry.Supports(credential.Provider) &&
 		!(credential.Provider == "xai" && credential.QuotaContext.Paid)
 }
 
@@ -401,6 +470,26 @@ func normalizeCPARefreshInterval(value *int) (int, error) {
 	}
 	if *value < minCPARefreshIntervalMinutes || *value > maxCPARefreshIntervalMinutes {
 		return 0, fmt.Errorf("CPA refresh interval must be between %d and %d minutes", minCPARefreshIntervalMinutes, maxCPARefreshIntervalMinutes)
+	}
+	return *value, nil
+}
+
+func normalizeCPAEnabledPatrolInterval(value *int) (int, error) {
+	if value == nil {
+		return defaultCPAEnabledPatrolMinutes, nil
+	}
+	if *value < minCPAEnabledPatrolMinutes || *value > maxCPAEnabledPatrolMinutes {
+		return 0, fmt.Errorf("CPA enabled patrol interval must be between %d and %d minutes", minCPAEnabledPatrolMinutes, maxCPAEnabledPatrolMinutes)
+	}
+	return *value, nil
+}
+
+func normalizeCPADisabledPatrolInterval(value *int) (int, error) {
+	if value == nil {
+		return defaultCPADisabledPatrolMinutes, nil
+	}
+	if *value < minCPADisabledPatrolMinutes || *value > maxCPADisabledPatrolMinutes {
+		return 0, fmt.Errorf("CPA disabled patrol interval must be between %d and %d minutes", minCPADisabledPatrolMinutes, maxCPADisabledPatrolMinutes)
 	}
 	return *value, nil
 }

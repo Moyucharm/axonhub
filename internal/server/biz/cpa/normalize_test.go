@@ -29,6 +29,32 @@ func TestNormalizeAuthFileKeepsOnlySafeAccountMetadata(t *testing.T) {
 	}
 }
 
+func TestNormalizeAuthFileDoesNotUseAuthMethodAsPlan(t *testing.T) {
+	t.Parallel()
+
+	for name, accountType := range map[string]string{
+		"oauth":   "oauth",
+		"api_key": "api_key",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			normalized, err := NormalizeAuthFile(AuthFile{
+				AuthIndex:   "auth-method-1",
+				Name:        "account.json",
+				Type:        "xai",
+				AccountType: accountType,
+			})
+			if err != nil {
+				t.Fatalf("normalize auth file: %v", err)
+			}
+			if normalized.PlanType != "" {
+				t.Fatalf("auth method %q leaked into plan type: %q", accountType, normalized.PlanType)
+			}
+		})
+	}
+}
+
 func TestNormalizeAuthFileAcceptsJWTAStringIDToken(t *testing.T) {
 	t.Parallel()
 
