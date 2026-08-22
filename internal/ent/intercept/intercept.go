@@ -17,6 +17,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -335,6 +336,33 @@ func (f TraverseChannelProbe) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ChannelProbeQuery", q)
+}
+
+// The CpaUsageEventFunc type is an adapter to allow the use of ordinary function as a Querier.
+type CpaUsageEventFunc func(context.Context, *ent.CpaUsageEventQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f CpaUsageEventFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.CpaUsageEventQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.CpaUsageEventQuery", q)
+}
+
+// The TraverseCpaUsageEvent type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseCpaUsageEvent func(context.Context, *ent.CpaUsageEventQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseCpaUsageEvent) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseCpaUsageEvent) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CpaUsageEventQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.CpaUsageEventQuery", q)
 }
 
 // The DataStorageFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -844,6 +872,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ChannelOverrideTemplateQuery, predicate.ChannelOverrideTemplate, channeloverridetemplate.OrderOption]{typ: ent.TypeChannelOverrideTemplate, tq: q}, nil
 	case *ent.ChannelProbeQuery:
 		return &query[*ent.ChannelProbeQuery, predicate.ChannelProbe, channelprobe.OrderOption]{typ: ent.TypeChannelProbe, tq: q}, nil
+	case *ent.CpaUsageEventQuery:
+		return &query[*ent.CpaUsageEventQuery, predicate.CpaUsageEvent, cpausageevent.OrderOption]{typ: ent.TypeCpaUsageEvent, tq: q}, nil
 	case *ent.DataStorageQuery:
 		return &query[*ent.DataStorageQuery, predicate.DataStorage, datastorage.OrderOption]{typ: ent.TypeDataStorage, tq: q}, nil
 	case *ent.InvitationQuery:

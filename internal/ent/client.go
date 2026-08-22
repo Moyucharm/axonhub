@@ -24,6 +24,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -67,6 +68,8 @@ type Client struct {
 	ChannelOverrideTemplate *ChannelOverrideTemplateClient
 	// ChannelProbe is the client for interacting with the ChannelProbe builders.
 	ChannelProbe *ChannelProbeClient
+	// CpaUsageEvent is the client for interacting with the CpaUsageEvent builders.
+	CpaUsageEvent *CpaUsageEventClient
 	// DataStorage is the client for interacting with the DataStorage builders.
 	DataStorage *DataStorageClient
 	// Invitation is the client for interacting with the Invitation builders.
@@ -125,6 +128,7 @@ func (c *Client) init() {
 	c.ChannelModelPriceVersion = NewChannelModelPriceVersionClient(c.config)
 	c.ChannelOverrideTemplate = NewChannelOverrideTemplateClient(c.config)
 	c.ChannelProbe = NewChannelProbeClient(c.config)
+	c.CpaUsageEvent = NewCpaUsageEventClient(c.config)
 	c.DataStorage = NewDataStorageClient(c.config)
 	c.Invitation = NewInvitationClient(c.config)
 	c.Model = NewModelClient(c.config)
@@ -244,6 +248,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
 		ChannelOverrideTemplate:  NewChannelOverrideTemplateClient(cfg),
 		ChannelProbe:             NewChannelProbeClient(cfg),
+		CpaUsageEvent:            NewCpaUsageEventClient(cfg),
 		DataStorage:              NewDataStorageClient(cfg),
 		Invitation:               NewInvitationClient(cfg),
 		Model:                    NewModelClient(cfg),
@@ -290,6 +295,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
 		ChannelOverrideTemplate:  NewChannelOverrideTemplateClient(cfg),
 		ChannelProbe:             NewChannelProbeClient(cfg),
+		CpaUsageEvent:            NewCpaUsageEventClient(cfg),
 		DataStorage:              NewDataStorageClient(cfg),
 		Invitation:               NewInvitationClient(cfg),
 		Model:                    NewModelClient(cfg),
@@ -339,10 +345,10 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance, c.Channel,
 		c.ChannelModelPrice, c.ChannelModelPriceVersion, c.ChannelOverrideTemplate,
-		c.ChannelProbe, c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity,
-		c.Project, c.Prompt, c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request,
-		c.RequestExecution, c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User,
-		c.UserProject, c.UserRole,
+		c.ChannelProbe, c.CpaUsageEvent, c.DataStorage, c.Invitation, c.Model,
+		c.OIDCIdentity, c.Project, c.Prompt, c.PromptProtectionRule,
+		c.ProviderQuotaStatus, c.Request, c.RequestExecution, c.Role, c.System,
+		c.Thread, c.Trace, c.UsageLog, c.User, c.UserProject, c.UserRole,
 	} {
 		n.Use(hooks...)
 	}
@@ -354,10 +360,10 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance, c.Channel,
 		c.ChannelModelPrice, c.ChannelModelPriceVersion, c.ChannelOverrideTemplate,
-		c.ChannelProbe, c.DataStorage, c.Invitation, c.Model, c.OIDCIdentity,
-		c.Project, c.Prompt, c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request,
-		c.RequestExecution, c.Role, c.System, c.Thread, c.Trace, c.UsageLog, c.User,
-		c.UserProject, c.UserRole,
+		c.ChannelProbe, c.CpaUsageEvent, c.DataStorage, c.Invitation, c.Model,
+		c.OIDCIdentity, c.Project, c.Prompt, c.PromptProtectionRule,
+		c.ProviderQuotaStatus, c.Request, c.RequestExecution, c.Role, c.System,
+		c.Thread, c.Trace, c.UsageLog, c.User, c.UserProject, c.UserRole,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -384,6 +390,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelOverrideTemplate.mutate(ctx, m)
 	case *ChannelProbeMutation:
 		return c.ChannelProbe.mutate(ctx, m)
+	case *CpaUsageEventMutation:
+		return c.CpaUsageEvent.mutate(ctx, m)
 	case *DataStorageMutation:
 		return c.DataStorage.mutate(ctx, m)
 	case *InvitationMutation:
@@ -1904,6 +1912,140 @@ func (c *ChannelProbeClient) mutate(ctx context.Context, m *ChannelProbeMutation
 		return (&ChannelProbeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ChannelProbe mutation op: %q", m.Op())
+	}
+}
+
+// CpaUsageEventClient is a client for the CpaUsageEvent schema.
+type CpaUsageEventClient struct {
+	config
+}
+
+// NewCpaUsageEventClient returns a client for the CpaUsageEvent from the given config.
+func NewCpaUsageEventClient(c config) *CpaUsageEventClient {
+	return &CpaUsageEventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cpausageevent.Hooks(f(g(h())))`.
+func (c *CpaUsageEventClient) Use(hooks ...Hook) {
+	c.hooks.CpaUsageEvent = append(c.hooks.CpaUsageEvent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cpausageevent.Intercept(f(g(h())))`.
+func (c *CpaUsageEventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CpaUsageEvent = append(c.inters.CpaUsageEvent, interceptors...)
+}
+
+// Create returns a builder for creating a CpaUsageEvent entity.
+func (c *CpaUsageEventClient) Create() *CpaUsageEventCreate {
+	mutation := newCpaUsageEventMutation(c.config, OpCreate)
+	return &CpaUsageEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CpaUsageEvent entities.
+func (c *CpaUsageEventClient) CreateBulk(builders ...*CpaUsageEventCreate) *CpaUsageEventCreateBulk {
+	return &CpaUsageEventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CpaUsageEventClient) MapCreateBulk(slice any, setFunc func(*CpaUsageEventCreate, int)) *CpaUsageEventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CpaUsageEventCreateBulk{err: fmt.Errorf("calling to CpaUsageEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CpaUsageEventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CpaUsageEventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CpaUsageEvent.
+func (c *CpaUsageEventClient) Update() *CpaUsageEventUpdate {
+	mutation := newCpaUsageEventMutation(c.config, OpUpdate)
+	return &CpaUsageEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CpaUsageEventClient) UpdateOne(_m *CpaUsageEvent) *CpaUsageEventUpdateOne {
+	mutation := newCpaUsageEventMutation(c.config, OpUpdateOne, withCpaUsageEvent(_m))
+	return &CpaUsageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CpaUsageEventClient) UpdateOneID(id int) *CpaUsageEventUpdateOne {
+	mutation := newCpaUsageEventMutation(c.config, OpUpdateOne, withCpaUsageEventID(id))
+	return &CpaUsageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CpaUsageEvent.
+func (c *CpaUsageEventClient) Delete() *CpaUsageEventDelete {
+	mutation := newCpaUsageEventMutation(c.config, OpDelete)
+	return &CpaUsageEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CpaUsageEventClient) DeleteOne(_m *CpaUsageEvent) *CpaUsageEventDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CpaUsageEventClient) DeleteOneID(id int) *CpaUsageEventDeleteOne {
+	builder := c.Delete().Where(cpausageevent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CpaUsageEventDeleteOne{builder}
+}
+
+// Query returns a query builder for CpaUsageEvent.
+func (c *CpaUsageEventClient) Query() *CpaUsageEventQuery {
+	return &CpaUsageEventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCpaUsageEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CpaUsageEvent entity by its id.
+func (c *CpaUsageEventClient) Get(ctx context.Context, id int) (*CpaUsageEvent, error) {
+	return c.Query().Where(cpausageevent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CpaUsageEventClient) GetX(ctx context.Context, id int) *CpaUsageEvent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CpaUsageEventClient) Hooks() []Hook {
+	hooks := c.hooks.CpaUsageEvent
+	return append(hooks[:len(hooks):len(hooks)], cpausageevent.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *CpaUsageEventClient) Interceptors() []Interceptor {
+	return c.inters.CpaUsageEvent
+}
+
+func (c *CpaUsageEventClient) mutate(ctx context.Context, m *CpaUsageEventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CpaUsageEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CpaUsageEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CpaUsageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CpaUsageEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CpaUsageEvent mutation op: %q", m.Op())
 	}
 }
 
@@ -5117,15 +5259,17 @@ type (
 	hooks struct {
 		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, Channel,
 		ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
-		ChannelProbe, DataStorage, Invitation, Model, OIDCIdentity, Project, Prompt,
-		PromptProtectionRule, ProviderQuotaStatus, Request, RequestExecution, Role,
-		System, Thread, Trace, UsageLog, User, UserProject, UserRole []ent.Hook
+		ChannelProbe, CpaUsageEvent, DataStorage, Invitation, Model, OIDCIdentity,
+		Project, Prompt, PromptProtectionRule, ProviderQuotaStatus, Request,
+		RequestExecution, Role, System, Thread, Trace, UsageLog, User, UserProject,
+		UserRole []ent.Hook
 	}
 	inters struct {
 		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, Channel,
 		ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
-		ChannelProbe, DataStorage, Invitation, Model, OIDCIdentity, Project, Prompt,
-		PromptProtectionRule, ProviderQuotaStatus, Request, RequestExecution, Role,
-		System, Thread, Trace, UsageLog, User, UserProject, UserRole []ent.Interceptor
+		ChannelProbe, CpaUsageEvent, DataStorage, Invitation, Model, OIDCIdentity,
+		Project, Prompt, PromptProtectionRule, ProviderQuotaStatus, Request,
+		RequestExecution, Role, System, Thread, Trace, UsageLog, User, UserProject,
+		UserRole []ent.Interceptor
 	}
 )

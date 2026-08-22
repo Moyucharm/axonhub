@@ -32,6 +32,25 @@ type CPAQuotaItem struct {
 	Unit             string     `json:"unit,omitempty"`
 	ResetAt          *time.Time `json:"reset_at,omitempty"`
 	PeriodSeconds    *int       `json:"period_seconds,omitempty"`
+
+	// EstimatedLimitUSD is the estimated total quota value of the current
+	// cycle: locally observed cost sum divided by the used percentage.
+	EstimatedLimitUSD *float64 `json:"estimated_limit_usd,omitempty"`
+	// EstimatedCostUSD is the locally observed cost sum within the cycle.
+	EstimatedCostUSD *float64 `json:"estimated_cost_usd,omitempty"`
+	// EstimateSource records where the denominator percentage came from:
+	// "precise-header" (x-codex-*-used-percent response header) or
+	// "wham-percent" (integer percentage from the usage endpoint).
+	EstimateSource string `json:"estimate_source,omitempty"`
+}
+
+// CPAQuotaObserved captures the latest precise codex quota percentages seen in
+// upstream response headers of proxied requests, used to refine quota value
+// estimation beyond the integer percentages reported by the usage endpoint.
+type CPAQuotaObserved struct {
+	SecondaryUsedPercent *float64   `json:"secondary_used_percent,omitempty"`
+	SecondaryResetAt     *time.Time `json:"secondary_reset_at,omitempty"`
+	ObservedAt           *time.Time `json:"observed_at,omitempty"`
 }
 
 // CPAQuotaContext contains the minimum non-token metadata needed by quota adapters.

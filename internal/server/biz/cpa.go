@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/fx"
@@ -16,6 +17,9 @@ import (
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
+	"github.com/looplj/axonhub/internal/log"
+	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
@@ -38,8 +42,9 @@ const (
 type CPAServiceParams struct {
 	fx.In
 
-	Ent           *ent.Client
-	SystemService *SystemService
+	Ent            *ent.Client
+	SystemService  *SystemService
+	ChannelService *ChannelService
 }
 
 // CPAService manages CLIProxyAPI connections, credentials, and quota snapshots.
@@ -47,6 +52,7 @@ type CPAService struct {
 	*AbstractService
 
 	SystemService   *SystemService
+	ChannelService  *ChannelService
 	quotaRegistry   *cpaclient.QuotaRegistry
 	refreshGroup    singleflight.Group
 	syncGroup       singleflight.Group
@@ -55,6 +61,20 @@ type CPAService struct {
 	instanceQuota   map[int]*semaphore.Weighted
 	now             func() time.Time
 	jitter          func() time.Duration
+
+	usageStream          *cpaclient.UsageStreamManager
+	usageEvents          chan usageEventEnvelope
+	usageWriterWG        sync.WaitGroup
+	usageWriterCancel    context.CancelFunc
+	usageCacheMu         sync.Mutex
+	usageCredentialCache map[int]map[string]credentialCacheEntry
+	usageObservedAt      map[int]usageObservedState
+
+	priceIndexMu      sync.Mutex
+	priceIndex        map[string]*objects.ModelPrice
+	priceIndexBuiltAt time.Time
+
+	usageDroppedTotal atomic.Int64
 }
 
 // NewCPAService creates the CPA management service.
@@ -62,6 +82,7 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 	return &CPAService{
 		AbstractService: &AbstractService{db: params.Ent},
 		SystemService:   params.SystemService,
+		ChannelService:  params.ChannelService,
 		quotaRegistry:   cpaclient.NewQuotaRegistry(),
 		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
 		instanceQuota:   make(map[int]*semaphore.Weighted),
@@ -82,6 +103,7 @@ type CreateCPAInstanceInput struct {
 	AutoRefreshEnabled            *bool
 	RefreshIntervalMinutes        *int
 	AutoManageEnabled             *bool
+	UsageStreamEnabled            *bool
 	EnabledPatrolIntervalMinutes  *int
 	DisabledPatrolIntervalMinutes *int
 }
@@ -96,6 +118,7 @@ type UpdateCPAInstanceInput struct {
 	AutoRefreshEnabled            *bool
 	RefreshIntervalMinutes        *int
 	AutoManageEnabled             *bool
+	UsageStreamEnabled            *bool
 	EnabledPatrolIntervalMinutes  *int
 	DisabledPatrolIntervalMinutes *int
 }
@@ -110,6 +133,7 @@ type CPAInstanceView struct {
 	AutoRefreshEnabled            bool
 	RefreshIntervalMinutes        int
 	AutoManageEnabled             bool
+	UsageStreamEnabled            bool
 	EnabledPatrolIntervalMinutes  int
 	DisabledPatrolIntervalMinutes int
 	NextRefreshAt                 *time.Time
@@ -165,6 +189,10 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 	if input.AutoManageEnabled != nil {
 		autoManage = *input.AutoManageEnabled
 	}
+	usageStream := false
+	if input.UsageStreamEnabled != nil {
+		usageStream = *input.UsageStreamEnabled
+	}
 
 	client, err := cpaclient.NewClient(cpaclient.Config{
 		BaseURL:          normalizedURL,
@@ -196,6 +224,7 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetAutoRefreshEnabled(autoRefresh).
 			SetRefreshIntervalMinutes(interval).
 			SetAutoManageEnabled(autoManage).
+			SetUsageStreamEnabled(usageStream).
 			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
 			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval).
 			SetServerVersion(buildInfo.Version).
@@ -220,6 +249,7 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 	if err != nil {
 		return nil, err
 	}
+	svc.refreshUsageStreamsAsync()
 	return buildCPAInstanceView(created), nil
 }
 
@@ -265,6 +295,10 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 	autoManage := current.AutoManageEnabled
 	if input.AutoManageEnabled != nil {
 		autoManage = *input.AutoManageEnabled
+	}
+	usageStream := current.UsageStreamEnabled
+	if input.UsageStreamEnabled != nil {
+		usageStream = *input.UsageStreamEnabled
 	}
 	enabledPatrolInterval := current.EnabledPatrolIntervalMinutes
 	if input.EnabledPatrolIntervalMinutes != nil {
@@ -330,6 +364,7 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 			SetAutoRefreshEnabled(autoRefresh).
 			SetRefreshIntervalMinutes(interval).
 			SetAutoManageEnabled(autoManage).
+			SetUsageStreamEnabled(usageStream).
 			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
 			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval)
 		if !enabled || !autoRefresh {
@@ -367,16 +402,23 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 	if err != nil {
 		return nil, err
 	}
+	svc.refreshUsageStreamsAsync()
 	return buildCPAInstanceView(updated), nil
 }
 
 // DeleteInstance removes an instance and all of its locally synchronized
-// credentials. The credential rows are deleted explicitly in the same
+// credentials and usage events. The rows are deleted explicitly in the same
 // transaction instead of relying on the database-level cascade: production
 // migrations run with foreign keys disabled, so the schema's OnDelete(Cascade)
-// annotation would otherwise leave orphaned credential snapshots behind.
+// annotation would otherwise leave orphaned credential snapshots and usage
+// events behind.
 func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 	err := svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if _, err := svc.entFromContext(txCtx).CpaUsageEvent.Delete().
+			Where(cpausageevent.CpaInstanceIDEQ(id)).
+			Exec(txCtx); err != nil {
+			return fmt.Errorf("delete CPA instance usage events: %w", err)
+		}
 		if _, err := svc.entFromContext(txCtx).CPACredential.Delete().
 			Where(cpacredential.CpaInstanceIDEQ(id)).
 			Exec(txCtx); err != nil {
@@ -393,7 +435,24 @@ func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 	svc.instanceQuotaMu.Lock()
 	delete(svc.instanceQuota, id)
 	svc.instanceQuotaMu.Unlock()
+	svc.invalidateUsageCredentialCache(id)
+	svc.refreshUsageStreamsAsync()
 	return nil
+}
+
+// refreshUsageStreamsAsync reconciles usage stream subscriptions without
+// blocking the caller; failures are logged inside RefreshUsageStreams.
+func (svc *CPAService) refreshUsageStreamsAsync() {
+	if svc.usageStream == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := svc.RefreshUsageStreams(ctx); err != nil {
+			log.Warn(ctx, "refresh CPA usage streams failed", log.Cause(err))
+		}
+	}()
 }
 
 func (svc *CPAService) ListInstances(ctx context.Context) ([]*CPAInstanceView, error) {
@@ -436,22 +495,23 @@ func buildCPAInstanceView(instance *ent.CPAInstance) *CPAInstanceView {
 		AutoRefreshEnabled:            instance.AutoRefreshEnabled,
 		RefreshIntervalMinutes:        instance.RefreshIntervalMinutes,
 		AutoManageEnabled:             instance.AutoManageEnabled,
+		UsageStreamEnabled:            instance.UsageStreamEnabled,
 		EnabledPatrolIntervalMinutes:  instance.EnabledPatrolIntervalMinutes,
 		DisabledPatrolIntervalMinutes: instance.DisabledPatrolIntervalMinutes,
 		NextRefreshAt:                 instance.NextRefreshAt,
 		NextEnabledPatrolAt:           instance.NextEnabledPatrolAt,
 		NextDisabledPatrolAt:          instance.NextDisabledPatrolAt,
-		ServerVersion:          instance.ServerVersion,
-		ServerCommit:           instance.ServerCommit,
-		ServerBuildDate:        instance.ServerBuildDate,
-		LastSyncAttemptAt:      instance.LastSyncAttemptAt,
-		LastSyncSuccessAt:      instance.LastSyncSuccessAt,
-		LastErrorAt:            instance.LastErrorAt,
-		LastError:              instance.LastError,
-		HasSecret:              strings.TrimSpace(instance.EncryptedSecret) != "",
-		ConnectionStatus:       status,
-		CreatedAt:              instance.CreatedAt,
-		UpdatedAt:              instance.UpdatedAt,
+		ServerVersion:                 instance.ServerVersion,
+		ServerCommit:                  instance.ServerCommit,
+		ServerBuildDate:               instance.ServerBuildDate,
+		LastSyncAttemptAt:             instance.LastSyncAttemptAt,
+		LastSyncSuccessAt:             instance.LastSyncSuccessAt,
+		LastErrorAt:                   instance.LastErrorAt,
+		LastError:                     instance.LastError,
+		HasSecret:                     strings.TrimSpace(instance.EncryptedSecret) != "",
+		ConnectionStatus:              status,
+		CreatedAt:                     instance.CreatedAt,
+		UpdatedAt:                     instance.UpdatedAt,
 	}
 }
 

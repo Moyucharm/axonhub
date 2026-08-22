@@ -33,6 +33,9 @@ type ChannelOverrideTemplate func(*sql.Selector)
 // ChannelProbe is the predicate function for channelprobe builders.
 type ChannelProbe func(*sql.Selector)
 
+// CpaUsageEvent is the predicate function for cpausageevent builders.
+type CpaUsageEvent func(*sql.Selector)
+
 // DataStorage is the predicate function for datastorage builders.
 type DataStorage func(*sql.Selector)
 

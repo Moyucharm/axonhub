@@ -20,6 +20,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -60,6 +61,7 @@ const (
 	TypeChannelModelPriceVersion = "ChannelModelPriceVersion"
 	TypeChannelOverrideTemplate  = "ChannelOverrideTemplate"
 	TypeChannelProbe             = "ChannelProbe"
+	TypeCpaUsageEvent            = "CpaUsageEvent"
 	TypeDataStorage              = "DataStorage"
 	TypeInvitation               = "Invitation"
 	TypeModel                    = "Model"
@@ -2126,6 +2128,7 @@ type CPACredentialMutation struct {
 	quota_last_success_at *time.Time
 	quota_last_failure_at *time.Time
 	quota_last_error      *string
+	quota_observed        *objects.CPAQuotaObserved
 	clearedFields         map[string]struct{}
 	cpa_instance          *int
 	clearedcpa_instance   bool
@@ -3155,6 +3158,55 @@ func (m *CPACredentialMutation) ResetQuotaLastError() {
 	m.quota_last_error = nil
 }
 
+// SetQuotaObserved sets the "quota_observed" field.
+func (m *CPACredentialMutation) SetQuotaObserved(oqo objects.CPAQuotaObserved) {
+	m.quota_observed = &oqo
+}
+
+// QuotaObserved returns the value of the "quota_observed" field in the mutation.
+func (m *CPACredentialMutation) QuotaObserved() (r objects.CPAQuotaObserved, exists bool) {
+	v := m.quota_observed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaObserved returns the old "quota_observed" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaObserved(ctx context.Context) (v objects.CPAQuotaObserved, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaObserved is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaObserved requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaObserved: %w", err)
+	}
+	return oldValue.QuotaObserved, nil
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (m *CPACredentialMutation) ClearQuotaObserved() {
+	m.quota_observed = nil
+	m.clearedFields[cpacredential.FieldQuotaObserved] = struct{}{}
+}
+
+// QuotaObservedCleared returns if the "quota_observed" field was cleared in this mutation.
+func (m *CPACredentialMutation) QuotaObservedCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldQuotaObserved]
+	return ok
+}
+
+// ResetQuotaObserved resets all changes to the "quota_observed" field.
+func (m *CPACredentialMutation) ResetQuotaObserved() {
+	m.quota_observed = nil
+	delete(m.clearedFields, cpacredential.FieldQuotaObserved)
+}
+
 // ClearCpaInstance clears the "cpa_instance" edge to the CPAInstance entity.
 func (m *CPACredentialMutation) ClearCpaInstance() {
 	m.clearedcpa_instance = true
@@ -3216,7 +3268,7 @@ func (m *CPACredentialMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPACredentialMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 25)
 	if m.created_at != nil {
 		fields = append(fields, cpacredential.FieldCreatedAt)
 	}
@@ -3289,6 +3341,9 @@ func (m *CPACredentialMutation) Fields() []string {
 	if m.quota_last_error != nil {
 		fields = append(fields, cpacredential.FieldQuotaLastError)
 	}
+	if m.quota_observed != nil {
+		fields = append(fields, cpacredential.FieldQuotaObserved)
+	}
 	return fields
 }
 
@@ -3345,6 +3400,8 @@ func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.QuotaLastFailureAt()
 	case cpacredential.FieldQuotaLastError:
 		return m.QuotaLastError()
+	case cpacredential.FieldQuotaObserved:
+		return m.QuotaObserved()
 	}
 	return nil, false
 }
@@ -3402,6 +3459,8 @@ func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldQuotaLastFailureAt(ctx)
 	case cpacredential.FieldQuotaLastError:
 		return m.OldQuotaLastError(ctx)
+	case cpacredential.FieldQuotaObserved:
+		return m.OldQuotaObserved(ctx)
 	}
 	return nil, fmt.Errorf("unknown CPACredential field %s", name)
 }
@@ -3579,6 +3638,13 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuotaLastError(v)
 		return nil
+	case cpacredential.FieldQuotaObserved:
+		v, ok := value.(objects.CPAQuotaObserved)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaObserved(v)
+		return nil
 	}
 	return fmt.Errorf("unknown CPACredential field %s", name)
 }
@@ -3633,6 +3699,9 @@ func (m *CPACredentialMutation) ClearedFields() []string {
 	if m.FieldCleared(cpacredential.FieldQuotaLastFailureAt) {
 		fields = append(fields, cpacredential.FieldQuotaLastFailureAt)
 	}
+	if m.FieldCleared(cpacredential.FieldQuotaObserved) {
+		fields = append(fields, cpacredential.FieldQuotaObserved)
+	}
 	return fields
 }
 
@@ -3655,6 +3724,9 @@ func (m *CPACredentialMutation) ClearField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaLastFailureAt:
 		m.ClearQuotaLastFailureAt()
+		return nil
+	case cpacredential.FieldQuotaObserved:
+		m.ClearQuotaObserved()
 		return nil
 	}
 	return fmt.Errorf("unknown CPACredential nullable field %s", name)
@@ -3735,6 +3807,9 @@ func (m *CPACredentialMutation) ResetField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaLastError:
 		m.ResetQuotaLastError()
+		return nil
+	case cpacredential.FieldQuotaObserved:
+		m.ResetQuotaObserved()
 		return nil
 	}
 	return fmt.Errorf("unknown CPACredential field %s", name)
@@ -3828,6 +3903,7 @@ type CPAInstanceMutation struct {
 	enabled                             *bool
 	insecure_skip_tls                   *bool
 	auto_refresh_enabled                *bool
+	usage_stream_enabled                *bool
 	refresh_interval_minutes            *int
 	addrefresh_interval_minutes         *int
 	next_refresh_at                     *time.Time
@@ -4238,6 +4314,42 @@ func (m *CPAInstanceMutation) OldAutoRefreshEnabled(ctx context.Context) (v bool
 // ResetAutoRefreshEnabled resets all changes to the "auto_refresh_enabled" field.
 func (m *CPAInstanceMutation) ResetAutoRefreshEnabled() {
 	m.auto_refresh_enabled = nil
+}
+
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (m *CPAInstanceMutation) SetUsageStreamEnabled(b bool) {
+	m.usage_stream_enabled = &b
+}
+
+// UsageStreamEnabled returns the value of the "usage_stream_enabled" field in the mutation.
+func (m *CPAInstanceMutation) UsageStreamEnabled() (r bool, exists bool) {
+	v := m.usage_stream_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsageStreamEnabled returns the old "usage_stream_enabled" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldUsageStreamEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsageStreamEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsageStreamEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsageStreamEnabled: %w", err)
+	}
+	return oldValue.UsageStreamEnabled, nil
+}
+
+// ResetUsageStreamEnabled resets all changes to the "usage_stream_enabled" field.
+func (m *CPAInstanceMutation) ResetUsageStreamEnabled() {
+	m.usage_stream_enabled = nil
 }
 
 // SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
@@ -4983,7 +5095,7 @@ func (m *CPAInstanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPAInstanceMutation) Fields() []string {
-	fields := make([]string, 0, 22)
+	fields := make([]string, 0, 23)
 	if m.created_at != nil {
 		fields = append(fields, cpainstance.FieldCreatedAt)
 	}
@@ -5007,6 +5119,9 @@ func (m *CPAInstanceMutation) Fields() []string {
 	}
 	if m.auto_refresh_enabled != nil {
 		fields = append(fields, cpainstance.FieldAutoRefreshEnabled)
+	}
+	if m.usage_stream_enabled != nil {
+		fields = append(fields, cpainstance.FieldUsageStreamEnabled)
 	}
 	if m.refresh_interval_minutes != nil {
 		fields = append(fields, cpainstance.FieldRefreshIntervalMinutes)
@@ -5074,6 +5189,8 @@ func (m *CPAInstanceMutation) Field(name string) (ent.Value, bool) {
 		return m.InsecureSkipTLS()
 	case cpainstance.FieldAutoRefreshEnabled:
 		return m.AutoRefreshEnabled()
+	case cpainstance.FieldUsageStreamEnabled:
+		return m.UsageStreamEnabled()
 	case cpainstance.FieldRefreshIntervalMinutes:
 		return m.RefreshIntervalMinutes()
 	case cpainstance.FieldNextRefreshAt:
@@ -5127,6 +5244,8 @@ func (m *CPAInstanceMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldInsecureSkipTLS(ctx)
 	case cpainstance.FieldAutoRefreshEnabled:
 		return m.OldAutoRefreshEnabled(ctx)
+	case cpainstance.FieldUsageStreamEnabled:
+		return m.OldUsageStreamEnabled(ctx)
 	case cpainstance.FieldRefreshIntervalMinutes:
 		return m.OldRefreshIntervalMinutes(ctx)
 	case cpainstance.FieldNextRefreshAt:
@@ -5219,6 +5338,13 @@ func (m *CPAInstanceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAutoRefreshEnabled(v)
+		return nil
+	case cpainstance.FieldUsageStreamEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsageStreamEnabled(v)
 		return nil
 	case cpainstance.FieldRefreshIntervalMinutes:
 		v, ok := value.(int)
@@ -5474,6 +5600,9 @@ func (m *CPAInstanceMutation) ResetField(name string) error {
 		return nil
 	case cpainstance.FieldAutoRefreshEnabled:
 		m.ResetAutoRefreshEnabled()
+		return nil
+	case cpainstance.FieldUsageStreamEnabled:
+		m.ResetUsageStreamEnabled()
 		return nil
 	case cpainstance.FieldRefreshIntervalMinutes:
 		m.ResetRefreshIntervalMinutes()
@@ -11626,6 +11755,1496 @@ func (m *ChannelProbeMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown ChannelProbe edge %s", name)
+}
+
+// CpaUsageEventMutation represents an operation that mutates the CpaUsageEvent nodes in the graph.
+type CpaUsageEventMutation struct {
+	config
+	op                       Op
+	typ                      string
+	id                       *int
+	created_at               *time.Time
+	updated_at               *time.Time
+	cpa_instance_id          *int
+	addcpa_instance_id       *int
+	auth_index               *string
+	provider                 *string
+	model                    *string
+	source                   *string
+	input_tokens             *int64
+	addinput_tokens          *int64
+	output_tokens            *int64
+	addoutput_tokens         *int64
+	reasoning_tokens         *int64
+	addreasoning_tokens      *int64
+	cached_tokens            *int64
+	addcached_tokens         *int64
+	cache_read_tokens        *int64
+	addcache_read_tokens     *int64
+	cache_creation_tokens    *int64
+	addcache_creation_tokens *int64
+	total_tokens             *int64
+	addtotal_tokens          *int64
+	failed                   *bool
+	status_code              *int
+	addstatus_code           *int
+	requested_at             *time.Time
+	clearedFields            map[string]struct{}
+	done                     bool
+	oldValue                 func(context.Context) (*CpaUsageEvent, error)
+	predicates               []predicate.CpaUsageEvent
+}
+
+var _ ent.Mutation = (*CpaUsageEventMutation)(nil)
+
+// cpausageeventOption allows management of the mutation configuration using functional options.
+type cpausageeventOption func(*CpaUsageEventMutation)
+
+// newCpaUsageEventMutation creates new mutation for the CpaUsageEvent entity.
+func newCpaUsageEventMutation(c config, op Op, opts ...cpausageeventOption) *CpaUsageEventMutation {
+	m := &CpaUsageEventMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCpaUsageEvent,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCpaUsageEventID sets the ID field of the mutation.
+func withCpaUsageEventID(id int) cpausageeventOption {
+	return func(m *CpaUsageEventMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CpaUsageEvent
+		)
+		m.oldValue = func(ctx context.Context) (*CpaUsageEvent, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CpaUsageEvent.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCpaUsageEvent sets the old CpaUsageEvent of the mutation.
+func withCpaUsageEvent(node *CpaUsageEvent) cpausageeventOption {
+	return func(m *CpaUsageEventMutation) {
+		m.oldValue = func(context.Context) (*CpaUsageEvent, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CpaUsageEventMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CpaUsageEventMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CpaUsageEventMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CpaUsageEventMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CpaUsageEvent.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CpaUsageEventMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CpaUsageEventMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CpaUsageEventMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CpaUsageEventMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CpaUsageEventMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CpaUsageEventMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetCpaInstanceID sets the "cpa_instance_id" field.
+func (m *CpaUsageEventMutation) SetCpaInstanceID(i int) {
+	m.cpa_instance_id = &i
+	m.addcpa_instance_id = nil
+}
+
+// CpaInstanceID returns the value of the "cpa_instance_id" field in the mutation.
+func (m *CpaUsageEventMutation) CpaInstanceID() (r int, exists bool) {
+	v := m.cpa_instance_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCpaInstanceID returns the old "cpa_instance_id" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldCpaInstanceID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCpaInstanceID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCpaInstanceID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCpaInstanceID: %w", err)
+	}
+	return oldValue.CpaInstanceID, nil
+}
+
+// AddCpaInstanceID adds i to the "cpa_instance_id" field.
+func (m *CpaUsageEventMutation) AddCpaInstanceID(i int) {
+	if m.addcpa_instance_id != nil {
+		*m.addcpa_instance_id += i
+	} else {
+		m.addcpa_instance_id = &i
+	}
+}
+
+// AddedCpaInstanceID returns the value that was added to the "cpa_instance_id" field in this mutation.
+func (m *CpaUsageEventMutation) AddedCpaInstanceID() (r int, exists bool) {
+	v := m.addcpa_instance_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCpaInstanceID resets all changes to the "cpa_instance_id" field.
+func (m *CpaUsageEventMutation) ResetCpaInstanceID() {
+	m.cpa_instance_id = nil
+	m.addcpa_instance_id = nil
+}
+
+// SetAuthIndex sets the "auth_index" field.
+func (m *CpaUsageEventMutation) SetAuthIndex(s string) {
+	m.auth_index = &s
+}
+
+// AuthIndex returns the value of the "auth_index" field in the mutation.
+func (m *CpaUsageEventMutation) AuthIndex() (r string, exists bool) {
+	v := m.auth_index
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthIndex returns the old "auth_index" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldAuthIndex(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthIndex is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthIndex requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthIndex: %w", err)
+	}
+	return oldValue.AuthIndex, nil
+}
+
+// ResetAuthIndex resets all changes to the "auth_index" field.
+func (m *CpaUsageEventMutation) ResetAuthIndex() {
+	m.auth_index = nil
+}
+
+// SetProvider sets the "provider" field.
+func (m *CpaUsageEventMutation) SetProvider(s string) {
+	m.provider = &s
+}
+
+// Provider returns the value of the "provider" field in the mutation.
+func (m *CpaUsageEventMutation) Provider() (r string, exists bool) {
+	v := m.provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProvider returns the old "provider" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldProvider(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProvider: %w", err)
+	}
+	return oldValue.Provider, nil
+}
+
+// ResetProvider resets all changes to the "provider" field.
+func (m *CpaUsageEventMutation) ResetProvider() {
+	m.provider = nil
+}
+
+// SetModel sets the "model" field.
+func (m *CpaUsageEventMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *CpaUsageEventMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *CpaUsageEventMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetSource sets the "source" field.
+func (m *CpaUsageEventMutation) SetSource(s string) {
+	m.source = &s
+}
+
+// Source returns the value of the "source" field in the mutation.
+func (m *CpaUsageEventMutation) Source() (r string, exists bool) {
+	v := m.source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSource returns the old "source" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldSource(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSource: %w", err)
+	}
+	return oldValue.Source, nil
+}
+
+// ResetSource resets all changes to the "source" field.
+func (m *CpaUsageEventMutation) ResetSource() {
+	m.source = nil
+}
+
+// SetInputTokens sets the "input_tokens" field.
+func (m *CpaUsageEventMutation) SetInputTokens(i int64) {
+	m.input_tokens = &i
+	m.addinput_tokens = nil
+}
+
+// InputTokens returns the value of the "input_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) InputTokens() (r int64, exists bool) {
+	v := m.input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInputTokens returns the old "input_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldInputTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInputTokens: %w", err)
+	}
+	return oldValue.InputTokens, nil
+}
+
+// AddInputTokens adds i to the "input_tokens" field.
+func (m *CpaUsageEventMutation) AddInputTokens(i int64) {
+	if m.addinput_tokens != nil {
+		*m.addinput_tokens += i
+	} else {
+		m.addinput_tokens = &i
+	}
+}
+
+// AddedInputTokens returns the value that was added to the "input_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedInputTokens() (r int64, exists bool) {
+	v := m.addinput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInputTokens resets all changes to the "input_tokens" field.
+func (m *CpaUsageEventMutation) ResetInputTokens() {
+	m.input_tokens = nil
+	m.addinput_tokens = nil
+}
+
+// SetOutputTokens sets the "output_tokens" field.
+func (m *CpaUsageEventMutation) SetOutputTokens(i int64) {
+	m.output_tokens = &i
+	m.addoutput_tokens = nil
+}
+
+// OutputTokens returns the value of the "output_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) OutputTokens() (r int64, exists bool) {
+	v := m.output_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOutputTokens returns the old "output_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldOutputTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOutputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOutputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOutputTokens: %w", err)
+	}
+	return oldValue.OutputTokens, nil
+}
+
+// AddOutputTokens adds i to the "output_tokens" field.
+func (m *CpaUsageEventMutation) AddOutputTokens(i int64) {
+	if m.addoutput_tokens != nil {
+		*m.addoutput_tokens += i
+	} else {
+		m.addoutput_tokens = &i
+	}
+}
+
+// AddedOutputTokens returns the value that was added to the "output_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedOutputTokens() (r int64, exists bool) {
+	v := m.addoutput_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetOutputTokens resets all changes to the "output_tokens" field.
+func (m *CpaUsageEventMutation) ResetOutputTokens() {
+	m.output_tokens = nil
+	m.addoutput_tokens = nil
+}
+
+// SetReasoningTokens sets the "reasoning_tokens" field.
+func (m *CpaUsageEventMutation) SetReasoningTokens(i int64) {
+	m.reasoning_tokens = &i
+	m.addreasoning_tokens = nil
+}
+
+// ReasoningTokens returns the value of the "reasoning_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) ReasoningTokens() (r int64, exists bool) {
+	v := m.reasoning_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReasoningTokens returns the old "reasoning_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldReasoningTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReasoningTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReasoningTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReasoningTokens: %w", err)
+	}
+	return oldValue.ReasoningTokens, nil
+}
+
+// AddReasoningTokens adds i to the "reasoning_tokens" field.
+func (m *CpaUsageEventMutation) AddReasoningTokens(i int64) {
+	if m.addreasoning_tokens != nil {
+		*m.addreasoning_tokens += i
+	} else {
+		m.addreasoning_tokens = &i
+	}
+}
+
+// AddedReasoningTokens returns the value that was added to the "reasoning_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedReasoningTokens() (r int64, exists bool) {
+	v := m.addreasoning_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetReasoningTokens resets all changes to the "reasoning_tokens" field.
+func (m *CpaUsageEventMutation) ResetReasoningTokens() {
+	m.reasoning_tokens = nil
+	m.addreasoning_tokens = nil
+}
+
+// SetCachedTokens sets the "cached_tokens" field.
+func (m *CpaUsageEventMutation) SetCachedTokens(i int64) {
+	m.cached_tokens = &i
+	m.addcached_tokens = nil
+}
+
+// CachedTokens returns the value of the "cached_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) CachedTokens() (r int64, exists bool) {
+	v := m.cached_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCachedTokens returns the old "cached_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldCachedTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCachedTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCachedTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCachedTokens: %w", err)
+	}
+	return oldValue.CachedTokens, nil
+}
+
+// AddCachedTokens adds i to the "cached_tokens" field.
+func (m *CpaUsageEventMutation) AddCachedTokens(i int64) {
+	if m.addcached_tokens != nil {
+		*m.addcached_tokens += i
+	} else {
+		m.addcached_tokens = &i
+	}
+}
+
+// AddedCachedTokens returns the value that was added to the "cached_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedCachedTokens() (r int64, exists bool) {
+	v := m.addcached_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCachedTokens resets all changes to the "cached_tokens" field.
+func (m *CpaUsageEventMutation) ResetCachedTokens() {
+	m.cached_tokens = nil
+	m.addcached_tokens = nil
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (m *CpaUsageEventMutation) SetCacheReadTokens(i int64) {
+	m.cache_read_tokens = &i
+	m.addcache_read_tokens = nil
+}
+
+// CacheReadTokens returns the value of the "cache_read_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) CacheReadTokens() (r int64, exists bool) {
+	v := m.cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheReadTokens returns the old "cache_read_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldCacheReadTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheReadTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheReadTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheReadTokens: %w", err)
+	}
+	return oldValue.CacheReadTokens, nil
+}
+
+// AddCacheReadTokens adds i to the "cache_read_tokens" field.
+func (m *CpaUsageEventMutation) AddCacheReadTokens(i int64) {
+	if m.addcache_read_tokens != nil {
+		*m.addcache_read_tokens += i
+	} else {
+		m.addcache_read_tokens = &i
+	}
+}
+
+// AddedCacheReadTokens returns the value that was added to the "cache_read_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedCacheReadTokens() (r int64, exists bool) {
+	v := m.addcache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheReadTokens resets all changes to the "cache_read_tokens" field.
+func (m *CpaUsageEventMutation) ResetCacheReadTokens() {
+	m.cache_read_tokens = nil
+	m.addcache_read_tokens = nil
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (m *CpaUsageEventMutation) SetCacheCreationTokens(i int64) {
+	m.cache_creation_tokens = &i
+	m.addcache_creation_tokens = nil
+}
+
+// CacheCreationTokens returns the value of the "cache_creation_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) CacheCreationTokens() (r int64, exists bool) {
+	v := m.cache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheCreationTokens returns the old "cache_creation_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldCacheCreationTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheCreationTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheCreationTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheCreationTokens: %w", err)
+	}
+	return oldValue.CacheCreationTokens, nil
+}
+
+// AddCacheCreationTokens adds i to the "cache_creation_tokens" field.
+func (m *CpaUsageEventMutation) AddCacheCreationTokens(i int64) {
+	if m.addcache_creation_tokens != nil {
+		*m.addcache_creation_tokens += i
+	} else {
+		m.addcache_creation_tokens = &i
+	}
+}
+
+// AddedCacheCreationTokens returns the value that was added to the "cache_creation_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedCacheCreationTokens() (r int64, exists bool) {
+	v := m.addcache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCacheCreationTokens resets all changes to the "cache_creation_tokens" field.
+func (m *CpaUsageEventMutation) ResetCacheCreationTokens() {
+	m.cache_creation_tokens = nil
+	m.addcache_creation_tokens = nil
+}
+
+// SetTotalTokens sets the "total_tokens" field.
+func (m *CpaUsageEventMutation) SetTotalTokens(i int64) {
+	m.total_tokens = &i
+	m.addtotal_tokens = nil
+}
+
+// TotalTokens returns the value of the "total_tokens" field in the mutation.
+func (m *CpaUsageEventMutation) TotalTokens() (r int64, exists bool) {
+	v := m.total_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotalTokens returns the old "total_tokens" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldTotalTokens(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotalTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotalTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotalTokens: %w", err)
+	}
+	return oldValue.TotalTokens, nil
+}
+
+// AddTotalTokens adds i to the "total_tokens" field.
+func (m *CpaUsageEventMutation) AddTotalTokens(i int64) {
+	if m.addtotal_tokens != nil {
+		*m.addtotal_tokens += i
+	} else {
+		m.addtotal_tokens = &i
+	}
+}
+
+// AddedTotalTokens returns the value that was added to the "total_tokens" field in this mutation.
+func (m *CpaUsageEventMutation) AddedTotalTokens() (r int64, exists bool) {
+	v := m.addtotal_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTotalTokens resets all changes to the "total_tokens" field.
+func (m *CpaUsageEventMutation) ResetTotalTokens() {
+	m.total_tokens = nil
+	m.addtotal_tokens = nil
+}
+
+// SetFailed sets the "failed" field.
+func (m *CpaUsageEventMutation) SetFailed(b bool) {
+	m.failed = &b
+}
+
+// Failed returns the value of the "failed" field in the mutation.
+func (m *CpaUsageEventMutation) Failed() (r bool, exists bool) {
+	v := m.failed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFailed returns the old "failed" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldFailed(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFailed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFailed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFailed: %w", err)
+	}
+	return oldValue.Failed, nil
+}
+
+// ResetFailed resets all changes to the "failed" field.
+func (m *CpaUsageEventMutation) ResetFailed() {
+	m.failed = nil
+}
+
+// SetStatusCode sets the "status_code" field.
+func (m *CpaUsageEventMutation) SetStatusCode(i int) {
+	m.status_code = &i
+	m.addstatus_code = nil
+}
+
+// StatusCode returns the value of the "status_code" field in the mutation.
+func (m *CpaUsageEventMutation) StatusCode() (r int, exists bool) {
+	v := m.status_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatusCode returns the old "status_code" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldStatusCode(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatusCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatusCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatusCode: %w", err)
+	}
+	return oldValue.StatusCode, nil
+}
+
+// AddStatusCode adds i to the "status_code" field.
+func (m *CpaUsageEventMutation) AddStatusCode(i int) {
+	if m.addstatus_code != nil {
+		*m.addstatus_code += i
+	} else {
+		m.addstatus_code = &i
+	}
+}
+
+// AddedStatusCode returns the value that was added to the "status_code" field in this mutation.
+func (m *CpaUsageEventMutation) AddedStatusCode() (r int, exists bool) {
+	v := m.addstatus_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStatusCode resets all changes to the "status_code" field.
+func (m *CpaUsageEventMutation) ResetStatusCode() {
+	m.status_code = nil
+	m.addstatus_code = nil
+}
+
+// SetRequestedAt sets the "requested_at" field.
+func (m *CpaUsageEventMutation) SetRequestedAt(t time.Time) {
+	m.requested_at = &t
+}
+
+// RequestedAt returns the value of the "requested_at" field in the mutation.
+func (m *CpaUsageEventMutation) RequestedAt() (r time.Time, exists bool) {
+	v := m.requested_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestedAt returns the old "requested_at" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldRequestedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestedAt: %w", err)
+	}
+	return oldValue.RequestedAt, nil
+}
+
+// ResetRequestedAt resets all changes to the "requested_at" field.
+func (m *CpaUsageEventMutation) ResetRequestedAt() {
+	m.requested_at = nil
+}
+
+// Where appends a list predicates to the CpaUsageEventMutation builder.
+func (m *CpaUsageEventMutation) Where(ps ...predicate.CpaUsageEvent) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CpaUsageEventMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CpaUsageEventMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CpaUsageEvent, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CpaUsageEventMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CpaUsageEventMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CpaUsageEvent).
+func (m *CpaUsageEventMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CpaUsageEventMutation) Fields() []string {
+	fields := make([]string, 0, 17)
+	if m.created_at != nil {
+		fields = append(fields, cpausageevent.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cpausageevent.FieldUpdatedAt)
+	}
+	if m.cpa_instance_id != nil {
+		fields = append(fields, cpausageevent.FieldCpaInstanceID)
+	}
+	if m.auth_index != nil {
+		fields = append(fields, cpausageevent.FieldAuthIndex)
+	}
+	if m.provider != nil {
+		fields = append(fields, cpausageevent.FieldProvider)
+	}
+	if m.model != nil {
+		fields = append(fields, cpausageevent.FieldModel)
+	}
+	if m.source != nil {
+		fields = append(fields, cpausageevent.FieldSource)
+	}
+	if m.input_tokens != nil {
+		fields = append(fields, cpausageevent.FieldInputTokens)
+	}
+	if m.output_tokens != nil {
+		fields = append(fields, cpausageevent.FieldOutputTokens)
+	}
+	if m.reasoning_tokens != nil {
+		fields = append(fields, cpausageevent.FieldReasoningTokens)
+	}
+	if m.cached_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCachedTokens)
+	}
+	if m.cache_read_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCacheReadTokens)
+	}
+	if m.cache_creation_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCacheCreationTokens)
+	}
+	if m.total_tokens != nil {
+		fields = append(fields, cpausageevent.FieldTotalTokens)
+	}
+	if m.failed != nil {
+		fields = append(fields, cpausageevent.FieldFailed)
+	}
+	if m.status_code != nil {
+		fields = append(fields, cpausageevent.FieldStatusCode)
+	}
+	if m.requested_at != nil {
+		fields = append(fields, cpausageevent.FieldRequestedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CpaUsageEventMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cpausageevent.FieldCreatedAt:
+		return m.CreatedAt()
+	case cpausageevent.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cpausageevent.FieldCpaInstanceID:
+		return m.CpaInstanceID()
+	case cpausageevent.FieldAuthIndex:
+		return m.AuthIndex()
+	case cpausageevent.FieldProvider:
+		return m.Provider()
+	case cpausageevent.FieldModel:
+		return m.Model()
+	case cpausageevent.FieldSource:
+		return m.Source()
+	case cpausageevent.FieldInputTokens:
+		return m.InputTokens()
+	case cpausageevent.FieldOutputTokens:
+		return m.OutputTokens()
+	case cpausageevent.FieldReasoningTokens:
+		return m.ReasoningTokens()
+	case cpausageevent.FieldCachedTokens:
+		return m.CachedTokens()
+	case cpausageevent.FieldCacheReadTokens:
+		return m.CacheReadTokens()
+	case cpausageevent.FieldCacheCreationTokens:
+		return m.CacheCreationTokens()
+	case cpausageevent.FieldTotalTokens:
+		return m.TotalTokens()
+	case cpausageevent.FieldFailed:
+		return m.Failed()
+	case cpausageevent.FieldStatusCode:
+		return m.StatusCode()
+	case cpausageevent.FieldRequestedAt:
+		return m.RequestedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CpaUsageEventMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cpausageevent.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cpausageevent.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cpausageevent.FieldCpaInstanceID:
+		return m.OldCpaInstanceID(ctx)
+	case cpausageevent.FieldAuthIndex:
+		return m.OldAuthIndex(ctx)
+	case cpausageevent.FieldProvider:
+		return m.OldProvider(ctx)
+	case cpausageevent.FieldModel:
+		return m.OldModel(ctx)
+	case cpausageevent.FieldSource:
+		return m.OldSource(ctx)
+	case cpausageevent.FieldInputTokens:
+		return m.OldInputTokens(ctx)
+	case cpausageevent.FieldOutputTokens:
+		return m.OldOutputTokens(ctx)
+	case cpausageevent.FieldReasoningTokens:
+		return m.OldReasoningTokens(ctx)
+	case cpausageevent.FieldCachedTokens:
+		return m.OldCachedTokens(ctx)
+	case cpausageevent.FieldCacheReadTokens:
+		return m.OldCacheReadTokens(ctx)
+	case cpausageevent.FieldCacheCreationTokens:
+		return m.OldCacheCreationTokens(ctx)
+	case cpausageevent.FieldTotalTokens:
+		return m.OldTotalTokens(ctx)
+	case cpausageevent.FieldFailed:
+		return m.OldFailed(ctx)
+	case cpausageevent.FieldStatusCode:
+		return m.OldStatusCode(ctx)
+	case cpausageevent.FieldRequestedAt:
+		return m.OldRequestedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CpaUsageEvent field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CpaUsageEventMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cpausageevent.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cpausageevent.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cpausageevent.FieldCpaInstanceID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCpaInstanceID(v)
+		return nil
+	case cpausageevent.FieldAuthIndex:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthIndex(v)
+		return nil
+	case cpausageevent.FieldProvider:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProvider(v)
+		return nil
+	case cpausageevent.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case cpausageevent.FieldSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSource(v)
+		return nil
+	case cpausageevent.FieldInputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInputTokens(v)
+		return nil
+	case cpausageevent.FieldOutputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOutputTokens(v)
+		return nil
+	case cpausageevent.FieldReasoningTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReasoningTokens(v)
+		return nil
+	case cpausageevent.FieldCachedTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCachedTokens(v)
+		return nil
+	case cpausageevent.FieldCacheReadTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheReadTokens(v)
+		return nil
+	case cpausageevent.FieldCacheCreationTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheCreationTokens(v)
+		return nil
+	case cpausageevent.FieldTotalTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotalTokens(v)
+		return nil
+	case cpausageevent.FieldFailed:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFailed(v)
+		return nil
+	case cpausageevent.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatusCode(v)
+		return nil
+	case cpausageevent.FieldRequestedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CpaUsageEvent field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CpaUsageEventMutation) AddedFields() []string {
+	var fields []string
+	if m.addcpa_instance_id != nil {
+		fields = append(fields, cpausageevent.FieldCpaInstanceID)
+	}
+	if m.addinput_tokens != nil {
+		fields = append(fields, cpausageevent.FieldInputTokens)
+	}
+	if m.addoutput_tokens != nil {
+		fields = append(fields, cpausageevent.FieldOutputTokens)
+	}
+	if m.addreasoning_tokens != nil {
+		fields = append(fields, cpausageevent.FieldReasoningTokens)
+	}
+	if m.addcached_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCachedTokens)
+	}
+	if m.addcache_read_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCacheReadTokens)
+	}
+	if m.addcache_creation_tokens != nil {
+		fields = append(fields, cpausageevent.FieldCacheCreationTokens)
+	}
+	if m.addtotal_tokens != nil {
+		fields = append(fields, cpausageevent.FieldTotalTokens)
+	}
+	if m.addstatus_code != nil {
+		fields = append(fields, cpausageevent.FieldStatusCode)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CpaUsageEventMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case cpausageevent.FieldCpaInstanceID:
+		return m.AddedCpaInstanceID()
+	case cpausageevent.FieldInputTokens:
+		return m.AddedInputTokens()
+	case cpausageevent.FieldOutputTokens:
+		return m.AddedOutputTokens()
+	case cpausageevent.FieldReasoningTokens:
+		return m.AddedReasoningTokens()
+	case cpausageevent.FieldCachedTokens:
+		return m.AddedCachedTokens()
+	case cpausageevent.FieldCacheReadTokens:
+		return m.AddedCacheReadTokens()
+	case cpausageevent.FieldCacheCreationTokens:
+		return m.AddedCacheCreationTokens()
+	case cpausageevent.FieldTotalTokens:
+		return m.AddedTotalTokens()
+	case cpausageevent.FieldStatusCode:
+		return m.AddedStatusCode()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CpaUsageEventMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case cpausageevent.FieldCpaInstanceID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCpaInstanceID(v)
+		return nil
+	case cpausageevent.FieldInputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInputTokens(v)
+		return nil
+	case cpausageevent.FieldOutputTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddOutputTokens(v)
+		return nil
+	case cpausageevent.FieldReasoningTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddReasoningTokens(v)
+		return nil
+	case cpausageevent.FieldCachedTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCachedTokens(v)
+		return nil
+	case cpausageevent.FieldCacheReadTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheReadTokens(v)
+		return nil
+	case cpausageevent.FieldCacheCreationTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheCreationTokens(v)
+		return nil
+	case cpausageevent.FieldTotalTokens:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTotalTokens(v)
+		return nil
+	case cpausageevent.FieldStatusCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStatusCode(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CpaUsageEvent numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CpaUsageEventMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CpaUsageEventMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CpaUsageEventMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CpaUsageEvent nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CpaUsageEventMutation) ResetField(name string) error {
+	switch name {
+	case cpausageevent.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cpausageevent.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cpausageevent.FieldCpaInstanceID:
+		m.ResetCpaInstanceID()
+		return nil
+	case cpausageevent.FieldAuthIndex:
+		m.ResetAuthIndex()
+		return nil
+	case cpausageevent.FieldProvider:
+		m.ResetProvider()
+		return nil
+	case cpausageevent.FieldModel:
+		m.ResetModel()
+		return nil
+	case cpausageevent.FieldSource:
+		m.ResetSource()
+		return nil
+	case cpausageevent.FieldInputTokens:
+		m.ResetInputTokens()
+		return nil
+	case cpausageevent.FieldOutputTokens:
+		m.ResetOutputTokens()
+		return nil
+	case cpausageevent.FieldReasoningTokens:
+		m.ResetReasoningTokens()
+		return nil
+	case cpausageevent.FieldCachedTokens:
+		m.ResetCachedTokens()
+		return nil
+	case cpausageevent.FieldCacheReadTokens:
+		m.ResetCacheReadTokens()
+		return nil
+	case cpausageevent.FieldCacheCreationTokens:
+		m.ResetCacheCreationTokens()
+		return nil
+	case cpausageevent.FieldTotalTokens:
+		m.ResetTotalTokens()
+		return nil
+	case cpausageevent.FieldFailed:
+		m.ResetFailed()
+		return nil
+	case cpausageevent.FieldStatusCode:
+		m.ResetStatusCode()
+		return nil
+	case cpausageevent.FieldRequestedAt:
+		m.ResetRequestedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CpaUsageEvent field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CpaUsageEventMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CpaUsageEventMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CpaUsageEventMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CpaUsageEventMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CpaUsageEventMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CpaUsageEventMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CpaUsageEventMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CpaUsageEvent unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CpaUsageEventMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CpaUsageEvent edge %s", name)
 }
 
 // DataStorageMutation represents an operation that mutates the DataStorage nodes in the graph.

@@ -31,6 +31,8 @@ const (
 	FieldInsecureSkipTLS = "insecure_skip_tls"
 	// FieldAutoRefreshEnabled holds the string denoting the auto_refresh_enabled field in the database.
 	FieldAutoRefreshEnabled = "auto_refresh_enabled"
+	// FieldUsageStreamEnabled holds the string denoting the usage_stream_enabled field in the database.
+	FieldUsageStreamEnabled = "usage_stream_enabled"
 	// FieldRefreshIntervalMinutes holds the string denoting the refresh_interval_minutes field in the database.
 	FieldRefreshIntervalMinutes = "refresh_interval_minutes"
 	// FieldNextRefreshAt holds the string denoting the next_refresh_at field in the database.
@@ -83,6 +85,7 @@ var Columns = []string{
 	FieldEnabled,
 	FieldInsecureSkipTLS,
 	FieldAutoRefreshEnabled,
+	FieldUsageStreamEnabled,
 	FieldRefreshIntervalMinutes,
 	FieldNextRefreshAt,
 	FieldAutoManageEnabled,
@@ -133,6 +136,8 @@ var (
 	DefaultInsecureSkipTLS bool
 	// DefaultAutoRefreshEnabled holds the default value on creation for the "auto_refresh_enabled" field.
 	DefaultAutoRefreshEnabled bool
+	// DefaultUsageStreamEnabled holds the default value on creation for the "usage_stream_enabled" field.
+	DefaultUsageStreamEnabled bool
 	// DefaultRefreshIntervalMinutes holds the default value on creation for the "refresh_interval_minutes" field.
 	DefaultRefreshIntervalMinutes int
 	// RefreshIntervalMinutesValidator is a validator for the "refresh_interval_minutes" field. It is called by the builders before save.
@@ -201,6 +206,11 @@ func ByInsecureSkipTLS(opts ...sql.OrderTermOption) OrderOption {
 // ByAutoRefreshEnabled orders the results by the auto_refresh_enabled field.
 func ByAutoRefreshEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAutoRefreshEnabled, opts...).ToFunc()
+}
+
+// ByUsageStreamEnabled orders the results by the usage_stream_enabled field.
+func ByUsageStreamEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsageStreamEnabled, opts...).ToFunc()
 }
 
 // ByRefreshIntervalMinutes orders the results by the refresh_interval_minutes field.

@@ -95,6 +95,11 @@ func AutoRefreshEnabled(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldAutoRefreshEnabled, v))
 }
 
+// UsageStreamEnabled applies equality check predicate on the "usage_stream_enabled" field. It's identical to UsageStreamEnabledEQ.
+func UsageStreamEnabled(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldUsageStreamEnabled, v))
+}
+
 // RefreshIntervalMinutes applies equality check predicate on the "refresh_interval_minutes" field. It's identical to RefreshIntervalMinutesEQ.
 func RefreshIntervalMinutes(v int) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldRefreshIntervalMinutes, v))
@@ -468,6 +473,16 @@ func AutoRefreshEnabledEQ(v bool) predicate.CPAInstance {
 // AutoRefreshEnabledNEQ applies the NEQ predicate on the "auto_refresh_enabled" field.
 func AutoRefreshEnabledNEQ(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldNEQ(FieldAutoRefreshEnabled, v))
+}
+
+// UsageStreamEnabledEQ applies the EQ predicate on the "usage_stream_enabled" field.
+func UsageStreamEnabledEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldUsageStreamEnabled, v))
+}
+
+// UsageStreamEnabledNEQ applies the NEQ predicate on the "usage_stream_enabled" field.
+func UsageStreamEnabledNEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldUsageStreamEnabled, v))
 }
 
 // RefreshIntervalMinutesEQ applies the EQ predicate on the "refresh_interval_minutes" field.

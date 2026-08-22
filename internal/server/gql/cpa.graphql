@@ -7,6 +7,7 @@ type CPAManagedInstance {
   autoRefreshEnabled: Boolean!
   refreshIntervalMinutes: Int!
   autoManageEnabled: Boolean!
+  usageStreamEnabled: Boolean!
   enabledPatrolIntervalMinutes: Int!
   disabledPatrolIntervalMinutes: Int!
   nextRefreshAt: Time
@@ -38,6 +39,9 @@ type CPAQuotaItem {
   unit: String!
   resetAt: Time
   periodSeconds: Int
+  estimatedLimitUSD: Float
+  estimatedCostUSD: Float
+  estimateSource: String
 }
 
 type CPAQuotaSnapshot {
@@ -119,6 +123,7 @@ input CreateCPAInstanceInput {
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
   autoManageEnabled: Boolean
+  usageStreamEnabled: Boolean
   enabledPatrolIntervalMinutes: Int
   disabledPatrolIntervalMinutes: Int
 }
@@ -132,6 +137,7 @@ input UpdateCPAInstanceInput {
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
   autoManageEnabled: Boolean
+  usageStreamEnabled: Boolean
   enabledPatrolIntervalMinutes: Int
   disabledPatrolIntervalMinutes: Int
 }

@@ -205,7 +205,11 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 		}
 		switch result.State {
 		case objects.CPAQuotaStateSuccess:
-			update.SetQuotaData(result.Snapshot).SetQuotaLastSuccessAt(now)
+			snapshot := result.Snapshot
+			if strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") {
+				svc.applyQuotaEstimate(ctx, credential, &snapshot)
+			}
+			update.SetQuotaData(snapshot).SetQuotaLastSuccessAt(now)
 		case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
 			update.SetQuotaData(objects.CPAQuotaSnapshot{})
 		}
@@ -215,6 +219,24 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 		return nil, nil
 	})
 	return err
+}
+
+// applyQuotaEstimate computes the weekly/monthly quota value estimate and
+// attaches it to the long-period window item of the snapshot before persistence.
+func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.CPACredential, snapshot *objects.CPAQuotaSnapshot) {
+	estimate := svc.EstimateCredentialQuota(ctx, credential.CpaInstanceID, credential.AuthIndex, *snapshot, credential.QuotaObserved)
+	if estimate == nil {
+		return
+	}
+	item := estimateWindowItem(*snapshot)
+	if item == nil {
+		return
+	}
+	limit := estimate.LimitUSD
+	cost := estimate.CostUSD
+	item.EstimatedLimitUSD = &limit
+	item.EstimatedCostUSD = &cost
+	item.EstimateSource = estimate.Source
 }
 
 func (svc *CPAService) instanceQuotaLimiter(instanceID int) *semaphore.Weighted {

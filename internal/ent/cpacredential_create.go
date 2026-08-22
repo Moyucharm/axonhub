@@ -328,6 +328,20 @@ func (_c *CPACredentialCreate) SetNillableQuotaLastError(v *string) *CPACredenti
 	return _c
 }
 
+// SetQuotaObserved sets the "quota_observed" field.
+func (_c *CPACredentialCreate) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialCreate {
+	_c.mutation.SetQuotaObserved(v)
+	return _c
+}
+
+// SetNillableQuotaObserved sets the "quota_observed" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableQuotaObserved(v *objects.CPAQuotaObserved) *CPACredentialCreate {
+	if v != nil {
+		_c.SetQuotaObserved(*v)
+	}
+	return _c
+}
+
 // SetCpaInstance sets the "cpa_instance" edge to the CPAInstance entity.
 func (_c *CPACredentialCreate) SetCpaInstance(v *CPAInstance) *CPACredentialCreate {
 	return _c.SetCpaInstanceID(v.ID)
@@ -443,6 +457,10 @@ func (_c *CPACredentialCreate) defaults() error {
 	if _, ok := _c.mutation.QuotaLastError(); !ok {
 		v := cpacredential.DefaultQuotaLastError
 		_c.mutation.SetQuotaLastError(v)
+	}
+	if _, ok := _c.mutation.QuotaObserved(); !ok {
+		v := cpacredential.DefaultQuotaObserved
+		_c.mutation.SetQuotaObserved(v)
 	}
 	return nil
 }
@@ -642,6 +660,10 @@ func (_c *CPACredentialCreate) createSpec() (*CPACredential, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
 		_node.QuotaLastError = value
+	}
+	if value, ok := _c.mutation.QuotaObserved(); ok {
+		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)
+		_node.QuotaObserved = value
 	}
 	if nodes := _c.mutation.CpaInstanceIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -997,6 +1019,24 @@ func (u *CPACredentialUpsert) SetQuotaLastError(v string) *CPACredentialUpsert {
 // UpdateQuotaLastError sets the "quota_last_error" field to the value that was provided on create.
 func (u *CPACredentialUpsert) UpdateQuotaLastError() *CPACredentialUpsert {
 	u.SetExcluded(cpacredential.FieldQuotaLastError)
+	return u
+}
+
+// SetQuotaObserved sets the "quota_observed" field.
+func (u *CPACredentialUpsert) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldQuotaObserved, v)
+	return u
+}
+
+// UpdateQuotaObserved sets the "quota_observed" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateQuotaObserved() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldQuotaObserved)
+	return u
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (u *CPACredentialUpsert) ClearQuotaObserved() *CPACredentialUpsert {
+	u.SetNull(cpacredential.FieldQuotaObserved)
 	return u
 }
 
@@ -1381,6 +1421,27 @@ func (u *CPACredentialUpsertOne) SetQuotaLastError(v string) *CPACredentialUpser
 func (u *CPACredentialUpsertOne) UpdateQuotaLastError() *CPACredentialUpsertOne {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaLastError()
+	})
+}
+
+// SetQuotaObserved sets the "quota_observed" field.
+func (u *CPACredentialUpsertOne) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaObserved(v)
+	})
+}
+
+// UpdateQuotaObserved sets the "quota_observed" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateQuotaObserved() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaObserved()
+	})
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (u *CPACredentialUpsertOne) ClearQuotaObserved() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearQuotaObserved()
 	})
 }
 
@@ -1931,6 +1992,27 @@ func (u *CPACredentialUpsertBulk) SetQuotaLastError(v string) *CPACredentialUpse
 func (u *CPACredentialUpsertBulk) UpdateQuotaLastError() *CPACredentialUpsertBulk {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaLastError()
+	})
+}
+
+// SetQuotaObserved sets the "quota_observed" field.
+func (u *CPACredentialUpsertBulk) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaObserved(v)
+	})
+}
+
+// UpdateQuotaObserved sets the "quota_observed" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateQuotaObserved() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaObserved()
+	})
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (u *CPACredentialUpsertBulk) ClearQuotaObserved() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearQuotaObserved()
 	})
 }
 

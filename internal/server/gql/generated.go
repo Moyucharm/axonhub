@@ -425,6 +425,7 @@ type ComplexityRoot struct {
 		ServerCommit                  func(childComplexity int) int
 		ServerVersion                 func(childComplexity int) int
 		UpdatedAt                     func(childComplexity int) int
+		UsageStreamEnabled            func(childComplexity int) int
 	}
 
 	CPAPageInfo struct {
@@ -440,18 +441,21 @@ type ComplexityRoot struct {
 	}
 
 	CPAQuotaItem struct {
-		Description      func(childComplexity int) int
-		Group            func(childComplexity int) int
-		ID               func(childComplexity int) int
-		Label            func(childComplexity int) int
-		Limit            func(childComplexity int) int
-		PeriodSeconds    func(childComplexity int) int
-		Remaining        func(childComplexity int) int
-		RemainingPercent func(childComplexity int) int
-		ResetAt          func(childComplexity int) int
-		Unit             func(childComplexity int) int
-		Used             func(childComplexity int) int
-		UsedPercent      func(childComplexity int) int
+		Description       func(childComplexity int) int
+		EstimateSource    func(childComplexity int) int
+		EstimatedCostUSD  func(childComplexity int) int
+		EstimatedLimitUSD func(childComplexity int) int
+		Group             func(childComplexity int) int
+		ID                func(childComplexity int) int
+		Label             func(childComplexity int) int
+		Limit             func(childComplexity int) int
+		PeriodSeconds     func(childComplexity int) int
+		Remaining         func(childComplexity int) int
+		RemainingPercent  func(childComplexity int) int
+		ResetAt           func(childComplexity int) int
+		Unit              func(childComplexity int) int
+		Used              func(childComplexity int) int
+		UsedPercent       func(childComplexity int) int
 	}
 
 	CPAQuotaSnapshot struct {
@@ -4053,6 +4057,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedInstance.UpdatedAt(childComplexity), true
+	case "CPAManagedInstance.usageStreamEnabled":
+		if e.complexity.CPAManagedInstance.UsageStreamEnabled == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.UsageStreamEnabled(childComplexity), true
 
 	case "CPAPageInfo.endCursor":
 		if e.complexity.CPAPageInfo.EndCursor == nil {
@@ -4098,6 +4108,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAQuotaItem.Description(childComplexity), true
+	case "CPAQuotaItem.estimateSource":
+		if e.complexity.CPAQuotaItem.EstimateSource == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaItem.EstimateSource(childComplexity), true
+	case "CPAQuotaItem.estimatedCostUSD":
+		if e.complexity.CPAQuotaItem.EstimatedCostUSD == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaItem.EstimatedCostUSD(childComplexity), true
+	case "CPAQuotaItem.estimatedLimitUSD":
+		if e.complexity.CPAQuotaItem.EstimatedLimitUSD == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaItem.EstimatedLimitUSD(childComplexity), true
 	case "CPAQuotaItem.group":
 		if e.complexity.CPAQuotaItem.Group == nil {
 			break
@@ -22926,6 +22954,35 @@ func (ec *executionContext) fieldContext_CPAManagedInstance_autoManageEnabled(_ 
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAManagedInstance_usageStreamEnabled(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_usageStreamEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.UsageStreamEnabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_usageStreamEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAManagedInstance_enabledPatrolIntervalMinutes(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23912,6 +23969,93 @@ func (ec *executionContext) fieldContext_CPAQuotaItem_periodSeconds(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAQuotaItem_estimatedLimitUSD(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaItem_estimatedLimitUSD,
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedLimitUSD, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaItem_estimatedLimitUSD(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaItem_estimatedCostUSD(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaItem_estimatedCostUSD,
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedCostUSD, nil
+		},
+		nil,
+		ec.marshalOFloat2ᚖfloat64,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaItem_estimatedCostUSD(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaItem_estimateSource(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaItem_estimateSource,
+		func(ctx context.Context) (any, error) {
+			return obj.EstimateSource, nil
+		},
+		nil,
+		ec.marshalOString2string,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaItem_estimateSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAQuotaSnapshot_items(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23960,6 +24104,12 @@ func (ec *executionContext) fieldContext_CPAQuotaSnapshot_items(_ context.Contex
 				return ec.fieldContext_CPAQuotaItem_resetAt(ctx, field)
 			case "periodSeconds":
 				return ec.fieldContext_CPAQuotaItem_periodSeconds(ctx, field)
+			case "estimatedLimitUSD":
+				return ec.fieldContext_CPAQuotaItem_estimatedLimitUSD(ctx, field)
+			case "estimatedCostUSD":
+				return ec.fieldContext_CPAQuotaItem_estimatedCostUSD(ctx, field)
+			case "estimateSource":
+				return ec.fieldContext_CPAQuotaItem_estimateSource(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaItem", field.Name)
 		},
@@ -43818,6 +43968,8 @@ func (ec *executionContext) fieldContext_Mutation_createCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "usageStreamEnabled":
+				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
 			case "disabledPatrolIntervalMinutes":
@@ -43909,6 +44061,8 @@ func (ec *executionContext) fieldContext_Mutation_updateCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "usageStreamEnabled":
+				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
 			case "disabledPatrolIntervalMinutes":
@@ -53280,6 +53434,8 @@ func (ec *executionContext) fieldContext_Query_cpaInstances(_ context.Context, f
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "usageStreamEnabled":
+				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
 			case "disabledPatrolIntervalMinutes":
@@ -53360,6 +53516,8 @@ func (ec *executionContext) fieldContext_Query_cpaInstance(ctx context.Context, 
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "usageStreamEnabled":
+				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
 				return ec.fieldContext_CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field)
 			case "disabledPatrolIntervalMinutes":
@@ -76610,7 +76768,7 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -76673,6 +76831,13 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.AutoManageEnabled = data
+		case "usageStreamEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("usageStreamEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UsageStreamEnabled = data
 		case "enabledPatrolIntervalMinutes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabledPatrolIntervalMinutes"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -90847,7 +91012,7 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -90910,6 +91075,13 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.AutoManageEnabled = data
+		case "usageStreamEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("usageStreamEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UsageStreamEnabled = data
 		case "enabledPatrolIntervalMinutes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabledPatrolIntervalMinutes"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -99164,6 +99336,11 @@ func (ec *executionContext) _CPAManagedInstance(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "usageStreamEnabled":
+			out.Values[i] = ec._CPAManagedInstance_usageStreamEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "enabledPatrolIntervalMinutes":
 			out.Values[i] = ec._CPAManagedInstance_enabledPatrolIntervalMinutes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -99388,6 +99565,12 @@ func (ec *executionContext) _CPAQuotaItem(ctx context.Context, sel ast.Selection
 			out.Values[i] = ec._CPAQuotaItem_resetAt(ctx, field, obj)
 		case "periodSeconds":
 			out.Values[i] = ec._CPAQuotaItem_periodSeconds(ctx, field, obj)
+		case "estimatedLimitUSD":
+			out.Values[i] = ec._CPAQuotaItem_estimatedLimitUSD(ctx, field, obj)
+		case "estimatedCostUSD":
+			out.Values[i] = ec._CPAQuotaItem_estimatedCostUSD(ctx, field, obj)
+		case "estimateSource":
+			out.Values[i] = ec._CPAQuotaItem_estimateSource(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

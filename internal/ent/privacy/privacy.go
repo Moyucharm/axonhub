@@ -327,6 +327,30 @@ func (f ChannelProbeMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mu
 	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.ChannelProbeMutation", m)
 }
 
+// The CpaUsageEventQueryRuleFunc type is an adapter to allow the use of ordinary
+// functions as a query rule.
+type CpaUsageEventQueryRuleFunc func(context.Context, *ent.CpaUsageEventQuery) error
+
+// EvalQuery return f(ctx, q).
+func (f CpaUsageEventQueryRuleFunc) EvalQuery(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CpaUsageEventQuery); ok {
+		return f(ctx, q)
+	}
+	return Denyf("ent/privacy: unexpected query type %T, expect *ent.CpaUsageEventQuery", q)
+}
+
+// The CpaUsageEventMutationRuleFunc type is an adapter to allow the use of ordinary
+// functions as a mutation rule.
+type CpaUsageEventMutationRuleFunc func(context.Context, *ent.CpaUsageEventMutation) error
+
+// EvalMutation calls f(ctx, m).
+func (f CpaUsageEventMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutation) error {
+	if m, ok := m.(*ent.CpaUsageEventMutation); ok {
+		return f(ctx, m)
+	}
+	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.CpaUsageEventMutation", m)
+}
+
 // The DataStorageQueryRuleFunc type is an adapter to allow the use of ordinary
 // functions as a query rule.
 type DataStorageQueryRuleFunc func(context.Context, *ent.DataStorageQuery) error
@@ -812,6 +836,8 @@ func queryFilter(q ent.Query) (Filter, error) {
 		return q.Filter(), nil
 	case *ent.ChannelProbeQuery:
 		return q.Filter(), nil
+	case *ent.CpaUsageEventQuery:
+		return q.Filter(), nil
 	case *ent.DataStorageQuery:
 		return q.Filter(), nil
 	case *ent.InvitationQuery:
@@ -872,6 +898,8 @@ func mutationFilter(m ent.Mutation) (Filter, error) {
 	case *ent.ChannelOverrideTemplateMutation:
 		return m.Filter(), nil
 	case *ent.ChannelProbeMutation:
+		return m.Filter(), nil
+	case *ent.CpaUsageEventMutation:
 		return m.Filter(), nil
 	case *ent.DataStorageMutation:
 		return m.Filter(), nil

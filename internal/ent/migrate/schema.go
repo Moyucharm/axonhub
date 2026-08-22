@@ -119,6 +119,7 @@ var (
 		{Name: "quota_last_success_at", Type: field.TypeTime, Nullable: true},
 		{Name: "quota_last_failure_at", Type: field.TypeTime, Nullable: true},
 		{Name: "quota_last_error", Type: field.TypeString, Default: ""},
+		{Name: "quota_observed", Type: field.TypeJSON, Nullable: true},
 		{Name: "cpa_instance_id", Type: field.TypeInt},
 	}
 	// CpaCredentialsTable holds the schema information for the "cpa_credentials" table.
@@ -129,7 +130,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "cpa_credentials_cpa_instances_credentials",
-				Columns:    []*schema.Column{CpaCredentialsColumns[24]},
+				Columns:    []*schema.Column{CpaCredentialsColumns[25]},
 				RefColumns: []*schema.Column{CpaInstancesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -138,32 +139,32 @@ var (
 			{
 				Name:    "cpacredential_cpa_instance_id_external_key",
 				Unique:  true,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[3]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[3]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_provider",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[8]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[8]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_disabled",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[12]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[12]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_unavailable",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[13]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[13]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_plan_type",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[16]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[16]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_priority_display_name",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[24], CpaCredentialsColumns[15], CpaCredentialsColumns[7]},
+				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[15], CpaCredentialsColumns[7]},
 			},
 		},
 	}
@@ -178,6 +179,7 @@ var (
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "insecure_skip_tls", Type: field.TypeBool, Default: false},
 		{Name: "auto_refresh_enabled", Type: field.TypeBool, Default: true},
+		{Name: "usage_stream_enabled", Type: field.TypeBool, Default: false},
 		{Name: "refresh_interval_minutes", Type: field.TypeInt, Default: 5},
 		{Name: "next_refresh_at", Type: field.TypeTime, Nullable: true},
 		{Name: "auto_manage_enabled", Type: field.TypeBool, Default: false},
@@ -212,17 +214,17 @@ var (
 			{
 				Name:    "cpainstance_enabled_auto_refresh_enabled_next_refresh_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[10]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[11]},
 			},
 			{
 				Name:    "cpainstance_enabled_auto_manage_enabled_next_enabled_patrol_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[11], CpaInstancesColumns[14]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[12], CpaInstancesColumns[15]},
 			},
 			{
 				Name:    "cpainstance_enabled_auto_manage_enabled_next_disabled_patrol_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[11], CpaInstancesColumns[15]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[12], CpaInstancesColumns[16]},
 			},
 		},
 	}
@@ -389,6 +391,45 @@ var (
 				Name:    "channel_probes_by_channel_id_timestamp",
 				Unique:  false,
 				Columns: []*schema.Column{ChannelProbesColumns[6], ChannelProbesColumns[5]},
+			},
+		},
+	}
+	// CpaUsageEventsColumns holds the columns for the "cpa_usage_events" table.
+	CpaUsageEventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "cpa_instance_id", Type: field.TypeInt},
+		{Name: "auth_index", Type: field.TypeString, Default: ""},
+		{Name: "provider", Type: field.TypeString, Default: ""},
+		{Name: "model", Type: field.TypeString, Default: ""},
+		{Name: "source", Type: field.TypeString, Default: ""},
+		{Name: "input_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "output_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "reasoning_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "cached_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "cache_read_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "cache_creation_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "total_tokens", Type: field.TypeInt64, Default: 0},
+		{Name: "failed", Type: field.TypeBool, Default: false},
+		{Name: "status_code", Type: field.TypeInt, Default: 0},
+		{Name: "requested_at", Type: field.TypeTime},
+	}
+	// CpaUsageEventsTable holds the schema information for the "cpa_usage_events" table.
+	CpaUsageEventsTable = &schema.Table{
+		Name:       "cpa_usage_events",
+		Columns:    CpaUsageEventsColumns,
+		PrimaryKey: []*schema.Column{CpaUsageEventsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "cpausageevent_cpa_instance_id_auth_index_requested_at",
+				Unique:  false,
+				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[4], CpaUsageEventsColumns[17]},
+			},
+			{
+				Name:    "cpausageevent_cpa_instance_id_requested_at",
+				Unique:  false,
+				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[17]},
 			},
 		},
 	}
@@ -1177,6 +1218,7 @@ var (
 		ChannelModelPriceVersionsTable,
 		ChannelOverrideTemplatesTable,
 		ChannelProbesTable,
+		CpaUsageEventsTable,
 		DataStoragesTable,
 		InvitationsTable,
 		ModelsTable,

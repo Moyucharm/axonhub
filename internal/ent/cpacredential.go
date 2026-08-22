@@ -68,6 +68,8 @@ type CPACredential struct {
 	QuotaLastFailureAt *time.Time `json:"quota_last_failure_at,omitempty"`
 	// QuotaLastError holds the value of the "quota_last_error" field.
 	QuotaLastError string `json:"quota_last_error,omitempty"`
+	// QuotaObserved holds the value of the "quota_observed" field.
+	QuotaObserved objects.CPAQuotaObserved `json:"-"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the CPACredentialQuery when eager-loading is set.
 	Edges        CPACredentialEdges `json:"edges"`
@@ -99,7 +101,7 @@ func (*CPACredential) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case cpacredential.FieldQuotaContext, cpacredential.FieldQuotaData:
+		case cpacredential.FieldQuotaContext, cpacredential.FieldQuotaData, cpacredential.FieldQuotaObserved:
 			values[i] = new([]byte)
 		case cpacredential.FieldDisabled, cpacredential.FieldUnavailable, cpacredential.FieldRuntimeOnly:
 			values[i] = new(sql.NullBool)
@@ -281,6 +283,14 @@ func (_m *CPACredential) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.QuotaLastError = value.String
 			}
+		case cpacredential.FieldQuotaObserved:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field quota_observed", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.QuotaObserved); err != nil {
+					return fmt.Errorf("unmarshal field quota_observed: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -398,6 +408,8 @@ func (_m *CPACredential) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("quota_last_error=")
 	builder.WriteString(_m.QuotaLastError)
+	builder.WriteString(", ")
+	builder.WriteString("quota_observed=<sensitive>")
 	builder.WriteByte(')')
 	return builder.String()
 }

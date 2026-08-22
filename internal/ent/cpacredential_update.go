@@ -355,6 +355,26 @@ func (_u *CPACredentialUpdate) SetNillableQuotaLastError(v *string) *CPACredenti
 	return _u
 }
 
+// SetQuotaObserved sets the "quota_observed" field.
+func (_u *CPACredentialUpdate) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpdate {
+	_u.mutation.SetQuotaObserved(v)
+	return _u
+}
+
+// SetNillableQuotaObserved sets the "quota_observed" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableQuotaObserved(v *objects.CPAQuotaObserved) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetQuotaObserved(*v)
+	}
+	return _u
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (_u *CPACredentialUpdate) ClearQuotaObserved() *CPACredentialUpdate {
+	_u.mutation.ClearQuotaObserved()
+	return _u
+}
+
 // Mutation returns the CPACredentialMutation object of the builder.
 func (_u *CPACredentialUpdate) Mutation() *CPACredentialMutation {
 	return _u.mutation
@@ -520,6 +540,12 @@ func (_u *CPACredentialUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if value, ok := _u.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.QuotaObserved(); ok {
+		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)
+	}
+	if _u.mutation.QuotaObservedCleared() {
+		_spec.ClearField(cpacredential.FieldQuotaObserved, field.TypeJSON)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -868,6 +894,26 @@ func (_u *CPACredentialUpdateOne) SetNillableQuotaLastError(v *string) *CPACrede
 	return _u
 }
 
+// SetQuotaObserved sets the "quota_observed" field.
+func (_u *CPACredentialUpdateOne) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpdateOne {
+	_u.mutation.SetQuotaObserved(v)
+	return _u
+}
+
+// SetNillableQuotaObserved sets the "quota_observed" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableQuotaObserved(v *objects.CPAQuotaObserved) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetQuotaObserved(*v)
+	}
+	return _u
+}
+
+// ClearQuotaObserved clears the value of the "quota_observed" field.
+func (_u *CPACredentialUpdateOne) ClearQuotaObserved() *CPACredentialUpdateOne {
+	_u.mutation.ClearQuotaObserved()
+	return _u
+}
+
 // Mutation returns the CPACredentialMutation object of the builder.
 func (_u *CPACredentialUpdateOne) Mutation() *CPACredentialMutation {
 	return _u.mutation
@@ -1063,6 +1109,12 @@ func (_u *CPACredentialUpdateOne) sqlSave(ctx context.Context) (_node *CPACreden
 	}
 	if value, ok := _u.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.QuotaObserved(); ok {
+		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)
+	}
+	if _u.mutation.QuotaObservedCleared() {
+		_spec.ClearField(cpacredential.FieldQuotaObserved, field.TypeJSON)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &CPACredential{config: _u.config}

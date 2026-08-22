@@ -33,6 +33,8 @@ type CPAInstance struct {
 	InsecureSkipTLS bool `json:"insecure_skip_tls,omitempty"`
 	// AutoRefreshEnabled holds the value of the "auto_refresh_enabled" field.
 	AutoRefreshEnabled bool `json:"auto_refresh_enabled,omitempty"`
+	// UsageStreamEnabled holds the value of the "usage_stream_enabled" field.
+	UsageStreamEnabled bool `json:"usage_stream_enabled,omitempty"`
 	// RefreshIntervalMinutes holds the value of the "refresh_interval_minutes" field.
 	RefreshIntervalMinutes int `json:"refresh_interval_minutes,omitempty"`
 	// NextRefreshAt holds the value of the "next_refresh_at" field.
@@ -92,7 +94,7 @@ func (*CPAInstance) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled, cpainstance.FieldAutoManageEnabled:
+		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled, cpainstance.FieldUsageStreamEnabled, cpainstance.FieldAutoManageEnabled:
 			values[i] = new(sql.NullBool)
 		case cpainstance.FieldID, cpainstance.FieldRefreshIntervalMinutes, cpainstance.FieldEnabledPatrolIntervalMinutes, cpainstance.FieldDisabledPatrolIntervalMinutes:
 			values[i] = new(sql.NullInt64)
@@ -168,6 +170,12 @@ func (_m *CPAInstance) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field auto_refresh_enabled", values[i])
 			} else if value.Valid {
 				_m.AutoRefreshEnabled = value.Bool
+			}
+		case cpainstance.FieldUsageStreamEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_stream_enabled", values[i])
+			} else if value.Valid {
+				_m.UsageStreamEnabled = value.Bool
 			}
 		case cpainstance.FieldRefreshIntervalMinutes:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -323,6 +331,9 @@ func (_m *CPAInstance) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auto_refresh_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AutoRefreshEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("usage_stream_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UsageStreamEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("refresh_interval_minutes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RefreshIntervalMinutes))

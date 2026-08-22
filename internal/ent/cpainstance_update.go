@@ -120,6 +120,20 @@ func (_u *CPAInstanceUpdate) SetNillableAutoRefreshEnabled(v *bool) *CPAInstance
 	return _u
 }
 
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (_u *CPAInstanceUpdate) SetUsageStreamEnabled(v bool) *CPAInstanceUpdate {
+	_u.mutation.SetUsageStreamEnabled(v)
+	return _u
+}
+
+// SetNillableUsageStreamEnabled sets the "usage_stream_enabled" field if the given value is not nil.
+func (_u *CPAInstanceUpdate) SetNillableUsageStreamEnabled(v *bool) *CPAInstanceUpdate {
+	if v != nil {
+		_u.SetUsageStreamEnabled(*v)
+	}
+	return _u
+}
+
 // SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
 func (_u *CPAInstanceUpdate) SetRefreshIntervalMinutes(v int) *CPAInstanceUpdate {
 	_u.mutation.ResetRefreshIntervalMinutes()
@@ -531,6 +545,9 @@ func (_u *CPAInstanceUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.AutoRefreshEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoRefreshEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.UsageStreamEnabled(); ok {
+		_spec.SetField(cpainstance.FieldUsageStreamEnabled, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.RefreshIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldRefreshIntervalMinutes, field.TypeInt, value)
 	}
@@ -756,6 +773,20 @@ func (_u *CPAInstanceUpdateOne) SetAutoRefreshEnabled(v bool) *CPAInstanceUpdate
 func (_u *CPAInstanceUpdateOne) SetNillableAutoRefreshEnabled(v *bool) *CPAInstanceUpdateOne {
 	if v != nil {
 		_u.SetAutoRefreshEnabled(*v)
+	}
+	return _u
+}
+
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (_u *CPAInstanceUpdateOne) SetUsageStreamEnabled(v bool) *CPAInstanceUpdateOne {
+	_u.mutation.SetUsageStreamEnabled(v)
+	return _u
+}
+
+// SetNillableUsageStreamEnabled sets the "usage_stream_enabled" field if the given value is not nil.
+func (_u *CPAInstanceUpdateOne) SetNillableUsageStreamEnabled(v *bool) *CPAInstanceUpdateOne {
+	if v != nil {
+		_u.SetUsageStreamEnabled(*v)
 	}
 	return _u
 }
@@ -1200,6 +1231,9 @@ func (_u *CPAInstanceUpdateOne) sqlSave(ctx context.Context) (_node *CPAInstance
 	}
 	if value, ok := _u.mutation.AutoRefreshEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoRefreshEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UsageStreamEnabled(); ok {
+		_spec.SetField(cpainstance.FieldUsageStreamEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RefreshIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldRefreshIntervalMinutes, field.TypeInt, value)

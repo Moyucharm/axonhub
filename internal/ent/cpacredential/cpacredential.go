@@ -64,6 +64,8 @@ const (
 	FieldQuotaLastFailureAt = "quota_last_failure_at"
 	// FieldQuotaLastError holds the string denoting the quota_last_error field in the database.
 	FieldQuotaLastError = "quota_last_error"
+	// FieldQuotaObserved holds the string denoting the quota_observed field in the database.
+	FieldQuotaObserved = "quota_observed"
 	// EdgeCpaInstance holds the string denoting the cpa_instance edge name in mutations.
 	EdgeCpaInstance = "cpa_instance"
 	// Table holds the table name of the cpacredential in the database.
@@ -104,6 +106,7 @@ var Columns = []string{
 	FieldQuotaLastSuccessAt,
 	FieldQuotaLastFailureAt,
 	FieldQuotaLastError,
+	FieldQuotaObserved,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -166,6 +169,8 @@ var (
 	DefaultQuotaData objects.CPAQuotaSnapshot
 	// DefaultQuotaLastError holds the default value on creation for the "quota_last_error" field.
 	DefaultQuotaLastError string
+	// DefaultQuotaObserved holds the default value on creation for the "quota_observed" field.
+	DefaultQuotaObserved objects.CPAQuotaObserved
 )
 
 // OrderOption defines the ordering options for the CPACredential queries.

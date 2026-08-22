@@ -14,6 +14,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
 	"github.com/looplj/axonhub/internal/ent/model"
@@ -233,6 +234,10 @@ func init() {
 	cpacredentialDescQuotaLastError := cpacredentialFields[21].Descriptor()
 	// cpacredential.DefaultQuotaLastError holds the default value on creation for the quota_last_error field.
 	cpacredential.DefaultQuotaLastError = cpacredentialDescQuotaLastError.Default.(string)
+	// cpacredentialDescQuotaObserved is the schema descriptor for quota_observed field.
+	cpacredentialDescQuotaObserved := cpacredentialFields[22].Descriptor()
+	// cpacredential.DefaultQuotaObserved holds the default value on creation for the quota_observed field.
+	cpacredential.DefaultQuotaObserved = cpacredentialDescQuotaObserved.Default.(objects.CPAQuotaObserved)
 	cpainstanceMixin := schema.CPAInstance{}.Mixin()
 	cpainstance.Policy = privacy.NewPolicies(schema.CPAInstance{})
 	cpainstance.Hooks[0] = func(next ent.Mutator) ent.Mutator {
@@ -277,8 +282,12 @@ func init() {
 	cpainstanceDescAutoRefreshEnabled := cpainstanceFields[5].Descriptor()
 	// cpainstance.DefaultAutoRefreshEnabled holds the default value on creation for the auto_refresh_enabled field.
 	cpainstance.DefaultAutoRefreshEnabled = cpainstanceDescAutoRefreshEnabled.Default.(bool)
+	// cpainstanceDescUsageStreamEnabled is the schema descriptor for usage_stream_enabled field.
+	cpainstanceDescUsageStreamEnabled := cpainstanceFields[6].Descriptor()
+	// cpainstance.DefaultUsageStreamEnabled holds the default value on creation for the usage_stream_enabled field.
+	cpainstance.DefaultUsageStreamEnabled = cpainstanceDescUsageStreamEnabled.Default.(bool)
 	// cpainstanceDescRefreshIntervalMinutes is the schema descriptor for refresh_interval_minutes field.
-	cpainstanceDescRefreshIntervalMinutes := cpainstanceFields[6].Descriptor()
+	cpainstanceDescRefreshIntervalMinutes := cpainstanceFields[7].Descriptor()
 	// cpainstance.DefaultRefreshIntervalMinutes holds the default value on creation for the refresh_interval_minutes field.
 	cpainstance.DefaultRefreshIntervalMinutes = cpainstanceDescRefreshIntervalMinutes.Default.(int)
 	// cpainstance.RefreshIntervalMinutesValidator is a validator for the "refresh_interval_minutes" field. It is called by the builders before save.
@@ -298,11 +307,11 @@ func init() {
 		}
 	}()
 	// cpainstanceDescAutoManageEnabled is the schema descriptor for auto_manage_enabled field.
-	cpainstanceDescAutoManageEnabled := cpainstanceFields[8].Descriptor()
+	cpainstanceDescAutoManageEnabled := cpainstanceFields[9].Descriptor()
 	// cpainstance.DefaultAutoManageEnabled holds the default value on creation for the auto_manage_enabled field.
 	cpainstance.DefaultAutoManageEnabled = cpainstanceDescAutoManageEnabled.Default.(bool)
 	// cpainstanceDescEnabledPatrolIntervalMinutes is the schema descriptor for enabled_patrol_interval_minutes field.
-	cpainstanceDescEnabledPatrolIntervalMinutes := cpainstanceFields[9].Descriptor()
+	cpainstanceDescEnabledPatrolIntervalMinutes := cpainstanceFields[10].Descriptor()
 	// cpainstance.DefaultEnabledPatrolIntervalMinutes holds the default value on creation for the enabled_patrol_interval_minutes field.
 	cpainstance.DefaultEnabledPatrolIntervalMinutes = cpainstanceDescEnabledPatrolIntervalMinutes.Default.(int)
 	// cpainstance.EnabledPatrolIntervalMinutesValidator is a validator for the "enabled_patrol_interval_minutes" field. It is called by the builders before save.
@@ -322,7 +331,7 @@ func init() {
 		}
 	}()
 	// cpainstanceDescDisabledPatrolIntervalMinutes is the schema descriptor for disabled_patrol_interval_minutes field.
-	cpainstanceDescDisabledPatrolIntervalMinutes := cpainstanceFields[10].Descriptor()
+	cpainstanceDescDisabledPatrolIntervalMinutes := cpainstanceFields[11].Descriptor()
 	// cpainstance.DefaultDisabledPatrolIntervalMinutes holds the default value on creation for the disabled_patrol_interval_minutes field.
 	cpainstance.DefaultDisabledPatrolIntervalMinutes = cpainstanceDescDisabledPatrolIntervalMinutes.Default.(int)
 	// cpainstance.DisabledPatrolIntervalMinutesValidator is a validator for the "disabled_patrol_interval_minutes" field. It is called by the builders before save.
@@ -342,15 +351,15 @@ func init() {
 		}
 	}()
 	// cpainstanceDescServerVersion is the schema descriptor for server_version field.
-	cpainstanceDescServerVersion := cpainstanceFields[13].Descriptor()
+	cpainstanceDescServerVersion := cpainstanceFields[14].Descriptor()
 	// cpainstance.DefaultServerVersion holds the default value on creation for the server_version field.
 	cpainstance.DefaultServerVersion = cpainstanceDescServerVersion.Default.(string)
 	// cpainstanceDescServerCommit is the schema descriptor for server_commit field.
-	cpainstanceDescServerCommit := cpainstanceFields[14].Descriptor()
+	cpainstanceDescServerCommit := cpainstanceFields[15].Descriptor()
 	// cpainstance.DefaultServerCommit holds the default value on creation for the server_commit field.
 	cpainstance.DefaultServerCommit = cpainstanceDescServerCommit.Default.(string)
 	// cpainstanceDescServerBuildDate is the schema descriptor for server_build_date field.
-	cpainstanceDescServerBuildDate := cpainstanceFields[15].Descriptor()
+	cpainstanceDescServerBuildDate := cpainstanceFields[16].Descriptor()
 	// cpainstance.DefaultServerBuildDate holds the default value on creation for the server_build_date field.
 	cpainstance.DefaultServerBuildDate = cpainstanceDescServerBuildDate.Default.(string)
 	channelMixin := schema.Channel{}.Mixin()
@@ -542,6 +551,82 @@ func init() {
 	channeloverridetemplateDescBodyOverrideOperations := channeloverridetemplateFields[6].Descriptor()
 	// channeloverridetemplate.DefaultBodyOverrideOperations holds the default value on creation for the body_override_operations field.
 	channeloverridetemplate.DefaultBodyOverrideOperations = channeloverridetemplateDescBodyOverrideOperations.Default.([]objects.OverrideOperation)
+	cpausageeventMixin := schema.CpaUsageEvent{}.Mixin()
+	cpausageevent.Policy = privacy.NewPolicies(schema.CpaUsageEvent{})
+	cpausageevent.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := cpausageevent.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	cpausageeventMixinFields0 := cpausageeventMixin[0].Fields()
+	_ = cpausageeventMixinFields0
+	cpausageeventFields := schema.CpaUsageEvent{}.Fields()
+	_ = cpausageeventFields
+	// cpausageeventDescCreatedAt is the schema descriptor for created_at field.
+	cpausageeventDescCreatedAt := cpausageeventMixinFields0[0].Descriptor()
+	// cpausageevent.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cpausageevent.DefaultCreatedAt = cpausageeventDescCreatedAt.Default.(func() time.Time)
+	// cpausageeventDescUpdatedAt is the schema descriptor for updated_at field.
+	cpausageeventDescUpdatedAt := cpausageeventMixinFields0[1].Descriptor()
+	// cpausageevent.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cpausageevent.DefaultUpdatedAt = cpausageeventDescUpdatedAt.Default.(func() time.Time)
+	// cpausageevent.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cpausageevent.UpdateDefaultUpdatedAt = cpausageeventDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// cpausageeventDescAuthIndex is the schema descriptor for auth_index field.
+	cpausageeventDescAuthIndex := cpausageeventFields[1].Descriptor()
+	// cpausageevent.DefaultAuthIndex holds the default value on creation for the auth_index field.
+	cpausageevent.DefaultAuthIndex = cpausageeventDescAuthIndex.Default.(string)
+	// cpausageeventDescProvider is the schema descriptor for provider field.
+	cpausageeventDescProvider := cpausageeventFields[2].Descriptor()
+	// cpausageevent.DefaultProvider holds the default value on creation for the provider field.
+	cpausageevent.DefaultProvider = cpausageeventDescProvider.Default.(string)
+	// cpausageeventDescModel is the schema descriptor for model field.
+	cpausageeventDescModel := cpausageeventFields[3].Descriptor()
+	// cpausageevent.DefaultModel holds the default value on creation for the model field.
+	cpausageevent.DefaultModel = cpausageeventDescModel.Default.(string)
+	// cpausageeventDescSource is the schema descriptor for source field.
+	cpausageeventDescSource := cpausageeventFields[4].Descriptor()
+	// cpausageevent.DefaultSource holds the default value on creation for the source field.
+	cpausageevent.DefaultSource = cpausageeventDescSource.Default.(string)
+	// cpausageeventDescInputTokens is the schema descriptor for input_tokens field.
+	cpausageeventDescInputTokens := cpausageeventFields[5].Descriptor()
+	// cpausageevent.DefaultInputTokens holds the default value on creation for the input_tokens field.
+	cpausageevent.DefaultInputTokens = cpausageeventDescInputTokens.Default.(int64)
+	// cpausageeventDescOutputTokens is the schema descriptor for output_tokens field.
+	cpausageeventDescOutputTokens := cpausageeventFields[6].Descriptor()
+	// cpausageevent.DefaultOutputTokens holds the default value on creation for the output_tokens field.
+	cpausageevent.DefaultOutputTokens = cpausageeventDescOutputTokens.Default.(int64)
+	// cpausageeventDescReasoningTokens is the schema descriptor for reasoning_tokens field.
+	cpausageeventDescReasoningTokens := cpausageeventFields[7].Descriptor()
+	// cpausageevent.DefaultReasoningTokens holds the default value on creation for the reasoning_tokens field.
+	cpausageevent.DefaultReasoningTokens = cpausageeventDescReasoningTokens.Default.(int64)
+	// cpausageeventDescCachedTokens is the schema descriptor for cached_tokens field.
+	cpausageeventDescCachedTokens := cpausageeventFields[8].Descriptor()
+	// cpausageevent.DefaultCachedTokens holds the default value on creation for the cached_tokens field.
+	cpausageevent.DefaultCachedTokens = cpausageeventDescCachedTokens.Default.(int64)
+	// cpausageeventDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
+	cpausageeventDescCacheReadTokens := cpausageeventFields[9].Descriptor()
+	// cpausageevent.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
+	cpausageevent.DefaultCacheReadTokens = cpausageeventDescCacheReadTokens.Default.(int64)
+	// cpausageeventDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
+	cpausageeventDescCacheCreationTokens := cpausageeventFields[10].Descriptor()
+	// cpausageevent.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
+	cpausageevent.DefaultCacheCreationTokens = cpausageeventDescCacheCreationTokens.Default.(int64)
+	// cpausageeventDescTotalTokens is the schema descriptor for total_tokens field.
+	cpausageeventDescTotalTokens := cpausageeventFields[11].Descriptor()
+	// cpausageevent.DefaultTotalTokens holds the default value on creation for the total_tokens field.
+	cpausageevent.DefaultTotalTokens = cpausageeventDescTotalTokens.Default.(int64)
+	// cpausageeventDescFailed is the schema descriptor for failed field.
+	cpausageeventDescFailed := cpausageeventFields[12].Descriptor()
+	// cpausageevent.DefaultFailed holds the default value on creation for the failed field.
+	cpausageevent.DefaultFailed = cpausageeventDescFailed.Default.(bool)
+	// cpausageeventDescStatusCode is the schema descriptor for status_code field.
+	cpausageeventDescStatusCode := cpausageeventFields[13].Descriptor()
+	// cpausageevent.DefaultStatusCode holds the default value on creation for the status_code field.
+	cpausageevent.DefaultStatusCode = cpausageeventDescStatusCode.Default.(int)
 	datastorageMixin := schema.DataStorage{}.Mixin()
 	datastorage.Policy = privacy.NewPolicies(schema.DataStorage{})
 	datastorage.Hooks[0] = func(next ent.Mutator) ent.Mutator {

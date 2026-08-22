@@ -1260,6 +1260,16 @@ func QuotaLastErrorContainsFold(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldContainsFold(FieldQuotaLastError, v))
 }
 
+// QuotaObservedIsNil applies the IsNil predicate on the "quota_observed" field.
+func QuotaObservedIsNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIsNull(FieldQuotaObserved))
+}
+
+// QuotaObservedNotNil applies the NotNil predicate on the "quota_observed" field.
+func QuotaObservedNotNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotNull(FieldQuotaObserved))
+}
+
 // HasCpaInstance applies the HasEdge predicate on the "cpa_instance" edge.
 func HasCpaInstance() predicate.CPACredential {
 	return predicate.CPACredential(func(s *sql.Selector) {

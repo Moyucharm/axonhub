@@ -30,6 +30,8 @@ type Tx struct {
 	ChannelOverrideTemplate *ChannelOverrideTemplateClient
 	// ChannelProbe is the client for interacting with the ChannelProbe builders.
 	ChannelProbe *ChannelProbeClient
+	// CpaUsageEvent is the client for interacting with the CpaUsageEvent builders.
+	CpaUsageEvent *CpaUsageEventClient
 	// DataStorage is the client for interacting with the DataStorage builders.
 	DataStorage *DataStorageClient
 	// Invitation is the client for interacting with the Invitation builders.
@@ -206,6 +208,7 @@ func (tx *Tx) init() {
 	tx.ChannelModelPriceVersion = NewChannelModelPriceVersionClient(tx.config)
 	tx.ChannelOverrideTemplate = NewChannelOverrideTemplateClient(tx.config)
 	tx.ChannelProbe = NewChannelProbeClient(tx.config)
+	tx.CpaUsageEvent = NewCpaUsageEventClient(tx.config)
 	tx.DataStorage = NewDataStorageClient(tx.config)
 	tx.Invitation = NewInvitationClient(tx.config)
 	tx.Model = NewModelClient(tx.config)

@@ -117,6 +117,18 @@ func (f ChannelProbeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelProbeMutation", m)
 }
 
+// The CpaUsageEventFunc type is an adapter to allow the use of ordinary
+// function as CpaUsageEvent mutator.
+type CpaUsageEventFunc func(context.Context, *ent.CpaUsageEventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CpaUsageEventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CpaUsageEventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CpaUsageEventMutation", m)
+}
+
 // The DataStorageFunc type is an adapter to allow the use of ordinary
 // function as DataStorage mutator.
 type DataStorageFunc func(context.Context, *ent.DataStorageMutation) (ent.Value, error)

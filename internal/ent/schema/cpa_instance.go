@@ -28,6 +28,11 @@ func (CPAInstance) Fields() []ent.Field {
 		field.Bool("enabled").Default(true),
 		field.Bool("insecure_skip_tls").Default(false),
 		field.Bool("auto_refresh_enabled").Default(true),
+		// usage_stream_enabled opts the instance into the RESP usage-event
+		// subscription used by codex quota value estimation. Requires a direct
+		// network path to the CPA process port (e.g. same Docker network); an
+		// HTTP reverse proxy in front of CPA breaks the raw protocol.
+		field.Bool("usage_stream_enabled").Default(false),
 		field.Int("refresh_interval_minutes").Default(5).Min(5).Max(1440),
 		field.Time("next_refresh_at").Optional().Nillable(),
 		field.Bool("auto_manage_enabled").Default(false),

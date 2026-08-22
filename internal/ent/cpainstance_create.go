@@ -111,6 +111,20 @@ func (_c *CPAInstanceCreate) SetNillableAutoRefreshEnabled(v *bool) *CPAInstance
 	return _c
 }
 
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (_c *CPAInstanceCreate) SetUsageStreamEnabled(v bool) *CPAInstanceCreate {
+	_c.mutation.SetUsageStreamEnabled(v)
+	return _c
+}
+
+// SetNillableUsageStreamEnabled sets the "usage_stream_enabled" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableUsageStreamEnabled(v *bool) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetUsageStreamEnabled(*v)
+	}
+	return _c
+}
+
 // SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
 func (_c *CPAInstanceCreate) SetRefreshIntervalMinutes(v int) *CPAInstanceCreate {
 	_c.mutation.SetRefreshIntervalMinutes(v)
@@ -385,6 +399,10 @@ func (_c *CPAInstanceCreate) defaults() error {
 		v := cpainstance.DefaultAutoRefreshEnabled
 		_c.mutation.SetAutoRefreshEnabled(v)
 	}
+	if _, ok := _c.mutation.UsageStreamEnabled(); !ok {
+		v := cpainstance.DefaultUsageStreamEnabled
+		_c.mutation.SetUsageStreamEnabled(v)
+	}
 	if _, ok := _c.mutation.RefreshIntervalMinutes(); !ok {
 		v := cpainstance.DefaultRefreshIntervalMinutes
 		_c.mutation.SetRefreshIntervalMinutes(v)
@@ -445,6 +463,9 @@ func (_c *CPAInstanceCreate) check() error {
 	}
 	if _, ok := _c.mutation.AutoRefreshEnabled(); !ok {
 		return &ValidationError{Name: "auto_refresh_enabled", err: errors.New(`ent: missing required field "CPAInstance.auto_refresh_enabled"`)}
+	}
+	if _, ok := _c.mutation.UsageStreamEnabled(); !ok {
+		return &ValidationError{Name: "usage_stream_enabled", err: errors.New(`ent: missing required field "CPAInstance.usage_stream_enabled"`)}
 	}
 	if _, ok := _c.mutation.RefreshIntervalMinutes(); !ok {
 		return &ValidationError{Name: "refresh_interval_minutes", err: errors.New(`ent: missing required field "CPAInstance.refresh_interval_minutes"`)}
@@ -540,6 +561,10 @@ func (_c *CPAInstanceCreate) createSpec() (*CPAInstance, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AutoRefreshEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoRefreshEnabled, field.TypeBool, value)
 		_node.AutoRefreshEnabled = value
+	}
+	if value, ok := _c.mutation.UsageStreamEnabled(); ok {
+		_spec.SetField(cpainstance.FieldUsageStreamEnabled, field.TypeBool, value)
+		_node.UsageStreamEnabled = value
 	}
 	if value, ok := _c.mutation.RefreshIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldRefreshIntervalMinutes, field.TypeInt, value)
@@ -746,6 +771,18 @@ func (u *CPAInstanceUpsert) SetAutoRefreshEnabled(v bool) *CPAInstanceUpsert {
 // UpdateAutoRefreshEnabled sets the "auto_refresh_enabled" field to the value that was provided on create.
 func (u *CPAInstanceUpsert) UpdateAutoRefreshEnabled() *CPAInstanceUpsert {
 	u.SetExcluded(cpainstance.FieldAutoRefreshEnabled)
+	return u
+}
+
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (u *CPAInstanceUpsert) SetUsageStreamEnabled(v bool) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldUsageStreamEnabled, v)
+	return u
+}
+
+// UpdateUsageStreamEnabled sets the "usage_stream_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateUsageStreamEnabled() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldUsageStreamEnabled)
 	return u
 }
 
@@ -1117,6 +1154,20 @@ func (u *CPAInstanceUpsertOne) SetAutoRefreshEnabled(v bool) *CPAInstanceUpsertO
 func (u *CPAInstanceUpsertOne) UpdateAutoRefreshEnabled() *CPAInstanceUpsertOne {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateAutoRefreshEnabled()
+	})
+}
+
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (u *CPAInstanceUpsertOne) SetUsageStreamEnabled(v bool) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetUsageStreamEnabled(v)
+	})
+}
+
+// UpdateUsageStreamEnabled sets the "usage_stream_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateUsageStreamEnabled() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateUsageStreamEnabled()
 	})
 }
 
@@ -1692,6 +1743,20 @@ func (u *CPAInstanceUpsertBulk) SetAutoRefreshEnabled(v bool) *CPAInstanceUpsert
 func (u *CPAInstanceUpsertBulk) UpdateAutoRefreshEnabled() *CPAInstanceUpsertBulk {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateAutoRefreshEnabled()
+	})
+}
+
+// SetUsageStreamEnabled sets the "usage_stream_enabled" field.
+func (u *CPAInstanceUpsertBulk) SetUsageStreamEnabled(v bool) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetUsageStreamEnabled(v)
+	})
+}
+
+// UpdateUsageStreamEnabled sets the "usage_stream_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateUsageStreamEnabled() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateUsageStreamEnabled()
 	})
 }
 

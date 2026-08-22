@@ -51,6 +51,11 @@ func (CPACredential) Fields() []ent.Field {
 		field.Time("quota_last_success_at").Optional().Nillable(),
 		field.Time("quota_last_failure_at").Optional().Nillable(),
 		field.String("quota_last_error").Default(""),
+		field.JSON("quota_observed", objects.CPAQuotaObserved{}).
+			Default(objects.CPAQuotaObserved{}).
+			Optional().
+			Sensitive().
+			Annotations(entgql.Skip(entgql.SkipAll)),
 	}
 }
 
