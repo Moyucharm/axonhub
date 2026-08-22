@@ -95,6 +95,19 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 
 **涉及模块**：`internal/ent/schema/cpa_*.go`（及生成代码）、`internal/objects/cpa.go`、`internal/server/biz/cpa*.go`、`internal/server/biz/cpa/**`、`internal/server/gql/cpa.graphql`、`internal/server/gql/cpa.resolvers.go`、`frontend/src/features/cpa/**`、`frontend/src/routes/_authenticated/cpa/index.tsx`、`frontend/src/locales/{en,zh-CN}/cpa.json`。
 
+### 2.5 OpenAI 弱网关流终止兼容（工作树改动）
+
+**提交**：随本批工作树改动一同提交；后续独立整理分支提交官方 AxonHub PR，届时移除本临时章节。
+
+针对部分 OpenAI-compatible 上游（已实测 CCRNB 的 `muse-spark-1.2`）在已经返回文本/工具调用和 usage 后直接关闭 SSE、缺少 `finish_reason` 与 `[DONE]` 的情况，在 OpenAI Chat Completions 对外输出边界增加保守收尾：
+
+- 仅在源流无错误、已产生实际输出且收到 usage 作为完整性证据时补发终止分片。
+- 普通文本/推理使用 `finish_reason: "stop"`，工具调用使用 `finish_reason: "tool_calls"`。
+- 终止分片携带空 `delta`，随后补发唯一 `[DONE]`。
+- 没有 usage、没有实际输出或源流报错时不伪造成功，保留不完整流处理。
+
+涉及文件：`llm/transformer/openai/inbound.go`、`llm/transformer/openai/inbound_stream.go` 及对应回归测试。该兼容补丁计划独立整理后提交官方 AxonHub PR。
+
 > 本次仅记录功能差异，不单独修改 `internal/build/VERSION` 或创建 git tag；版本号与 tag 必须在明确发布时同步更新。
 
 ## 3. 自用修改 — 小修改
