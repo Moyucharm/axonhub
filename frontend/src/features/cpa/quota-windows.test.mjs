@@ -235,3 +235,36 @@ test('CPA credential column shows email with filename on hover and defaults to 5
   assert.match(index, /includes\(value\) \? value : 50/);
   assert.match(index, /return 50;/);
 });
+
+test('cpaQuotaItemsToWindows passes through quota value estimates', () => {
+  const windows = cpaQuotaItemsToWindows(
+    [
+      {
+        id: 'codex-secondary',
+        group: 'Codex',
+        label: '7 day',
+        usedPercent: 3.42,
+        periodSeconds: 604800,
+        estimatedLimitUSD: 100.25,
+        estimatedCostUSD: 3.42,
+        estimateSource: 'precise-header',
+      },
+      {
+        id: 'codex-primary',
+        group: 'Codex',
+        label: '5 hour',
+        usedPercent: 10,
+        periodSeconds: 18000,
+      },
+    ],
+    (key) => key
+  );
+  assert.equal(windows.length, 2);
+  const weekly = windows.find((w) => w.id === 'codex-secondary');
+  assert.equal(weekly.estimatedLimitUSD, 100.25);
+  assert.equal(weekly.estimatedCostUSD, 3.42);
+  assert.ok(weekly.tooltipExtras.some((line) => line.includes('cpa.quota.estimateDetail')));
+  const primary = windows.find((w) => w.id === 'codex-primary');
+  assert.equal(primary.estimatedLimitUSD, undefined);
+  assert.ok(!primary.tooltipExtras?.some((line) => line.includes('estimateDetail')));
+});

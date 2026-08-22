@@ -10,7 +10,9 @@
 import type { TFunction } from 'i18next';
 import type { CPAQuotaItem } from './data';
 import type { QuotaWindowItem, QuotaWindowKind } from '../../lib/quota-types.ts';
-import { QUOTA_PERIOD_SHORT_LABELS, QUOTA_KIND_PRIORITY } from '../../lib/quota-types.ts';
+import { QUOTA_PERIOD_SHORT_LABELS, QUOTA_KIND_PRIORITY, formatQuotaUSD } from '../../lib/quota-types.ts';
+
+export { formatQuotaUSD };
 
 export function formatTime(value?: string | null): string {
   if (!value) return '—';
@@ -62,6 +64,10 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
       extras.push(`${t('cpa.quota.used')}: ${usedText}${unit} / ${t('cpa.quota.limit')}: ${limitText}${unit}`);
     }
     if (item.resetAt) extras.push(`${t('cpa.quota.resetAt')}: ${formatTime(item.resetAt)}`);
+    if (item.estimatedLimitUSD != null) {
+      const costText = item.estimatedCostUSD != null ? formatQuotaUSD(item.estimatedCostUSD) : '—';
+      extras.push(t('cpa.quota.estimateDetail', { limit: formatQuotaUSD(item.estimatedLimitUSD), cost: costText }));
+    }
     if (item.description) extras.push(item.description);
     return [
       {
@@ -74,6 +80,8 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
         group,
         percent,
         tooltipExtras: extras.length > 0 ? extras : undefined,
+        estimatedLimitUSD: item.estimatedLimitUSD ?? undefined,
+        estimatedCostUSD: item.estimatedCostUSD ?? undefined,
       },
     ];
   });

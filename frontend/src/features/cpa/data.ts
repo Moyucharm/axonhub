@@ -13,6 +13,7 @@ export interface CPAInstance {
   autoRefreshEnabled: boolean;
   refreshIntervalMinutes: number;
   autoManageEnabled: boolean;
+  usageStreamEnabled: boolean;
   enabledPatrolIntervalMinutes: number;
   disabledPatrolIntervalMinutes: number;
   nextRefreshAt?: string | null;
@@ -44,6 +45,9 @@ export interface CPAQuotaItem {
   unit: string;
   resetAt?: string | null;
   periodSeconds?: number | null;
+  estimatedLimitUSD?: number | null;
+  estimatedCostUSD?: number | null;
+  estimateSource?: string | null;
 }
 
 export interface CPACredential {
@@ -126,6 +130,7 @@ export interface CPAInstanceInput {
   autoRefreshEnabled?: boolean;
   refreshIntervalMinutes?: number;
   autoManageEnabled?: boolean;
+  usageStreamEnabled?: boolean;
   enabledPatrolIntervalMinutes?: number;
   disabledPatrolIntervalMinutes?: number;
 }
@@ -143,7 +148,7 @@ export interface CPACredentialQueryInput {
 
 const INSTANCE_FIELDS = `
   id name baseURL enabled insecureSkipTLS autoRefreshEnabled refreshIntervalMinutes
-  autoManageEnabled enabledPatrolIntervalMinutes disabledPatrolIntervalMinutes
+  autoManageEnabled usageStreamEnabled enabledPatrolIntervalMinutes disabledPatrolIntervalMinutes
   nextRefreshAt nextEnabledPatrolAt nextDisabledPatrolAt
   serverVersion serverCommit serverBuildDate lastSyncAttemptAt
   lastSyncSuccessAt lastErrorAt lastError hasSecret connectionStatus createdAt updatedAt
@@ -153,7 +158,7 @@ const CREDENTIAL_FIELDS = `
   id instanceID remoteName displayName provider email status statusMessage disabled unavailable
   runtimeOnly priority planType quotaState quotaLastAttemptAt quotaLastSuccessAt
   quotaLastFailureAt quotaLastError available abnormal stale expired cooling cooldownUntil createdAt updatedAt
-  quotaData { items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds } }
+  quotaData { items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource } }
 `;
 
 const INSTANCES_QUERY = `query CPAInstances { cpaInstances { ${INSTANCE_FIELDS} } }`;

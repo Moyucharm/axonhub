@@ -30,6 +30,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshIntervalMinutes, setRefreshIntervalMinutes] = useState(5);
   const [autoManageEnabled, setAutoManageEnabled] = useState(false);
+  const [usageStreamEnabled, setUsageStreamEnabled] = useState(false);
   const [enabledPatrolIntervalMinutes, setEnabledPatrolIntervalMinutes] = useState(5);
   const [disabledPatrolIntervalMinutes, setDisabledPatrolIntervalMinutes] = useState(480);
   const [confirmedInsecure, setConfirmedInsecure] = useState(false);
@@ -44,6 +45,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
     setAutoRefreshEnabled(instance?.autoRefreshEnabled ?? true);
     setRefreshIntervalMinutes(instance?.refreshIntervalMinutes ?? 5);
     setAutoManageEnabled(instance?.autoManageEnabled ?? false);
+    setUsageStreamEnabled(instance?.usageStreamEnabled ?? false);
     setEnabledPatrolIntervalMinutes(instance?.enabledPatrolIntervalMinutes ?? 5);
     setDisabledPatrolIntervalMinutes(instance?.disabledPatrolIntervalMinutes ?? 480);
     setConfirmedInsecure(false);
@@ -74,6 +76,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
       autoRefreshEnabled,
       refreshIntervalMinutes,
       autoManageEnabled,
+      usageStreamEnabled,
       enabledPatrolIntervalMinutes,
       disabledPatrolIntervalMinutes,
     };
@@ -159,6 +162,13 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
                 <p className='text-muted-foreground text-xs'>{t('cpa.instance.autoManageHint')}</p>
               </div>
               <Switch id='cpa-auto-manage' checked={autoManageEnabled} onCheckedChange={setAutoManageEnabled} />
+            </div>
+            <div className='flex items-center justify-between gap-4'>
+              <div>
+                <Label htmlFor='cpa-usage-stream'>{t('cpa.instance.usageStream')}</Label>
+                <p className='text-muted-foreground text-xs'>{t('cpa.instance.usageStreamHint')}</p>
+              </div>
+              <Switch id='cpa-usage-stream' checked={usageStreamEnabled} onCheckedChange={setUsageStreamEnabled} />
             </div>
             {autoManageEnabled && (
               <>

@@ -27,6 +27,10 @@ export interface QuotaWindowItem {
   durationPercent?: number;
   /** Pre-rendered tooltip lines (reset text, used/limit figures, flags). */
   tooltipExtras?: string[];
+  /** Estimated total quota value in USD for this window (CPA codex weekly window). */
+  estimatedLimitUSD?: number;
+  /** Locally observed cost sum in USD within the current cycle. */
+  estimatedCostUSD?: number;
 }
 
 // i18n keys for the tiny period chip (5H / 1D / 7D / 30D) rendered by
@@ -59,4 +63,11 @@ export function pickPrimaryQuotaWindow(windows: QuotaWindowItem[]): QuotaWindowI
   const pickBest = (kind: QuotaWindowKind) =>
     windows.filter((w) => w.kind === kind).sort((a, b) => b.percent - a.percent)[0];
   return pickBest('weekly') ?? pickBest('monthly') ?? pickBest('daily') ?? pickBest('hourly') ?? pickBest('other');
+}
+
+// Compact USD formatting for quota value estimates: integers above $100, one
+// decimal below that keeps small estimates readable without noise.
+export function formatQuotaUSD(value: number): string {
+  const fractionDigits = Math.abs(value) >= 100 ? 0 : 1;
+  return `$${value.toLocaleString('en-US', { maximumFractionDigits: fractionDigits })}`;
 }

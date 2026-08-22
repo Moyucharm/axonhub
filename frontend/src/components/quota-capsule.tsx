@@ -4,7 +4,24 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { QuotaWindowItem, QuotaWindowKind } from '@/lib/quota-types';
-import { pickPrimaryQuotaWindow } from '@/lib/quota-types';
+import { pickPrimaryQuotaWindow, formatQuotaUSD } from '@/lib/quota-types';
+
+// Estimate badge rendered behind the quota bar: "≈ $100". Only present when a
+// backend attaches estimatedLimitUSD (currently CPA codex weekly windows).
+const EstimateBadge = memo(function EstimateBadge({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
+  if (window.estimatedLimitUSD == null) return null;
+  return (
+    <span
+      className={cn(
+        'text-emerald-600 shrink-0 rounded-full border border-emerald-300/70 bg-emerald-100/60 px-1.5 font-semibold tabular-nums dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
+        size === 'sm' ? 'text-[9px]' : 'text-[10px]'
+      )}
+      title={window.estimatedCostUSD != null ? `≈ ${formatQuotaUSD(window.estimatedCostUSD)} used` : undefined}
+    >
+      ≈ {formatQuotaUSD(window.estimatedLimitUSD)}
+    </span>
+  );
+});
 
 // Compact quota capsule: period chip + thin remaining track + percentage on
 // one line. The track is a REMAINING bar: longer bar = more quota left, color
@@ -137,6 +154,7 @@ export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem;
         className={cn('flex w-full items-center gap-1.5 rounded-full border bg-muted/40 px-1.5 transition-colors hover:bg-muted/60', size === 'sm' ? 'h-7' : 'h-8')}
       >
         <CapsuleBar window={window} size={size} />
+        <EstimateBadge window={window} size={size} />
       </div>
     </CapsuleTooltip>
   );
@@ -209,6 +227,7 @@ function QuotaCapsuleRow({ window }: { window: QuotaWindowItem }) {
         >
           {t('quota.capsule.percent', { percent: remaining })}
         </span>
+        <EstimateBadge window={window} size='sm' />
       </div>
     </div>
   );
