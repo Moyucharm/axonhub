@@ -124,11 +124,6 @@
     "typescript-eslint": "^8.35.0",
     "vite": "^7.3.5"
   },
-  "pnpm": {
-    "overrides": {
-      "uuid@>=13.0.0 <14.0.0": "14.0.0"
-    }
-  },
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix --quiet",
