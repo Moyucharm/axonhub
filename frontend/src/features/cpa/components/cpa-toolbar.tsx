@@ -21,9 +21,9 @@ interface CPAToolbarProps {
   statuses: string[];
   onStatusesChange: (values: string[]) => void;
   provider: string;
-  planType: string;
+  selectedPlanTypes: string[];
   planTypes: string[];
-  onPlanTypeChange: (value: string) => void;
+  onSelectedPlanTypesChange: (values: string[]) => void;
   refresh: RefreshAction;
 }
 
@@ -33,14 +33,14 @@ export function CPAToolbar({
   statuses,
   onStatusesChange,
   provider,
-  planType,
+  selectedPlanTypes,
   planTypes,
-  onPlanTypeChange,
+  onSelectedPlanTypesChange,
   refresh,
 }: CPAToolbarProps) {
   const { t } = useTranslation();
   const scrollRef = useHorizontalScroll<HTMLDivElement>();
-  const isFiltered = Boolean(search) || statuses.length > 0 || planType !== 'all';
+  const isFiltered = Boolean(search) || statuses.length > 0 || selectedPlanTypes.length > 0;
 
   const statusOptions = useMemo(
     () => [
@@ -81,9 +81,8 @@ export function CPAToolbar({
         <DataTableFacetedFilter
           title={t('cpa.filters.plan')}
           options={planOptions}
-          singleSelect
-          selectedValues={planType === 'all' ? [] : [planType]}
-          onSelectedValuesChange={(values) => onPlanTypeChange(values[0] ?? 'all')}
+          selectedValues={selectedPlanTypes}
+          onSelectedValuesChange={onSelectedPlanTypesChange}
         />
       )}
       {isFiltered && (
@@ -93,7 +92,7 @@ export function CPAToolbar({
           onClick={() => {
             onSearchChange('');
             onStatusesChange([]);
-            onPlanTypeChange('all');
+            onSelectedPlanTypesChange([]);
           }}
         >
           {t('common.filters.reset')}

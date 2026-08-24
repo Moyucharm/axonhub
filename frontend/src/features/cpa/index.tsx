@@ -126,7 +126,7 @@ export default function CPAManagement() {
   const [search, setSearch] = useState('');
   const [provider, setProvider] = useState('all');
   const [statuses, setStatuses] = useState<string[]>([]);
-  const [planType, setPlanType] = useState('all');
+  const [planTypes, setPlanTypes] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(readTablePageSize);
   const [after, setAfter] = useState<string>();
   const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([]);
@@ -161,7 +161,7 @@ export default function CPAManagement() {
           search: debouncedSearch || undefined,
           provider: provider === 'all' ? undefined : provider,
           statuses,
-          planTypes: planType === 'all' || provider === 'all' ? [] : [planType],
+          planTypes: provider === 'all' ? [] : planTypes,
           abnormalOnly: false,
         }
       : undefined
@@ -181,7 +181,7 @@ export default function CPAManagement() {
 
   const changeProvider = (value: string) => {
     setProvider(value);
-    setPlanType('all');
+    setPlanTypes([]);
     resetPagination();
   };
 
@@ -373,10 +373,10 @@ export default function CPAManagement() {
                   resetPagination();
                 }}
                 provider={provider}
-                planType={planType}
+                selectedPlanTypes={planTypes}
                 planTypes={planTypesQuery.data ?? []}
-                onPlanTypeChange={(value) => {
-                  setPlanType(value);
+                onSelectedPlanTypesChange={(values) => {
+                  setPlanTypes(values);
                   resetPagination();
                 }}
                 refresh={{
