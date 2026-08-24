@@ -24,6 +24,8 @@
   "cpa.instance.deleteDescription": "This permanently deletes {{name}} and all locally synchronized credential and quota snapshots.",
   "cpa.empty.title": "No CPA connections",
   "cpa.empty.description": "Register a CLIProxyAPI instance to synchronize its auth-file credentials and quota snapshots.",
+  "cpa.warnings.externalHTTP": "This is an external HTTP address. The CPA management key will be sent without transport encryption; prefer HTTPS unless this is a trusted private or Docker network.",
+  "cpa.instance.secretRequiredForURLChange": "Enter a new management key when changing the CPA address.",
   "cpa.warnings.insecureTLS.title": "TLS certificate verification is disabled",
   "cpa.warnings.insecureTLS.description": "This makes the CPA management key and responses vulnerable to interception. Confirm that the endpoint and network are trusted.",
   "cpa.warnings.insecureTLS.confirm": "I understand the risk and want to save this connection with certificate verification disabled.",

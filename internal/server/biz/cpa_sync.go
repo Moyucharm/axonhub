@@ -115,7 +115,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 				SetProvider(normalized.Provider).
 				SetEmail(normalized.Email).
 				SetStatus(normalized.Status).
-				SetStatusMessage(normalized.StatusMessage).
+				SetStatusMessage(sanitizeCPAErrorMessage(normalized.StatusMessage)).
 				SetDisabled(normalized.Disabled).
 				SetUnavailable(normalized.Unavailable).
 				SetRuntimeOnly(normalized.RuntimeOnly).
@@ -142,7 +142,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 			SetProvider(normalized.Provider).
 			SetEmail(normalized.Email).
 			SetStatus(normalized.Status).
-			SetStatusMessage(normalized.StatusMessage).
+			SetStatusMessage(sanitizeCPAErrorMessage(normalized.StatusMessage)).
 			SetDisabled(normalized.Disabled).
 			SetUnavailable(normalized.Unavailable).
 			SetRuntimeOnly(normalized.RuntimeOnly).
@@ -185,10 +185,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 }
 
 func (svc *CPAService) recordInstanceSyncError(ctx context.Context, instanceID int, now time.Time, syncErr error) {
-	message := strings.TrimSpace(syncErr.Error())
-	if len(message) > 512 {
-		message = message[:512]
-	}
+	message := sanitizeCPAErrorMessage(syncErr.Error())
 	if err := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instanceID).
 		SetLastSyncAttemptAt(now).
 		SetLastErrorAt(now).

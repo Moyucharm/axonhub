@@ -320,7 +320,11 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 	if secretChanged {
 		secret = strings.TrimSpace(*input.ManagementSecret)
 	}
-	connectionChanged := baseURL != current.BaseURL || insecureSkipTLS != current.InsecureSkipTLS || secretChanged || (!current.Enabled && enabled)
+	baseURLChanged := baseURL != current.BaseURL
+	if baseURLChanged && !secretChanged {
+		return nil, fmt.Errorf("CPA management secret is required when changing the base URL")
+	}
+	connectionChanged := baseURLChanged || insecureSkipTLS != current.InsecureSkipTLS || secretChanged || (!current.Enabled && enabled)
 	var authFiles *cpaclient.AuthFilesResponse
 	var buildInfo cpaclient.BuildInfo
 	if connectionChanged {

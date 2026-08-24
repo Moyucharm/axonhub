@@ -180,10 +180,7 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 			Paid:        credential.QuotaContext.Paid,
 		})
 		if fetchErr != nil {
-			message := strings.TrimSpace(fetchErr.Error())
-			if len(message) > 512 {
-				message = message[:512]
-			}
+			message := sanitizeCPAErrorMessage(fetchErr.Error())
 			updateErr := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
 				SetQuotaState(string(objects.CPAQuotaStateError)).
 				SetQuotaLastAttemptAt(now).

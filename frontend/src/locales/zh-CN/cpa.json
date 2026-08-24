@@ -24,6 +24,8 @@
   "cpa.instance.deleteDescription": "将永久删除 {{name}} 及其在本地同步的全部凭证和额度快照。",
   "cpa.empty.title": "尚未添加 CPA 连接",
   "cpa.empty.description": "注册一个 CLIProxyAPI 实例，以同步 auth-files 凭证及其额度快照。",
+  "cpa.warnings.externalHTTP": "这是外部 HTTP 地址。CPA 管理密钥将以未加密的传输方式发送；除非是可信的私有网络或 Docker 网络，否则建议使用 HTTPS。",
+  "cpa.instance.secretRequiredForURLChange": "更换 CPA 地址时必须重新输入管理密钥。",
   "cpa.warnings.insecureTLS.title": "TLS 证书校验已关闭",
   "cpa.warnings.insecureTLS.description": "这可能导致 CPA 管理密钥和响应被中间人截获。请确认地址与网络可信。",
   "cpa.warnings.insecureTLS.confirm": "我已理解风险，仍要在关闭证书校验的情况下保存此连接。",

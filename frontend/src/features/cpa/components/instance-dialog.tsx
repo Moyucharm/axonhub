@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { isExternalHttpURL } from '../url';
 import { CPAInstance, useCreateCPAInstance, useUpdateCPAInstance } from '../data';
 
 interface CPAInstanceDialogProps {
@@ -24,6 +25,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
   const updateMutation = useUpdateCPAInstance();
   const [name, setName] = useState('');
   const [baseURL, setBaseURL] = useState('');
+  const [initialBaseURL, setInitialBaseURL] = useState('');
   const [managementSecret, setManagementSecret] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [insecureSkipTLS, setInsecureSkipTLS] = useState(false);
@@ -39,6 +41,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
     if (!open) return;
     setName(instance?.name ?? '');
     setBaseURL(instance?.baseURL ?? '');
+    setInitialBaseURL(instance?.baseURL ?? '');
     setManagementSecret('');
     setEnabled(instance?.enabled ?? true);
     setInsecureSkipTLS(instance?.insecureSkipTLS ?? false);
@@ -52,6 +55,8 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
   }, [instance, open]);
 
   const pending = createMutation.isPending || updateMutation.isPending;
+  const baseURLChanged = Boolean(instance) && baseURL.trim() !== initialBaseURL.trim();
+  const externalHttpURL = isExternalHttpURL(baseURL);
 
   // Whole-minute bounds mirror the backend normalization, so an out-of-range
   // or cleared input (Number('') === 0) is caught before submit instead of by
@@ -113,6 +118,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
               required
             />
             <p className='text-muted-foreground text-xs'>{t('cpa.instance.urlHint')}</p>
+            {externalHttpURL && <p className='text-amber-600 text-xs'>{t('cpa.warnings.externalHTTP')}</p>}
           </div>
           <div className='grid gap-2'>
             <Label htmlFor='cpa-secret'>{t('cpa.instance.secret')}</Label>
@@ -126,6 +132,9 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
               placeholder={instance?.hasSecret ? t('cpa.instance.secretPreserve') : ''}
             />
             <p className='text-muted-foreground text-xs'>{t('cpa.instance.secretHint')}</p>
+            {baseURLChanged && !managementSecret.trim() && (
+              <p className='text-destructive text-xs'>{t('cpa.instance.secretRequiredForURLChange')}</p>
+            )}
           </div>
 
           <div className='space-y-4 rounded-lg border p-4'>
@@ -263,6 +272,7 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
                 !name.trim() ||
                 !baseURL.trim() ||
                 (!instance && !managementSecret.trim()) ||
+                (baseURLChanged && !managementSecret.trim()) ||
                 (insecureSkipTLS && !confirmedInsecure) ||
                 patrolIntervalsInvalid
               }
