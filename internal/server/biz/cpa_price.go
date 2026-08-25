@@ -2,11 +2,13 @@ package biz
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
 
 	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm"
 )
@@ -59,12 +61,46 @@ func (svc *CPAService) buildCPAPriceIndex(ctx context.Context) map[string]*objec
 	}
 	index := make(map[string]*objects.ModelPrice, len(winners))
 	for modelID, entry := range winners {
+		key := normalizeCPAModelPriceKey(modelID)
+		if key == "" {
+			continue
+		}
 		price := entry.Price
-		index[modelID] = &price
+		index[key] = &price
 	}
+
+	// CPA reports the actual upstream model, which may not be configured on an
+	// enabled AxonHub channel. Fall back to the model catalog's reference cost
+	// while preserving explicit channel prices as the highest-priority source.
+	models, err := svc.entFromContext(ctx).Model.Query().All(ctx)
+	if err != nil {
+		log.Warn(ctx, "load model catalog for CPA price index failed", log.Cause(err))
+		if svc.priceIndex != nil {
+			return svc.priceIndex
+		}
+		return index
+	}
+	mergeCPACatalogPrices(index, models)
 	svc.priceIndex = index
 	svc.priceIndexBuiltAt = time.Now()
 	return index
+}
+
+func normalizeCPAModelPriceKey(modelID string) string {
+	return strings.ToLower(strings.TrimSpace(modelID))
+}
+
+func mergeCPACatalogPrices(index map[string]*objects.ModelPrice, models []*ent.Model) {
+	for _, catalogModel := range models {
+		modelID := normalizeCPAModelPriceKey(catalogModel.ModelID)
+		if modelID == "" || index[modelID] != nil {
+			continue
+		}
+		price, ok := modelCardToChannelModelPrice(catalogModel.ModelCard)
+		if ok {
+			index[modelID] = &price
+		}
+	}
 }
 
 // cpaUsageForModel converts an aggregate into llm.Usage following OpenAI
@@ -95,7 +131,7 @@ func cpaUsageForModel(aggregate tokenAggregate) *llm.Usage {
 // computeCPAAggregateCost prices one model's aggregated tokens with the given
 // price index. priced is false when the model has no configured price.
 func computeCPAAggregateCost(index map[string]*objects.ModelPrice, model string, aggregate tokenAggregate, now time.Time) (decimal.Decimal, bool) {
-	price, ok := index[model]
+	price, ok := index[normalizeCPAModelPriceKey(model)]
 	if !ok || price == nil || len(price.Items) == 0 {
 		return decimal.Zero, false
 	}

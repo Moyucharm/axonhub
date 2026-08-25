@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,7 @@ const (
 	defaultRequestTimeout = 30 * time.Second
 	maxAuthFilesBodySize  = 32 << 20
 	maxAPICallBodySize    = 16 << 20
+	maxUsageQueueBodySize = 16 << 20
 )
 
 // Client communicates with one CLIProxyAPI management endpoint.
@@ -208,6 +210,22 @@ func (c *Client) CallProvider(ctx context.Context, call ProviderCall) (*Provider
 	}, nil
 }
 
+// ListUsageQueue pops up to count oldest usage records from CPA's transient queue.
+func (c *Client) ListUsageQueue(ctx context.Context, count int) ([]*UsageEvent, error) {
+	if count <= 0 {
+		return nil, fmt.Errorf("CPA usage queue count must be positive")
+	}
+	var events []*UsageEvent
+	endpoint := "usage-queue?count=" + strconv.Itoa(count)
+	if _, err := c.doJSON(ctx, http.MethodGet, endpoint, nil, maxUsageQueueBodySize, &events); err != nil {
+		return nil, err
+	}
+	if events == nil {
+		events = []*UsageEvent{}
+	}
+	return events, nil
+}
+
 // PatchAuthFileStatus toggles the disabled state of one CPA auth file.
 // It maps to CLIProxyAPI's PATCH /v0/management/auth-files/status endpoint;
 // name is the remote auth file name (or ID), authIndex optionally disambiguates
@@ -246,8 +264,10 @@ func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload an
 	}
 
 	target := *c.baseURL
-	target.Path = strings.TrimRight(c.baseURL.Path, "/") + managementPath + "/" + strings.TrimLeft(endpoint, "/")
+	endpointPath, endpointQuery, _ := strings.Cut(endpoint, "?")
+	target.Path = strings.TrimRight(c.baseURL.Path, "/") + managementPath + "/" + strings.TrimLeft(endpointPath, "/")
 	target.RawPath = ""
+	target.RawQuery = endpointQuery
 	req, err := http.NewRequestWithContext(ctx, method, target.String(), body)
 	if err != nil {
 		return BuildInfo{}, fmt.Errorf("build CPA management request: %w", err)

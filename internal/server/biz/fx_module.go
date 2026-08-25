@@ -139,8 +139,7 @@ var Module = fx.Module("biz",
 				return svc.StartUsageStream(ctx)
 			},
 			OnStop: func(ctx context.Context) error {
-				svc.StopUsageStream()
-				return nil
+				return svc.StopUsageStream(ctx)
 			},
 		})
 	}),

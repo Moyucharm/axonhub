@@ -113,6 +113,57 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 	}
 }
 
+func TestResolveAntigravityPlan(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		payload  map[string]any
+		fallback string
+		want     string
+	}{
+		{
+			name:    "plus current tier",
+			payload: map[string]any{"currentTier": map[string]any{"id": "g1-plus-tier"}},
+			want:    "plus",
+		},
+		{
+			name: "paid tier takes precedence",
+			payload: map[string]any{
+				"currentTier": map[string]any{"id": "free-tier"},
+				"paidTier":    map[string]any{"id": "g1-plus-tier"},
+			},
+			want: "plus",
+		},
+		{
+			name:    "known pro tier",
+			payload: map[string]any{"currentTier": map[string]any{"id": "g1-pro-tier"}},
+			want:    "pro",
+		},
+		{
+			name:     "missing tier uses fallback",
+			payload:  map[string]any{},
+			fallback: "existing-plan",
+			want:     "existing-plan",
+		},
+		{
+			name:    "unknown tier passes through",
+			payload: map[string]any{"currentTier": map[string]any{"id": "future-tier"}},
+			want:    "future-tier",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := resolveAntigravityPlan(tt.payload, tt.fallback); got != tt.want {
+				t.Fatalf("resolve Antigravity plan = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPercentNormalizationAcceptsFractionsAndPercentStrings(t *testing.T) {
 	t.Parallel()
 
@@ -123,6 +174,26 @@ func TestPercentNormalizationAcceptsFractionsAndPercentStrings(t *testing.T) {
 	used, remaining = percentPointersFromUsed(0.25)
 	if used == nil || remaining == nil || *used != 25 || *remaining != 75 {
 		t.Fatalf("unexpected fraction normalization: used=%v remaining=%v", used, remaining)
+	}
+}
+
+func TestScaledPercentNormalizationDoesNotTreatOneAsFraction(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		input         any
+		wantUsed      float64
+		wantRemaining float64
+	}{
+		{input: 0, wantUsed: 0, wantRemaining: 100},
+		{input: 1, wantUsed: 1, wantRemaining: 99},
+		{input: 25, wantUsed: 25, wantRemaining: 75},
+		{input: 100, wantUsed: 100, wantRemaining: 0},
+	} {
+		used, remaining := percentPointersFromScaledUsed(tt.input)
+		if used == nil || remaining == nil || *used != tt.wantUsed || *remaining != tt.wantRemaining {
+			t.Fatalf("scaled percent %v: used=%v remaining=%v", tt.input, used, remaining)
+		}
 	}
 }
 

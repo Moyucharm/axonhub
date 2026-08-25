@@ -111,3 +111,12 @@ func (r *queryResolver) CpaPlanTypes(ctx context.Context, instanceID int, provid
 	}
 	return r.cpaService.PlanTypes(ctx, instanceID, provider)
 }
+
+// CpaRefreshProgress is the resolver for the cpaRefreshProgress field.
+func (r *queryResolver) CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
+		return nil, fmt.Errorf("permission denied: requires read:settings scope")
+	}
+	progress, _ := r.cpaService.RefreshProgress(instanceID)
+	return progress, nil
+}

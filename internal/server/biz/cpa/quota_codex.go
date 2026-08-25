@@ -93,7 +93,7 @@ func codexLimitItems(prefix, label string, rateLimit map[string]any, now time.Ti
 			continue
 		}
 
-		used, remaining := percentPointersFromUsed(firstValue(window, "used_percent", "usedPercent"))
+		used, remaining := percentPointersFromScaledUsed(firstValue(window, "used_percent", "usedPercent"))
 		if used == nil && (limitReached || (hasAllowed && !allowed)) {
 			full, empty := 100.0, 0.0
 			used, remaining = &full, &empty

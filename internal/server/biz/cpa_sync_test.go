@@ -103,6 +103,71 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
+func TestCPASyncRemapsSwappedAuthIndexesWithoutMergingHistory(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_swap?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	svc := &CPAService{AbstractService: &AbstractService{db: client}, quotaRegistry: cpaclient.NewQuotaRegistry()}
+	instance, err := client.CPAInstance.Create().
+		SetName("swap").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").Save(ctx)
+	require.NoError(t, err)
+
+	initial := []cpaclient.AuthFile{
+		{AuthIndex: "A", Name: "a.json", Type: "codex", Status: "active"},
+		{AuthIndex: "B", Name: "b.json", Type: "codex", Status: "active"},
+	}
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, initial, time.Now()))
+	for _, event := range []struct{ index, model string }{{"A", "from-a"}, {"B", "from-b"}} {
+		require.NoError(t, client.CpaUsageEvent.Create().
+			SetCpaInstanceID(instance.ID).SetAuthIndex(event.index).SetModel(event.model).SetRequestedAt(time.Now()).Exec(ctx))
+	}
+
+	swapped := []cpaclient.AuthFile{
+		{AuthIndex: "B", Name: "a.json", Type: "codex", Status: "active"},
+		{AuthIndex: "A", Name: "b.json", Type: "codex", Status: "active"},
+	}
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, swapped, time.Now()))
+	events, err := client.CpaUsageEvent.Query().All(ctx)
+	require.NoError(t, err)
+	byModel := make(map[string]string, len(events))
+	for _, event := range events {
+		byModel[event.Model] = event.AuthIndex
+	}
+	require.Equal(t, map[string]string{"from-a": "B", "from-b": "A"}, byModel)
+
+	chained := []cpaclient.AuthFile{
+		{AuthIndex: "C", Name: "a.json", Type: "codex", Status: "active"},
+		{AuthIndex: "B", Name: "b.json", Type: "codex", Status: "active"},
+	}
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, chained, time.Now()))
+	events, err = client.CpaUsageEvent.Query().All(ctx)
+	require.NoError(t, err)
+	byModel = make(map[string]string, len(events))
+	for _, event := range events {
+		byModel[event.Model] = event.AuthIndex
+	}
+	require.Equal(t, map[string]string{"from-a": "C", "from-b": "B"}, byModel)
+}
+
+func TestCPASyncRejectsDuplicateTargetAuthIndex(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_duplicate_auth?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	svc := &CPAService{AbstractService: &AbstractService{db: client}, quotaRegistry: cpaclient.NewQuotaRegistry()}
+	instance, err := client.CPAInstance.Create().
+		SetName("duplicate").SetBaseURL("http://127.0.0.1:8318").SetEncryptedSecret("encrypted").Save(ctx)
+	require.NoError(t, err)
+
+	err = svc.syncCredentialSnapshot(ctx, instance, []cpaclient.AuthFile{
+		{AuthIndex: "same", Name: "a.json", Type: "codex", Status: "active"},
+		{AuthIndex: "same", Name: "b.json", Type: "codex", Status: "active"},
+	}, time.Now())
+	require.ErrorContains(t, err, "duplicate CPA auth index")
+	count, countErr := client.CPACredential.Query().Count(ctx)
+	require.NoError(t, countErr)
+	require.Zero(t, count)
+}
+
 func TestCPASyncClearsLegacyOAuthPlanPlaceholder(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_oauth?mode=memory&_fk=1")
 	defer client.Close()

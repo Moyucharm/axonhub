@@ -138,6 +138,8 @@ func resolveAntigravityPlan(payload map[string]any, fallback string) string {
 		return "free"
 	case "g1-pro-tier":
 		return "pro"
+	case "g1-plus-tier":
+		return "plus"
 	case "g1-ultra-tier":
 		return "ultra"
 	case "g1-ultra-lite-tier":

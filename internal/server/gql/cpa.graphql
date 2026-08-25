@@ -114,6 +114,15 @@ type CPARefreshResult {
   skipped: Int!
 }
 
+type CPARefreshProgress {
+  requested: Int!
+  completed: Int!
+  succeeded: Int!
+  failed: Int!
+  skipped: Int!
+  running: Boolean!
+}
+
 input CreateCPAInstanceInput {
   name: String!
   baseURL: String!
@@ -160,6 +169,7 @@ extend type Query {
   cpaCredentialStats(instanceID: Int!): CPACredentialStats!
   cpaProviderCounts(instanceID: Int!): [CPAProviderCount!]!
   cpaPlanTypes(instanceID: Int!, provider: String!): [String!]!
+  cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
 }
 
 extend type Mutation {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
@@ -83,6 +84,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 	}
 
 	normalizedByKey := make(map[string]cpaclient.NormalizedCredential, len(files))
+	targetAuthIndexes := make(map[string]string, len(files))
 	for _, file := range files {
 		if file.RuntimeOnly && strings.TrimSpace(file.AuthIndex) == "" {
 			continue
@@ -91,15 +93,45 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 		if normalizeErr != nil {
 			return normalizeErr
 		}
+		newAuthIndex := strings.TrimSpace(normalized.AuthIndex)
+		if newAuthIndex != "" {
+			if owner, exists := targetAuthIndexes[newAuthIndex]; exists {
+				return fmt.Errorf("duplicate CPA auth index %q for %q and %q", newAuthIndex, owner, normalized.RemoteName)
+			}
+			targetAuthIndexes[newAuthIndex] = normalized.RemoteName
+		}
 		normalizedByKey[normalized.ExternalKey] = normalized
 	}
 
-	seenIDs := make(map[int]struct{}, len(normalizedByKey))
-	for _, normalized := range normalizedByKey {
-		current := byExternalKey[normalized.ExternalKey]
+	currentByKey := make(map[string]*ent.CPACredential, len(normalizedByKey))
+	remaps := make([]authIndexRemap, 0)
+	for key, normalized := range normalizedByKey {
+		current := byProviderName[normalized.Provider+":"+normalized.RemoteName]
 		if current == nil {
-			current = byProviderName[normalized.Provider+":"+normalized.RemoteName]
+			current = byExternalKey[normalized.ExternalKey]
 		}
+		currentByKey[key] = current
+		newAuthIndex := strings.TrimSpace(normalized.AuthIndex)
+		if current == nil {
+			continue
+		}
+		oldAuthIndex := strings.TrimSpace(current.AuthIndex)
+		if oldAuthIndex != "" && newAuthIndex != "" && oldAuthIndex != newAuthIndex {
+			remaps = append(remaps, authIndexRemap{
+				credentialID: current.ID,
+				remoteName:   normalized.RemoteName,
+				oldIndex:     oldAuthIndex,
+				newIndex:     newAuthIndex,
+			})
+		}
+	}
+	if err := applyAuthIndexRemaps(ctx, client, instance.ID, remaps, targetAuthIndexes); err != nil {
+		return err
+	}
+
+	seenIDs := make(map[int]struct{}, len(normalizedByKey))
+	for key, normalized := range normalizedByKey {
+		current := currentByKey[key]
 		if current == nil {
 			quotaState := objects.CPAQuotaStatePending
 			if !svc.supportsNormalizedQuota(normalized) {
@@ -179,6 +211,68 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 	if len(missingIDs) > 0 {
 		if _, err := client.CPACredential.Delete().Where(cpacredential.IDIn(missingIDs...)).Exec(ctx); err != nil {
 			return fmt.Errorf("delete missing CPA credentials: %w", err)
+		}
+	}
+	if len(remaps) > 0 {
+		svc.invalidateUsageCredentialCache(instance.ID)
+	}
+	return nil
+}
+
+type authIndexRemap struct {
+	credentialID int
+	remoteName   string
+	oldIndex     string
+	newIndex     string
+}
+
+func applyAuthIndexRemaps(ctx context.Context, client *ent.Client, instanceID int, remaps []authIndexRemap, targets map[string]string) error {
+	if len(remaps) == 0 {
+		return nil
+	}
+	temporary := make(map[int]string, len(remaps))
+	reserved := make(map[string]struct{}, len(remaps)*3)
+	for target := range targets {
+		reserved[target] = struct{}{}
+	}
+	for _, remap := range remaps {
+		reserved[remap.oldIndex] = struct{}{}
+	}
+	for _, remap := range remaps {
+		candidate := fmt.Sprintf("__axonhub_auth_remap_%d_%d__", instanceID, remap.credentialID)
+		if _, exists := reserved[candidate]; exists {
+			return fmt.Errorf("temporary CPA auth index conflicts for %q", remap.remoteName)
+		}
+		temporary[remap.credentialID] = candidate
+		reserved[candidate] = struct{}{}
+	}
+	for _, remap := range remaps {
+		stagedIndex := temporary[remap.credentialID]
+		if err := client.CPACredential.UpdateOneID(remap.credentialID).
+			SetExternalKey(stagedIndex).
+			SetAuthIndex(stagedIndex).
+			Exec(ctx); err != nil {
+			return fmt.Errorf("stage CPA credential index for %q: %w", remap.remoteName, err)
+		}
+		if _, err := client.CpaUsageEvent.Update().
+			Where(
+				cpausageevent.CpaInstanceIDEQ(instanceID),
+				cpausageevent.AuthIndexEQ(remap.oldIndex),
+			).
+			SetAuthIndex(stagedIndex).
+			Save(ctx); err != nil {
+			return fmt.Errorf("stage CPA usage events for %q: %w", remap.remoteName, err)
+		}
+	}
+	for _, remap := range remaps {
+		if _, err := client.CpaUsageEvent.Update().
+			Where(
+				cpausageevent.CpaInstanceIDEQ(instanceID),
+				cpausageevent.AuthIndexEQ(temporary[remap.credentialID]),
+			).
+			SetAuthIndex(remap.newIndex).
+			Save(ctx); err != nil {
+			return fmt.Errorf("finalize CPA usage events for %q: %w", remap.remoteName, err)
 		}
 	}
 	return nil

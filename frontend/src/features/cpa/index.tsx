@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TableSkeleton } from '@/components/ui/table-skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Header } from '@/components/layout/header';
 import { Main } from '@/components/layout/main';
 import { ServerSidePagination } from '@/components/server-side-pagination';
@@ -41,6 +42,7 @@ import {
   useCPAPlanTypes,
   useCPACredentials,
   useDeleteCPAInstance,
+  useCPARefreshProgress,
   useRefreshCPACredential,
   useRefreshCPAInstance,
   useToggleCPACredential,
@@ -173,6 +175,9 @@ export default function CPAManagement() {
   const credentials = credentialsQuery.data?.edges.map((edge) => edge.node) ?? [];
   const stats = overviewQuery.data?.cpaCredentialStats;
   const [togglingCredential, setTogglingCredential] = useState<{ id: number; displayName: string; disable: boolean }>();
+  const [activeRefreshInstanceId, setActiveRefreshInstanceId] = useState<number | null>(null);
+  const refreshProgress = useCPARefreshProgress(activeRefreshInstanceId);
+  const showRefreshProgress = Boolean(refreshProgress.data?.running);
 
   const resetPagination = () => {
     setAfter(undefined);
@@ -196,7 +201,11 @@ export default function CPAManagement() {
 
   const refreshSelectedScope = () => {
     if (!selectedInstanceID) return;
-    refreshInstance.mutate({ instanceID: selectedInstanceID, provider: provider === 'all' ? undefined : provider });
+    setActiveRefreshInstanceId(selectedInstanceID);
+    refreshInstance.mutate(
+      { instanceID: selectedInstanceID, provider: provider === 'all' ? undefined : provider },
+      { onSettled: () => setActiveRefreshInstanceId(null) }
+    );
   };
 
   const confirmDeleteInstance = async () => {
@@ -388,6 +397,26 @@ export default function CPAManagement() {
                   onRefresh: refreshSelectedScope,
                 }}
               />
+
+              {showRefreshProgress && refreshProgress.data && (
+                <div className='flex items-center gap-3 pb-2'>
+                  <Progress
+                    value={refreshProgress.data.requested > 0 ? (refreshProgress.data.completed / refreshProgress.data.requested) * 100 : 0}
+                    className='h-2 flex-1'
+                  />
+                  <span className='text-muted-foreground shrink-0 text-xs'>
+                    {t('cpa.messages.refreshProgress', {
+                      completed: refreshProgress.data.completed,
+                      requested: refreshProgress.data.requested,
+                    })}
+                  </span>
+                  {refreshProgress.data.failed > 0 && (
+                    <Badge variant='destructive' className='shrink-0'>
+                      {t('cpa.messages.refreshFailedCount', { count: refreshProgress.data.failed })}
+                    </Badge>
+                  )}
+                </div>
+              )}
 
               <div className='shadow-soft relative min-h-0 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'>
                 <div className='min-w-max'>

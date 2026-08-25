@@ -121,6 +121,15 @@ export interface CPARefreshResult {
   skipped: number;
 }
 
+export interface CPARefreshProgress {
+  requested: number;
+  completed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  running: boolean;
+}
+
 export interface CPAInstanceInput {
   name: string;
   baseURL: string;
@@ -182,6 +191,7 @@ const CREATE_INSTANCE = `mutation CreateCPAInstance($input: CreateCPAInstanceInp
 const UPDATE_INSTANCE = `mutation UpdateCPAInstance($id: Int!, $input: UpdateCPAInstanceInput!) { updateCPAInstance(id: $id, input: $input) { ${INSTANCE_FIELDS} } }`;
 const DELETE_INSTANCE = `mutation DeleteCPAInstance($id: Int!) { deleteCPAInstance(id: $id) }`;
 const REFRESH_INSTANCE = `mutation RefreshCPAInstance($instanceID: Int!, $provider: String) { refreshCPAInstance(instanceID: $instanceID, provider: $provider) { requested succeeded failed skipped } }`;
+const REFRESH_PROGRESS = `query CPARefreshProgress($instanceID: Int!) { cpaRefreshProgress(instanceID: $instanceID) { requested completed succeeded failed skipped running } }`;
 const REFRESH_CREDENTIAL = `mutation RefreshCPACredential($credentialID: Int!) { refreshCPACredential(credentialID: $credentialID) { ${CREDENTIAL_FIELDS} } }`;
 const TOGGLE_CREDENTIAL = `mutation ToggleCPACredential($credentialID: Int!, $disabled: Boolean!) { toggleCPACredential(credentialID: $credentialID, disabled: $disabled) { ${CREDENTIAL_FIELDS} } }`;
 
@@ -347,6 +357,18 @@ export function useRefreshCPAInstance() {
   });
 }
 
+export function useCPARefreshProgress(instanceID: number | null) {
+  return useQuery({
+    queryKey: ['cpa', 'refresh-progress', instanceID],
+    enabled: instanceID != null,
+    queryFn: async () => {
+      const data = await graphqlRequest<{ cpaRefreshProgress: CPARefreshProgress | null }>(REFRESH_PROGRESS, { instanceID });
+      return data.cpaRefreshProgress;
+    },
+    refetchInterval: instanceID != null ? 500 : false,
+  });
+}
+
 export function useToggleCPACredential() {
   const { t } = useTranslation();
   const invalidate = useInvalidateCPA();
@@ -382,9 +404,15 @@ export function useRefreshCPACredential() {
         throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (credential) => {
       invalidate();
-      toast.success(t('cpa.messages.credentialRefreshed'));
+      if (credential.cooling) {
+        toast.warning(t('cpa.messages.credentialRefreshedCooling'));
+      } else if (credential.disabled) {
+        toast.info(t('cpa.messages.credentialRefreshedDisabled'));
+      } else {
+        toast.success(t('cpa.messages.credentialRefreshed'));
+      }
     },
   });
 }

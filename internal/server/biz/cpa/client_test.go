@@ -27,6 +27,11 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 		case "/proxy/v0/management/auth-files":
 			w.Header().Set("X-CPA-VERSION", "7.1.0")
 			_, _ = w.Write([]byte(`[{"auth_index":"auth-1","name":"codex.json","type":"codex","email":"user@example.com"}]`))
+		case "/proxy/v0/management/usage-queue":
+			if got := r.URL.Query().Get("count"); got != "20" {
+				t.Errorf("unexpected usage queue count: %q", got)
+			}
+			_, _ = w.Write([]byte(`[{"timestamp":"2026-08-24T12:00:00Z","auth_index":"auth-1","provider":"codex","model":"gpt-5.2","tokens":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}]`))
 		case "/proxy/v0/management/api-call":
 			var payload map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -62,6 +67,14 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 		t.Fatalf("unexpected auth files: %#v", files.Files)
 	}
 
+	events, err := client.ListUsageQueue(context.Background(), 20)
+	if err != nil {
+		t.Fatalf("list usage queue: %v", err)
+	}
+	if len(events) != 1 || events[0].AuthIndex != "auth-1" || events[0].Tokens.TotalTokens != 15 {
+		t.Fatalf("unexpected usage events: %#v", events)
+	}
+
 	result, err := client.CallProvider(context.Background(), ProviderCall{
 		AuthIndex: "auth-1",
 		Method:    http.MethodGet,
@@ -77,7 +90,7 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(paths) != 2 || paths[0] != "/proxy/v0/management/auth-files" || paths[1] != "/proxy/v0/management/api-call" {
+	if len(paths) != 3 || paths[0] != "/proxy/v0/management/auth-files" || paths[1] != "/proxy/v0/management/usage-queue" || paths[2] != "/proxy/v0/management/api-call" {
 		t.Fatalf("unexpected dialed paths: %#v", paths)
 	}
 }

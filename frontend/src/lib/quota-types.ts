@@ -27,7 +27,7 @@ export interface QuotaWindowItem {
   durationPercent?: number;
   /** Pre-rendered tooltip lines (reset text, used/limit figures, flags). */
   tooltipExtras?: string[];
-  /** Estimated total quota value in USD for this window (CPA codex weekly window). */
+  /** Estimated total quota value in USD for this CPA Codex window. */
   estimatedLimitUSD?: number;
   /** Locally observed cost sum in USD within the current cycle. */
   estimatedCostUSD?: number;

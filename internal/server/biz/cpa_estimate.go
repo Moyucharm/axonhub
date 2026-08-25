@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -45,6 +46,10 @@ type CPAQuotaEstimate struct {
 // gate on provider == "codex".
 func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID int, authIndex string, snapshot objects.CPAQuotaSnapshot, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
 	item := estimateWindowItem(snapshot)
+	return svc.estimateCredentialQuotaForItem(ctx, instanceID, authIndex, item, observed)
+}
+
+func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, instanceID int, authIndex string, item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
 	if item == nil || item.UsedPercent == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
 		return nil
 	}
@@ -55,12 +60,17 @@ func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID i
 	cycleStart := item.ResetAt.Add(-time.Duration(*item.PeriodSeconds) * time.Second)
 
 	ctx = authz.WithSystemBypass(ctx, "cpa-quota-estimate")
-	aggregates, err := svc.usageAggregatesByModel(ctx, instanceID, authIndex, cycleStart, *item.ResetAt)
+	aggregates, err := svc.usageAggregatesByModel(ctx, instanceID, strings.TrimSpace(authIndex), cycleStart, *item.ResetAt)
 	if err != nil {
 		log.Warn(ctx, "aggregate CPA usage events failed", log.Cause(err))
 		return nil
 	}
 	if len(aggregates) == 0 {
+		log.Debug(ctx, "skip CPA quota estimate: no matching usage events",
+			log.Int("cpa_instance_id", instanceID),
+			log.String("auth_index", strings.TrimSpace(authIndex)),
+			log.String("quota_item_id", item.ID),
+		)
 		return nil
 	}
 
@@ -75,6 +85,10 @@ func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID i
 		cost, priced := computeCPAAggregateCost(priceIndex, model, aggregate, now)
 		if !priced {
 			unpricedTokens += aggregate.totalTokens()
+			log.Debug(ctx, "CPA quota estimate model has no price",
+				log.String("model", model),
+				log.Int64("tokens", aggregate.totalTokens()),
+			)
 			continue
 		}
 		totalCost = totalCost.Add(cost)
@@ -110,30 +124,32 @@ func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID i
 	}
 }
 
-// estimateWindowItem picks the long-period window the estimate attaches to.
-// Codex accounts expose different window shapes: some report a weekly
-// secondary window (604800s), others only a monthly primary window (~30d).
-// The weekly window wins when both exist; otherwise the longest available
-// period is used, since the formula works for any cycle length.
-func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem {
-	var best *objects.CPAQuotaItem
-	var weekly *objects.CPAQuotaItem
+func estimateWindowItems(snapshot objects.CPAQuotaSnapshot) []*objects.CPAQuotaItem {
+	items := make([]*objects.CPAQuotaItem, 0, 2)
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
-		if item.PeriodSeconds == nil || *item.PeriodSeconds <= 0 || item.ResetAt == nil {
+		if item.PeriodSeconds == nil || item.ResetAt == nil {
 			continue
 		}
+		period := *item.PeriodSeconds
+		if period == cpaWeeklyPeriodSeconds || (period >= 28*24*60*60 && period <= 31*24*60*60) {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// estimateWindowItem preserves the legacy single-estimate preference: weekly
+// first, otherwise the available monthly window.
+func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem {
+	var monthly *objects.CPAQuotaItem
+	for _, item := range estimateWindowItems(snapshot) {
 		if *item.PeriodSeconds == cpaWeeklyPeriodSeconds {
-			weekly = item
+			return item
 		}
-		if best == nil || *item.PeriodSeconds > *best.PeriodSeconds {
-			best = item
-		}
+		monthly = item
 	}
-	if weekly != nil {
-		return weekly
-	}
-	return best
+	return monthly
 }
 
 // estimateDenominator prefers the precise percentage observed in upstream
@@ -142,7 +158,8 @@ func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem
 // observed reset timestamp is missing the header is not trusted and the
 // integer wham percentage is used instead.
 func estimateDenominator(item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, _ time.Time) (*float64, string) {
-	if observed.SecondaryUsedPercent != nil && observed.ObservedAt != nil && *observed.SecondaryUsedPercent > 0 {
+	if item.PeriodSeconds != nil && *item.PeriodSeconds == cpaWeeklyPeriodSeconds &&
+		observed.SecondaryUsedPercent != nil && observed.ObservedAt != nil && *observed.SecondaryUsedPercent > 0 {
 		if observed.SecondaryResetAt != nil && item.ResetAt != nil && observed.SecondaryResetAt.Unix() == item.ResetAt.Unix() {
 			value := *observed.SecondaryUsedPercent
 			return &value, "precise-header"

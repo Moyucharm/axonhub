@@ -37,15 +37,23 @@ func (svc *CPAService) RefreshInstance(ctx context.Context, instanceID int, prov
 		return nil, err
 	}
 	filtered := make([]*ent.CPACredential, 0, len(credentials))
+	skipped := 0
 	for _, credential := range credentials {
 		// Manual refresh covers every credential, disabled ones included:
 		// quota collection works through the api-call proxy regardless.
 		if provider != nil && strings.TrimSpace(*provider) != "" && credential.Provider != strings.TrimSpace(*provider) {
 			continue
 		}
+		if !svc.supportsStoredQuota(credential) {
+			skipped++
+		}
 		filtered = append(filtered, credential)
 	}
-	result, refreshErr := svc.refreshCredentialBatch(ctx, instance, filtered)
+	refreshBatch := svc.beginRefreshProgress(instanceID, len(filtered)-skipped, skipped)
+	defer svc.finishRefreshProgress(instanceID, refreshBatch)
+	result, refreshErr := svc.refreshCredentialBatch(ctx, instance, filtered, func(failed bool) {
+		svc.recordRefreshResult(instanceID, refreshBatch, failed)
+	})
 	svc.scheduleNextRefresh(ctx, instance, svc.now().Add(time.Duration(instance.RefreshIntervalMinutes)*time.Minute))
 	return result, refreshErr
 }
@@ -120,7 +128,7 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 	return buildCPACredentialView(instance, updated, svc.now()), nil
 }
 
-func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential) (*CPARefreshResult, error) {
+func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential, onResult func(failed bool)) (*CPARefreshResult, error) {
 	client, err := svc.clientForInstance(ctx, instance)
 	if err != nil {
 		return nil, err
@@ -141,6 +149,9 @@ func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent
 		group.Go(func() error {
 			err := svc.refreshOneCredential(groupCtx, client, credential)
 			resultCh <- err
+			if onResult != nil {
+				onResult(err != nil)
+			}
 			return nil
 		})
 	}
@@ -218,22 +229,20 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 	return err
 }
 
-// applyQuotaEstimate computes the weekly/monthly quota value estimate and
-// attaches it to the long-period window item of the snapshot before persistence.
+// applyQuotaEstimate computes and attaches an independent estimate to every
+// weekly/monthly window. Values are never copied between different cycles.
 func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.CPACredential, snapshot *objects.CPAQuotaSnapshot) {
-	estimate := svc.EstimateCredentialQuota(ctx, credential.CpaInstanceID, credential.AuthIndex, *snapshot, credential.QuotaObserved)
-	if estimate == nil {
-		return
+	for _, item := range estimateWindowItems(*snapshot) {
+		estimate := svc.estimateCredentialQuotaForItem(ctx, credential.CpaInstanceID, credential.AuthIndex, item, credential.QuotaObserved)
+		if estimate == nil {
+			continue
+		}
+		limit := estimate.LimitUSD
+		cost := estimate.CostUSD
+		item.EstimatedLimitUSD = &limit
+		item.EstimatedCostUSD = &cost
+		item.EstimateSource = estimate.Source
 	}
-	item := estimateWindowItem(*snapshot)
-	if item == nil {
-		return
-	}
-	limit := estimate.LimitUSD
-	cost := estimate.CostUSD
-	item.EstimatedLimitUSD = &limit
-	item.EstimatedCostUSD = &cost
-	item.EstimateSource = estimate.Source
 }
 
 func (svc *CPAService) instanceQuotaLimiter(instanceID int) *semaphore.Weighted {

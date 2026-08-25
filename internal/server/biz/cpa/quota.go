@@ -200,8 +200,8 @@ func clampPercent(value float64) float64 {
 // percentPointersFromUsed normalizes a provider-reported usage figure into
 // 0-100 percent values (used/remaining). The input is a heuristic: values at or
 // below 1 are treated as 0-1 fractions (0.25 -> 25%), anything larger is
-// treated as an already-scaled percent. The output contract is 0-100 percent;
-// the frontend formats these values directly without rescaling.
+// treated as an already-scaled percent. Use percentPointersFromScaledUsed when
+// the provider contract explicitly reports a 0-100 percentage.
 func percentPointersFromUsed(value any) (*float64, *float64) {
 	used := numberValue(value)
 	if used == nil {
@@ -211,6 +211,20 @@ func percentPointersFromUsed(value any) (*float64, *float64) {
 	if usedValue <= 1 {
 		usedValue *= 100
 	}
+	return percentPointersFromUsedValue(usedValue)
+}
+
+// percentPointersFromScaledUsed accepts an explicit 0-100 used percentage.
+// In particular, Codex wham used_percent=1 means 1%, not the fraction 100%.
+func percentPointersFromScaledUsed(value any) (*float64, *float64) {
+	used := numberValue(value)
+	if used == nil {
+		return nil, nil
+	}
+	return percentPointersFromUsedValue(*used)
+}
+
+func percentPointersFromUsedValue(usedValue float64) (*float64, *float64) {
 	usedValue = clampPercent(usedValue)
 	remainingValue := 100 - usedValue
 	return &usedValue, &remainingValue

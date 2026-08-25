@@ -192,7 +192,7 @@ func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.
 		// The disable decision is made purely from the refreshed snapshot so a
 		// successful quota fetch overrides stale JWT subscription dates, matching
 		// deriveCPAExpired's documented semantics.
-		exhausted, _ := cpaQuotaCooldown(fresh.QuotaData, svc.now())
+		exhausted, _, exhaustedItem := cpaQuotaCooldownDetail(fresh.QuotaData, svc.now())
 		expired := deriveCPAExpired(fresh, svc.now())
 		if !expired && !exhausted {
 			continue
@@ -200,6 +200,15 @@ func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.
 		reason := "quota exhausted"
 		if expired {
 			reason = "expired"
+		} else if exhaustedItem != nil {
+			log.Info(ctx, "CPA credential quota exhaustion confirmed",
+				log.Int("cpa_instance_id", instance.ID),
+				log.Int("credential_id", fresh.ID),
+				log.String("quota_item_id", exhaustedItem.ID),
+				log.Any("used_percent", exhaustedItem.UsedPercent),
+				log.Any("remaining_percent", exhaustedItem.RemainingPercent),
+				log.Any("reset_at", exhaustedItem.ResetAt),
+			)
 		}
 		svc.disableCredentialRemotely(ctx, instance, fresh, reason)
 	}
@@ -240,7 +249,7 @@ func (svc *CPAService) patrolInstanceDisabled(ctx context.Context, instance *ent
 
 	// Quota collection works through the api-call proxy regardless of the
 	// disabled flag, so a straight batch refresh is enough here.
-	if _, err := svc.refreshCredentialBatch(ctx, instance, credentials); err != nil {
+	if _, err := svc.refreshCredentialBatch(ctx, instance, credentials, nil); err != nil {
 		log.Warn(ctx, "CPA disabled patrol quota refresh failed to start",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Cause(err),

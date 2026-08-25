@@ -51,17 +51,22 @@ func TestEstimateWindowItem(t *testing.T) {
 	require.NotNil(t, item)
 	require.Equal(t, cpaWeeklyPeriodSeconds, *item.PeriodSeconds)
 
+	// Both long windows are independently estimable even though the legacy
+	// single-window helper continues to prefer weekly.
+	require.Len(t, estimateWindowItems(snapshot), 2)
+
 	// Only a monthly primary window (no weekly): monthly is selected.
 	snapshot.Items = []objects.CPAQuotaItem{{PeriodSeconds: &monthly, ResetAt: &monthlyReset}}
 	item = estimateWindowItem(snapshot)
 	require.NotNil(t, item)
 	require.Equal(t, monthly, *item.PeriodSeconds)
 
-	// Hourly-only snapshots have no usable long-period window: without a
-	// reset time the cycle start cannot be derived.
+	// Hourly windows are never eligible, even when they carry a reset time.
 	hourly := 18_000
-	snapshot.Items = []objects.CPAQuotaItem{{PeriodSeconds: &hourly}}
+	hourlyReset := monthlyReset
+	snapshot.Items = []objects.CPAQuotaItem{{PeriodSeconds: &hourly, ResetAt: &hourlyReset}}
 	require.Nil(t, estimateWindowItem(snapshot))
+	require.Empty(t, estimateWindowItems(snapshot))
 
 	// Empty snapshot yields nothing.
 	require.Nil(t, estimateWindowItem(objects.CPAQuotaSnapshot{}))
@@ -99,6 +104,23 @@ func TestEstimateDenominatorPrefersPreciseHeader(t *testing.T) {
 	require.NotNil(t, denominator)
 	require.Equal(t, "wham-percent", source)
 	require.InDelta(t, 3.0, *denominator, 1e-9)
+
+	// The secondary precise header must never be attached to a monthly window.
+	monthlyPeriod := 30 * 24 * 60 * 60
+	monthlyUsed := 12.0
+	monthlyItem := &objects.CPAQuotaItem{
+		UsedPercent:   &monthlyUsed,
+		ResetAt:       item.ResetAt,
+		PeriodSeconds: &monthlyPeriod,
+	}
+	denominator, source = estimateDenominator(monthlyItem, objects.CPAQuotaObserved{
+		SecondaryUsedPercent: &precise,
+		SecondaryResetAt:     item.ResetAt,
+		ObservedAt:           &cycleStart,
+	}, cycleStart)
+	require.NotNil(t, denominator)
+	require.Equal(t, "wham-percent", source)
+	require.InDelta(t, monthlyUsed, *denominator, 1e-9)
 
 	// A precise observation from a previous cycle (mismatched reset) is ignored.
 	staleReset := cycleStart.Add(-time.Hour)

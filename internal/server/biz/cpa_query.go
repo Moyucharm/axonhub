@@ -348,25 +348,36 @@ func (filter cpaStatusFilter) matches(view *CPACredentialView) bool {
 // cooling down at now. Windows whose reset time already passed are ignored:
 // they recovered server-side and only await the next successful refresh.
 func cpaQuotaCooldown(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time) {
+	cooling, until, _ := cpaQuotaCooldownDetail(snapshot, now)
+	return cooling, until
+}
+
+func cpaQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time, *objects.CPAQuotaItem) {
 	var cooling bool
 	var until *time.Time
-	for _, item := range snapshot.Items {
-		if !cpaQuotaItemExhausted(item) {
+	var exhaustedItem *objects.CPAQuotaItem
+	for i := range snapshot.Items {
+		item := &snapshot.Items[i]
+		if !cpaQuotaItemExhausted(*item) {
 			continue
 		}
 		if item.ResetAt != nil && !item.ResetAt.After(now) {
 			continue
 		}
 		cooling = true
+		if exhaustedItem == nil {
+			exhaustedItem = item
+		}
 		if item.ResetAt == nil {
 			continue
 		}
 		if until == nil || item.ResetAt.Before(*until) {
 			reset := item.ResetAt.UTC()
 			until = &reset
+			exhaustedItem = item
 		}
 	}
-	return cooling, until
+	return cooling, until, exhaustedItem
 }
 
 func cpaQuotaItemExhausted(item objects.CPAQuotaItem) bool {

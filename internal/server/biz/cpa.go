@@ -6,7 +6,6 @@ import (
 	"math/rand/v2"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.uber.org/fx"
@@ -51,30 +50,30 @@ type CPAServiceParams struct {
 type CPAService struct {
 	*AbstractService
 
-	SystemService   *SystemService
-	ChannelService  *ChannelService
-	quotaRegistry   *cpaclient.QuotaRegistry
-	refreshGroup    singleflight.Group
-	syncGroup       singleflight.Group
-	globalQuota     *semaphore.Weighted
-	instanceQuotaMu sync.Mutex
-	instanceQuota   map[int]*semaphore.Weighted
-	now             func() time.Time
-	jitter          func() time.Duration
+	SystemService     *SystemService
+	ChannelService    *ChannelService
+	quotaRegistry     *cpaclient.QuotaRegistry
+	refreshGroup      singleflight.Group
+	syncGroup         singleflight.Group
+	globalQuota       *semaphore.Weighted
+	instanceQuotaMu   sync.Mutex
+	instanceQuota     map[int]*semaphore.Weighted
+	refreshProgressMu sync.Mutex
+	refreshProgress   map[int]*cpaRefreshProgressState
+	now               func() time.Time
+	jitter            func() time.Duration
 
-	usageStream          *cpaclient.UsageStreamManager
-	usageEvents          chan usageEventEnvelope
-	usageWriterWG        sync.WaitGroup
-	usageWriterCancel    context.CancelFunc
-	usageCacheMu         sync.Mutex
-	usageCredentialCache map[int]map[string]credentialCacheEntry
-	usageObservedAt      map[int]usageObservedState
+	usageCollectorMu      sync.Mutex
+	usageCollectors       map[int]*usageCollectorWorker
+	usageCollectorStarted bool
+	usagePersistHook      func(context.Context, []usageEventEnvelope) bool
+	usageCacheMu          sync.Mutex
+	usageCredentialCache  map[int]map[string]credentialCacheEntry
+	usageObservedAt       map[int]usageObservedState
 
 	priceIndexMu      sync.Mutex
 	priceIndex        map[string]*objects.ModelPrice
 	priceIndexBuiltAt time.Time
-
-	usageDroppedTotal atomic.Int64
 }
 
 // NewCPAService creates the CPA management service.
@@ -86,6 +85,7 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 		quotaRegistry:   cpaclient.NewQuotaRegistry(),
 		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
 		instanceQuota:   make(map[int]*semaphore.Weighted),
+		refreshProgress: make(map[int]*cpaRefreshProgressState),
 		now:             func() time.Time { return time.Now().UTC() },
 		jitter: func() time.Duration {
 			return time.Duration(15+rand.IntN(46)) * time.Second
@@ -439,22 +439,32 @@ func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 	svc.instanceQuotaMu.Lock()
 	delete(svc.instanceQuota, id)
 	svc.instanceQuotaMu.Unlock()
+	svc.refreshProgressMu.Lock()
+	delete(svc.refreshProgress, id)
+	svc.refreshProgressMu.Unlock()
 	svc.invalidateUsageCredentialCache(id)
 	svc.refreshUsageStreamsAsync()
 	return nil
 }
 
-// refreshUsageStreamsAsync reconciles usage stream subscriptions without
-// blocking the caller; failures are logged inside RefreshUsageStreams.
+// refreshUsageStreamsAsync reconciles usage queue collectors without blocking the caller.
 func (svc *CPAService) refreshUsageStreamsAsync() {
-	if svc.usageStream == nil {
+	svc.usageCollectorMu.Lock()
+	started := svc.usageCollectorStarted
+	svc.usageCollectorMu.Unlock()
+	if !started {
 		return
 	}
 	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Error(context.Background(), "refresh CPA usage collectors panicked", log.Any("panic", recovered))
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := svc.RefreshUsageStreams(ctx); err != nil {
-			log.Warn(ctx, "refresh CPA usage streams failed", log.Cause(err))
+			log.Warn(ctx, "refresh CPA usage collectors failed", log.Cause(err))
 		}
 	}()
 }

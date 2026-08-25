@@ -462,6 +462,15 @@ type ComplexityRoot struct {
 		Items func(childComplexity int) int
 	}
 
+	CPARefreshProgress struct {
+		Completed func(childComplexity int) int
+		Failed    func(childComplexity int) int
+		Requested func(childComplexity int) int
+		Running   func(childComplexity int) int
+		Skipped   func(childComplexity int) int
+		Succeeded func(childComplexity int) int
+	}
+
 	CPARefreshResult struct {
 		Failed    func(childComplexity int) int
 		Requested func(childComplexity int) int
@@ -1576,6 +1585,7 @@ type ComplexityRoot struct {
 		CpaInstances                    func(childComplexity int) int
 		CpaPlanTypes                    func(childComplexity int, instanceID int, provider string) int
 		CpaProviderCounts               func(childComplexity int, instanceID int) int
+		CpaRefreshProgress              func(childComplexity int, instanceID int) int
 		DailyRequestStats               func(childComplexity int) int
 		DashboardOverview               func(childComplexity int) int
 		DataStorages                    func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.DataStorageOrder, where *ent.DataStorageWhereInput) int
@@ -2640,6 +2650,7 @@ type QueryResolver interface {
 	CpaCredentialStats(ctx context.Context, instanceID int) (*biz.CPACredentialStats, error)
 	CpaProviderCounts(ctx context.Context, instanceID int) ([]*biz.CPAProviderCount, error)
 	CpaPlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error)
+	CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error)
 }
 type RequestResolver interface {
 	ID(ctx context.Context, obj *ent.Request) (*objects.GUID, error)
@@ -4199,6 +4210,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAQuotaSnapshot.Items(childComplexity), true
+
+	case "CPARefreshProgress.completed":
+		if e.complexity.CPARefreshProgress.Completed == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Completed(childComplexity), true
+	case "CPARefreshProgress.failed":
+		if e.complexity.CPARefreshProgress.Failed == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Failed(childComplexity), true
+	case "CPARefreshProgress.requested":
+		if e.complexity.CPARefreshProgress.Requested == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Requested(childComplexity), true
+	case "CPARefreshProgress.running":
+		if e.complexity.CPARefreshProgress.Running == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Running(childComplexity), true
+	case "CPARefreshProgress.skipped":
+		if e.complexity.CPARefreshProgress.Skipped == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Skipped(childComplexity), true
+	case "CPARefreshProgress.succeeded":
+		if e.complexity.CPARefreshProgress.Succeeded == nil {
+			break
+		}
+
+		return e.complexity.CPARefreshProgress.Succeeded(childComplexity), true
 
 	case "CPARefreshResult.failed":
 		if e.complexity.CPARefreshResult.Failed == nil {
@@ -9486,6 +9534,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.CpaProviderCounts(childComplexity, args["instanceID"].(int)), true
+	case "Query.cpaRefreshProgress":
+		if e.complexity.Query.CpaRefreshProgress == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cpaRefreshProgress_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.CpaRefreshProgress(childComplexity, args["instanceID"].(int)), true
 	case "Query.dailyRequestStats":
 		if e.complexity.Query.DailyRequestStats == nil {
 			break
@@ -15620,6 +15679,17 @@ func (ec *executionContext) field_Query_cpaPlanTypes_args(ctx context.Context, r
 }
 
 func (ec *executionContext) field_Query_cpaProviderCounts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["instanceID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cpaRefreshProgress_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
@@ -24112,6 +24182,180 @@ func (ec *executionContext) fieldContext_CPAQuotaSnapshot_items(_ context.Contex
 				return ec.fieldContext_CPAQuotaItem_estimateSource(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaItem", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_requested(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_requested,
+		func(ctx context.Context) (any, error) {
+			return obj.Requested, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_requested(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_completed(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_completed,
+		func(ctx context.Context) (any, error) {
+			return obj.Completed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_completed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_succeeded(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_succeeded,
+		func(ctx context.Context) (any, error) {
+			return obj.Succeeded, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_succeeded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_failed(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_skipped(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_skipped,
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARefreshProgress_running(ctx context.Context, field graphql.CollectedField, obj *biz.CPARefreshProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARefreshProgress_running,
+		func(ctx context.Context) (any, error) {
+			return obj.Running, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARefreshProgress_running(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARefreshProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -53748,6 +53992,61 @@ func (ec *executionContext) fieldContext_Query_cpaPlanTypes(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_cpaPlanTypes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cpaRefreshProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_cpaRefreshProgress,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().CpaRefreshProgress(ctx, fc.Args["instanceID"].(int))
+		},
+		nil,
+		ec.marshalOCPARefreshProgress2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPARefreshProgress,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_cpaRefreshProgress(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "requested":
+				return ec.fieldContext_CPARefreshProgress_requested(ctx, field)
+			case "completed":
+				return ec.fieldContext_CPARefreshProgress_completed(ctx, field)
+			case "succeeded":
+				return ec.fieldContext_CPARefreshProgress_succeeded(ctx, field)
+			case "failed":
+				return ec.fieldContext_CPARefreshProgress_failed(ctx, field)
+			case "skipped":
+				return ec.fieldContext_CPARefreshProgress_skipped(ctx, field)
+			case "running":
+				return ec.fieldContext_CPARefreshProgress_running(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPARefreshProgress", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cpaRefreshProgress_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -99633,6 +99932,70 @@ func (ec *executionContext) _CPAQuotaSnapshot(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var cPARefreshProgressImplementors = []string{"CPARefreshProgress"}
+
+func (ec *executionContext) _CPARefreshProgress(ctx context.Context, sel ast.SelectionSet, obj *biz.CPARefreshProgress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPARefreshProgressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPARefreshProgress")
+		case "requested":
+			out.Values[i] = ec._CPARefreshProgress_requested(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completed":
+			out.Values[i] = ec._CPARefreshProgress_completed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "succeeded":
+			out.Values[i] = ec._CPARefreshProgress_succeeded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._CPARefreshProgress_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._CPARefreshProgress_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "running":
+			out.Values[i] = ec._CPARefreshProgress_running(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPARefreshResultImplementors = []string{"CPARefreshResult"}
 
 func (ec *executionContext) _CPARefreshResult(ctx context.Context, sel ast.SelectionSet, obj *biz.CPARefreshResult) graphql.Marshaler {
@@ -111015,6 +111378,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cpaRefreshProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cpaRefreshProgress(ctx, field)
 				return res
 			}
 
@@ -126203,6 +126585,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOCPARefreshProgress2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPARefreshProgress(ctx context.Context, sel ast.SelectionSet, v *biz.CPARefreshProgress) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CPARefreshProgress(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOCapabilityPolicy2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCapabilityPolicy(ctx context.Context, v any) (objects.CapabilityPolicy, error) {
