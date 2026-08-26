@@ -78,6 +78,7 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
         fullLabel: group ? `${group} · ${item.label}` : item.label,
         shortLabelKey: QUOTA_PERIOD_SHORT_LABELS[kind],
         group,
+        periodSeconds: item.periodSeconds ?? undefined,
         percent,
         tooltipExtras: extras.length > 0 ? extras : undefined,
         estimatedLimitUSD: item.estimatedLimitUSD ?? undefined,
@@ -106,15 +107,13 @@ function compareRepWindows(a: QuotaWindowItem, b: QuotaWindowItem): number {
   return a.id.localeCompare(b.id);
 }
 
-// Groups projected windows by their backend pool name and picks each pool's
-// representative window. Group order follows first appearance so backend
-// ordering (e.g. antigravity Gemini before Claude/GPT) is preserved.
-export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSummary[] {
+function summarizeQuotaBuckets(
+  windows: QuotaWindowItem[],
+  bucketKey: (window: QuotaWindowItem) => string
+): QuotaGroupSummary[] {
   const buckets = new Map<string, { group?: string; members: QuotaWindowItem[] }>();
   for (const window of windows) {
-    // Ungrouped windows cannot share a pool; key them individually so they
-    // still participate in the per-group bar layout.
-    const key = window.group ?? `\u0000${window.id}`;
+    const key = bucketKey(window);
     const bucket = buckets.get(key);
     if (bucket) bucket.members.push(window);
     else buckets.set(key, { group: window.group, members: [window] });
@@ -124,6 +123,51 @@ export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSumm
     const rep = sorted[0];
     const rest = members.filter((window) => window !== rep);
     return { group, rep, rest };
+  });
+}
+
+// Groups projected windows by their backend pool name and picks each pool's
+// representative window. Group order follows first appearance so backend
+// ordering (e.g. antigravity Gemini before Claude/GPT) is preserved.
+export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSummary[] {
+  return summarizeQuotaBuckets(windows, (window) => window.group ?? `\u0000${window.id}`);
+}
+
+// Codex restored a 5h primary limit alongside its 7d secondary limit. Both
+// windows must stay visible in the credential table only for that exact
+// two-window shape. Other providers and all additional/missing-period shapes
+// keep the normal one-representative-per-pool summary.
+export function summarizeCredentialQuotaGroups(
+  windows: QuotaWindowItem[],
+  provider: string
+): QuotaGroupSummary[] {
+  if (provider.trim().toLowerCase() !== 'codex') return summarizeQuotaGroups(windows);
+
+  const windowsByGroup = new Map<string, QuotaWindowItem[]>();
+  for (const window of windows) {
+    if (!window.group) continue;
+    const members = windowsByGroup.get(window.group) ?? [];
+    members.push(window);
+    windowsByGroup.set(window.group, members);
+  }
+  const fiveHours = 5 * 60 * 60;
+  const sevenDays = 7 * 24 * 60 * 60;
+  const splitGroups = new Set(
+    Array.from(windowsByGroup.entries())
+      .filter(([, members]) =>
+        members.length === 2 &&
+        members.some((window) => window.periodSeconds === fiveHours) &&
+        members.some((window) => window.periodSeconds === sevenDays)
+      )
+      .map(([group]) => group)
+  );
+  if (splitGroups.size === 0) return summarizeQuotaGroups(windows);
+
+  return summarizeQuotaBuckets(windows, (window) => {
+    if (window.group && splitGroups.has(window.group)) {
+      return `${window.group}\u0000${window.periodSeconds}`;
+    }
+    return window.group ?? `\u0000${window.id}`;
   });
 }
 

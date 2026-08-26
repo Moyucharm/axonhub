@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cpaWindowKind, cpaQuotaItemsToWindows, formatTime, shortGroupLabel, summarizeQuotaGroups } from './quota-windows.ts';
+import {
+  cpaWindowKind,
+  cpaQuotaItemsToWindows,
+  formatTime,
+  shortGroupLabel,
+  summarizeCredentialQuotaGroups,
+  summarizeQuotaGroups,
+} from './quota-windows.ts';
 
 const srcRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -129,6 +136,39 @@ test('summarizeQuotaGroups picks the tightest representative per pool in first-a
   assert.equal(groups[1].rep.id, '3p-5h');
 });
 
+test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair', () => {
+  const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
+  const fiveHour = win('code-primary', 'Code', 10, 'hourly', 5 * 60 * 60);
+  const weekly = win('code-secondary', 'Code', 20, 'weekly', 7 * 24 * 60 * 60);
+
+  const codex = summarizeCredentialQuotaGroups([fiveHour, weekly], 'codex');
+  assert.deepEqual(codex.map(({ rep }) => rep.id), ['code-primary', 'code-secondary']);
+  assert.ok(codex.every(({ rest }) => rest.length === 0));
+
+  // The same period pair remains one summarized resource pool for providers
+  // such as Antigravity.
+  const antigravity = summarizeCredentialQuotaGroups([fiveHour, weekly], 'antigravity');
+  assert.equal(antigravity.length, 1);
+  assert.equal(antigravity[0].rep.id, 'code-secondary');
+  assert.deepEqual(antigravity[0].rest.map(({ id }) => id), ['code-primary']);
+
+  const monthly = win('code-monthly', 'Code', 5, 'monthly', 30 * 24 * 60 * 60);
+  const oneHour = win('code-1h', 'Code', 25, 'hourly', 60 * 60);
+  const missingPeriod = win('code-unknown-hourly', 'Code', 25, 'hourly');
+  for (const windows of [
+    [fiveHour, monthly],
+    [oneHour, weekly],
+    [missingPeriod, weekly],
+    [fiveHour, weekly, monthly],
+  ]) {
+    const groups = summarizeCredentialQuotaGroups(windows, 'CODEX');
+    assert.equal(groups.length, 1);
+  }
+  const triple = summarizeCredentialQuotaGroups([fiveHour, weekly, monthly], 'codex');
+  assert.equal(triple[0].rep.id, 'code-secondary');
+  assert.deepEqual(triple[0].rest.map(({ id }) => id), ['code-primary', 'code-monthly']);
+});
+
 test('summarizeQuotaGroups breaks percent ties by kind priority and keeps ungrouped singletons', () => {
   const win = (id, group, percent, kind) => ({ id, group, percent, kind });
   // All-zero pools surface the long-term ceiling (weekly wins the tie).
@@ -184,13 +224,15 @@ test('quota summary uses adaptive label column with inline +N overflow button', 
   assert.match(summary, /<span key=\{`more-\$\{rep\.id\}`} \/>/);
 });
 
-test('overflow popover lists window names outside the capsule with full-name tooltip', () => {
+test('overflow popover reuses the external capsule and wraps full window names', () => {
   const capsule = read('components/quota-capsule.tsx');
-  // Widened popover; row name is plain text beside the capsule, hover shows
-  // the full untruncated name via native title.
-  assert.match(capsule, /PopoverContent className='w-80'/);
-  assert.match(capsule, /title=\{windowFullName\(window, t\)\}/);
-  assert.match(capsule, /w-36 shrink-0 truncate/);
+  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
+  assert.match(capsule, /w-\[min\(28rem,calc\(100vw-2rem\)\)\]/);
+  assert.match(capsule, /grid-cols-\[minmax\(0,1fr\)_13rem\]/);
+  assert.match(capsule, /min-w-0 break-words text-left/);
+  assert.match(capsule, /<QuotaCapsule window=\{window\} size=\{size\} \/>/);
+  assert.doesNotMatch(capsule, /w-36 shrink-0 truncate text-right/);
+  assert.match(summary, /<QuotaMorePopover key='more' windows=\{hidden\} size='sm'>/);
 });
 
 test('quota capsule renders remaining semantics with gradient and chip tones', () => {
@@ -222,6 +264,8 @@ test('quota capsule remaining i18n keys exist in both locales', () => {
   assert.equal(zhCpa['cpa.quota.group.gemini'], 'Gemini');
   assert.equal(enCpa['cpa.quota.group.claude_gpt'], 'Claude/GPT');
   assert.equal(zhCpa['cpa.quota.group.claude_gpt'], 'Claude/GPT');
+  assert.match(enCpa['cpa.quota.estimateDetail'], /estimation interval/);
+  assert.match(zhCpa['cpa.quota.estimateDetail'], /观测区间成本/);
 });
 
 test('CPA credential column shows email with filename on hover and defaults to 50 rows', () => {
@@ -247,7 +291,7 @@ test('cpaQuotaItemsToWindows passes through quota value estimates', () => {
         periodSeconds: 604800,
         estimatedLimitUSD: 100.25,
         estimatedCostUSD: 3.42,
-        estimateSource: 'precise-header',
+        estimateSource: 'precise-header-delta',
       },
       {
         id: 'codex-primary',
@@ -263,6 +307,7 @@ test('cpaQuotaItemsToWindows passes through quota value estimates', () => {
   const weekly = windows.find((w) => w.id === 'codex-secondary');
   assert.equal(weekly.estimatedLimitUSD, 100.25);
   assert.equal(weekly.estimatedCostUSD, 3.42);
+  assert.equal(weekly.periodSeconds, 604800);
   assert.ok(weekly.tooltipExtras.some((line) => line.includes('cpa.quota.estimateDetail')));
   const primary = windows.find((w) => w.id === 'codex-primary');
   assert.equal(primary.estimatedLimitUSD, undefined);

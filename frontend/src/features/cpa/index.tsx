@@ -112,7 +112,7 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   // Error state takes priority even when partial data exists.
   if (credential.quotaState === 'error') return <span>{t('cpa.quota.error')}</span>;
   if (credential.quotaData.items.length === 0) return <span>—</span>;
-  return <QuotaSummaryCapsule items={credential.quotaData.items} fallback={<span>—</span>} />;
+  return <QuotaSummaryCapsule items={credential.quotaData.items} provider={credential.provider} fallback={<span>—</span>} />;
 }
 
 export default function CPAManagement() {

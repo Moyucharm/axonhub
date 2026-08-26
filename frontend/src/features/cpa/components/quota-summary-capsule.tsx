@@ -2,11 +2,11 @@ import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
 import type { CPAQuotaItem } from '@/features/cpa/data';
-import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeQuotaGroups } from '@/features/cpa/quota-windows';
+import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups } from '@/features/cpa/quota-windows';
 
-// Compact quota cell for the CPA credential table. Windows are grouped by
-// backend pool (antigravity: Gemini vs Claude/GPT); each pool renders one bar
-// for its tightest window, stacked vertically:
+// Compact quota cell for the CPA credential table. Windows are normally
+// grouped by backend pool (antigravity: Gemini vs Claude/GPT), while Codex
+// groups containing both 5h and 7d keep both windows visible. Rows are stacked:
 //   - 1 window/pool  -> single plain capsule (no pool chip)
 //   - <=2 pools      -> one bar per pool, all visible
 //   - >2 pools       -> first two bars inline, everything else behind a +N
@@ -17,13 +17,21 @@ import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeQuotaGroups } from '@
 // column hosts the inline +N overflow button.
 const MAX_INLINE_GROUPS = 2;
 
-export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuotaItem[]; fallback?: ReactNode }) {
+export function QuotaSummaryCapsule({
+  items,
+  provider,
+  fallback = null,
+}: {
+  items: CPAQuotaItem[];
+  provider: string;
+  fallback?: ReactNode;
+}) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === 'zh' ? 'zh-CN' : 'en-US';
   const windows = cpaQuotaItemsToWindows(items, t, locale);
   if (windows.length === 0) return fallback;
 
-  const groups = summarizeQuotaGroups(windows);
+  const groups = summarizeCredentialQuotaGroups(windows, provider);
   const inline = groups.slice(0, MAX_INLINE_GROUPS);
   // Every window without its own inline bar: non-representative windows of
   // shown pools plus all windows of truncated pools.
@@ -65,7 +73,7 @@ export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuot
             <QuotaCapsule window={rep} size='sm' />
           </span>,
           isLast && hidden.length > 0 ? (
-            <QuotaMorePopover key='more' windows={hidden}>
+            <QuotaMorePopover key='more' windows={hidden} size='sm'>
               <button
                 type='button'
                 aria-label={t('quota.capsule.more')}

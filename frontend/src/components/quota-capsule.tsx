@@ -167,10 +167,12 @@ export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem;
 export function QuotaMorePopover({
   windows,
   tooltipWindow,
+  size = 'md',
   children,
 }: {
   windows: QuotaWindowItem[];
   tooltipWindow?: QuotaWindowItem;
+  size?: CapsuleSize;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -184,11 +186,11 @@ export function QuotaMorePopover({
   return (
     <Popover modal={false}>
       {trigger}
-      <PopoverContent className='w-80' align='start' side='top'>
+      <PopoverContent className='w-[min(28rem,calc(100vw-2rem))]' align='start' side='top'>
         <div className='space-y-2'>
           <div className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>{t('quota.capsule.more')}</div>
           {windows.map((window) => (
-            <QuotaCapsuleRow key={window.id} window={window} />
+            <QuotaCapsuleRow key={window.id} window={window} size={size} />
           ))}
         </div>
       </PopoverContent>
@@ -196,39 +198,20 @@ export function QuotaMorePopover({
   );
 }
 
-// Full-name row used inside the overflow popover: window name as plain text
-// OUTSIDE the capsule (truncated with a native title tooltip for the full
-// name), capsule holds only chip + track + percentage.
-function QuotaCapsuleRow({ window }: { window: QuotaWindowItem }) {
+// Full-name row used inside the overflow popover. The label column adapts and
+// wraps instead of reserving fixed right-aligned whitespace; the quota column
+// reuses QuotaCapsule so styling, sizing, estimates, and hover details cannot
+// drift from the external bar.
+function QuotaCapsuleRow({ window, size }: { window: QuotaWindowItem; size: CapsuleSize }) {
   const { t } = useTranslation();
-  const used = Math.min(Math.max(window.percent || 0, 0), 100);
-  const remaining = Math.round(100 - used);
-  const tone = window.kind !== 'other' ? CHIP_TONES[window.kind] : null;
   return (
-    <div className='flex items-center gap-2'>
-      <span className='w-36 shrink-0 truncate text-right text-xs font-medium' title={windowFullName(window, t)}>
+    <div className='grid grid-cols-[minmax(0,1fr)_13rem] items-center gap-2'>
+      <span className='min-w-0 break-words text-left text-xs font-medium'>
         {windowFullName(window, t)}
       </span>
-      <div className='flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full border bg-muted/40 px-1.5'>
-        {window.shortLabelKey && (
-          <span
-            className={cn(
-              'shrink-0 rounded-full border px-1.5 text-[10px] font-semibold tabular-nums',
-              tone
-            )}
-          >
-            {t(window.shortLabelKey)}
-          </span>
-        )}
-        <CapsuleTrack used={used} />
-        <span
-          className='text-xs font-semibold tabular-nums'
-          style={{ color: severityColor(used) }}
-        >
-          {t('quota.capsule.percent', { percent: remaining })}
-        </span>
-        <EstimateBadge window={window} size='sm' />
-      </div>
+      <span className='w-52 min-w-0'>
+        <QuotaCapsule window={window} size={size} />
+      </span>
     </div>
   );
 }

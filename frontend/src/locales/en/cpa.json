@@ -62,7 +62,7 @@
   "cpa.quota.used": "Used",
   "cpa.quota.limit": "Limit",
   "cpa.quota.resetAt": "Resets",
-  "cpa.quota.estimateDetail": "Estimated total: {{limit}} (observed cost {{cost}} this cycle)",
+  "cpa.quota.estimateDetail": "Estimated total: {{limit}} (observed cost {{cost}} in the estimation interval)",
   "cpa.quota.group.gemini": "Gemini",
   "cpa.quota.group.claude_gpt": "Claude/GPT",
   "cpa.pagination.total": "{{count}} credentials",

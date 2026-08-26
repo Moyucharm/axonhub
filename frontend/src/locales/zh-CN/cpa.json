@@ -62,7 +62,7 @@
   "cpa.quota.used": "已用",
   "cpa.quota.limit": "上限",
   "cpa.quota.resetAt": "重置时间",
-  "cpa.quota.estimateDetail": "估算总额：{{limit}}（本周期观测成本 {{cost}}）",
+  "cpa.quota.estimateDetail": "估算总额：{{limit}}（观测区间成本 {{cost}}）",
   "cpa.quota.group.gemini": "Gemini",
   "cpa.quota.group.claude_gpt": "Claude/GPT",
   "cpa.pagination.total": "共 {{count}} 个凭证",

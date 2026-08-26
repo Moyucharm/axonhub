@@ -21,6 +21,8 @@ export interface QuotaWindowItem {
   fullLabel?: string;
   /** Suffix appended to the full name (e.g. a Minimax model name). */
   labelSuffix?: string;
+  /** Exact backend period when available; used for provider-specific contracts. */
+  periodSeconds?: number;
   /** Usage percentage 0-100. */
   percent: number;
   /** Fraction of the reset window elapsed, shown in the tooltip only. */
@@ -29,7 +31,7 @@ export interface QuotaWindowItem {
   tooltipExtras?: string[];
   /** Estimated total quota value in USD for this CPA Codex window. */
   estimatedLimitUSD?: number;
-  /** Locally observed cost sum in USD within the current cycle. */
+  /** Locally observed cost sum in USD within the estimation interval. */
   estimatedCostUSD?: number;
 }
 
