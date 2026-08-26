@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban } from 'lucide-react';
+import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
@@ -61,6 +61,7 @@ import {
 import { Channel, ChannelType, ApiFormat, RetryableErrorPattern, createChannelInputSchema, updateChannelInputSchema } from '../data/schema';
 import { ProxyConfig, useOAuthFlow } from '../hooks/use-oauth-flow';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
+import { normalizeBaseURLCandidates, type NormalizedCandidate } from '../data/base-url-normalize';
 import { DEFAULT_API_KEY_POOL_REQUEST_COUNT, getChannelAPIKeySummary } from '../utils/key-pool';
 import { isValidModelPattern, matchesModelPattern } from '../utils/pattern';
 import { ProxyType } from './channels-proxy-dialog';
@@ -310,6 +311,92 @@ function isOfficialClaudeCodeChannel(channel: { credentials?: { apiKey?: string 
   const apiKey = channel.credentials?.apiKey || '';
   const defaultURL = getDefaultBaseURL('claudecode');
   return apiKey.includes('sk-ant-oat') || apiKey.includes('sk-ant-api03') || channel.baseURL === defaultURL;
+}
+
+/**
+ * Base URL 一键格式化按钮：根据当前输入与 API 格式生成规范化候选列表，
+ * 由用户点选后回填，不自动改写输入。
+ */
+function BaseURLNormalizeButton({
+  value,
+  disabled,
+  apiFormat,
+  onSelect,
+}: {
+  value: string;
+  disabled: boolean;
+  apiFormat: ApiFormat;
+  onSelect: (url: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  const candidates = useMemo(() => normalizeBaseURLCandidates(value ?? '', apiFormat), [value, apiFormat]);
+  const currentNormalized = (value ?? '').trim().replace(/\/+$/, '');
+  // 首条候选是该格式家族最符合惯例的形态；它等于当前值说明无需修正
+  const alreadyNormalized = candidates.length > 0 && candidates[0].url === currentNormalized;
+  const applicable = alreadyNormalized ? [] : candidates.filter((candidate) => candidate.url !== currentNormalized);
+
+  const reasonLabel = (reasonKey: string) => t(`channels.dialogs.fields.baseURL.normalize.reasons.${reasonKey}`);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && candidates.length === 0) {
+      toast.error(t('channels.dialogs.fields.baseURL.normalize.invalidUrl'));
+      return;
+    }
+    if (nextOpen && alreadyNormalized) {
+      toast.success(t('channels.dialogs.fields.baseURL.normalize.alreadyNormalized'));
+      return;
+    }
+    setOpen(nextOpen);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button type='button' variant='outline' size='icon' disabled={disabled} title={t('channels.dialogs.fields.baseURL.normalize.button')} data-testid='channel-base-url-normalize'>
+          <Sparkles className='size-4' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align='end' className='w-80 p-2'>
+        <p className='text-muted-foreground px-2 pt-1 pb-2 text-xs font-medium'>
+          {t('channels.dialogs.fields.baseURL.normalize.title')}
+        </p>
+        <div className='space-y-1'>
+          {applicable.map((candidate: NormalizedCandidate, index: number) => (
+            <button
+              key={candidate.url}
+              type='button'
+              className='hover:bg-accent flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left'
+              onClick={() => {
+                onSelect(candidate.url);
+                setOpen(false);
+              }}
+            >
+              <span className='font-mono text-xs break-all'>{candidate.url}</span>
+              <span className='text-muted-foreground text-xs'>
+                {reasonLabel(candidate.reasonKey)}
+                {index === 0 && <Badge variant='secondary' className='ml-1.5 px-1 py-0 text-[10px]'>{t('channels.dialogs.fields.baseURL.normalize.recommended')}</Badge>}
+              </span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * 获取渠道类型的默认 Base URL（含 codex WebSocket 传输的特殊默认值）
+ */
+function getDefaultBaseURLForChannelType(currentType: ChannelType, apiFormat: ApiFormat, websocketTransport: boolean): string {
+  if (apiFormat === OPENAI_RESPONSES && websocketTransport) {
+    const websocketBaseURL = getResponsesWebSocketBaseURL(currentType);
+    if (websocketBaseURL) {
+      return websocketBaseURL;
+    }
+  }
+  return getDefaultBaseURL(currentType);
 }
 
 function extractCodexAuthJSONText(apiKey: string | undefined): string | undefined {
@@ -837,14 +924,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   );
 
   const baseURLPlaceholder = useMemo(() => {
-    const currentType = selectedType || derivedChannelType;
-    if (selectedApiFormat === OPENAI_RESPONSES && responsesTransport === 'websocket') {
-      const websocketBaseURL = getResponsesWebSocketBaseURL(currentType);
-      if (websocketBaseURL) {
-        return websocketBaseURL;
-      }
-    }
-    const defaultURL = getDefaultBaseURL(currentType);
+    const defaultURL = getDefaultBaseURLForChannelType(selectedType || derivedChannelType, selectedApiFormat, responsesTransport === 'websocket');
     if (defaultURL) {
       return defaultURL;
     }
@@ -2223,27 +2303,48 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                       <FormField
                         control={form.control}
                         name='baseURL'
-                        render={({ field, fieldState }) => (
+                        render={({ field, fieldState }) => {
+                          const fieldValue = field.value ?? '';
+                          const baseURLFieldDisabled =
+                            (isCodexType && authMode !== 'third-party') || (isClaudeCodeType && authMode === 'official') || selectedProvider === 'antigravity';
+                          // 默认 Base URL 不显示格式化按钮，仅用户自定义 URL 时提供
+                          const defaultBaseURLForType = getDefaultBaseURLForChannelType(
+                            selectedType || derivedChannelType,
+                            selectedApiFormat,
+                            responsesTransport === 'websocket'
+                          );
+                          const showNormalizeButton =
+                            fieldValue.trim() !== '' && fieldValue.trim().replace(/\/+$/, '') !== defaultBaseURLForType.replace(/\/+$/, '');
+                          return (
                           <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                             <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
                               {t('channels.dialogs.fields.baseURL.label')}
                             </FormLabel>
                             <div className='space-y-1 md:col-span-6'>
-                              <Input
-                                placeholder={baseURLPlaceholder}
-                                autoComplete='new-password'
-                                data-form-type='other'
-                                aria-invalid={!!fieldState.error}
-                                data-testid='channel-base-url-input'
-                                disabled={
-                                  (isCodexType && authMode !== 'third-party') || (isClaudeCodeType && authMode === 'official') || selectedProvider === 'antigravity'
-                                }
-                                {...field}
-                              />
+                              <div className='flex gap-2'>
+                                <Input
+                                  placeholder={baseURLPlaceholder}
+                                  autoComplete='new-password'
+                                  data-form-type='other'
+                                  aria-invalid={!!fieldState.error}
+                                  data-testid='channel-base-url-input'
+                                  disabled={baseURLFieldDisabled}
+                                  {...field}
+                                />
+                                {showNormalizeButton && (
+                                  <BaseURLNormalizeButton
+                                    value={fieldValue}
+                                    disabled={baseURLFieldDisabled}
+                                    apiFormat={selectedApiFormat}
+                                    onSelect={(url) => form.setValue('baseURL', url, { shouldDirty: true })}
+                                  />
+                                )}
+                              </div>
                               <FormMessage />
                             </div>
                           </FormItem>
-                        )}
+                          );
+                        }}
                       />
 
                       {(!(isCodexType || isClaudeCodeType || isCopilotType) || authMode === 'third-party') &&
