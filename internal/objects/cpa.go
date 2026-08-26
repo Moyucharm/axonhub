@@ -33,24 +33,36 @@ type CPAQuotaItem struct {
 	ResetAt          *time.Time `json:"reset_at,omitempty"`
 	PeriodSeconds    *int       `json:"period_seconds,omitempty"`
 
-	// EstimatedLimitUSD is the estimated total quota value of the current
-	// cycle: locally observed cost sum divided by the used percentage.
+	// EstimatedLimitUSD is the estimated total quota value derived from the
+	// locally observed cost and percentage delta.
 	EstimatedLimitUSD *float64 `json:"estimated_limit_usd,omitempty"`
-	// EstimatedCostUSD is the locally observed cost sum within the cycle.
+	// EstimatedCostUSD is the locally observed cost within the estimation interval.
 	EstimatedCostUSD *float64 `json:"estimated_cost_usd,omitempty"`
-	// EstimateSource records where the denominator percentage came from:
-	// "precise-header" (x-codex-*-used-percent response header) or
-	// "wham-percent" (integer percentage from the usage endpoint).
+	// EstimateSource records the estimation contract, such as
+	// "precise-header-delta" or "refresh-delta".
 	EstimateSource string `json:"estimate_source,omitempty"`
+
+	// Estimate interval metadata is persisted inside quota_data but is not
+	// exposed by GraphQL. Monthly windows use it to carry a refresh-to-refresh
+	// baseline without racing the collector-owned precise header observation.
+	EstimateCollectorSessionID  string   `json:"estimate_collector_session_id,omitempty"`
+	EstimateBaselineUsedPercent *float64 `json:"estimate_baseline_used_percent,omitempty"`
+	EstimateBaselineEventID     *int     `json:"estimate_baseline_event_id,omitempty"`
+	EstimateLatestEventID       *int     `json:"estimate_latest_event_id,omitempty"`
 }
 
-// CPAQuotaObserved captures the latest precise codex quota percentages seen in
-// upstream response headers of proxied requests, used to refine quota value
-// estimation beyond the integer percentages reported by the usage endpoint.
+// CPAQuotaObserved captures a continuous local observation interval for the
+// precise Codex secondary quota percentage. A collector restart, reset change,
+// or percentage regression starts a new interval at whatever percentage is
+// first observed; a reset never needs to be seen at exactly zero usage.
 type CPAQuotaObserved struct {
-	SecondaryUsedPercent *float64   `json:"secondary_used_percent,omitempty"`
-	SecondaryResetAt     *time.Time `json:"secondary_reset_at,omitempty"`
-	ObservedAt           *time.Time `json:"observed_at,omitempty"`
+	SecondaryCollectorSessionID  string     `json:"secondary_collector_session_id,omitempty"`
+	SecondaryBaselineUsedPercent *float64   `json:"secondary_baseline_used_percent,omitempty"`
+	SecondaryBaselineEventID     *int       `json:"secondary_baseline_event_id,omitempty"`
+	SecondaryUsedPercent         *float64   `json:"secondary_used_percent,omitempty"`
+	SecondaryLatestEventID       *int       `json:"secondary_latest_event_id,omitempty"`
+	SecondaryResetAt             *time.Time `json:"secondary_reset_at,omitempty"`
+	ObservedAt                   *time.Time `json:"observed_at,omitempty"`
 }
 
 // CPAQuotaContext contains the minimum non-token metadata needed by quota adapters.

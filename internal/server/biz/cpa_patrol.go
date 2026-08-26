@@ -132,7 +132,7 @@ func (svc *CPAService) runDisabledPatrol(ctx context.Context) {
 }
 
 // patrolInstanceEnabled refreshes quotas of all enabled credentials and
-// remotely disables any that expired or exhausted their quota.
+// remotely disables any that expired or exhausted a non-five-hour quota.
 func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.CPAInstance) {
 	next := svc.now().Add(time.Duration(instance.EnabledPatrolIntervalMinutes) * time.Minute)
 	svc.scheduleNextEnabledPatrol(ctx, instance, next)
@@ -192,7 +192,7 @@ func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.
 		// The disable decision is made purely from the refreshed snapshot so a
 		// successful quota fetch overrides stale JWT subscription dates, matching
 		// deriveCPAExpired's documented semantics.
-		exhausted, _, exhaustedItem := cpaQuotaCooldownDetail(fresh.QuotaData, svc.now())
+		exhausted, _, exhaustedItem := cpaAutoManageQuotaCooldownDetail(fresh.QuotaData, svc.now())
 		expired := deriveCPAExpired(fresh, svc.now())
 		if !expired && !exhausted {
 			continue
@@ -368,7 +368,9 @@ func (svc *CPAService) scheduleNextEnabledPatrol(ctx context.Context, instance *
 	if !instance.Enabled || !instance.AutoManageEnabled {
 		return
 	}
-	if err := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextEnabledPatrolAt(next).Exec(ctx); err != nil {
+	if err := svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
+		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextEnabledPatrolAt(next).Exec(ctx)
+	}); err != nil {
 		log.Warn(ctx, "failed to schedule CPA next enabled patrol",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Cause(err),
@@ -380,7 +382,9 @@ func (svc *CPAService) scheduleNextDisabledPatrol(ctx context.Context, instance 
 	if !instance.Enabled || !instance.AutoManageEnabled {
 		return
 	}
-	if err := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextDisabledPatrolAt(next).Exec(ctx); err != nil {
+	if err := svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
+		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextDisabledPatrolAt(next).Exec(ctx)
+	}); err != nil {
 		log.Warn(ctx, "failed to schedule CPA next disabled patrol",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Cause(err),

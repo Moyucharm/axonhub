@@ -58,18 +58,23 @@ type CPAService struct {
 	globalQuota       *semaphore.Weighted
 	instanceQuotaMu   sync.Mutex
 	instanceQuota     map[int]*semaphore.Weighted
+	instanceWriteMu   sync.Mutex
+	instanceWrite     map[int]*cpaInstanceWriteEntry
+	usageWriteMu      sync.Mutex
+	usageWrite        *semaphore.Weighted
 	refreshProgressMu sync.Mutex
 	refreshProgress   map[int]*cpaRefreshProgressState
 	now               func() time.Time
 	jitter            func() time.Duration
 
-	usageCollectorMu      sync.Mutex
-	usageCollectors       map[int]*usageCollectorWorker
-	usageCollectorStarted bool
-	usagePersistHook      func(context.Context, []usageEventEnvelope) bool
-	usageCacheMu          sync.Mutex
-	usageCredentialCache  map[int]map[string]credentialCacheEntry
-	usageObservedAt       map[int]usageObservedState
+	usageCollectorReconcileMu sync.Mutex
+	usageCollectorMu          sync.Mutex
+	usageCollectors           map[int]*usageCollectorWorker
+	usageCollectorStarted     bool
+	usagePersistHook          func(context.Context, []usageEventEnvelope) bool
+	usageCacheMu              sync.Mutex
+	usageCredentialCache      map[int]map[string]credentialCacheEntry
+	usageObservedAt           map[int]usageObservedState
 
 	priceIndexMu      sync.Mutex
 	priceIndex        map[string]*objects.ModelPrice
@@ -85,6 +90,8 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 		quotaRegistry:   cpaclient.NewQuotaRegistry(),
 		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
 		instanceQuota:   make(map[int]*semaphore.Weighted),
+		instanceWrite:   make(map[int]*cpaInstanceWriteEntry),
+		usageWrite:      semaphore.NewWeighted(1),
 		refreshProgress: make(map[int]*cpaRefreshProgressState),
 		now:             func() time.Time { return time.Now().UTC() },
 		jitter: func() time.Duration {
@@ -358,50 +365,52 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 
 	now := svc.now()
 	var updated *ent.CPAInstance
-	err = svc.RunInTransaction(ctx, func(txCtx context.Context) error {
-		builder := svc.entFromContext(txCtx).CPAInstance.UpdateOneID(id).
-			SetName(name).
-			SetBaseURL(baseURL).
-			SetEncryptedSecret(encryptedSecret).
-			SetEnabled(enabled).
-			SetInsecureSkipTLS(insecureSkipTLS).
-			SetAutoRefreshEnabled(autoRefresh).
-			SetRefreshIntervalMinutes(interval).
-			SetAutoManageEnabled(autoManage).
-			SetUsageStreamEnabled(usageStream).
-			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
-			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval)
-		if !enabled || !autoRefresh {
-			builder.ClearNextRefreshAt()
-		} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
-			builder.SetNextRefreshAt(now.Add(svc.jitter()))
-		}
-		patrolChanged := input.AutoManageEnabled != nil || input.EnabledPatrolIntervalMinutes != nil || input.DisabledPatrolIntervalMinutes != nil
-		if !enabled || !autoManage {
-			builder.ClearNextEnabledPatrolAt().ClearNextDisabledPatrolAt()
-		} else if connectionChanged || patrolChanged {
-			builder.
-				SetNextEnabledPatrolAt(now.Add(svc.jitter())).
-				SetNextDisabledPatrolAt(now.Add(svc.jitter()))
-		}
-		if connectionChanged {
-			builder.
-				SetServerVersion(buildInfo.Version).
-				SetServerCommit(buildInfo.Commit).
-				SetServerBuildDate(buildInfo.BuildDate).
-				SetLastSyncAttemptAt(now).
-				SetLastSyncSuccessAt(now).
-				ClearLastError().
-				ClearLastErrorAt()
-		}
-		updated, err = builder.Save(txCtx)
-		if err != nil {
-			return fmt.Errorf("update CPA instance: %w", err)
-		}
-		if authFiles != nil {
-			return svc.syncCredentialSnapshot(txCtx, updated, authFiles.Files, now)
-		}
-		return nil
+	err = svc.withCPAInstanceWriteRetry(ctx, id, func() error {
+		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+			builder := svc.entFromContext(txCtx).CPAInstance.UpdateOneID(id).
+				SetName(name).
+				SetBaseURL(baseURL).
+				SetEncryptedSecret(encryptedSecret).
+				SetEnabled(enabled).
+				SetInsecureSkipTLS(insecureSkipTLS).
+				SetAutoRefreshEnabled(autoRefresh).
+				SetRefreshIntervalMinutes(interval).
+				SetAutoManageEnabled(autoManage).
+				SetUsageStreamEnabled(usageStream).
+				SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
+				SetDisabledPatrolIntervalMinutes(disabledPatrolInterval)
+			if !enabled || !autoRefresh {
+				builder.ClearNextRefreshAt()
+			} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
+				builder.SetNextRefreshAt(now.Add(svc.jitter()))
+			}
+			patrolChanged := input.AutoManageEnabled != nil || input.EnabledPatrolIntervalMinutes != nil || input.DisabledPatrolIntervalMinutes != nil
+			if !enabled || !autoManage {
+				builder.ClearNextEnabledPatrolAt().ClearNextDisabledPatrolAt()
+			} else if connectionChanged || patrolChanged {
+				builder.
+					SetNextEnabledPatrolAt(now.Add(svc.jitter())).
+					SetNextDisabledPatrolAt(now.Add(svc.jitter()))
+			}
+			if connectionChanged {
+				builder.
+					SetServerVersion(buildInfo.Version).
+					SetServerCommit(buildInfo.Commit).
+					SetServerBuildDate(buildInfo.BuildDate).
+					SetLastSyncAttemptAt(now).
+					SetLastSyncSuccessAt(now).
+					ClearLastError().
+					ClearLastErrorAt()
+			}
+			updated, err = builder.Save(txCtx)
+			if err != nil {
+				return fmt.Errorf("update CPA instance: %w", err)
+			}
+			if authFiles != nil {
+				return svc.syncCredentialSnapshot(txCtx, updated, authFiles.Files, now)
+			}
+			return nil
+		})
 	})
 	if err != nil {
 		return nil, err
@@ -417,23 +426,33 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 // annotation would otherwise leave orphaned credential snapshots and usage
 // events behind.
 func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
-	err := svc.RunInTransaction(ctx, func(txCtx context.Context) error {
-		if _, err := svc.entFromContext(txCtx).CpaUsageEvent.Delete().
-			Where(cpausageevent.CpaInstanceIDEQ(id)).
-			Exec(txCtx); err != nil {
-			return fmt.Errorf("delete CPA instance usage events: %w", err)
-		}
-		if _, err := svc.entFromContext(txCtx).CPACredential.Delete().
-			Where(cpacredential.CpaInstanceIDEQ(id)).
-			Exec(txCtx); err != nil {
-			return fmt.Errorf("delete CPA instance credentials: %w", err)
-		}
-		if err := svc.entFromContext(txCtx).CPAInstance.DeleteOneID(id).Exec(txCtx); err != nil {
-			return fmt.Errorf("delete CPA instance: %w", err)
-		}
-		return nil
+	svc.usageCollectorReconcileMu.Lock()
+	if err := svc.stopUsageCollectorForInstance(ctx, id); err != nil {
+		svc.usageCollectorReconcileMu.Unlock()
+		svc.refreshUsageStreamsAsync()
+		return fmt.Errorf("stop CPA usage collector before delete: %w", err)
+	}
+	err := svc.withCPAInstanceWriteRetry(ctx, id, func() error {
+		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+			if _, err := svc.entFromContext(txCtx).CpaUsageEvent.Delete().
+				Where(cpausageevent.CpaInstanceIDEQ(id)).
+				Exec(txCtx); err != nil {
+				return fmt.Errorf("delete CPA instance usage events: %w", err)
+			}
+			if _, err := svc.entFromContext(txCtx).CPACredential.Delete().
+				Where(cpacredential.CpaInstanceIDEQ(id)).
+				Exec(txCtx); err != nil {
+				return fmt.Errorf("delete CPA instance credentials: %w", err)
+			}
+			if err := svc.entFromContext(txCtx).CPAInstance.DeleteOneID(id).Exec(txCtx); err != nil {
+				return fmt.Errorf("delete CPA instance: %w", err)
+			}
+			return nil
+		})
 	})
+	svc.usageCollectorReconcileMu.Unlock()
 	if err != nil {
+		svc.refreshUsageStreamsAsync()
 		return err
 	}
 	svc.instanceQuotaMu.Lock()
@@ -443,7 +462,6 @@ func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 	delete(svc.refreshProgress, id)
 	svc.refreshProgressMu.Unlock()
 	svc.invalidateUsageCredentialCache(id)
-	svc.refreshUsageStreamsAsync()
 	return nil
 }
 

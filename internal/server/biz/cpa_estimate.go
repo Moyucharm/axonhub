@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
 	"github.com/shopspring/decimal"
 
 	"github.com/looplj/axonhub/internal/authz"
+	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
@@ -19,9 +19,9 @@ import (
 const (
 	// cpaWeeklyPeriodSeconds is the codex weekly (secondary) quota window.
 	cpaWeeklyPeriodSeconds = 7 * 24 * 60 * 60
-	// cpaEstimateMinUsedPercent is the minimum consumed percentage of the
-	// window before an estimation is considered reliable.
-	cpaEstimateMinUsedPercent = 3.0
+	// cpaEstimateMinPercentDelta is the minimum locally observed percentage
+	// change before an interval estimate is considered reliable.
+	cpaEstimateMinPercentDelta = 3.0
 	// cpaMaxUnpricedRatio caps the tolerated share of tokens without a price.
 	cpaMaxUnpricedRatio = 0.1
 )
@@ -32,35 +32,43 @@ type CPAQuotaEstimate struct {
 	LimitUSD    float64
 	CostUSD     float64
 	UsedPercent float64
-	// Source records the denominator precision: "precise-header" or "wham-percent".
+	// Source records the interval contract: "precise-header-delta" or "refresh-delta".
 	Source string
 }
 
 // EstimateCredentialQuota estimates the credential's weekly/monthly quota total:
 //
-//	total = cycle cost sum / used percent * 100
+//	total = locally observed interval cost / percentage delta * 100
 //
-// It returns nil whenever prerequisites are missing: no long-period window item,
-// used percent below 3%, unknown cycle start, no usage events, or too many
-// unpriced tokens. Only codex credentials carry such windows, so callers
-// gate on provider == "codex".
+// It returns nil whenever prerequisites are missing: no complete local interval,
+// percentage delta below 3%, no matching usage events, or too many unpriced
+// tokens. Only Codex credentials carry such intervals, so callers gate on
+// provider == "codex".
 func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID int, authIndex string, snapshot objects.CPAQuotaSnapshot, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
 	item := estimateWindowItem(snapshot)
 	return svc.estimateCredentialQuotaForItem(ctx, instanceID, authIndex, item, observed)
 }
 
 func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, instanceID int, authIndex string, item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
-	if item == nil || item.UsedPercent == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
+	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
 		return nil
 	}
-	usedPercent := *item.UsedPercent
-	if usedPercent < cpaEstimateMinUsedPercent {
+	interval := codexEstimateIntervalForItem(item, observed)
+	if interval == nil {
 		return nil
 	}
 	cycleStart := item.ResetAt.Add(-time.Duration(*item.PeriodSeconds) * time.Second)
 
 	ctx = authz.WithSystemBypass(ctx, "cpa-quota-estimate")
-	aggregates, err := svc.usageAggregatesByModel(ctx, instanceID, strings.TrimSpace(authIndex), cycleStart, *item.ResetAt)
+	aggregates, err := svc.usageAggregatesByModel(
+		ctx,
+		instanceID,
+		strings.TrimSpace(authIndex),
+		cycleStart,
+		*item.ResetAt,
+		interval.fromEventID,
+		interval.toEventID,
+	)
 	if err != nil {
 		log.Warn(ctx, "aggregate CPA usage events failed", log.Cause(err))
 		return nil
@@ -106,21 +114,16 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 		return nil
 	}
 
-	denominator, source := estimateDenominator(item, observed, cycleStart)
-	if denominator == nil {
-		return nil
-	}
-
 	costUSD, _ := totalCost.Float64()
-	limitUSD := costUSD / *denominator * 100
+	limitUSD := costUSD / interval.usedPercent * 100
 	if math.IsNaN(limitUSD) || math.IsInf(limitUSD, 0) || limitUSD <= 0 {
 		return nil
 	}
 	return &CPAQuotaEstimate{
 		LimitUSD:    limitUSD,
 		CostUSD:     costUSD,
-		UsedPercent: *denominator,
-		Source:      source,
+		UsedPercent: interval.usedPercent,
+		Source:      interval.source,
 	}
 }
 
@@ -132,7 +135,7 @@ func estimateWindowItems(snapshot objects.CPAQuotaSnapshot) []*objects.CPAQuotaI
 			continue
 		}
 		period := *item.PeriodSeconds
-		if period == cpaWeeklyPeriodSeconds || (period >= 28*24*60*60 && period <= 31*24*60*60) {
+		if period == cpaWeeklyPeriodSeconds || isMonthlyQuotaPeriod(period) {
 			items = append(items, item)
 		}
 	}
@@ -152,27 +155,13 @@ func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem
 	return monthly
 }
 
-// estimateDenominator prefers the precise percentage observed in upstream
-// response headers; it falls back to the integer wham percentage. The precise
-// value is only valid for the same cycle (matching reset time). When the
-// observed reset timestamp is missing the header is not trusted and the
-// integer wham percentage is used instead.
-func estimateDenominator(item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, _ time.Time) (*float64, string) {
-	if item.PeriodSeconds != nil && *item.PeriodSeconds == cpaWeeklyPeriodSeconds &&
-		observed.SecondaryUsedPercent != nil && observed.ObservedAt != nil && *observed.SecondaryUsedPercent > 0 {
-		if observed.SecondaryResetAt != nil && item.ResetAt != nil && observed.SecondaryResetAt.Unix() == item.ResetAt.Unix() {
-			value := *observed.SecondaryUsedPercent
-			return &value, "precise-header"
-		}
-	}
-	if item.UsedPercent != nil && *item.UsedPercent > 0 {
-		value := *item.UsedPercent
-		return &value, "wham-percent"
-	}
-	return nil, ""
-}
-
-func (svc *CPAService) usageAggregatesByModel(ctx context.Context, instanceID int, authIndex string, from, to time.Time) (map[string]tokenAggregate, error) {
+func (svc *CPAService) usageAggregatesByModel(
+	ctx context.Context,
+	instanceID int,
+	authIndex string,
+	from, to time.Time,
+	afterEventID, throughEventID int,
+) (map[string]tokenAggregate, error) {
 	var rows []struct {
 		Model               string `json:"model"`
 		InputTokens         int64  `json:"input_tokens"`
@@ -189,19 +178,18 @@ func (svc *CPAService) usageAggregatesByModel(ctx context.Context, instanceID in
 			cpausageevent.FailedEQ(false),
 			cpausageevent.RequestedAtGTE(from),
 			cpausageevent.RequestedAtLTE(to),
+			cpausageevent.IDGT(afterEventID),
+			cpausageevent.IDLTE(throughEventID),
 		).
-		Modify(func(s *sql.Selector) {
-			s.Select(
-				sql.As(s.C(cpausageevent.FieldModel), "model"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldInputTokens)), "input_tokens"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldOutputTokens)), "output_tokens"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldReasoningTokens)), "reasoning_tokens"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldCachedTokens)), "cached_tokens"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldCacheReadTokens)), "cache_read_tokens"),
-				sql.As(fmt.Sprintf("COALESCE(SUM(%s), 0)", s.C(cpausageevent.FieldCacheCreationTokens)), "cache_creation_tokens"),
-			)
-		}).
 		GroupBy(cpausageevent.FieldModel).
+		Aggregate(
+			ent.As(ent.Sum(cpausageevent.FieldInputTokens), "input_tokens"),
+			ent.As(ent.Sum(cpausageevent.FieldOutputTokens), "output_tokens"),
+			ent.As(ent.Sum(cpausageevent.FieldReasoningTokens), "reasoning_tokens"),
+			ent.As(ent.Sum(cpausageevent.FieldCachedTokens), "cached_tokens"),
+			ent.As(ent.Sum(cpausageevent.FieldCacheReadTokens), "cache_read_tokens"),
+			ent.As(ent.Sum(cpausageevent.FieldCacheCreationTokens), "cache_creation_tokens"),
+		).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("aggregate CPA usage events: %w", err)

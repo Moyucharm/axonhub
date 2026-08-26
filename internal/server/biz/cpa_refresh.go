@@ -119,7 +119,13 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 		return nil, fmt.Errorf("toggle CPA credential on remote: %w", err)
 	}
 	if _, err := svc.syncInstanceCredentials(ctx, instance); err != nil {
-		return nil, fmt.Errorf("sync CPA credentials after toggle: %w", err)
+		log.Warn(ctx, "CPA remote credential toggle succeeded but local sync failed",
+			log.Int("cpa_instance_id", instance.ID),
+			log.Int("credential_id", credential.ID),
+			log.Any("disabled", disabled),
+			log.Cause(err),
+		)
+		return nil, fmt.Errorf("remote CPA credential toggle succeeded but local sync failed: %w", err)
 	}
 	updated, err := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
 	if err != nil {
@@ -192,36 +198,40 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 		})
 		if fetchErr != nil {
 			message := sanitizeCPAErrorMessage(fetchErr.Error())
-			updateErr := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
-				SetQuotaState(string(objects.CPAQuotaStateError)).
-				SetQuotaLastAttemptAt(now).
-				SetQuotaLastFailureAt(now).
-				SetQuotaLastError(message).
-				Exec(ctx)
+			updateErr := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
+				return svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
+					SetQuotaState(string(objects.CPAQuotaStateError)).
+					SetQuotaLastAttemptAt(now).
+					SetQuotaLastFailureAt(now).
+					SetQuotaLastError(message).
+					Exec(ctx)
+			})
 			if updateErr != nil {
 				return nil, fmt.Errorf("persist CPA quota error: %w", updateErr)
 			}
 			return nil, fetchErr
 		}
 
-		update := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
-			SetQuotaState(string(result.State)).
-			SetQuotaLastAttemptAt(now).
-			SetQuotaLastError("")
-		if result.PlanType != "" {
-			update.SetPlanType(result.PlanType)
+		snapshot := result.Snapshot
+		if result.State == objects.CPAQuotaStateSuccess && strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") {
+			svc.applyQuotaEstimate(ctx, credential, &snapshot)
 		}
-		switch result.State {
-		case objects.CPAQuotaStateSuccess:
-			snapshot := result.Snapshot
-			if strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") {
-				svc.applyQuotaEstimate(ctx, credential, &snapshot)
+		if err := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
+			update := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
+				SetQuotaState(string(result.State)).
+				SetQuotaLastAttemptAt(now).
+				SetQuotaLastError("")
+			if result.PlanType != "" {
+				update.SetPlanType(result.PlanType)
 			}
-			update.SetQuotaData(snapshot).SetQuotaLastSuccessAt(now)
-		case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
-			update.SetQuotaData(objects.CPAQuotaSnapshot{})
-		}
-		if err := update.Exec(ctx); err != nil {
+			switch result.State {
+			case objects.CPAQuotaStateSuccess:
+				update.SetQuotaData(snapshot).SetQuotaLastSuccessAt(now)
+			case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
+				update.SetQuotaData(objects.CPAQuotaSnapshot{})
+			}
+			return update.Exec(ctx)
+		}); err != nil {
 			return nil, fmt.Errorf("persist CPA quota result: %w", err)
 		}
 		return nil, nil
@@ -229,10 +239,20 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 	return err
 }
 
-// applyQuotaEstimate computes and attaches an independent estimate to every
-// weekly/monthly window. Values are never copied between different cycles.
+// applyQuotaEstimate computes and attaches an independent interval estimate to
+// every weekly/monthly window. Monthly baselines advance only at quota refresh;
+// weekly baselines are maintained from precise usage response headers.
 func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.CPACredential, snapshot *objects.CPAQuotaSnapshot) {
+	collectorSessionID, latestEventID := svc.usageCollectorCheckpoint(credential.CpaInstanceID, credential.AuthIndex)
 	for _, item := range estimateWindowItems(*snapshot) {
+		if item.PeriodSeconds != nil && isMonthlyQuotaPeriod(*item.PeriodSeconds) {
+			prepareCodexMonthlyInterval(
+				item,
+				previousQuotaItem(credential.QuotaData, item),
+				collectorSessionID,
+				latestEventID,
+			)
+		}
 		estimate := svc.estimateCredentialQuotaForItem(ctx, credential.CpaInstanceID, credential.AuthIndex, item, credential.QuotaObserved)
 		if estimate == nil {
 			continue
@@ -263,7 +283,9 @@ func (svc *CPAService) scheduleNextRefresh(ctx context.Context, instance *ent.CP
 	if !instance.Enabled || !instance.AutoRefreshEnabled {
 		return
 	}
-	if err := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextRefreshAt(next).Exec(ctx); err != nil {
+	if err := svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
+		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextRefreshAt(next).Exec(ctx)
+	}); err != nil {
 		// A failed schedule write leaves the instance due, so the next dispatch
 		// tick retries it. Log instead of swallowing to make the retry visible.
 		log.Warn(ctx, "failed to schedule CPA next refresh",

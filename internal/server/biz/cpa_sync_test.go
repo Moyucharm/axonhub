@@ -1,6 +1,7 @@
 package biz
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -212,6 +213,85 @@ func TestCPASyncClearsLegacyOAuthPlanPlaceholder(t *testing.T) {
 	updated, err := client.CPACredential.Get(ctx, credential.ID)
 	require.NoError(t, err)
 	require.Empty(t, updated.PlanType)
+}
+
+func TestDeleteInstanceWaitsForCollectorDrainAndBlocksReconcile(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_delete_collector?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+
+	svc := &CPAService{
+		AbstractService:       &AbstractService{db: client},
+		usageCollectorStarted: true,
+		usageCollectors:       make(map[int]*usageCollectorWorker),
+	}
+	instance, err := client.CPAInstance.Create().
+		SetName("Delete collector").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		SetUsageStreamEnabled(true).
+		Save(ctx)
+	require.NoError(t, err)
+
+	collectorCtx, cancel := context.WithCancel(context.Background())
+	worker := &usageCollectorWorker{
+		target:  usageCollectorTarget{instanceID: instance.ID},
+		session: &usageCollectorSession{id: "delete-session"},
+		cancel:  cancel,
+		done:    make(chan struct{}),
+	}
+	svc.usageCollectors[instance.ID] = worker
+	collectorCanceled := make(chan struct{})
+	releaseDrain := make(chan struct{})
+	drainErr := make(chan error, 1)
+	go func() {
+		defer close(worker.done)
+		<-collectorCtx.Done()
+		close(collectorCanceled)
+		<-releaseDrain
+		_, insertErr := client.CpaUsageEvent.Create().
+			SetCpaInstanceID(instance.ID).
+			SetAuthIndex("auth-1").
+			SetProvider("codex").
+			SetModel("gpt-5.2").
+			SetRequestedAt(time.Now().UTC()).
+			Save(ctx)
+		drainErr <- insertErr
+	}()
+
+	deleteDone := make(chan error, 1)
+	go func() { deleteDone <- svc.DeleteInstance(ctx, instance.ID) }()
+	select {
+	case <-collectorCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("delete did not cancel the instance collector")
+	}
+
+	reconcileStarted := make(chan struct{})
+	reconcileDone := make(chan error, 1)
+	go func() {
+		close(reconcileStarted)
+		reconcileDone <- svc.RefreshUsageStreams(ctx)
+	}()
+	<-reconcileStarted
+	select {
+	case err := <-reconcileDone:
+		t.Fatalf("reconcile completed before delete released lifecycle lock: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(releaseDrain)
+	require.NoError(t, <-drainErr)
+	require.NoError(t, <-deleteDone)
+	require.NoError(t, <-reconcileDone)
+
+	usageCount, err := client.CpaUsageEvent.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, usageCount, "drained usage rows must be deleted before DeleteInstance returns")
+	svc.usageCollectorMu.Lock()
+	_, collectorExists := svc.usageCollectors[instance.ID]
+	svc.usageCollectorMu.Unlock()
+	require.False(t, collectorExists, "stale reconcile must not recreate the deleted collector")
 }
 
 func TestDeleteInstanceRemovesCredentials(t *testing.T) {

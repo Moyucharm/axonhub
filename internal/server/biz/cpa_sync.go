@@ -41,19 +41,21 @@ func (svc *CPAService) syncInstanceCredentialsOnce(ctx context.Context, instance
 		return nil, err
 	}
 
-	err = svc.RunInTransaction(ctx, func(txCtx context.Context) error {
-		if err := svc.syncCredentialSnapshot(txCtx, instance, authFiles.Files, now); err != nil {
-			return err
-		}
-		return svc.entFromContext(txCtx).CPAInstance.UpdateOneID(instance.ID).
-			SetServerVersion(buildInfo.Version).
-			SetServerCommit(buildInfo.Commit).
-			SetServerBuildDate(buildInfo.BuildDate).
-			SetLastSyncAttemptAt(now).
-			SetLastSyncSuccessAt(now).
-			ClearLastError().
-			ClearLastErrorAt().
-			Exec(txCtx)
+	err = svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
+		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+			if err := svc.syncCredentialSnapshot(txCtx, instance, authFiles.Files, now); err != nil {
+				return err
+			}
+			return svc.entFromContext(txCtx).CPAInstance.UpdateOneID(instance.ID).
+				SetServerVersion(buildInfo.Version).
+				SetServerCommit(buildInfo.Commit).
+				SetServerBuildDate(buildInfo.BuildDate).
+				SetLastSyncAttemptAt(now).
+				SetLastSyncSuccessAt(now).
+				ClearLastError().
+				ClearLastErrorAt().
+				Exec(txCtx)
+		})
 	})
 	if err != nil {
 		svc.recordInstanceSyncError(ctx, instance.ID, now, err)
@@ -280,11 +282,13 @@ func applyAuthIndexRemaps(ctx context.Context, client *ent.Client, instanceID in
 
 func (svc *CPAService) recordInstanceSyncError(ctx context.Context, instanceID int, now time.Time, syncErr error) {
 	message := sanitizeCPAErrorMessage(syncErr.Error())
-	if err := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instanceID).
-		SetLastSyncAttemptAt(now).
-		SetLastErrorAt(now).
-		SetLastError(message).
-		Exec(ctx); err != nil {
+	if err := svc.withCPAInstanceWriteRetry(ctx, instanceID, func() error {
+		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instanceID).
+			SetLastSyncAttemptAt(now).
+			SetLastErrorAt(now).
+			SetLastError(message).
+			Exec(ctx)
+	}); err != nil {
 		// The caller already receives the primary sync error. Avoid hiding it with persistence failure.
 		return
 	}

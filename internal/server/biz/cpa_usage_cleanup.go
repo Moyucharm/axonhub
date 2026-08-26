@@ -27,9 +27,14 @@ func (svc *CPAService) RegisterUsageCleanupTask(ctx context.Context, sched *sche
 func (svc *CPAService) cleanupUsageEvents(ctx context.Context) {
 	ctx = authz.WithSystemBypass(ctx, "cpa-usage-cleanup")
 	cutoff := time.Now().UTC().Add(-cpaUsageEventRetention)
-	deleted, err := svc.entFromContext(ctx).CpaUsageEvent.Delete().
-		Where(cpausageevent.RequestedAtLT(cutoff)).
-		Exec(ctx)
+	var deleted int
+	err := svc.withCPAUsageWriteRetry(ctx, func() error {
+		var deleteErr error
+		deleted, deleteErr = svc.entFromContext(ctx).CpaUsageEvent.Delete().
+			Where(cpausageevent.RequestedAtLT(cutoff)).
+			Exec(ctx)
+		return deleteErr
+	})
 	if err != nil {
 		log.Warn(ctx, "purge stale CPA usage events failed", log.Cause(err))
 		return

@@ -2,16 +2,17 @@ package biz
 
 import (
 	"context"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/log"
-	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
@@ -38,10 +39,53 @@ func (target usageCollectorTarget) sameConfig(other usageCollectorTarget) bool {
 		target.insecureSkipTLS == other.insecureSkipTLS
 }
 
+type usageCollectorSession struct {
+	id string
+
+	mu             sync.Mutex
+	latestEventIDs map[string]int
+}
+
+func newUsageCollectorSession() *usageCollectorSession {
+	return &usageCollectorSession{
+		id:             uuid.NewString(),
+		latestEventIDs: make(map[string]int),
+	}
+}
+
+func (session *usageCollectorSession) recordPersisted(authIndex string, eventID int) {
+	if session == nil || eventID <= 0 {
+		return
+	}
+	key := strings.TrimSpace(authIndex)
+	if key == "" {
+		return
+	}
+	session.mu.Lock()
+	if session.latestEventIDs == nil {
+		session.latestEventIDs = make(map[string]int)
+	}
+	if eventID > session.latestEventIDs[key] {
+		session.latestEventIDs[key] = eventID
+	}
+	session.mu.Unlock()
+}
+
+func (session *usageCollectorSession) checkpoint(authIndex string) (string, int) {
+	if session == nil {
+		return "", 0
+	}
+	key := strings.TrimSpace(authIndex)
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.id, session.latestEventIDs[key]
+}
+
 type usageCollectorWorker struct {
-	target usageCollectorTarget
-	cancel context.CancelFunc
-	done   chan struct{}
+	target  usageCollectorTarget
+	session *usageCollectorSession
+	cancel  context.CancelFunc
+	done    chan struct{}
 }
 
 func usageCollectorWorkerRunning(worker *usageCollectorWorker, target usageCollectorTarget) bool {
@@ -54,6 +98,18 @@ func usageCollectorWorkerRunning(worker *usageCollectorWorker, target usageColle
 	default:
 		return true
 	}
+}
+
+func (svc *CPAService) usageCollectorCheckpoint(instanceID int, authIndex string) (string, int) {
+	svc.usageCollectorMu.Lock()
+	worker := svc.usageCollectors[instanceID]
+	if worker == nil || !usageCollectorWorkerRunning(worker, worker.target) {
+		svc.usageCollectorMu.Unlock()
+		return "", 0
+	}
+	session := worker.session
+	svc.usageCollectorMu.Unlock()
+	return session.checkpoint(authIndex)
 }
 
 // StartUsageStream retains the public lifecycle name for compatibility, but the
@@ -80,15 +136,24 @@ func (svc *CPAService) StartUsageStream(ctx context.Context) error {
 
 // StopUsageStream stops all HTTP usage queue collectors.
 func (svc *CPAService) StopUsageStream(ctx context.Context) error {
+	svc.usageCollectorReconcileMu.Lock()
+	defer svc.usageCollectorReconcileMu.Unlock()
+
 	svc.usageCollectorMu.Lock()
 	svc.usageCollectorStarted = false
 	workers := make([]*usageCollectorWorker, 0, len(svc.usageCollectors))
 	for id, worker := range svc.usageCollectors {
-		worker.cancel()
+		if worker.cancel != nil {
+			worker.cancel()
+		}
 		workers = append(workers, worker)
 		delete(svc.usageCollectors, id)
 	}
 	svc.usageCollectorMu.Unlock()
+	return waitUsageCollectorWorkers(ctx, workers)
+}
+
+func waitUsageCollectorWorkers(ctx context.Context, workers []*usageCollectorWorker) error {
 	for _, worker := range workers {
 		select {
 		case <-worker.done:
@@ -99,8 +164,30 @@ func (svc *CPAService) StopUsageStream(ctx context.Context) error {
 	return nil
 }
 
+// stopUsageCollectorForInstance must be called while usageCollectorReconcileMu
+// is held. The worker is detached before waiting so checkpoint readers cannot
+// observe a collector that is already draining its final batch.
+func (svc *CPAService) stopUsageCollectorForInstance(ctx context.Context, instanceID int) error {
+	svc.usageCollectorMu.Lock()
+	worker := svc.usageCollectors[instanceID]
+	if worker != nil {
+		delete(svc.usageCollectors, instanceID)
+		if worker.cancel != nil {
+			worker.cancel()
+		}
+	}
+	svc.usageCollectorMu.Unlock()
+	if worker == nil {
+		return nil
+	}
+	return waitUsageCollectorWorkers(ctx, []*usageCollectorWorker{worker})
+}
+
 // RefreshUsageStreams reconciles HTTP usage queue collectors with enabled instances.
 func (svc *CPAService) RefreshUsageStreams(ctx context.Context) error {
+	svc.usageCollectorReconcileMu.Lock()
+	defer svc.usageCollectorReconcileMu.Unlock()
+
 	ctx = authz.WithSystemBypass(ctx, "cpa-usage-collector")
 	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
 		Where(cpainstance.EnabledEQ(true), cpainstance.UsageStreamEnabledEQ(true)).
@@ -127,26 +214,44 @@ func (svc *CPAService) RefreshUsageStreams(ctx context.Context) error {
 	}
 
 	svc.usageCollectorMu.Lock()
-	defer svc.usageCollectorMu.Unlock()
 	if !svc.usageCollectorStarted {
+		svc.usageCollectorMu.Unlock()
 		return nil
 	}
 	if svc.usageCollectors == nil {
 		svc.usageCollectors = make(map[int]*usageCollectorWorker)
 	}
+	workersToStop := make([]*usageCollectorWorker, 0)
 	for id, worker := range svc.usageCollectors {
 		target, keep := desired[id]
 		if keep && usageCollectorWorkerRunning(worker, target) {
 			delete(desired, id)
 			continue
 		}
-		worker.cancel()
-		<-worker.done
+		if worker.cancel != nil {
+			worker.cancel()
+		}
+		workersToStop = append(workersToStop, worker)
 		delete(svc.usageCollectors, id)
+	}
+	svc.usageCollectorMu.Unlock()
+	if err := waitUsageCollectorWorkers(ctx, workersToStop); err != nil {
+		return err
+	}
+
+	svc.usageCollectorMu.Lock()
+	defer svc.usageCollectorMu.Unlock()
+	if !svc.usageCollectorStarted {
+		return nil
 	}
 	for id, target := range desired {
 		collectorCtx, cancel := context.WithCancel(context.Background())
-		worker := &usageCollectorWorker{target: target, cancel: cancel, done: make(chan struct{})}
+		worker := &usageCollectorWorker{
+			target:  target,
+			session: newUsageCollectorSession(),
+			cancel:  cancel,
+			done:    make(chan struct{}),
+		}
 		svc.usageCollectors[id] = worker
 		go svc.runUsageQueueCollector(collectorCtx, worker)
 	}
@@ -230,7 +335,11 @@ func (svc *CPAService) runUsageQueueCollector(ctx context.Context, worker *usage
 		pending = make([]usageEventEnvelope, 0, len(events))
 		for _, event := range events {
 			if event != nil {
-				pending = append(pending, usageEventEnvelope{instanceID: target.instanceID, event: event})
+				pending = append(pending, usageEventEnvelope{
+					instanceID: target.instanceID,
+					session:    worker.session,
+					event:      event,
+				})
 			}
 		}
 	}
@@ -266,7 +375,13 @@ func sleepWithContext(ctx context.Context, duration time.Duration) bool {
 
 type usageEventEnvelope struct {
 	instanceID int
+	session    *usageCollectorSession
 	event      *cpaclient.UsageEvent
+}
+
+type persistedUsageEvent struct {
+	envelope usageEventEnvelope
+	eventID  int
 }
 
 type credentialCacheEntry struct {
@@ -293,6 +408,7 @@ func (svc *CPAService) persistUsageEvents(ctx context.Context, batch []usageEven
 	}
 	db := svc.entFromContext(ctx)
 	creates := make([]*ent.CpaUsageEventCreate, 0, len(batch))
+	validEnvelopes := make([]usageEventEnvelope, 0, len(batch))
 	for _, envelope := range batch {
 		event := envelope.event
 		if event == nil {
@@ -302,6 +418,7 @@ func (svc *CPAService) persistUsageEvents(ctx context.Context, batch []usageEven
 		if requestedAt.IsZero() {
 			requestedAt = time.Now().UTC()
 		}
+		validEnvelopes = append(validEnvelopes, envelope)
 		creates = append(creates, db.CpaUsageEvent.Create().
 			SetCpaInstanceID(envelope.instanceID).
 			SetAuthIndex(strings.TrimSpace(event.AuthIndex)).
@@ -321,67 +438,27 @@ func (svc *CPAService) persistUsageEvents(ctx context.Context, batch []usageEven
 	if len(creates) == 0 {
 		return true
 	}
-	if err := db.CpaUsageEvent.CreateBulk(creates...).Exec(ctx); err != nil {
+	instanceID := validEnvelopes[0].instanceID
+	var saved []*ent.CpaUsageEvent
+	err := svc.withCPAInstanceWriteLock(ctx, instanceID, func() error {
+		return svc.withCPAUsageWriteRetry(ctx, func() error {
+			var saveErr error
+			saved, saveErr = db.CpaUsageEvent.CreateBulk(creates...).Save(ctx)
+			return saveErr
+		})
+	})
+	if err != nil {
 		log.Warn(ctx, "persist CPA usage events failed", log.Int("count", len(creates)), log.Cause(err))
 		return false
 	}
-	svc.observePercents(ctx, batch)
+	persisted := make([]persistedUsageEvent, 0, len(saved))
+	for index, node := range saved {
+		envelope := validEnvelopes[index]
+		envelope.session.recordPersisted(envelope.event.AuthIndex, node.ID)
+		persisted = append(persisted, persistedUsageEvent{envelope: envelope, eventID: node.ID})
+	}
+	svc.observeCodexUsageIntervals(ctx, persisted)
 	return true
-}
-
-// observePercents captures precise codex quota percentages from response headers.
-func (svc *CPAService) observePercents(ctx context.Context, batch []usageEventEnvelope) {
-	now := time.Now().UTC()
-	type pendingUpdate struct {
-		credentialID int
-		observed     objects.CPAQuotaObserved
-	}
-	var updates []pendingUpdate
-	for _, envelope := range batch {
-		event := envelope.event
-		if event == nil || !strings.EqualFold(strings.TrimSpace(event.Provider), "codex") || event.Failed {
-			continue
-		}
-		rawPercent := strings.TrimSuffix(event.HeaderValue("x-codex-secondary-used-percent"), "%")
-		if rawPercent == "" {
-			continue
-		}
-		percent, errParse := strconv.ParseFloat(rawPercent, 64)
-		if errParse != nil || percent < 0 || percent > 100 {
-			continue
-		}
-		credentialID, ok := svc.lookupCredentialID(ctx, envelope.instanceID, event.AuthIndex)
-		if !ok {
-			continue
-		}
-		svc.usageCacheMu.Lock()
-		state := svc.usageObservedAt[credentialID]
-		if state.hasLastWrite && now.Sub(state.lastWrite) < percentObservationMinGap && absFloat64(percent-state.lastPercent) < 0.01 {
-			svc.usageCacheMu.Unlock()
-			continue
-		}
-		observed := objects.CPAQuotaObserved{SecondaryUsedPercent: &percent}
-		if resetAt := parseHeaderUnixTime(event.HeaderValue("x-codex-secondary-reset-at")); resetAt != nil {
-			observed.SecondaryResetAt = resetAt
-		}
-		observed.ObservedAt = &now
-		updates = append(updates, pendingUpdate{credentialID: credentialID, observed: observed})
-		state.lastWrite = now
-		state.lastPercent = percent
-		state.hasLastWrite = true
-		svc.usageObservedAt[credentialID] = state
-		svc.usageCacheMu.Unlock()
-	}
-	for _, update := range updates {
-		if err := svc.entFromContext(ctx).CPACredential.UpdateOneID(update.credentialID).
-			SetQuotaObserved(update.observed).
-			Exec(ctx); err != nil {
-			log.Warn(ctx, "persist CPA observed quota percent failed",
-				log.Int("credential_id", update.credentialID),
-				log.Cause(err),
-			)
-		}
-	}
 }
 
 func (svc *CPAService) lookupCredentialID(ctx context.Context, instanceID int, authIndex string) (int, bool) {
@@ -429,24 +506,4 @@ func (svc *CPAService) invalidateUsageCredentialCache(instanceID int) {
 	svc.usageCacheMu.Lock()
 	delete(svc.usageCredentialCache, instanceID)
 	svc.usageCacheMu.Unlock()
-}
-
-func parseHeaderUnixTime(raw string) *time.Time {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return nil
-	}
-	seconds, err := strconv.ParseInt(value, 10, 64)
-	if err != nil || seconds <= 0 {
-		return nil
-	}
-	parsed := time.Unix(seconds, 0).UTC()
-	return &parsed
-}
-
-func absFloat64(value float64) float64 {
-	if value < 0 {
-		return -value
-	}
-	return value
 }

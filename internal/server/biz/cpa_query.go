@@ -353,11 +353,25 @@ func cpaQuotaCooldown(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *
 }
 
 func cpaQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time, *objects.CPAQuotaItem) {
+	return cpaQuotaCooldownDetailFor(snapshot, now, false)
+}
+
+// cpaAutoManageQuotaCooldownDetail reports quota exhaustion that is eligible
+// for remote auto-disable. Five-hour windows remain visible to the UI through
+// cpaQuotaCooldown, but never disable a credential by themselves.
+func cpaAutoManageQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time, *objects.CPAQuotaItem) {
+	return cpaQuotaCooldownDetailFor(snapshot, now, true)
+}
+
+func cpaQuotaCooldownDetailFor(snapshot objects.CPAQuotaSnapshot, now time.Time, ignoreFiveHour bool) (bool, *time.Time, *objects.CPAQuotaItem) {
 	var cooling bool
 	var until *time.Time
 	var exhaustedItem *objects.CPAQuotaItem
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
+		if ignoreFiveHour && cpaQuotaItemIsFiveHour(*item) {
+			continue
+		}
 		if !cpaQuotaItemExhausted(*item) {
 			continue
 		}
@@ -378,6 +392,20 @@ func cpaQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now time.Time) (b
 		}
 	}
 	return cooling, until, exhaustedItem
+}
+
+func cpaQuotaItemIsFiveHour(item objects.CPAQuotaItem) bool {
+	if item.PeriodSeconds != nil {
+		return *item.PeriodSeconds == 5*60*60
+	}
+	for _, value := range []string{item.ID, item.Label, item.Group} {
+		normalized := strings.NewReplacer("-", "", "_", "", " ", "").Replace(strings.ToLower(strings.TrimSpace(value)))
+		switch normalized {
+		case "5h", "5hour", "fivehour":
+			return true
+		}
+	}
+	return false
 }
 
 func cpaQuotaItemExhausted(item objects.CPAQuotaItem) bool {

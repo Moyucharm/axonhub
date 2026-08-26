@@ -89,6 +89,58 @@ func TestCPAQuotaCooldownIgnoresPassedReset(t *testing.T) {
 	require.True(t, until.Equal(upcoming))
 }
 
+func TestCPAAutoManageQuotaCooldownIgnoresFiveHour(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	used := 100.0
+	remaining := 0.0
+	hourly := 5 * 60 * 60
+	weekly := 7 * 24 * 60 * 60
+	hourlyReset := now.Add(time.Hour)
+	weeklyReset := now.Add(24 * time.Hour)
+
+	cooling, until, exhausted := cpaAutoManageQuotaCooldownDetail(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{ID: "code-primary", Label: "5 hour", PeriodSeconds: &hourly, UsedPercent: &used, RemainingPercent: &remaining, ResetAt: &hourlyReset},
+		{ID: "code-secondary", Label: "7 day", PeriodSeconds: &weekly, UsedPercent: &used, RemainingPercent: &remaining, ResetAt: &weeklyReset},
+	}}, now)
+	require.True(t, cooling)
+	require.NotNil(t, until)
+	require.True(t, until.Equal(weeklyReset))
+	require.NotNil(t, exhausted)
+	require.Equal(t, "code-secondary", exhausted.ID)
+
+	cooling, until, exhausted = cpaAutoManageQuotaCooldownDetail(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{ID: "code-primary", Label: "5 hour", PeriodSeconds: &hourly, UsedPercent: &used, RemainingPercent: &remaining, ResetAt: &hourlyReset},
+	}}, now)
+	require.False(t, cooling)
+	require.Nil(t, until)
+	require.Nil(t, exhausted)
+}
+
+func TestCPAQuotaItemIsFiveHour(t *testing.T) {
+	t.Parallel()
+
+	periodFiveHours := 5 * 60 * 60
+	periodWeekly := 7 * 24 * 60 * 60
+	tests := []struct {
+		name string
+		item objects.CPAQuotaItem
+		want bool
+	}{
+		{name: "period has priority", item: objects.CPAQuotaItem{Label: "7 day", PeriodSeconds: &periodFiveHours}, want: true},
+		{name: "non five hour period has priority", item: objects.CPAQuotaItem{Label: "5h", PeriodSeconds: &periodWeekly}, want: false},
+		{name: "five hour label", item: objects.CPAQuotaItem{Label: "5 hour"}, want: true},
+		{name: "five hour id", item: objects.CPAQuotaItem{ID: "five-hour"}, want: true},
+		{name: "other window", item: objects.CPAQuotaItem{Label: "daily"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, cpaQuotaItemIsFiveHour(tt.item))
+		})
+	}
+}
+
 func TestParseCPAStatusFilterOR(t *testing.T) {
 	t.Parallel()
 
