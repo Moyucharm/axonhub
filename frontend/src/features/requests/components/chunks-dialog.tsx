@@ -120,8 +120,8 @@ export function ChunksDialog({ open, onOpenChange, chunks, title, isLive }: Chun
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-4xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle className='flex items-center gap-2'>
             <Layers className='h-5 w-5' />
             {title || t('requests.dialogs.jsonViewer.responseChunks')}
@@ -155,7 +155,7 @@ export function ChunksDialog({ open, onOpenChange, chunks, title, isLive }: Chun
 
         {chunks.length > 0 ? (
           <>
-            <div className='bg-muted/20 w-full flex-1 overflow-auto rounded-lg border p-4'>
+            <div className='bg-muted/20 min-h-0 w-full flex-1 overflow-auto rounded-lg border p-4'>
               <div className='space-y-4'>
                 {paginatedChunks.map((chunk, index) => (
                   <ChunkItem
@@ -169,7 +169,7 @@ export function ChunksDialog({ open, onOpenChange, chunks, title, isLive }: Chun
 
             {/* Pagination Controls */}
             {totalChunksPages > 1 && (
-              <div className='flex items-center justify-between border-t pt-4'>
+              <div className='mt-4 flex shrink-0 items-center justify-between border-t pt-4'>
                 <div className='text-muted-foreground flex-1 text-sm'>
                   {t('pagination.showing', {
                     start: (chunksPage - 1) * pageSize + 1,

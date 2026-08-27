@@ -173,13 +173,13 @@ export function ChannelsRateLimitDialog({ open, onOpenChange, currentRow }: Prop
         onOpenChange(state);
       }}
     >
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader className='text-left'>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('channels.dialogs.rateLimit.title')}</DialogTitle>
           <DialogDescription>{t('channels.dialogs.rateLimit.description', { name: currentRow.name })}</DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-6'>
+        <div className='min-h-0 flex-1 space-y-6 overflow-y-auto px-1 py-1'>
           <Card>
             <CardHeader>
               <CardTitle className='text-lg'>{t('channels.dialogs.rateLimit.config.title')}</CardTitle>
@@ -257,7 +257,7 @@ export function ChannelsRateLimitDialog({ open, onOpenChange, currentRow }: Prop
           </Card>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='mt-4 shrink-0'>
           <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
             {t('common.buttons.cancel')}
           </Button>

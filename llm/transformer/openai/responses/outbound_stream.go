@@ -27,11 +27,7 @@ func (t *OutboundTransformer) TransformStream(
 	req *httpclient.Request,
 	stream streams.Stream[*httpclient.StreamEvent],
 ) (streams.Stream[*llm.Response], error) {
-	// Append the DONE event to the stream
-	doneEvent := lo.ToPtr(llm.DoneStreamEvent)
-	streamWithDone := streams.AppendStream(stream, doneEvent)
-
-	return streams.NoNil(newResponsesOutboundStream(streamWithDone)), nil
+	return streams.NoNil(newResponsesOutboundStream(stream)), nil
 }
 
 // responsesOutboundStream wraps a stream and maintains state during processing.
@@ -44,8 +40,10 @@ type responsesOutboundStream struct {
 	queueIndex int
 	err        error
 
-	// Track whether the response completed successfully
+	// Track whether the response completed successfully and whether the unified
+	// DONE marker has already been emitted.
 	responseCompleted bool
+	doneEmitted       bool
 }
 
 // outboundStreamState holds the state for a streaming session.
@@ -90,6 +88,36 @@ func (s *responsesOutboundStream) enqueue(resp *llm.Response) {
 	s.eventQueue = append(s.eventQueue, resp)
 }
 
+func (s *responsesOutboundStream) enqueueDone() {
+	if s.doneEmitted {
+		return
+	}
+
+	s.doneEmitted = true
+	s.enqueue(llm.DoneResponse)
+}
+
+func (s *responsesOutboundStream) markSuccessfulCompletion(resp *llm.Response) {
+	s.responseCompleted = true
+	if len(s.state.transformerMetadata) > 0 && !s.state.transformerMetadataEmitted {
+		resp.TransformerMetadata = s.state.transformerMetadata
+		s.state.transformerMetadataEmitted = true
+	}
+
+	finishReason := "stop"
+	if len(s.state.toolCalls) > 0 {
+		finishReason = "tool_calls"
+	}
+
+	resp.Choices = []llm.Choice{
+		{
+			Index:        0,
+			Delta:        &llm.Message{},
+			FinishReason: &finishReason,
+		},
+	}
+}
+
 func (s *responsesOutboundStream) Next() bool {
 	// If we have events in the queue, return them first
 	if s.queueIndex < len(s.eventQueue) {
@@ -102,16 +130,23 @@ func (s *responsesOutboundStream) Next() bool {
 
 	// Try to get the next chunk from source
 	if !s.stream.Next() {
-		// Stream ended - check if we received a terminal event
-		// If not, this is an incomplete stream (e.g., upstream EOF)
-		if s.err == nil && !s.responseCompleted && s.stream.Err() == nil {
-			// Only set this error if we had started receiving response data
-			// This distinguishes between "no response" and "incomplete response"
-			if s.state.responseID != "" {
-				s.err = ErrStreamIncomplete
-			}
+		if s.stream.Err() != nil || s.err != nil {
+			return false
 		}
-		return false
+
+		// A response that started but never produced a terminal event was cut off.
+		if !s.responseCompleted && s.state.responseID != "" {
+			s.err = ErrStreamIncomplete
+			return false
+		}
+
+		// Normal EOF is the explicit local trigger for the unified terminator.
+		// Provider [DONE] may already have emitted it, so never enqueue twice.
+		if s.doneEmitted {
+			return false
+		}
+		s.enqueueDone()
+		return true
 	}
 
 	event := s.stream.Current()
@@ -135,9 +170,22 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		return nil
 	}
 
-	// Handle [DONE] marker
+	// Some Responses-compatible gateways finish a valid stream with [DONE]
+	// instead of response.completed. Accept that explicit marker only after the
+	// response has started; a bare EOF still remains ErrStreamIncomplete.
 	if string(event.Data) == "[DONE]" {
-		s.enqueue(llm.DoneResponse)
+		if !s.responseCompleted && s.state.responseID != "" {
+			resp := &llm.Response{
+				Object:             "chat.completion.chunk",
+				ID:                 s.state.responseID,
+				Model:              s.state.responseModel,
+				Created:            s.state.created,
+				PreviousResponseID: s.state.previousResponseID,
+			}
+			s.markSuccessfulCompletion(resp)
+			s.enqueue(resp)
+		}
+		s.enqueueDone()
 		return nil
 	}
 
@@ -519,29 +567,11 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 
 	case StreamEventTypeResponseCompleted:
 		// Response completed - emit two events: one with finish_reason, one with usage
-		s.responseCompleted = true
 		if streamEvent.Response != nil {
 			s.state.previousResponseID = streamEvent.Response.PreviousResponseID
 			resp.PreviousResponseID = s.state.previousResponseID
 		}
-		if len(s.state.transformerMetadata) > 0 && !s.state.transformerMetadataEmitted {
-			resp.TransformerMetadata = s.state.transformerMetadata
-			s.state.transformerMetadataEmitted = true
-		}
-
-		finishReason := "stop"
-		if len(s.state.toolCalls) > 0 {
-			finishReason = "tool_calls"
-		}
-
-		// First event: finish_reason with empty delta
-		resp.Choices = []llm.Choice{
-			{
-				Index:        0,
-				Delta:        &llm.Message{},
-				FinishReason: &finishReason,
-			},
-		}
+		s.markSuccessfulCompletion(resp)
 
 		// Second event: usage (if available)
 		if streamEvent.Response != nil && streamEvent.Response.Usage != nil {

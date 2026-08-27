@@ -129,15 +129,15 @@ export function ChannelAutoDisableRulesDialog({ open, onOpenChange, currentRow }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader className='text-left'>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('channels.dialogs.channelAutoDisableRules.title')}</DialogTitle>
           <DialogDescription>
             {t('channels.dialogs.channelAutoDisableRules.description', { name: currentRow?.name ?? '' })}
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-4'>
+        <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
           <div className='flex items-center justify-between rounded-md border p-3'>
             <div className='space-y-1'>
               <Label>{t('channels.dialogs.channelAutoDisableRules.enabled')}</Label>
@@ -256,7 +256,7 @@ export function ChannelAutoDisableRulesDialog({ open, onOpenChange, currentRow }
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='mt-4 shrink-0'>
           <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
             {t('common.buttons.cancel')}
           </Button>

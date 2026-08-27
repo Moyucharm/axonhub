@@ -57,13 +57,14 @@ export function CreateRoleDialog() {
 
   return (
     <Dialog open={isCreateDialogOpen} onOpenChange={handleClose}>
-      <DialogContent className='max-w-2xl' ref={setDialogContent}>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl' ref={setDialogContent}>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('roles.dialogs.create.title')}</DialogTitle>
           <DialogDescription>{t('roles.dialogs.create.description')}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='min-h-0 flex-1 space-y-6 overflow-y-auto px-1 py-1'>
             <FormField
               control={form.control}
               name='name'
@@ -98,7 +99,9 @@ export function CreateRoleDialog() {
               )}
             />
 
-            <DialogFooter>
+            </div>
+
+            <DialogFooter className='mt-4 shrink-0'>
               <Button type='button' variant='outline' onClick={handleClose}>
                 {t('common.buttons.cancel')}
               </Button>
@@ -157,13 +160,14 @@ export function EditRoleDialog() {
 
   return (
     <Dialog open={!!editingRole} onOpenChange={handleClose}>
-      <DialogContent className='max-w-2xl' ref={setDialogContent}>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl' ref={setDialogContent}>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('roles.dialogs.edit.title')}</DialogTitle>
           <DialogDescription>{t('roles.dialogs.edit.description')}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='min-h-0 flex-1 space-y-6 overflow-y-auto px-1 py-1'>
             <FormField
               control={form.control}
               name='name'
@@ -198,7 +202,9 @@ export function EditRoleDialog() {
               )}
             />
 
-            <DialogFooter>
+            </div>
+
+            <DialogFooter className='mt-4 shrink-0'>
               <Button type='button' variant='outline' onClick={handleClose}>
                 {t('common.buttons.cancel')}
               </Button>

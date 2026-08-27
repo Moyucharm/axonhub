@@ -256,8 +256,8 @@ print(response.text)`
 
   return (
     <Dialog open={isDialogOpen.view} onOpenChange={() => closeDialog()}>
-      <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-3xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('apikeys.dialogs.view.title')}</DialogTitle>
           <DialogDescription>{t('apikeys.dialogs.view.description')}</DialogDescription>
         </DialogHeader>

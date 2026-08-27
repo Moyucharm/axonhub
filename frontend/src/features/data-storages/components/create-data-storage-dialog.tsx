@@ -157,13 +157,13 @@ export function CreateDataStorageDialog() {
 
   return (
     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-      <DialogContent className='sm:max-w-[700px]'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[700px]'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('dataStorages.dialogs.create.title')}</DialogTitle>
           <DialogDescription>{t('dataStorages.dialogs.create.description')}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onCreateSubmit, () => {})} noValidate>
-          <div className='grid max-h-[85vh] gap-4 overflow-y-auto py-4'>
+        <form onSubmit={handleSubmit(onCreateSubmit, () => {})} noValidate className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+          <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             <div className='grid gap-2'>
               <Label htmlFor='create-name'>{t('dataStorages.fields.name')}</Label>
               <Input
@@ -436,7 +436,7 @@ export function CreateDataStorageDialog() {
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className='mt-4 shrink-0'>
             <Button type='button' variant='outline' onClick={() => setIsCreateDialogOpen(false)}>
               {t('common.buttons.cancel')}
             </Button>

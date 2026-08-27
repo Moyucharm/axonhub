@@ -175,13 +175,13 @@ export function EditDataStorageDialog() {
         if (!open) setEditingDataStorage(null);
       }}
     >
-      <DialogContent className='sm:max-w-[700px]'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[700px]'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('dataStorages.dialogs.edit.title')}</DialogTitle>
           <DialogDescription>{t('dataStorages.dialogs.edit.description')}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onEditSubmit, () => {})} noValidate>
-          <div className='grid max-h-[85vh] gap-4 overflow-y-auto py-4'>
+        <form onSubmit={handleSubmit(onEditSubmit, () => {})} noValidate className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+          <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             <div className='grid gap-2'>
               <Label htmlFor='edit-name'>{t('dataStorages.fields.name')}</Label>
               <Input
@@ -431,7 +431,7 @@ export function EditDataStorageDialog() {
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className='mt-4 shrink-0'>
             <Button
               type='button'
               variant='outline'

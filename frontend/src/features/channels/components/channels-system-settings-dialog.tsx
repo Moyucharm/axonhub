@@ -90,8 +90,8 @@ export function ChannelsSystemSettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-[720px]'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[720px]'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle className='flex items-center gap-2'>
             <Settings2 className='h-5 w-5' />
             {t('channels.dialogs.systemSettings.title')}
@@ -100,11 +100,11 @@ export function ChannelsSystemSettingsDialog() {
         </DialogHeader>
 
         {isLoading ? (
-          <div className='flex items-center justify-center py-12'>
+          <div className='flex flex-1 items-center justify-center py-12'>
             <Loader2 className='h-8 w-8 animate-spin' />
           </div>
         ) : (
-          <div className='space-y-4'>
+          <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             <Card>
               <CardHeader className='pb-0'>
                 <CardTitle className='flex items-center gap-2 text-sm'>
@@ -282,7 +282,7 @@ export function ChannelsSystemSettingsDialog() {
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className='mt-4 shrink-0'>
           <Button variant='outline' onClick={handleClose} disabled={updateSettings.isPending}>
             {t('common.buttons.cancel')}
           </Button>

@@ -3,6 +3,7 @@ package responses
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -69,6 +70,7 @@ func TestOutboundTransformer_StreamTransformation_WithTestData(t *testing.T) {
 			// Verify the last event is DONE
 			lastEvent := actualLLMResponses[len(actualLLMResponses)-1]
 			require.Equal(t, llm.DoneResponse, lastEvent, "Last event should be DONE")
+			require.Equal(t, 1, countDoneResponses(actualLLMResponses), "DONE should be emitted exactly once")
 
 			// Verify non-DONE events have valid structure
 			for _, resp := range actualLLMResponses {
@@ -132,6 +134,117 @@ func TestOutboundTransformer_StreamTransformation_ErrorEvent(t *testing.T) {
 	_, err = streams.All(transformedStream)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Something went wrong")
+}
+
+func TestOutboundTransformer_TransformStream_AcceptsProviderDoneWithoutCompletedEvent(t *testing.T) {
+	trans, err := NewOutboundTransformer("https://api.openai.com", "test-api-key")
+	require.NoError(t, err)
+
+	events := []*httpclient.StreamEvent{
+		{Type: "response.created", Data: []byte(`{"type":"response.created","response":{"id":"resp_done_only","object":"response","created_at":1700000000,"model":"gpt-5","status":"in_progress","output":[]}}`)},
+		{Type: "response.output_text.delta", Data: []byte(`{"type":"response.output_text.delta","item_id":"msg_done_only","output_index":0,"content_index":0,"delta":"hello"}`)},
+		{Data: []byte(`[DONE]`)},
+	}
+
+	stream, err := trans.TransformStream(t.Context(), nil, streams.SliceStream(events))
+	require.NoError(t, err)
+
+	actual, err := streams.All(stream)
+	require.NoError(t, err)
+	require.NotEmpty(t, actual)
+	require.Equal(t, llm.DoneResponse, actual[len(actual)-1])
+	require.Equal(t, 1, countDoneResponses(actual))
+
+	var content string
+	var finishReasons []string
+	for _, resp := range actual {
+		if resp == llm.DoneResponse {
+			continue
+		}
+		for _, choice := range resp.Choices {
+			if choice.Delta != nil && choice.Delta.Content.Content != nil {
+				content += *choice.Delta.Content.Content
+			}
+			if choice.FinishReason != nil {
+				finishReasons = append(finishReasons, *choice.FinishReason)
+			}
+		}
+	}
+
+	require.Equal(t, "hello", content)
+	require.Equal(t, []string{"stop"}, finishReasons)
+}
+
+func TestOutboundTransformer_TransformStream_ProviderDoneUsesToolCallsFinishReason(t *testing.T) {
+	trans, err := NewOutboundTransformer("https://api.openai.com", "test-api-key")
+	require.NoError(t, err)
+
+	events := []*httpclient.StreamEvent{
+		{Type: "response.created", Data: []byte(`{"type":"response.created","response":{"id":"resp_tool_done","object":"response","created_at":1700000000,"model":"gpt-5","status":"in_progress","output":[]}}`)},
+		{Type: "response.output_item.added", Data: []byte(`{"type":"response.output_item.added","output_index":0,"item":{"id":"fc_item","type":"function_call","call_id":"call_1","name":"lookup","arguments":""}}`)},
+		{Data: []byte(`[DONE]`)},
+	}
+
+	stream, err := trans.TransformStream(t.Context(), nil, streams.SliceStream(events))
+	require.NoError(t, err)
+
+	actual, err := streams.All(stream)
+	require.NoError(t, err)
+
+	var finishReasons []string
+	for _, resp := range actual {
+		if resp == llm.DoneResponse {
+			continue
+		}
+		for _, choice := range resp.Choices {
+			if choice.FinishReason != nil {
+				finishReasons = append(finishReasons, *choice.FinishReason)
+			}
+		}
+	}
+
+	require.Equal(t, []string{"tool_calls"}, finishReasons)
+	require.Equal(t, 1, countDoneResponses(actual))
+}
+
+func TestOutboundTransformer_TransformStream_EmptySourceEmitsDoneOnce(t *testing.T) {
+	trans, err := NewOutboundTransformer("https://api.openai.com", "test-api-key")
+	require.NoError(t, err)
+
+	stream, err := trans.TransformStream(t.Context(), nil, streams.SliceStream([]*httpclient.StreamEvent{}))
+	require.NoError(t, err)
+
+	actual, err := streams.All(stream)
+	require.NoError(t, err)
+	require.Equal(t, []*llm.Response{llm.DoneResponse}, actual)
+}
+
+func TestOutboundTransformer_TransformStream_BareEOFRemainsIncomplete(t *testing.T) {
+	trans, err := NewOutboundTransformer("https://api.openai.com", "test-api-key")
+	require.NoError(t, err)
+
+	events := []*httpclient.StreamEvent{
+		{Type: "response.created", Data: []byte(`{"type":"response.created","response":{"id":"resp_truncated","object":"response","created_at":1700000000,"model":"gpt-5","status":"in_progress","output":[]}}`)},
+		{Type: "response.output_text.delta", Data: []byte(`{"type":"response.output_text.delta","item_id":"msg_truncated","output_index":0,"content_index":0,"delta":"partial"}`)},
+	}
+
+	stream, err := trans.TransformStream(t.Context(), nil, streams.SliceStream(events))
+	require.NoError(t, err)
+
+	actual, err := streams.All(stream)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStreamIncomplete))
+	require.Equal(t, 0, countDoneResponses(actual))
+}
+
+func countDoneResponses(responses []*llm.Response) int {
+	count := 0
+	for _, response := range responses {
+		if response == llm.DoneResponse {
+			count++
+		}
+	}
+	return count
 }
 
 func TestOutboundTransformer_TransformStream_UsesFinalEncryptedContentPerReasoningItem(t *testing.T) {

@@ -126,14 +126,15 @@ export function APIKeyAutoDisableRulesDialog({ open, onOpenChange, rules: initia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-3xl'>
-        <DialogHeader className='text-left'>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form className='space-y-4' onSubmit={form.handleSubmit(onSubmit)}>
+          <form className='flex min-h-0 flex-1 flex-col overflow-hidden' onSubmit={form.handleSubmit(onSubmit)}>
+            <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             {fields.length === 0 && (
               <div className='text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm'>
                 {t('channels.dialogs.apiKeyRules.empty')}
@@ -376,7 +377,9 @@ export function APIKeyAutoDisableRulesDialog({ open, onOpenChange, rules: initia
               {t('channels.dialogs.apiKeyRules.addRule')}
             </Button>
 
-            <DialogFooter>
+            </div>
+
+            <DialogFooter className='mt-4 shrink-0'>
               <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
                 {t('common.buttons.cancel')}
               </Button>

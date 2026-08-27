@@ -85,10 +85,18 @@ func (srv *Server) Shutdown(ctx context.Context) error {
 	return srv.server.Shutdown(ctx)
 }
 
+func newGraphQLOperationTimeouts(config Config) gql.OperationTimeouts {
+	return gql.OperationTimeouts{
+		RequestTimeout:    config.RequestTimeout,
+		LLMRequestTimeout: config.LLMRequestTimeout,
+	}
+}
+
 func Run(opts ...fx.Option) {
 	constructors := []any{
 		openapi.NewGraphqlHandlers,
 		gql.NewGraphqlHandlers,
+		newGraphQLOperationTimeouts,
 		gc.NewWorker,
 		New,
 		NewIPAccessControlRuntime,

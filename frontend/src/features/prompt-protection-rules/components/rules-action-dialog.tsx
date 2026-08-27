@@ -154,8 +154,8 @@ export function RulesActionDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-[680px]'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[680px]'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{isEdit ? t('promptProtectionRules.dialogs.edit.title') : t('promptProtectionRules.dialogs.create.title')}</DialogTitle>
           <DialogDescription>
             {isEdit ? t('promptProtectionRules.dialogs.edit.description') : t('promptProtectionRules.dialogs.create.description')}
@@ -163,7 +163,8 @@ export function RulesActionDialog() {
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             <FormField
               control={form.control}
               name='name'
@@ -325,7 +326,9 @@ export function RulesActionDialog() {
               )}
             </div>
 
-            <DialogFooter>
+            </div>
+
+            <DialogFooter className='mt-4 shrink-0'>
               <Button type='button' variant='outline' onClick={() => handleOpenChange(false)}>
                 {t('common.buttons.cancel')}
               </Button>

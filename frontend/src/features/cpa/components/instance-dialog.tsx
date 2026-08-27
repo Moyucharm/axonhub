@@ -98,12 +98,13 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{instance ? t('cpa.instance.editTitle') : t('cpa.instance.createTitle')}</DialogTitle>
           <DialogDescription>{t('cpa.instance.description')}</DialogDescription>
         </DialogHeader>
-        <form className='space-y-5' onSubmit={onSubmit}>
+        <form className='flex min-h-0 flex-1 flex-col overflow-hidden' onSubmit={onSubmit}>
+          <div className='min-h-0 flex-1 space-y-5 overflow-y-auto px-1 py-1'>
           <div className='grid gap-2'>
             <Label htmlFor='cpa-name'>{t('cpa.instance.name')}</Label>
             <Input id='cpa-name' value={name} onChange={(event) => setName(event.target.value)} required />
@@ -261,7 +262,9 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
             </Alert>
           )}
 
-          <DialogFooter>
+          </div>
+
+          <DialogFooter className='mt-4 shrink-0'>
             <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
               {t('common.buttons.cancel')}
             </Button>

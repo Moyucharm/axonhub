@@ -289,7 +289,7 @@ export function ApiKeyProfilesDialog({ open, onOpenChange, onSubmit, loading = f
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent ref={setDialogContent} className='flex max-h-[90vh] flex-col sm:max-w-4xl'>
+      <DialogContent ref={setDialogContent} className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl'>
         <DialogHeader className='shrink-0 text-left'>
           <DialogTitle className='flex items-center gap-2'>
             <IconSettings className='h-5 w-5' />
@@ -412,7 +412,7 @@ export function ApiKeyProfilesDialog({ open, onOpenChange, onSubmit, loading = f
           </div>
         </div>
 
-        <DialogFooter className='flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end'>
+        <DialogFooter className='mt-4 shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end'>
           {/* Display form-level validation errors */}
           {/* {(form.formState.errors.profiles ||
             Object.keys(form.formState.errors).some((key) => key.startsWith('profiles.'))) && (

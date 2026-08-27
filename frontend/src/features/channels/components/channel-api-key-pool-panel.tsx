@@ -407,12 +407,12 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-lg'>
-          <DialogHeader>
+        <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg'>
+          <DialogHeader className='shrink-0 text-left'>
             <DialogTitle>{t('channels.keyPool.settingsTitle')}</DialogTitle>
             <DialogDescription>{t('channels.keyPool.settingsDescription')}</DialogDescription>
           </DialogHeader>
-          <div className='space-y-3'>
+          <div className='min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-1'>
             <Card className='gap-4 py-4'>
               <CardHeader className='flex flex-row items-start justify-between gap-4 px-4'>
                 <div className='space-y-1'>
@@ -490,7 +490,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
               </CardHeader>
             </Card>
           </div>
-          <DialogFooter>
+          <DialogFooter className='mt-4 shrink-0'>
             <Button variant='outline' onClick={() => setSettingsOpen(false)}>{t('common.buttons.cancel')}</Button>
             <Button onClick={handleSaveSettings} disabled={updateChannel.isPending}>{t('common.buttons.save')}</Button>
           </DialogFooter>

@@ -81,6 +81,7 @@ type Dependencies struct {
 	HttpClient                     *httpclient.HttpClient
 	GCWorker                       *gc.Worker
 	VideoWorker                    *video_storage.Worker
+	OperationTimeouts              OperationTimeouts
 }
 
 type GraphqlHandler struct {
@@ -136,6 +137,7 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 		Cache: lru.New[string](1024),
 	})
 	gqlSrv.Use(&loggingTracer{})
+	gqlSrv.AroundOperations(withOperationTimeouts(deps.OperationTimeouts))
 	skipTestChannelTransaction := entgql.SkipOperations("TestChannel", "TestChannelAPIKeys")
 	skipBulkImportTransaction := entgql.SkipIfHasFields("bulkImportChannels")
 	skipCPANetworkTransaction := entgql.SkipIfHasFields(

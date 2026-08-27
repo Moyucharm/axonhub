@@ -105,7 +105,9 @@ func SetupRoutes(server *Server, handlers Handlers, client *ent.Client, services
 		adminGroup.GET("/playground", middleware.WithTimeout(server.Config.RequestTimeout), func(c *gin.Context) {
 			handlers.Graphql.Playground.ServeHTTP(c.Writer, c.Request)
 		})
-		adminGroup.POST("/graphql", middleware.WithTimeout(server.Config.RequestTimeout), func(c *gin.Context) {
+		// Keep the LLM timeout as the HTTP hard limit. GraphQL operation middleware
+		// applies the shorter admin timeout unless the operation performs an LLM test.
+		adminGroup.POST("/graphql", middleware.WithTimeout(server.Config.LLMRequestTimeout), func(c *gin.Context) {
 			handlers.Graphql.Graphql.ServeHTTP(c.Writer, c.Request)
 		})
 		adminGroup.POST("/invitations", handlers.Invitation.Create)

@@ -340,15 +340,15 @@ export function ChannelsModelMappingDialog({ open, onOpenChange, currentRow }: P
   return (
     <TooltipProvider>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-[800px]'>
-          <DialogHeader>
+        <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[800px]'>
+          <DialogHeader className='shrink-0 text-left'>
             <DialogTitle>{t('channels.dialogs.settings.modelMapping.title')}</DialogTitle>
             <DialogDescription>{t('channels.dialogs.settings.modelMapping.description', { name: currentRow.name })}</DialogDescription>
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <div className='space-y-6'>
+            <form onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+              <div className='min-h-0 flex-1 space-y-6 overflow-y-auto px-1 py-1'>
               <Card>
                 <CardHeader>
                   <CardTitle className='text-lg'>{t('channels.dialogs.settings.modelMapping.hideOriginalModels.label')}</CardTitle>
@@ -653,7 +653,7 @@ export function ChannelsModelMappingDialog({ open, onOpenChange, currentRow }: P
               </Card>
             </div>
 
-              <DialogFooter className='mt-6'>
+              <DialogFooter className='mt-4 shrink-0'>
                 <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
                   {t('common.buttons.cancel')}
                 </Button>

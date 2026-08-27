@@ -87,13 +87,14 @@ export function ApiKeysEditDialog() {
 
   return (
     <Dialog open={isDialogOpen.edit} onOpenChange={handleClose}>
-      <DialogContent className='flex max-h-[90vh] flex-col sm:max-w-[600px]' ref={setDialogContent}>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[600px]' ref={setDialogContent}>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('apikeys.dialogs.edit.title')}</DialogTitle>
           <DialogDescription>{t('apikeys.dialogs.edit.description')}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+          <form onSubmit={form.handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1'>
             <FormField
               control={form.control}
               name='name'
@@ -158,7 +159,8 @@ export function ApiKeysEditDialog() {
                 </p>
               </div>
             </div>
-            <DialogFooter className='flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end'>
+            </div>
+            <DialogFooter className='mt-4 shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end'>
               <div className='flex w-full gap-2 sm:w-auto'>
                 <Button type='button' variant='outline' onClick={handleClose} disabled={isSubmitting}>
                   {t('common.buttons.cancel')}

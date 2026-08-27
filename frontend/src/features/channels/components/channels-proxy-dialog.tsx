@@ -14,7 +14,6 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import LongText from '@/components/long-text';
 import { useUpdateChannel, useTestChannel } from '../data/channels';
 import { Channel } from '../data/schema';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
@@ -192,13 +191,13 @@ export function ChannelsProxyDialog({ open, onOpenChange, currentRow }: Props) {
         onOpenChange(state);
       }}
     >
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader className='text-left'>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>{t('channels.dialogs.proxy.title')}</DialogTitle>
           <DialogDescription>{t('channels.dialogs.proxy.description', { name: currentRow.name })}</DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-6'>
+        <div className='min-h-0 flex-1 space-y-6 overflow-y-auto px-1 py-1'>
           <Card>
             <CardHeader>
               <CardTitle className='text-lg'>{t('channels.dialogs.proxy.config.title')}</CardTitle>
@@ -348,7 +347,7 @@ export function ChannelsProxyDialog({ open, onOpenChange, currentRow }: Props) {
           )}
         </div>
 
-        <DialogFooter className='flex justify-between'>
+        <DialogFooter className='mt-4 flex shrink-0 justify-between'>
           <Button type='button' variant='outline' onClick={handleTest} disabled={isTesting || testChannel.isPending}>
             <IconPlayerPlay className='mr-2 h-4 w-4' />
             {isTesting ? t('channels.dialogs.proxy.testing') : t('channels.dialogs.proxy.test')}

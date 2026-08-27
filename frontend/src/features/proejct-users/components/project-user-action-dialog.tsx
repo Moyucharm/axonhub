@@ -187,8 +187,8 @@ export function ProjectUserActionDialog({ currentRow, open, onOpenChange }: Prop
         onOpenChange(state);
       }}
     >
-      <DialogContent className='sm:max-w-2xl' ref={setDialogContent}>
-        <DialogHeader className='text-left'>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl' ref={setDialogContent}>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle>
             {isEdit
               ? t('users.dialogs.edit.title')
@@ -201,7 +201,7 @@ export function ProjectUserActionDialog({ currentRow, open, onOpenChange }: Prop
           </DialogDescription>
         </DialogHeader>
 
-        <div className='max-h-[60vh] overflow-y-auto'>
+        <div className='min-h-0 flex-1 overflow-y-auto px-1 py-1'>
           <Form {...form}>
             <form id='user-form' onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
               {/* User Selection - only show in add mode */}
@@ -310,7 +310,7 @@ export function ProjectUserActionDialog({ currentRow, open, onOpenChange }: Prop
           </Form>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='mt-4 shrink-0'>
           {isEdit && !canEdit && <p className='text-destructive mr-auto text-sm'>{t('users.errors.insufficientPermissions')}</p>}
           <Button
             variant='outline'

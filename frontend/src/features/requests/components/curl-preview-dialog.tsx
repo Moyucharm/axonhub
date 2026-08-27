@@ -47,8 +47,8 @@ export function CurlPreviewDialog({ open, onOpenChange, curlCommand, title }: Cu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-3xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl'>
+        <DialogHeader className='shrink-0 text-left'>
           <DialogTitle className='flex items-center gap-2'>
             <Terminal className='h-5 w-5' />
             {title || t('requests.dialogs.curlPreview.title')}
@@ -92,7 +92,7 @@ export function CurlPreviewDialog({ open, onOpenChange, curlCommand, title }: Cu
           </DialogTitle>
         </DialogHeader>
 
-        <div className='bg-muted/30 flex-1 overflow-auto rounded-lg border p-4'>
+        <div className='bg-muted/30 min-h-0 flex-1 overflow-auto rounded-lg border p-4'>
           <pre className='whitespace-pre-wrap break-all font-mono text-sm'>{curlCommand}</pre>
         </div>
       </DialogContent>
