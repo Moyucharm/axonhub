@@ -25,6 +25,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   onSelectedValuesChange?: (values: string[]) => void;
 }
 
+/** Renders the searchable faceted filter backed by a TanStack Table column. */
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,

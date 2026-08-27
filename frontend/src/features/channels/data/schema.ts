@@ -10,6 +10,7 @@ export const apiFormatSchema = z.enum([
   'openai/embeddings',
   'openai/video',
   'openai/moderations',
+  'openai/alpha_search',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',
@@ -33,6 +34,7 @@ export const configurableChannelEndpointApiFormats = [
   'openai/image_variation',
   'openai/embeddings',
   'openai/moderations',
+  'openai/alpha_search',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',
@@ -58,6 +60,10 @@ export type ChannelEndpoint = z.infer<typeof channelEndpointSchema>;
 export const channelTypeSchema = z.enum([
   'openai',
   'openai_responses',
+  'atlascloud',
+  'qiniu',
+  'qiniu_anthropic',
+  'fenno',
   'cline',
   'codex',
   'anthropic',
@@ -69,7 +75,6 @@ export const channelTypeSchema = z.enum([
   'deepseek',
   'deepseek_anthropic',
   'deepinfra',
-  'qiniu',
   'doubao',
   'doubao_anthropic',
   'moonshot',
@@ -85,6 +90,8 @@ export const channelTypeSchema = z.enum([
   'xiaomi',
   'xiaomi_anthropic',
   'xai',
+  'xai_responses',
+  'xai_subscription',
   'ppio',
   'siliconflow',
   'volcengine',
@@ -126,7 +133,12 @@ export type ChannelStatus = z.infer<typeof channelStatusSchema>;
 export const capabilityPolicySchema = z.enum(['unlimited', 'require', 'forbid']);
 export type CapabilityPolicy = z.infer<typeof capabilityPolicySchema>;
 
-export const apiKeyAutoDisableActionSchema = z.enum(['temporary_disable', 'permanent_disable_delete']);
+export const apiKeyAutoDisableActionSchema = z.enum([
+  'temporary_disable',
+  'disable_until_cron',
+  'permanent_disable',
+  'permanent_disable_delete',
+]);
 export type APIKeyAutoDisableAction = z.infer<typeof apiKeyAutoDisableActionSchema>;
 
 export const apiKeyAutoDisableRuleSchema = z.object({
@@ -135,6 +147,8 @@ export const apiKeyAutoDisableRuleSchema = z.object({
   times: z.number().int().min(1),
   action: apiKeyAutoDisableActionSchema,
   disableDurationMinutes: z.number().int().positive().optional().nullable(),
+  disableUntilCron: z.string().optional().nullable(),
+  disableUntilTimezone: z.string().optional().nullable(),
 });
 export type APIKeyAutoDisableRule = z.infer<typeof apiKeyAutoDisableRuleSchema>;
 
@@ -147,7 +161,10 @@ export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema.refin
     message: 'Temporary disable requires a duration',
     path: ['disableDurationMinutes'],
   }
-);
+).refine((rule) => rule.action !== 'disable_until_cron' || (rule.disableUntilCron ?? '').trim() !== '', {
+  message: 'Scheduled recovery requires a cron expression',
+  path: ['disableUntilCron'],
+});
 
 export const autoDisableActionSchema = z.enum(['disable', 'cooldown']);
 export type AutoDisableAction = z.infer<typeof autoDisableActionSchema>;
@@ -278,17 +295,6 @@ export const retryableErrorPatternSchema = z.object({
   regex: z.boolean().optional().nullable(),
 });
 export type RetryableErrorPattern = z.infer<typeof retryableErrorPatternSchema>;
-
-export const openCodeGoQuotaSettingsSchema = z.object({
-  workspaceId: z.string().optional().nullable(),
-  authCookie: z.string().optional().nullable(),
-});
-export type OpenCodeGoQuotaSettings = z.infer<typeof openCodeGoQuotaSettingsSchema>;
-
-export const channelProviderQuotaSettingsSchema = z.object({
-  opencodeGo: openCodeGoQuotaSettingsSchema.optional().nullable(),
-});
-export type ChannelProviderQuotaSettings = z.infer<typeof channelProviderQuotaSettingsSchema>;
 
 // Channel Settings
 export const apiKeyPoolSettingsSchema = z.object({
@@ -452,7 +458,6 @@ export const channelSettingsSchema = z.object({
   rateLimit: channelRateLimitSchema.optional().nullable(),
   retryableStatusCodes: z.array(z.number().int().min(400).max(599)).optional().nullable(),
   retryableErrorPatterns: z.array(retryableErrorPatternSchema).optional().nullable(),
-  providerQuota: channelProviderQuotaSettingsSchema.optional().nullable(),
   apiKeyPool: apiKeyPoolSettingsSchema.optional().nullable(),
   codexSimulation: codexSimulationSettingsSchema.optional().nullable(),
 });
@@ -519,6 +524,11 @@ export const disabledAPIKeySchema = z.object({
   lastFailedAt: z.string().optional().nullable(),
 });
 export type DisabledAPIKey = z.infer<typeof disabledAPIKeySchema>;
+
+// Sentinel the backend uses to identify a channel's OAuth credential in the
+// disable bookkeeping (see objects.OAuthCredentialRef). It is not a real key,
+// so it must be labelled rather than masked, and it cannot be deleted.
+export const OAUTH_CREDENTIAL_REF = '__oauth__';
 
 // Channel
 export const channelSchema = z.object({
@@ -676,12 +686,14 @@ export type SaveChannelModelPriceInput = z.infer<typeof saveChannelModelPriceInp
 function validateOAuthCredentials(type: string, apiKey: string | undefined, ctx: z.RefinementCtx) {
   if (!apiKey) return;
 
-  // For GitHub Copilot, enforce JSON format
   const isCopilot = type === 'github_copilot';
-  if (isCopilot && !apiKey.trim().startsWith('{')) {
+  const requiresJSON = isCopilot || type === 'xai_subscription';
+  if (requiresJSON && !apiKey.trim().startsWith('{')) {
     ctx.addIssue({
       code: 'custom' as const,
-      message: 'channels.dialogs.oauth.errors.copilotCredentialsInvalid',
+      message: isCopilot
+        ? 'channels.dialogs.oauth.errors.copilotCredentialsInvalid'
+        : 'channels.dialogs.oauth.errors.credentialsInvalid',
       path: ['credentials', 'apiKey'],
     });
     return;
@@ -752,7 +764,11 @@ export const createChannelInputSchema = z
   })
   .superRefine((data, ctx) => {
     const isOAuthType =
-      data.type === 'codex' || data.type === 'claudecode' || data.type === 'antigravity' || data.type === 'github_copilot';
+      data.type === 'codex' ||
+      data.type === 'claudecode' ||
+      data.type === 'antigravity' ||
+      data.type === 'github_copilot' ||
+      data.type === 'xai_subscription';
     const hasApiKey = data.credentials.apiKey && data.credentials.apiKey.trim().length > 0;
     const hasApiKeys = data.credentials.apiKeys && data.credentials.apiKeys.some((k) => k.trim().length > 0);
 
@@ -848,7 +864,11 @@ export const updateChannelInputSchema = z
     // For OAuth validation on updates: validate if type is OAuth, or if credentials.apiKey is provided
     // (which indicates OAuth credentials are being set)
     const isOAuthType =
-      effectiveType === 'codex' || effectiveType === 'claudecode' || effectiveType === 'antigravity' || effectiveType === 'github_copilot';
+      effectiveType === 'codex' ||
+      effectiveType === 'claudecode' ||
+      effectiveType === 'antigravity' ||
+      effectiveType === 'github_copilot' ||
+      effectiveType === 'xai_subscription';
 
     // Derive type from parent context if not available
     let derivedType = effectiveType;

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"reflect"
 	"strings"
 
 	"github.com/samber/lo"
@@ -19,7 +21,9 @@ import (
 
 // ErrStreamIncomplete is returned when the stream ends without a terminal event
 // (response.completed, response.failed, response.cancelled, or response.incomplete).
-var ErrStreamIncomplete = errors.New("stream ended without terminal event")
+// Keep this package alias for callers that already reference the Responses
+// transformer sentinel; retry policy should depend on the shared llm error.
+var ErrStreamIncomplete = llm.ErrStreamIncomplete
 
 // TransformStream transforms OpenAI Responses API SSE events to unified llm.Response stream.
 func (t *OutboundTransformer) TransformStream(
@@ -40,8 +44,8 @@ type responsesOutboundStream struct {
 	queueIndex int
 	err        error
 
-	// Track whether the response completed successfully and whether the unified
-	// DONE marker has already been emitted.
+	// Track whether the response reached a successful or abnormal terminal event,
+	// and whether the unified DONE marker has already been emitted.
 	responseCompleted bool
 	doneEmitted       bool
 }
@@ -134,8 +138,10 @@ func (s *responsesOutboundStream) Next() bool {
 			return false
 		}
 
-		// A response that started but never produced a terminal event was cut off.
-		if !s.responseCompleted && s.state.responseID != "" {
+		// A clean EOF without a semantic terminal event is truncated, including
+		// an entirely empty stream. Compatible provider [DONE] markers mark the
+		// response completed before source exhaustion reaches this branch.
+		if !s.responseCompleted {
 			s.err = ErrStreamIncomplete
 			return false
 		}
@@ -171,8 +177,8 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 	}
 
 	// Some Responses-compatible gateways finish a valid stream with [DONE]
-	// instead of response.completed. Accept that explicit marker only after the
-	// response has started; a bare EOF still remains ErrStreamIncomplete.
+	// instead of response.completed. Accept that explicit marker after the
+	// response has started; a bare marker or bare EOF still remains incomplete.
 	if string(event.Data) == "[DONE]" {
 		if !s.responseCompleted && s.state.responseID != "" {
 			resp := &llm.Response{
@@ -185,7 +191,6 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 			s.markSuccessfulCompletion(resp)
 			s.enqueue(resp)
 		}
-		s.enqueueDone()
 		return nil
 	}
 
@@ -380,20 +385,80 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		}
 
 	case StreamEventTypeFunctionCallArgumentsDone:
-		// Function call completed - update state but don't emit an event
-		if streamEvent.CallID != "" {
-			if tc, ok := s.state.toolCalls[streamEvent.CallID]; ok {
-				if streamEvent.Name != "" {
-					tc.Function.Name = streamEvent.Name
-				}
-				if streamEvent.Namespace != "" {
-					tc.Function.Namespace = streamEvent.Namespace
-				}
-				tc.Function.Arguments = streamEvent.Arguments
+		callID := streamEvent.CallID
+		if callID == "" && streamEvent.ItemID != nil {
+			callID = s.state.itemToCallID[*streamEvent.ItemID]
+			if callID == "" {
+				// Fallback: item_id might be the call_id itself.
+				callID = *streamEvent.ItemID
 			}
 		}
 
-		return nil // Intentionally skip this event
+		tc, ok := s.state.toolCalls[callID]
+		if !ok {
+			return nil // Intentionally skip an unknown tool call.
+		}
+
+		identityChanged := false
+		if streamEvent.Name != "" && streamEvent.Name != tc.Function.Name {
+			tc.Function.Name = streamEvent.Name
+			identityChanged = true
+		}
+		if streamEvent.Namespace != "" && streamEvent.Namespace != tc.Function.Namespace {
+			tc.Function.Namespace = streamEvent.Namespace
+			identityChanged = true
+		}
+
+		// Some upstreams provide the complete JSON arguments only in the done event.
+		// Preserve arguments already emitted through delta events and forward only the
+		// missing suffix so downstream Responses streams receive the full value once.
+		finalArgs := streamEvent.Arguments
+		missingArgs := ""
+		if finalArgs == "" {
+			if !identityChanged {
+				return nil // An empty done event must not overwrite accumulated deltas.
+			}
+		} else {
+			forwardedArgs := tc.Function.Arguments
+			switch {
+			case forwardedArgs == "":
+				missingArgs = finalArgs
+			case strings.HasPrefix(finalArgs, forwardedArgs):
+				missingArgs = strings.TrimPrefix(finalArgs, forwardedArgs)
+			case equalJSONValues(forwardedArgs, finalArgs):
+				// The final payload may be reformatted without changing its meaning.
+				// The complete arguments were already forwarded, so do not emit a duplicate.
+				missingArgs = ""
+			default:
+				return fmt.Errorf("function call arguments mismatch for call_id %q", callID)
+			}
+
+			tc.Function.Arguments = finalArgs
+			if missingArgs == "" && !identityChanged {
+				return nil
+			}
+		}
+
+		toolCallIdx := s.state.toolCallIndex[callID]
+		resp.Choices = []llm.Choice{
+			{
+				Index: 0,
+				Delta: &llm.Message{
+					ToolCalls: []llm.ToolCall{
+						{
+							ID:    tc.ID,
+							Type:  tc.Type,
+							Index: toolCallIdx,
+							Function: llm.FunctionCall{
+								Name:      tc.Function.Name,
+								Namespace: tc.Function.Namespace,
+								Arguments: missingArgs,
+							},
+						},
+					},
+				},
+			},
+		}
 
 	case StreamEventTypeCustomToolCallInputDelta:
 		// Custom tool call input delta - accumulate and emit as tool call delta
@@ -566,12 +631,40 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		return nil // Intentionally skip this event
 
 	case StreamEventTypeResponseCompleted:
+		if s.responseCompleted {
+			return nil
+		}
 		// Response completed - emit two events: one with finish_reason, one with usage
 		if streamEvent.Response != nil {
 			s.state.previousResponseID = streamEvent.Response.PreviousResponseID
 			resp.PreviousResponseID = s.state.previousResponseID
 		}
 		s.markSuccessfulCompletion(resp)
+
+		// response.completed may carry an abnormal terminal status. Preserve the
+		// unified terminal event while mapping that status to a compatible finish reason.
+		if streamEvent.Response != nil && streamEvent.Response.Status != nil {
+			finishReason := ""
+			switch *streamEvent.Response.Status {
+			case "incomplete":
+				reason := ""
+				if streamEvent.Response.IncompleteDetails != nil {
+					reason = streamEvent.Response.IncompleteDetails.Reason
+				}
+				if reason == "content_filter" {
+					finishReason = "content_filter"
+				} else {
+					finishReason = "length"
+				}
+			case "failed":
+				finishReason = "error"
+			case "cancelled", "canceled":
+				finishReason = "cancelled"
+			}
+			if finishReason != "" {
+				resp.Choices[0].FinishReason = &finishReason
+			}
+		}
 
 		// Second event: usage (if available)
 		if streamEvent.Response != nil && streamEvent.Response.Usage != nil {
@@ -593,6 +686,9 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		}
 
 	case StreamEventTypeResponseFailed:
+		if s.responseCompleted {
+			return nil
+		}
 		// Response failed
 		s.responseCompleted = true
 		finishReason := "error"
@@ -604,6 +700,9 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		}
 
 	case StreamEventTypeResponseIncomplete:
+		if s.responseCompleted {
+			return nil
+		}
 		// Response incomplete (e.g., max tokens)
 		s.responseCompleted = true
 		finishReason := "length"
@@ -615,6 +714,9 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		}
 
 	case StreamEventTypeResponseCancelled:
+		if s.responseCompleted {
+			return nil
+		}
 		// Response cancelled
 		s.responseCompleted = true
 		finishReason := "cancelled"
@@ -675,6 +777,39 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 	s.enqueue(resp)
 
 	return nil
+}
+
+func equalJSONValues(left, right string) bool {
+	leftValue, err := decodeJSONValue(left)
+	if err != nil {
+		return false
+	}
+
+	rightValue, err := decodeJSONValue(right)
+	if err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(leftValue, rightValue)
+}
+
+// decodeJSONValue preserves numeric lexemes so semantic comparisons do not
+// lose precision for integers that cannot be represented exactly as float64.
+func decodeJSONValue(value string) (any, error) {
+	decoder := json.NewDecoder(strings.NewReader(value))
+	decoder.UseNumber()
+
+	var decoded any
+	if err := decoder.Decode(&decoded); err != nil {
+		return nil, err
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("unexpected trailing JSON value: %w", err)
+	}
+
+	return decoded, nil
 }
 
 func (s *responsesOutboundStream) Current() *llm.Response {

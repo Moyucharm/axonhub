@@ -29,7 +29,8 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
 test('key pool UI exposes mode selection and standalone management', () => {
   const dialog = read('features/channels/components/channels-action-dialog.tsx');
   const panel = read('features/channels/components/channel-api-key-pool-panel.tsx');
-  const rulesDialog = read('features/channels/components/channels-apikey-rules-dialog.tsx');
+  const managementDialog = read('features/channels/components/channels-api-key-management-dialog.tsx');
+  const availabilityDialog = read('features/channels/components/channels-availability-dialog.tsx');
   const columns = read('features/channels/components/channels-columns.tsx');
   const dialogs = read('features/channels/components/channels-dialogs.tsx');
   const contextFile = read('features/channels/context/channels-context.tsx');
@@ -63,7 +64,7 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(panel, /channels\.keyPool\.expiresAt/);
   assert.match(panel, /channels\.keyPool\.lastAutoCheck/);
   assert.match(panel, /state\.failureCount > 0/);
-  assert.match(panel, /ChannelsAPIKeyRulesDialog/);
+  assert.match(panel, /ChannelsAvailabilityDialog/);
   assert.match(panel, /rulesOpen/);
   assert.match(panel, /mode: 'pool'/);
   assert.match(panel, /channels\.keyPool\.rulesActiveDescription/);
@@ -71,7 +72,12 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.doesNotMatch(panel, /isDefaultDisableRule/);
   assert.doesNotMatch(panel, /autoDisableThreshold/);
   assert.match(panel, /channels\.keyPool\.manageRules/);
-  assert.match(rulesDialog, /onChannelChange\?\.\(updatedChannel\)/);
+  assert.match(availabilityDialog, /disableUntilCron/);
+  assert.match(availabilityDialog, /permanent_disable_delete/);
+  assert.match(managementDialog, /ChannelAPIKeyPoolPanel/);
+  assert.match(managementDialog, /isPool/);
+  assert.match(managementDialog, /max-h-\[85vh\]/);
+  assert.match(managementDialog, /overflow-hidden/);
   assert.match(dialogs, /onChannelChange=\{setCurrentRow\}/);
   assert.match(panel, /channels\.keyPool\.selectAll/);
   assert.match(panel, /channels\.keyPool\.selectedCount/);
@@ -79,7 +85,7 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(panel, /channels\.keyPool\.checkAll/);
   assert.match(panel, /channels\.keyPool\.exportSelected/);
   assert.match(panel, /channels\.keyPool\.exportAll/);
-  assert.match(columns, /setOpen\('keyPool'\)/);
+  assert.match(columns, /setOpen\('keyManagement'\)/);
   // List name cell shows an enabled/total badge for pool channels.
   assert.match(columns, /getChannelAPIKeySummary\(channel\)/);
   assert.match(columns, /channels\.keyPool\.summary/);

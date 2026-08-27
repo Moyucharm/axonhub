@@ -8,12 +8,12 @@
 
 | 项目 | 值 |
 |---|---|
-| 本分支 | `自用`（HEAD: `fa04299f`） |
+| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/unstable-20260827`） |
 | 官方仓库 | `https://github.com/looplj/axonhub.git` |
 | 对比基准 | 官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11） |
 | 当前基线提交（分叉点） | `b9af5ae2`（2026-08-04，官方 unstable，约定生效前遗留）feat(channels): add Groq channel (#2144) |
-| 官方 unstable 最新（仅参考，按约定忽略） | `af423003`（2026-08-18）feat: GC 支持剥离已存储的请求/响应载荷 (#2246) |
-| 本分支版本号 | `v1.0.0-beta8+azusa.v0.1`（约定生效前遗留，见第 5 节） |
+| 本次跟进的官方 unstable | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；主人明确批准跟进例外） |
+| 本分支版本号 | `v1.0.0-beta8+azusa.v0.2`（本次跟进期间暂不创建 tag，见第 5 节） |
 
 ### 更新本文件的方法
 
@@ -110,6 +110,19 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 
 > 本次仅记录功能差异，不单独修改 `internal/build/VERSION` 或创建 git tag；版本号与 tag 必须在明确发布时同步更新。
 
+### 2.6 2026-08-27 unstable 跟进合并（本次决策）
+
+**来源**：`upstream-tmp/unstable@a037c0bf`（相对 `v1.0.0-beta7` 共 62 个未发行提交）；本地合并目标 `unstable@ef70812b` 额外包含自用 Docker workflow 提交。
+
+本次在隔离分支 `merge/unstable-20260827` 上完成手工整合，再由正式 merge commit 更新 `自用`，避免在 `自用` 上直接解决冲突。主要取舍如下：
+
+- **保留自用能力**：API Key Pool 显式模式、含初次请求的 RetryCount、失败次数/最近错误持久化、Key 导入导出/批量测试/主动 AutoCheck、渠道 cooldown、Codex Simulation，以及 README 的无广告行为和自用 Docker workflow。
+- **采用官方凭证生命周期**：统一 API Key 管理入口、单凭证自动禁用与恢复、OAuth credential sentinel、临时/永久/cron 禁用、凭证全部不可用时的渠道禁用、凭证恢复时的渠道恢复，以及 `auto_disabled_at` 人工/自动状态区分。
+- **统一失败处理**：渠道级 API Key 规则先匹配，随后执行凭证级动作；自用持久化状态记录诊断信息；没有凭证级规则时才回退全局 Key 策略；渠道级 disable/cooldown 独立评估。同一失败不重复计数或重复发送 webhook。
+- **移除旧 ProviderQuota 配置**：接受 beta9 数据迁移删除 `settings.providerQuota`，同步移除无业务读取方的 Go/GraphQL/前端字段；ProviderQuotaStatus、CPA 配额刷新与 usage stream 保留。
+- **Responses 流**：采用官方 terminal status、重复 terminal 防护、资源边界和 `llm.ErrStreamIncomplete`；保留自用显式 `doneEmitted`、兼容网关 `[DONE]` 成功终止、工具调用 `tool_calls` finish reason，并保证统一 DONE 最多一次。
+- **验证边界**：GraphQL 管理操作使用 `RequestTimeout`，四类渠道测试使用 `LLMRequestTimeout`，HTTP 层仍以 LLM 超时作为硬上限；CPA quota checker、定时刷新、并发限制及 usage stream 均保留。
+
 ## 3. 自用修改 — 小修改
 
 ### 3.1 Key Pool RetryCount 语义调整（`91de02a2`）
@@ -132,18 +145,18 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - `internal/build/VERSION` 设为 `v1.0.0-beta8+azusa.v0.1`（详见第 5 节版本号约定）。
 - 创建 git tag `v1.0.0-beta8+azusa.v0.1`。
 
-## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的未合并内容（升级参考）
+## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的本次跟进内容与升级参考
 
-本地 `自用` 分支基线 `b9af5ae2`（2026-08-04）比官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11）**旧 26 个提交**（发行版内代码，升级时必须面对）；官方 unstable 相对 beta7 另有 **37 个未发行提交**（截至 `af423003`，按版本基准约定**忽略**）。beta7 相对自用基线的 26 个提交主要功能：
+本次合并前 `自用` HEAD 为 `a731dac1`；官方最新发行版仍是 `v1.0.0-beta7`（`b4d1fd04`），而 `upstream-tmp/unstable` 为 `a037c0bf`，相对 beta7 包含 **62 个未发行提交**。本次跟进属于主人明确批准的 unstable 例外。本次合并涉及的主要功能：
 
 - **渠道**：qiniu/fenno 渠道类型（#2188）、unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、渠道级 `downgradeMidConversationSystem` 开关（#2124）。
 - **请求链路**：SSE keep alive（#2157）、请求日志表重设计（#2162）、请求日志记录 reasoning_effort（#2158）、请求体「对话阅览」模式（#2182）、request cache rate 展示（#2193）、SQLite TEXT 时间戳兼容与 backup 时区修复（#2189）、失败流/stream 系列修复（#2171/#2178/#2185/#2187/#2192/#2057）。
 - **前端体验**：模型价格对话框虚拟化（#2163）、analytics 筛选 UX 对齐（#2154）。
 - 其余为 fix/chore（#2155/#2172/#2176/#2177/#2190/#2191/#2194；完整清单见附录 B）。
 
-### ⚠️ 合并冲突预警
+### ✅ 合并后的冲突决策记录
 
-官方 **#2180「per-credential auto disable with scheduled recovery」** 与本分支自用功能（Key Pool 自动禁用 + 渠道冷却）在 `channel_apikey.go`、`channel_auto_disable.go`、渠道 UI 及 webhook 事件上**功能重叠**；官方 **#2156「unified API key management dialog」** 与本分支 `channel-api-key-pool-panel.tsx` 等 UI 重叠；官方 **#2188** 新增的 qiniu/fenno 渠道类型与自用渠道类型 enum 并存。升级合并时需逐功能评审取舍，避免双份实现互相干扰。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）的共存——ent AutoMigrate 的 `WithDropColumn(true)` 会删除对方版本独有的列，迁移前必须备份。
+本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型并入渠道 enum。旧 `settings.providerQuota` 配置按 beta9 安全迁移删除，新的 ProviderQuotaStatus/CPA 不受影响。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
 
 ## 5. 版本号约定与基准规则
 
@@ -159,7 +172,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
-- **当前状态（约定生效前遗留）**：`v1.0.0-beta8+azusa.v0.1` 的 beta8 继承自 unstable 开发线超前标记，基线为 2026-08-04 的 unstable 未发行代码（比官方 beta7 发行版旧 26 个提交）。**官方下一个发行版发布时按本约定对齐基准并更新版本号**，届时更新检查自然恢复正确。
+- **当前状态**：本次跟进暂保留 `v1.0.0-beta8+azusa.v0.2`，不创建新 tag、不触发镜像发布。由于官方正式发行版仍是 beta7，本次合并不改变发行基线；等新的 release tag 发布后，再按本约定对齐基准并更新版本号。
 
 ### 官方新发行版发布时的升级流程
 
@@ -175,7 +188,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **生效路径**：本地/CI 构建经 `//go:embed VERSION` 与 Dockerfile 注入；正式发布经 goreleaser `{{ .Tag }}` 注入。
 - **注意**：`VERSION` 文件只能包含纯版本号（代码用 `strings.TrimSpace` 后直接经 semver 解析），不可加注释。
 
-## 附录 A：本地独有提交清单（`upstream-tmp/unstable..自用`）
+## 附录 A：合并前自用独有提交清单（`upstream-tmp/unstable..自用`）
 
 | 提交 | 类型 | 说明 |
 |---|---|---|
@@ -194,37 +207,11 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 | `3558b214` | chore | 自用 Docker 构建工作流 + .agent 忽略 |
 | `fa04299f` | fix(frontend) | pnpm 10 重新生成 lockfile（Docker 构建修复） |
 
-## 附录 B：官方未合并提交清单（`自用..upstream-tmp/unstable`，63 个）
+## 附录 B：本次跟进的官方未发行提交清单（`v1.0.0-beta7..upstream-tmp/unstable`，62 个）
 
-> 其中 `2bdfcb61`…`b4d1fd04` 前 **26 个属于 v1.0.0-beta7 发行版内容**（升级基准）；`b4d1fd04` 之后为 unstable **未发行代码**（按基准约定忽略，除非用户要求）。
+> 本清单记录本次经批准跟进的 `unstable` 未发行代码；正式版本基线仍为 `v1.0.0-beta7`。本地合并目标 `unstable`（`ef70812b`）另包含本地 Docker workflow 提交 `d928a278` 及其合并提交，已按无广告策略保留/删除相应内容。
 
 ```
-2bdfcb61 feat(transform): add channel switch to downgrade mid-conversation system messages (#2124)
-446a0937 feat(requests): show final reasoning_effort in request logs (#2158)
-1823ec34 feat(channels): add unified API key management dialog (#2156)
-7ed44005 fix(cline): normalize empty message content (#2155)
-ce8d6e7d fix(frontend): align analytics filter UX (#2154)
-2c6efdb1 fix(responses): preserve function calls completed in done events (#2057)
-359cf840 feat(requests): redesign request log table (#2162)
-d6ed9c62 perf(frontend): virtualize model price dialog to fix lag with many models (#2163)
-2d7d7c86 feat: add sse keep alive, close #2146 (#2157)
-dba642a0 chore: add 2 sponsors
-bbd854bf chore: sync model developers data (#2176)
-783611df feat(channels): per-credential auto disable with scheduled recovery (#2180)
-a6bfffa8 fix(responses): preserve polymorphic reasoning and Codex metadata (#2178)
-e33bacdf feat(apikeys): sync and transfer profile templates (#2177)
-4495aa3c fix(responses): propagate terminal status in streaming conversion (#2171)
-1ce8b54d fix(responses): 兼容 Responses API created_at 的浮点整数形式 (#2187)
-889bc8ee fix(stream): report incomplete streams to the client, close #2184 (#2185)
-2b78817e feat: request 请求体支持 对话阅览 模式,便于请求体数据查看 (#2182)
-3c12ccbd feat: add qiniu/fenno channel (#2188)
-9dfd6ac0 fix(claude-code): automate cache compatibility and OpenAI effort mapping (#2172)
-56dcc72f feat(models): add thinkingmachines as model developer (#2190)
-732466d0 fix(sqlite-time-format-compat): 兼容 SQLite TEXT 时间戳格式并修复 backup 注册时区退化 (#2189)
-c88c2c8d chore: add log for chat heartbeat (#2191)
-d1140628 feat: show request cache rate, close #2170 (#2193)
-35133b6e fix(responses): retry incomplete streams before done (#2192)
-b4d1fd04 fix: model associate condition caused model not found, close #2183 (#2194)
 b117c4bc opt: anthropic signature recognization (#2197)
 800bb72f feat: unify auto-refresh controls and stabilize list animations (#2198)
 4782a14f fix(i18n): change currency code example from RMB to CNY (#2202)
@@ -262,4 +249,29 @@ e8d1037c opt: gemini channel compatible (#2259)
 877ff78b chore: sync model developers data (#2242)
 38e36bad feat: introduce unified opencode transformer, close #2240 (#2260)
 af423003 feat: GC 支持剥离已存储的请求/响应载荷 (#2246)
+ed94329d fix(frontend): correct conversation sidebar height (#2267)
+e4bf324d fix: skip postgres monotonic updated_at cleanup (#2266)
+a96cc61e fix: use HTTP URL for WebSocket model discovery (#2265)
+37eeaacc fix: should reload channels after txn commited, close  #2256 (#2261)
+b229aeec fix: forward image parameter in /v1/images/generations (#2251)
+92f81b32 fix: double count reasoning token for throughput (#2270)
+02639bf5 fix(requests): expose personal key callers to project owners (#2269)
+34d344d1 fix: use ping for Responses WebSocket channel tests (#2264)
+24e07fb3 fix(requests): honor effective API key scopes (#2277)
+27b56634 fix: stabilize auto-refresh list transitions (#2275)
+49ade6f2 fix(codex): accept completed JSON Responses from compatible relays (#2243)
+37e54737 chore: add Infistar.cc sponsor
+29aa13e1 chore: add Infistar.cc banner
+aa8e7c81 fix(channels): map ollama_anthropic to the ollama provider (#2299)
+ead745c4 chore: sync model developers data (#2295)
+970d9676 fix: i18n conversation viewer and tool_choice stat (#2298)
+65d767be docs(i18n): clarify storage policy and payload storage copy (#2296)
+6e0c2e3e fix: preserve conditional template overrides (#2287)
+c2958976 chore: update sponsor layout
+f5a13458 chore: update sposor layout
+ef8809ff docs(i18n): clarify where store-chunks persists stream chunks (#2306)
+32b60edd feat: support Codex alpha search proxy (#2274)
+6f729f7c fix: accept boolean experimental flag in provider model schema (#2305)
+66b896dd chore: add apikey fun sponsor
+a037c0bf chore: add apikey fun banner
 ```

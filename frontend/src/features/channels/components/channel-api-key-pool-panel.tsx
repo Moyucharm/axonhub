@@ -30,7 +30,7 @@ import {
 import { Channel } from '../data/schema';
 import { DEFAULT_API_KEY_POOL_REQUEST_COUNT } from '../utils/key-pool';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
-import { ChannelsAPIKeyRulesDialog } from './channels-apikey-rules-dialog';
+import { ChannelsAvailabilityDialog } from './channels-availability-dialog';
 
 interface Props {
   channel: Channel;
@@ -265,8 +265,8 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden sm:max-w-4xl'>
-          <DialogHeader>
+        <DialogContent className='flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl'>
+          <DialogHeader className='shrink-0'>
             <DialogTitle>{t('channels.keyPool.title', { name: channel.name })}</DialogTitle>
             <DialogDescription>{t('channels.keyPool.description')}</DialogDescription>
           </DialogHeader>
@@ -378,7 +378,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
               );
             })}
           </div>
-          <DialogFooter className='flex flex-wrap items-center gap-2'>
+          <DialogFooter className='flex shrink-0 flex-wrap items-center gap-2'>
             <div className='mr-auto flex flex-wrap items-center gap-2'>
               <Button variant='outline' size='sm' onClick={() => setConfirmDisableOpen(true)} disabled={selected.size === 0 || selectedDisabledCount === 0}>
                 {t('channels.keyPool.disableSelected', { count: selected.size })}
@@ -521,12 +521,11 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
         </DialogContent>
       </Dialog>
 
-      <ChannelsAPIKeyRulesDialog
+      <ChannelsAvailabilityDialog
         open={rulesOpen}
         onOpenChange={setRulesOpen}
         currentRow={channel}
         onChannelChange={onChannelChange}
-      />
     </>
   );
 }

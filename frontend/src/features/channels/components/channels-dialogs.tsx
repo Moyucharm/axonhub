@@ -1,6 +1,7 @@
 import { useChannels } from '../context/channels-context';
 import { ChannelsActionDialog } from './channels-action-dialog';
 import { ChannelsArchiveDialog } from './channels-archive-dialog';
+import { ChannelsAvailabilityDialog } from './channels-availability-dialog';
 import { ChannelsBulkApplyTemplateDialog } from './channels-bulk-apply-template-dialog';
 import { ChannelsBulkClearTemplateDialog } from './channels-bulk-clear-template-dialog';
 import { ChannelsBulkArchiveDialog } from './channels-bulk-archive-dialog';
@@ -19,12 +20,12 @@ import { ChannelsProxyDialog } from './channels-proxy-dialog';
 import { ChannelsStatusDialog } from './channels-status-dialog';
 import { ChannelsTestDialog } from './channels-test-dialog';
 import { ChannelsTestHistoryDrawer } from './channels-test-history-drawer';
+import { ChannelsAPIKeyManagementDialog } from './channels-api-key-management-dialog';
 import { ChannelsRateLimitDialog } from './channels-rate-limit-dialog';
 import { ChannelsTransformOptionsDialog } from './channels-transform-options-dialog';
 import { ChannelsCodexSimulationDialog } from './channels-codex-simulation-dialog';
 import { ChannelsEndpointsDialog } from './channels-endpoints-dialog';
 import { ChannelsSystemSettingsDialog } from './channels-system-settings-dialog';
-import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 import { ChannelAutoDisableRulesDialog } from './channel-auto-disable-rules-dialog';
 
 export function ChannelsDialogs() {
@@ -325,10 +326,22 @@ export function ChannelsDialogs() {
             currentRow={currentRow}
           />
 
-          <ChannelAPIKeyPoolPanel
-            key={`channel-key-pool-${currentRow.id}`}
-            channel={currentRow}
-            open={open === 'keyPool'}
+          <ChannelsAvailabilityDialog
+            key={`channel-availability-${currentRow.id}`}
+            open={open === 'availability'}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) {
+                setOpen(null);
+                setTimeout(() => setCurrentRow(null), 500);
+              }
+            }}
+            currentRow={currentRow}
+            onChannelChange={setCurrentRow}
+          />
+
+          <ChannelsAPIKeyManagementDialog
+            key={`channel-key-management-${currentRow.id}`}
+            open={open === 'keyManagement'}
             onOpenChange={(isOpen) => {
               if (!isOpen) {
                 setOpen(null);

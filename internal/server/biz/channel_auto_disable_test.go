@@ -313,7 +313,7 @@ func TestChannelService_checkAndHandleChannelError(t *testing.T) {
 			require.NoError(t, err)
 			if tt.expectedDisabled {
 				require.Equal(t, channel.StatusDisabled, updatedCh.Status)
-				require.NotNil(t, updatedCh.ErrorMessage)
+				require.NotNil(t, updatedCh.AutoDisabledAt)
 				require.Zero(t, updatedCh.AutoDisableState.FailureCount)
 				return
 			}

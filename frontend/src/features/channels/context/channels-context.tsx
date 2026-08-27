@@ -30,8 +30,9 @@ type ChannelsDialogType =
   | 'price'
   | 'transformOptions'
   | 'rateLimit'
-  | 'keyPool'
   | 'channelAutoDisable'
+  | 'availability'
+  | 'keyManagement'
   | 'endpoints'
   | 'codexSimulation';
 

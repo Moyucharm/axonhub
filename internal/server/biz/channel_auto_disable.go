@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aptible/supercronic/cronexpr"
+
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/log"
@@ -213,7 +215,8 @@ func (svc *ChannelService) persistChannelFailure(
 			case objects.AutoDisableActionDisable:
 				update.SetStatus(channel.StatusDisabled).
 					SetErrorMessage(deriveErrorMessage(perf.ResponseStatusCode)).
-					ClearCooldownUntil()
+					ClearCooldownUntil().
+					SetAutoDisabledAt(now)
 			default:
 				return nil, 0, false, time.Time{}, fmt.Errorf("unsupported channel auto-disable action %q", policy.Action)
 			}
@@ -468,7 +471,7 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRulesWithChannel(
 			ch = &Channel{Channel: entity}
 		}
 	}
-	if ch == nil || !ch.Credentials.IsAPIKeyPool() || len(ch.Policies.APIKeyAutoDisableRules) == 0 {
+	if ch == nil || len(ch.Credentials.GetAllCredentialRefs()) == 0 || len(ch.Policies.APIKeyAutoDisableRules) == 0 {
 		return false, false
 	}
 
@@ -484,14 +487,32 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRulesWithChannel(
 		}
 
 		failurePolicy := apiKeyFailurePolicy{
-			Key:               policyKey,
-			Threshold:         max(rule.Times, 1),
-			DeleteOnThreshold: rule.Action == objects.APIKeyAutoDisableActionPermanent,
-			Reason:            fmt.Sprintf("Disabled by channel API key rule after %d consecutive errors", max(rule.Times, 1)),
+			Key:       policyKey,
+			Threshold: max(rule.Times, 1),
+			Reason:    fmt.Sprintf("Disabled by channel API key rule after %d consecutive errors", max(rule.Times, 1)),
 		}
-		if rule.Action == objects.APIKeyAutoDisableActionTemporary && rule.DisableDurationMinutes != nil {
-			failurePolicy.DisableDuration = time.Duration(*rule.DisableDurationMinutes) * time.Minute
-			failurePolicy.Reason = fmt.Sprintf("Temporarily disabled for %d minutes by channel API key rule after %d consecutive errors", *rule.DisableDurationMinutes, max(rule.Times, 1))
+		switch rule.Action {
+		case objects.APIKeyAutoDisableActionTemporary:
+			if rule.DisableDurationMinutes != nil {
+				failurePolicy.DisableDuration = time.Duration(*rule.DisableDurationMinutes) * time.Minute
+				failurePolicy.Reason = fmt.Sprintf("Temporarily disabled for %d minutes by channel API key rule after %d consecutive errors", *rule.DisableDurationMinutes, max(rule.Times, 1))
+			}
+		case objects.APIKeyAutoDisableActionUntilCron:
+			expiresAt, err := nextAPIKeyRuleCronOccurrence(rule, time.Now())
+			if err != nil {
+				log.Error(ctx, "Failed to resolve API key rule cron schedule",
+					log.Int("channel_id", perf.ChannelID),
+					log.String("cron", rule.DisableUntilCron),
+					log.Cause(err),
+				)
+				return true, false
+			}
+			failurePolicy.DisableUntil = &expiresAt
+			failurePolicy.Reason = fmt.Sprintf("Disabled until %s by channel API key rule after %d consecutive errors", expiresAt.Format(time.RFC3339), max(rule.Times, 1))
+		case objects.APIKeyAutoDisableActionPermanentDelete:
+			// OAuth credentials cannot be removed from the channel; retaining the
+			// sentinel as permanently disabled has the same observable result.
+			failurePolicy.DeleteOnThreshold = perf.APIKey != objects.OAuthCredentialRef
 		}
 
 		_, acted, err := svc.recordAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, perf.ErrorMessage, failurePolicy)
@@ -553,7 +574,7 @@ func apiKeyRuleCounterKey(apiKey string, ruleIndex int, rule objects.APIKeyAutoD
 	}
 
 	return fmt.Sprintf(
-		"%s:rule:%d:%v:%v:%d:%s:%d",
+		"%s:rule:%d:%v:%v:%d:%s:%d:%s:%s",
 		apiKey,
 		ruleIndex,
 		rule.StatusCodes,
@@ -561,6 +582,8 @@ func apiKeyRuleCounterKey(apiKey string, ruleIndex int, rule objects.APIKeyAutoD
 		rule.Times,
 		rule.Action,
 		disableDurationMinutes,
+		rule.DisableUntilCron,
+		rule.DisableUntilTimezone,
 	)
 }
 
@@ -609,59 +632,25 @@ func compiledAPIKeyRuleRegex(pattern string) *regexp.Regexp {
 	return re
 }
 
-func (svc *ChannelService) executeAPIKeyRuleAction(
-	ctx context.Context,
-	perf *PerformanceRecord,
-	rule objects.APIKeyAutoDisableRule,
-	count int,
-) bool {
-	reason := fmt.Sprintf("Disabled by channel API key rule after %d consecutive errors", count)
-	if rule.Action == objects.APIKeyAutoDisableActionPermanent {
-		if err := svc.DisableAPIKey(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, reason); err != nil {
-			log.Error(ctx, "Failed to permanently disable API key by channel rule",
-				log.Int("channel_id", perf.ChannelID),
-				log.Cause(err),
-			)
-			return false
-		}
-		result, err := svc.DeleteDisabledAPIKeys(ctx, perf.ChannelID, []string{perf.APIKey})
+// nextAPIKeyRuleCronOccurrence returns the first cron occurrence strictly after
+// the failure. The absolute instant is persisted with the disabled credential.
+func nextAPIKeyRuleCronOccurrence(rule objects.APIKeyAutoDisableRule, now time.Time) (time.Time, error) {
+	loc := time.UTC
+	if rule.DisableUntilTimezone != "" {
+		parsed, err := time.LoadLocation(rule.DisableUntilTimezone)
 		if err != nil {
-			log.Error(ctx, "Failed to delete API key disabled by channel rule",
-				log.Int("channel_id", perf.ChannelID),
-				log.Cause(err),
-			)
-			return false
+			return time.Time{}, fmt.Errorf("invalid timezone %q: %w", rule.DisableUntilTimezone, err)
 		}
-
-		// Channels must retain at least one credential. Keep that last key
-		// permanently disabled when deletion cannot remove it, otherwise the
-		// delete helper would make the rule a no-op by re-enabling the channel.
-		if result.Message == "ONE_KEY_PRESERVED" {
-			if err := svc.DisableAPIKey(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, reason); err != nil {
-				log.Error(ctx, "Failed to keep preserved API key disabled by channel rule",
-					log.Int("channel_id", perf.ChannelID),
-					log.Cause(err),
-				)
-				return false
-			}
-		}
-		return true
+		loc = parsed
 	}
 
-	var expiresAt *time.Time
-	if rule.DisableDurationMinutes != nil {
-		disabledUntil := time.Now().Add(time.Duration(*rule.DisableDurationMinutes) * time.Minute)
-		expiresAt = &disabledUntil
-		reason = fmt.Sprintf("Temporarily disabled for %d minutes by channel API key rule after %d consecutive errors", *rule.DisableDurationMinutes, count)
+	expr, err := cronexpr.Parse(rule.DisableUntilCron)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid cron expression %q: %w", rule.DisableUntilCron, err)
 	}
-
-	if err := svc.DisableAPIKey(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, reason, expiresAt); err != nil {
-		log.Error(ctx, "Failed to temporarily disable API key by channel rule",
-			log.Int("channel_id", perf.ChannelID),
-			log.Cause(err),
-		)
-		return false
+	next := expr.Next(now.In(loc))
+	if next.IsZero() {
+		return time.Time{}, fmt.Errorf("cron expression %q never fires again", rule.DisableUntilCron)
 	}
-
-	return true
+	return next, nil
 }

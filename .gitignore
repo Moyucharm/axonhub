@@ -171,3 +171,4 @@ config.schema.json
 
 # Local planning/working documents
 .agent/
+deploy_dev.sh

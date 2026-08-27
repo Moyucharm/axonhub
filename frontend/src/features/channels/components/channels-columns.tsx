@@ -19,13 +19,14 @@ import {
   IconCopy,
   IconCoin,
   IconLoader2,
+  IconKey,
   IconKeyOff,
   IconGauge,
   IconHistory,
   IconPlugConnected,
-  IconKey,
   IconFingerprint,
   IconRefresh,
+  IconClockPlay,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -101,8 +102,6 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
   const isArchived = channel.status === 'archived';
   const isCoolingDown = !!channel.cooldownUntil && new Date(channel.cooldownUntil).getTime() > Date.now();
   const hasError = !!channel.errorMessage;
-  const apiKeysCount = channel.credentials?.apiKeys?.filter((key) => key.trim().length > 0).length ?? 0;
-  const isKeyPool = channelPermissions.canWrite && (channel.credentials?.mode === 'pool' || apiKeysCount > 1);
 
   const handleDefaultTest = async () => {
     try {
@@ -236,15 +235,39 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             <IconGauge size={16} className='mr-2' />
             {t('channels.dialogs.rateLimit.action')}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              setCurrentRow(channel);
-              setOpen('endpoints');
-            }}
-          >
-            <IconPlugConnected size={16} className='mr-2' />
-            {t('channels.endpoints.title')}
-          </DropdownMenuItem>
+          {channel.type !== 'xai_subscription' && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(channel);
+                setOpen('endpoints');
+              }}
+            >
+              <IconPlugConnected size={16} className='mr-2' />
+              {t('channels.endpoints.title')}
+            </DropdownMenuItem>
+          )}
+          {channelPermissions.canWrite && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(channel);
+                setOpen('keyManagement');
+              }}
+            >
+              <IconKey size={16} className='mr-2' />
+              {t('channels.actions.keyManagement')}
+            </DropdownMenuItem>
+          )}
+          {channelPermissions.canWrite && (
+            <DropdownMenuItem
+              onClick={() => {
+                setCurrentRow(channel);
+                setOpen('availability');
+              }}
+            >
+              <IconClockPlay size={16} className='mr-2' />
+              {t('channels.dialogs.availability.action')}
+            </DropdownMenuItem>
+          )}
           {channelPermissions.canWrite && (
             <DropdownMenuItem
               onClick={() => {
@@ -254,17 +277,6 @@ const ActionCell = memo(({ row }: { row: Row<Channel> }) => {
             >
               <IconAdjustments size={16} className='mr-2' />
               {t('channels.dialogs.channelAutoDisableRules.title')}
-            </DropdownMenuItem>
-          )}
-          {isKeyPool && (
-            <DropdownMenuItem
-              onClick={() => {
-                setCurrentRow(channel);
-                setOpen('keyPool');
-              }}
-            >
-              <IconKey size={16} className='mr-2' />
-              {t('channels.keyPool.action')}
             </DropdownMenuItem>
           )}
           {isCoolingDown && channelPermissions.canWrite && (
@@ -386,11 +398,14 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
     <div className={cn('truncate font-medium', hasError && 'text-destructive')}>{row.getValue('name')}</div>
   );
 
+  // Both indicators are shown independently: a channel disabled because every
+  // credential is unavailable carries an error *and* disabled credentials, and
+  // hiding the key icon behind the error would lose the reason it went down.
   const content = (
     <div className='flex justify-center'>
       <div className='flex max-w-72 items-center gap-2'>
         {hasError && <IconAlertTriangle className='text-destructive h-4 w-4 shrink-0' />}
-        {!hasError && hasDisabledKeys && <IconKeyOff className='h-4 w-4 shrink-0 text-amber-500' />}
+        {hasDisabledKeys && <IconKeyOff className='h-4 w-4 shrink-0 text-amber-500' />}
         {nameElement}
         {isCoolingDown && cooldownTime && (
           <Badge variant='secondary' className='shrink-0 gap-1 text-xs tabular-nums'>
@@ -412,7 +427,7 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
                 onClick={(event) => {
                   event.stopPropagation();
                   setCurrentRow(channel);
-                  setOpen('keyPool');
+                  setOpen('keyManagement');
                 }}
               >
                 {keyPoolSummary}
@@ -427,56 +442,40 @@ const NameCell = memo(({ row }: { row: Row<Channel> }) => {
     </div>
   );
 
-  if (isCoolingDown && cooldownTime) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent className='max-w-sm'>
-          <div className='space-y-1 text-sm'>
-            {channel.cooldownErrorCode != null && (
-              <p>{t('channels.cooldown.tooltip.statusCode', { code: channel.cooldownErrorCode })}</p>
-            )}
-            {channel.cooldownErrorMessage && (
-              <p className='break-words'>{t('channels.cooldown.tooltip.message', { message: channel.cooldownErrorMessage })}</p>
-            )}
-            <p>{t('channels.cooldown.tooltip.recoverAt', { time: cooldownTime })}</p>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    );
+  if (!isCoolingDown && !hasError && !hasDisabledKeys) {
+    return content;
   }
 
-  if (hasError) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent>
-          <div className='space-y-1'>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{content}</TooltipTrigger>
+      <TooltipContent className='max-w-sm'>
+        <div className='space-y-1'>
+          {isCoolingDown && cooldownTime && (
+            <>
+              {channel.cooldownErrorCode != null && (
+                <p>{t('channels.cooldown.tooltip.statusCode', { code: channel.cooldownErrorCode })}</p>
+              )}
+              {channel.cooldownErrorMessage && (
+                <p className='break-words'>{t('channels.cooldown.tooltip.message', { message: channel.cooldownErrorMessage })}</p>
+              )}
+              <p>{t('channels.cooldown.tooltip.recoverAt', { time: cooldownTime })}</p>
+            </>
+          )}
+          {hasError && (
             <p className='text-destructive text-sm'>
               {t(`channels.messages.${channel.errorMessage}`, {
                 defaultValue: channel.errorMessage,
               })}
             </p>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  if (hasDisabledKeys) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent>
-          <p className='text-sm text-amber-500'>
-            {t('channels.actions.disabledAPIKeys', { count: disabledKeysCount })}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return content;
+          )}
+          {hasDisabledKeys && (
+            <p className='text-sm text-amber-500'>{t('channels.actions.disabledAPIKeys', { count: disabledKeysCount })}</p>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
 });
 
 NameCell.displayName = 'NameCell';
