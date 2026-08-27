@@ -27,34 +27,44 @@
 <table width="100%">
   <tr>
     <td width="50%" align="center" valign="top">
-      <a href="https://lj.s.gy/oZl7Vd" target="_blank">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/atlas-cloud-logomark-white.svg"/>
-          <source media="(prefers-color-scheme: light)" srcset="docs/sponsors/atlas-cloud-logomark-black.svg"/>
-          <img src="docs/sponsors/atlas-cloud-logomark-black.svg" alt="Atlas Cloud" height="50"/>
-        </picture>
+      <a href="https://apikey.fun/register?aff=axonhub" target="_blank">
+        <img src="docs/sponsors/apikey-fun.png" alt="APIKEY.FUN" height="50"/>
         <br/>
-        <strong>Atlas Cloud</strong>
+        <strong>APIKEY.FUN</strong>
       </a>
-      <p align="left">
-        <a href="https://lj.s.gy/oZl7Vd" target="_blank">Atlas Cloud</a> は、開発者に動画生成、画像生成、LLM API へアクセスできる単一の AI API を提供するフルモーダル AI 推論プラットフォームです。複数のベンダー統合を管理する代わりに、一度接続するだけで全モーダルにわたる 300 以上の厳選されたモデルへ統一アクセスできます。
-      </p>
-      <p align="left">
-        Atlas Cloud の <a href="https://lj.s.gy/jknt2V" target="_blank">新しいコーディングプラン特典</a> で、よりお得な API アクセスをご利用ください。
-      </p>
+      <div align="center">
+        <a href="https://apikey.fun/register?aff=axonhub" target="_blank">
+          <img src="docs/sponsors/api-key.fun.banner.png" alt="APIKEY.FUN banner" width="100%"/>
+        </a>
+      </div>
+      <div align="left">
+        APIKEY.FUN は、企業や個人開発者に安定・高効率・低コストな AI モデル API 接続を提供する、専門的なエンタープライズ向け AI API 中継サービスです。<br/>
+        Claude、OpenAI、Gemini などの人気モデルに対応し、料金は公式価格の 7% からご利用いただけます。<br/>
+        AxonHub ユーザーが<a href="https://apikey.fun/register?aff=axonhub" target="_blank">専用リンクから登録</a>すると、チャージ料金が永久に最大 5% 割引になります。
+      </div>
     </td>
     <td width="50%" align="center" valign="top">
-      <a href="https://lj.s.gy/jKk8uU" target="_blank">
-        <img src="https://raw.githubusercontent.com/Krill-ai-org/krill-ai-static/refs/heads/main/krill-logo/Eng/250x150.png" alt="Krill AI" height="50"/>
+      <a href="https://lj.s.gy/DUq59H" target="_blank">
+        <img src="https://www.infistar.cc/logo.png" alt="無限星河 Infistar.cc" height="50"/>
         <br/>
-        <strong>Krill AI</strong>
+        <strong>無限星河 Infistar.cc</strong>
       </a>
-      <p align="left">
-        本プロジェクトを支援いただいている Krill AI に感謝します。Krill は GPT、Claude、Gemini および多数の中国国内モデル向けに、公式かつ安定した高速 API 中継サービスを提供しています。エンタープライズ向けカスタマイズ、請求書発行、1日16時間・週7日の専用技術サポートに対応しています。独自に最適化された WebSocket 接続により、最初のトークンをより速く受け取れます。
-      </p>
-      <p align="left">
-        <a href="https://lj.s.gy/jKk8uU" target="_blank">このリンク</a> から登録し、チャージ時に <code>AxonHub</code> クーポンコードを入力すると、初回の Codex プラン購入が 23% オフになります。
-      </p>
+      <div align="center">
+        <a href="https://lj.s.gy/DUq59H" target="_blank">
+          <img src="docs/sponsors/infistar-banner.png" alt="Infistar.cc 無限星河" width="100%"/>
+        </a>
+      </div>
+      <div align="left">
+        <strong>AxonHub × Infistar.cc 無限星河｜高可用 AI API</strong>
+      </div>
+      <div align="left">
+        ⚡ 安定ルーティング｜公式 1 割 · 透明料金 · フェイルオーバー<br/>
+        🧠 主要モデル｜ChatGPT · Claude · Gemini · Kimi · GLM · DeepSeek<br/>
+        🎨 マルチモーダル｜テキスト · 画像 · 動画 · Embedding / Rerank
+      </div>
+      <div align="left">
+        AxonHub ユーザーは<a href="https://lj.s.gy/DUq59H" target="_blank">専用リンク</a>から特典を利用できます。
+      </div>
     </td>
   </tr>
 </table>
@@ -73,6 +83,30 @@
   <tbody>
     <tr>
       <td align="center" valign="middle">
+        <a href="https://lj.s.gy/8HNo22" target="_blank">
+          <img src="https://www-static.qbox.me/_next/static/media/logo.0fc18feaa621d2068a7180631f742256.jpg" alt="七牛云 AI" height="90"/>
+          <br/>
+          <strong>七牛云 AI</strong>
+        </a>
+      </td>
+      <td valign="middle">
+        七牛云 AI は七牛云（02567.HK）傘下の企業向け大規模モデル MaaS プラットフォームです。世界中の 150 以上の主要モデルをワンストップで利用でき、主要なモデルプロバイダーのプロトコルに対応しています。テキスト、画像、音声、動画、ファイル処理など、あらゆるモダリティに対応し、169 万を超える企業・開発者にサービスを提供しています。AxonHub ユーザー限定特典として、<a href="https://lj.s.gy/8HNo22" target="_blank">こちらのリンクから登録</a>すると、企業ユーザーは 1,200 万トークン、開発者は 300 万トークンを無料で受け取れます。
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://lj.s.gy/Wo8IuN" target="_blank">
+          <img src="https://api.fenno.ai/branding/standard/icon.webp" alt="FennoAI" height="90"/>
+          <br/>
+          <strong>FennoAI</strong>
+        </a>
+      </td>
+      <td valign="middle">
+        FennoAI は、企業の研究開発チームと開発者向けに、高い安定性と性能を提供する API 中継サービスです。OpenAI および Anthropic プロトコルに対応し、Codex、Claude Code、OpenCode など主要な AI コーディングツールにシームレスに接続できます。1 日あたり数千億トークン規模の利用を支える企業向けの安定性を備え、国内外の事業主体間の決済や請求書発行にも対応しています。AxonHub ユーザー限定特典として、<a href="https://lj.s.gy/Wo8IuN" target="_blank">専用リンクからサブスクリプションを購入</a>すると、わずか 1.99 ドルで 50 ドル相当の Coding Plan クレジットを利用できます。紹介報酬にも対応しており、友人の購入で最大 20% のコミッションを獲得できます。
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
         <a href="https://bloome.im/app?ref=MjgMzmCY&utm_medium=github&utm_source=looplj-axonhub-ivor-202606" target="_blank">
           <img src="docs/sponsors/bloome.png" alt="Bloome" height="90"/>
           <br/>
@@ -89,14 +123,6 @@
 </table>
 
 ---
-
-## 💖 サポート
-
-| プロバイダー | プラン | 説明 | リンク |
-|-------------|--------|------|--------|
-| Zhipu AI | GLM CODING PLAN | GLM Coding Plan にご招待いただけます！Claude Code、Clineなど10以上のトップコーディングツールを完全サポート — 月$3から。今すぐサブスクリプションで期間限定特典をゲット！ | [English](https://z.ai/subscribe?ic=OKAF5UFZOM) / [中文](https://www.bigmodel.cn/glm-coding?ic=WIDLV0OOTJ) |
-| Volcengine | CODING PLAN | Ark Coding Plan はDoubao、GLM、DeepSeek、Kimiなどのモデルをサポート。無制限のツールと互換性あり。今すぐサブスクリプションで追加10%オフ — 月$1.2から。購入が多いほどお得に！ | [リンク](https://volcengine.com/L/1Q-HZr5Uvk8/) / コード：LXKDZK3W |
-| Cursor | PRO PLAN | 初月のCursor Pro、Pro+、Ultraを50%オフでお申し込み。 | [招待リンク](https://cursor.com/referral?code=GV0YKBQ692X1) |
 
 ---
 
@@ -391,15 +417,19 @@ AXONHUB_LOG_LEVEL=info
 git clone https://github.com/looplj/axonhub.git
 cd axonhub
 
-# 環境変数を設定
-export AXONHUB_DB_DIALECT="tidb"
-export AXONHUB_DB_DSN="<USER>.root:<PASSWORD>@tcp(gateway01.us-west-2.prod.aws.tidbcloud.com:4000)/axonhub?tls=true&parseTime=true&multiStatements=true&charset=utf8mb4"
+# ローカル環境ファイルを作成（イメージの digest とパスワードを置き換えてください）
+umask 077
+cat > .env <<'EOF'
+DB_PASSWORD=replace-with-a-long-random-password
+AXONHUB_IMAGE=looplj/axonhub@sha256:replace-with-axonhub-digest
+POSTGRES_IMAGE=postgres@sha256:replace-with-postgres-digest
+EOF
 
 # サービスを開始
-docker-compose up -d
+docker compose --env-file .env up -d
 
 # ステータスを確認
-docker-compose ps
+docker compose ps
 ```
 
 #### Helm Kubernetesデプロイ

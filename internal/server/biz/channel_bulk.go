@@ -35,7 +35,10 @@ func (svc *ChannelService) BulkUpdateChannelOrdering(ctx context.Context, items 
 		updatedChannels = append(updatedChannels, channel)
 	}
 
-	svc.asyncReloadChannels()
+	// The GraphQL Transactioner wraps this mutation in an Ent transaction, so the
+	// refresh must wait for commit: reloading before commit would read a stale
+	// ordering_weight snapshot and keep failover chains on the old ordering.
+	svc.reloadChannelsAfterCommit(ctx)
 
 	return updatedChannels, nil
 }
@@ -173,9 +176,13 @@ func (svc *ChannelService) bulkUpdateChannelStatus(ctx context.Context, ids []in
 		return fmt.Errorf("expected to find %d channels, but found %d", len(ids), count)
 	}
 
+	// Any manual status change hands the channel back to the operator, so the
+	// auto-disable marker is dropped: a manually disabled channel must not be
+	// picked up by the auto-enable schedule.
 	updater := client.Channel.Update().
 		Where(channel.IDIn(ids...)).
-		SetStatus(status)
+		SetStatus(status).
+		ClearAutoDisabledAt()
 
 	if clearErrorMessage {
 		updater.ClearErrorMessage()
@@ -185,7 +192,9 @@ func (svc *ChannelService) bulkUpdateChannelStatus(ctx context.Context, ids []in
 		return fmt.Errorf("failed to %s channels: %w", action, err)
 	}
 
-	svc.asyncReloadChannels()
+	// Refresh only after the surrounding transaction commits, otherwise a reload
+	// could observe the pre-commit snapshot (see BulkUpdateChannelOrdering).
+	svc.reloadChannelsAfterCommit(ctx)
 
 	return nil
 }
@@ -226,7 +235,7 @@ func (svc *ChannelService) BulkDeleteChannels(ctx context.Context, ids []int) er
 	}
 
 	log.Info(ctx, "bulk deleted channels", log.Int("count", deleted))
-	svc.asyncReloadChannels()
+	svc.reloadChannelsAfterCommit(ctx)
 
 	return nil
 }
@@ -322,7 +331,7 @@ func (svc *ChannelService) BulkImportChannels(ctx context.Context, items []*Bulk
 	}
 
 	if created > 0 {
-		svc.asyncReloadChannels()
+		svc.reloadChannelsAfterCommit(ctx)
 	}
 
 	success := failed == 0

@@ -43,6 +43,7 @@ type OpenAIHandlersParams struct {
 	ChannelLimiterManager       *orchestrator.ChannelLimiterManager
 	ProviderQuotaStatusProvider orchestrator.ProviderQuotaStatusProvider
 	Client                      *ent.Client
+	SSEKeepAliveConfig          SSEKeepAliveConfig
 }
 
 type OpenAIHandlers struct {
@@ -56,6 +57,7 @@ type OpenAIHandlers struct {
 	CompactHandlers            *ChatCompletionHandlers
 	EmbeddingHandlers          *ChatCompletionHandlers
 	ModerationHandlers         *ChatCompletionHandlers
+	AlphaSearchHandlers        *ChatCompletionHandlers
 	ImageGenerationHandlers    *ChatCompletionHandlers
 	ImageEditHandlers          *ChatCompletionHandlers
 	ImageVariationHandlers     *ChatCompletionHandlers
@@ -76,7 +78,7 @@ func NewOpenAIHandlers(params OpenAIHandlersParams) *OpenAIHandlers {
 	videoInbound := openai.NewVideoInboundTransformer()
 	speechInbound := openai.NewSpeechInboundTransformer()
 
-	return &OpenAIHandlers{
+	handlers := &OpenAIHandlers{
 		ChatCompletionHandlers: &ChatCompletionHandlers{
 			ChatCompletionOrchestrator: orchestrator.NewChatCompletionOrchestrator(
 				params.ChannelService,
@@ -169,6 +171,23 @@ func NewOpenAIHandlers(params OpenAIHandlersParams) *OpenAIHandlers {
 				params.RequestService,
 				params.HttpClient,
 				openai.NewModerationInboundTransformer(),
+				params.SystemService,
+				params.UsageLogService,
+				params.PromptService,
+				params.QuotaService,
+				params.PromptProtectionRuleService,
+				params.LiveStreamRegistry,
+				params.ChannelLimiterManager,
+				params.ProviderQuotaStatusProvider,
+			),
+		},
+		AlphaSearchHandlers: &ChatCompletionHandlers{
+			ChatCompletionOrchestrator: orchestrator.NewChatCompletionOrchestrator(
+				params.ChannelService,
+				params.DefaultSelector,
+				params.RequestService,
+				params.HttpClient,
+				openai.NewAlphaSearchInboundTransformer(),
 				params.SystemService,
 				params.UsageLogService,
 				params.PromptService,
@@ -306,6 +325,21 @@ func NewOpenAIHandlers(params OpenAIHandlersParams) *OpenAIHandlers {
 			),
 		},
 	}
+
+	for _, handler := range []*ChatCompletionHandlers{
+		handlers.ChatCompletionHandlers,
+		handlers.CompletionHandlers,
+		handlers.ResponseCompletionHandlers,
+		handlers.CompactHandlers,
+		handlers.SpeechHandlers,
+		handlers.TranscriptionHandlers,
+		handlers.TranslationHandlers,
+	} {
+		handler.sseKeepAlive = params.SSEKeepAliveConfig
+		handler.sseHeartbeatFormat = sseHeartbeatOpenAI
+	}
+
+	return handlers
 }
 
 func (handlers *OpenAIHandlers) ChatCompletion(c *gin.Context) {
@@ -331,6 +365,11 @@ func (handlers *OpenAIHandlers) CreateEmbedding(c *gin.Context) {
 // CreateModeration handles POST /v1/moderations.
 func (handlers *OpenAIHandlers) CreateModeration(c *gin.Context) {
 	handlers.ModerationHandlers.ChatCompletion(c)
+}
+
+// CreateAlphaSearch handles POST /v1/alpha/search.
+func (handlers *OpenAIHandlers) CreateAlphaSearch(c *gin.Context) {
+	handlers.AlphaSearchHandlers.ChatCompletion(c)
 }
 
 // CreateSpeech handles POST /v1/audio/speech (text-to-speech). The response is binary audio.

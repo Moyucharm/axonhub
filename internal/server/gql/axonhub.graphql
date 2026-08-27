@@ -132,24 +132,6 @@ input RetryableErrorPatternInput {
   regex: Boolean
 }
 
-type OpenCodeGoQuotaSettings {
-  workspaceId: String
-  authCookie: String
-}
-
-input OpenCodeGoQuotaSettingsInput {
-  workspaceId: String
-  authCookie: String
-}
-
-type ChannelProviderQuotaSettings {
-  opencodeGo: OpenCodeGoQuotaSettings
-}
-
-input ChannelProviderQuotaSettingsInput {
-  opencodeGo: OpenCodeGoQuotaSettingsInput
-}
-
 type ChannelSettings {
   extraModelPrefix: String
   modelMappings: [ModelMapping!]
@@ -166,7 +148,6 @@ type ChannelSettings {
   rateLimit: ChannelRateLimit
   retryableStatusCodes: [Int!]
   retryableErrorPatterns: [RetryableErrorPattern!]
-  providerQuota: ChannelProviderQuotaSettings
 }
 
 enum CapabilityPolicy {
@@ -177,6 +158,8 @@ enum CapabilityPolicy {
 
 enum APIKeyAutoDisableAction {
   temporary_disable
+  disable_until_cron
+  permanent_disable
   permanent_disable_delete
 }
 
@@ -186,6 +169,8 @@ type APIKeyAutoDisableRule {
   times: Int!
   action: APIKeyAutoDisableAction!
   disableDurationMinutes: Int
+  disableUntilCron: String
+  disableUntilTimezone: String
 }
 
 input APIKeyAutoDisableRuleInput {
@@ -194,6 +179,8 @@ input APIKeyAutoDisableRuleInput {
   times: Int!
   action: APIKeyAutoDisableAction!
   disableDurationMinutes: Int
+  disableUntilCron: String
+  disableUntilTimezone: String
 }
 
 type ChannelPolicies {
@@ -227,7 +214,6 @@ input ChannelSettingsInput {
   rateLimit: ChannelRateLimitInput
   retryableStatusCodes: [Int!]
   retryableErrorPatterns: [RetryableErrorPatternInput!]
-  providerQuota: ChannelProviderQuotaSettingsInput
 }
 
 input ChannelRateLimitInput {
@@ -395,6 +381,8 @@ input UpdateAPIKeyProfilesInput {
 
 input APIKeyProfileInput {
   name: String!
+  templateID: Int
+  templateName: String
   modelMappings: [ModelMappingInput!]
   channelIDs: [Int!]
   channelTags: [String!]
@@ -440,6 +428,8 @@ type APIKeyProfiles {
 
 type APIKeyProfile {
   name: String!
+  templateID: Int
+  templateName: String
   modelMappings: [ModelMapping!]
   channelIDs: [Int!]
   channelTags: [String!]
@@ -457,8 +447,10 @@ enum ChannelTagsMatchMode {
 }
 
 # ApiKeyProfileTemplate uses the Ent-generated type and input types from ent.graphql
-
-
+extend type APIKeyProfileTemplate {
+  """Number of API key profiles that currently follow this template."""
+  linkedProfilesCount: Int!
+}
 
 # Load template input - custom input for loading template to API key
 input LoadApiKeyProfileTemplateInput {

@@ -27,34 +27,44 @@
 <table width="100%">
   <tr>
     <td width="50%" align="center" valign="top">
-      <a href="https://lj.s.gy/oZl7Vd" target="_blank">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/atlas-cloud-logomark-white.svg"/>
-          <source media="(prefers-color-scheme: light)" srcset="docs/sponsors/atlas-cloud-logomark-black.svg"/>
-          <img src="docs/sponsors/atlas-cloud-logomark-black.svg" alt="Atlas Cloud" height="50"/>
-        </picture>
+      <a href="https://apikey.fun/register?aff=axonhub" target="_blank">
+        <img src="docs/sponsors/apikey-fun.png" alt="APIKEY.FUN" height="50"/>
         <br/>
-        <strong>Atlas Cloud</strong>
+        <strong>APIKEY.FUN</strong>
       </a>
-      <p align="left">
-        <a href="https://lj.s.gy/oZl7Vd" target="_blank">Atlas Cloud</a> is a full-modal AI inference platform that gives developers a single AI API to access video generation, image generation, and LLM APIs. Instead of managing multiple vendor integrations, you connect once and get unified access to 300+ curated models across all modalities.
-      </p>
-      <p align="left">
-        Check out Atlas Cloud's <a href="https://lj.s.gy/jknt2V" target="_blank">new coding plan promotion</a> for more budget-friendly API access.
-      </p>
+      <div align="center">
+        <a href="https://apikey.fun/register?aff=axonhub" target="_blank">
+          <img src="docs/sponsors/api-key.fun.banner.png" alt="APIKEY.FUN banner" width="100%"/>
+        </a>
+      </div>
+      <div align="left">
+        APIKEY.FUN is a professional enterprise-grade AI API relay service committed to providing enterprises and individual developers with stable, efficient, and cost-effective access to AI model APIs.<br/>
+        The platform supports popular models including Claude, OpenAI, and Gemini, with prices as low as 7% of the official price.<br/>
+        AxonHub users who <a href="https://apikey.fun/register?aff=axonhub" target="_blank">register through the exclusive link</a> can enjoy a permanent discount of up to 5% on recharges.
+      </div>
     </td>
     <td width="50%" align="center" valign="top">
-      <a href="https://lj.s.gy/jKk8uU" target="_blank">
-        <img src="https://raw.githubusercontent.com/Krill-ai-org/krill-ai-static/refs/heads/main/krill-logo/Eng/250x150.png" alt="Krill AI" height="50"/>
+      <a href="https://lj.s.gy/DUq59H" target="_blank">
+        <img src="https://www.infistar.cc/logo.png" alt="无限星河 Infistar.cc" height="50"/>
         <br/>
-        <strong>Krill AI</strong>
+        <strong>无限星河 Infistar.cc</strong>
       </a>
-      <p align="left">
-        Thank you to Krill AI for sponsoring this project. Krill provides official, stable, high-speed API relay services for GPT, Claude, Gemini, and a wide range of Chinese models, with enterprise customization, invoicing support, and dedicated technical support 16 hours a day, 7 days a week. Its optimized WebSocket connection can deliver a faster time to first token.
-      </p>
-      <p align="left">
-        Register through <a href="https://lj.s.gy/jKk8uU" target="_blank">this link</a> and enter the <code>AxonHub</code> coupon code when topping up to receive 23% off your first Codex plan purchase.
-      </p>
+      <div align="center">
+        <a href="https://lj.s.gy/DUq59H" target="_blank">
+          <img src="docs/sponsors/infistar-banner.png" alt="Infistar.cc 无限星河" width="100%"/>
+        </a>
+      </div>
+      <div align="left">
+        <strong>AxonHub × Infistar.cc | High-Availability AI API</strong>
+      </div>
+      <div align="left">
+        ⚡ Stable routing | 10% rates · Transparent · Failover<br/>
+        🧠 Top models | ChatGPT · Claude · Gemini · Kimi · GLM · DeepSeek<br/>
+        🎨 Multimodal | Text · Image · Video · Embedding / Rerank
+      </div>
+      <div align="left">
+        AxonHub users: bonus credits via the <a href="https://lj.s.gy/DUq59H" target="_blank">exclusive link</a>.
+      </div>
     </td>
   </tr>
 </table>
@@ -71,6 +81,30 @@
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://lj.s.gy/8HNo22" target="_blank">
+          <img src="https://www-static.qbox.me/_next/static/media/logo.0fc18feaa621d2068a7180631f742256.jpg" alt="Qiniu Cloud AI" height="90"/>
+          <br/>
+          <strong>Qiniu Cloud AI</strong>
+        </a>
+      </td>
+      <td valign="middle">
+        Qiniu Cloud AI is an enterprise-grade LLM MaaS platform operated by Qiniu Cloud (02567.HK), providing one-stop access to 150+ mainstream models worldwide. It supports major model provider protocols and text, image, audio, video, file processing, and other multimodal capabilities, serving more than 1.69 million enterprises and developers. As an exclusive benefit for AxonHub users, <a href="https://lj.s.gy/8HNo22" target="_blank">register through this link</a> to receive 12 million free tokens for enterprise users or 3 million free tokens for developers.
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://lj.s.gy/Wo8IuN" target="_blank">
+          <img src="https://api.fenno.ai/branding/standard/icon.webp" alt="FennoAI" height="90"/>
+          <br/>
+          <strong>FennoAI</strong>
+        </a>
+      </td>
+      <td valign="middle">
+        FennoAI is a highly stable, high-performance API relay provider for enterprise R&amp;D teams and developers. It is compatible with the OpenAI and Anthropic protocols and integrates seamlessly with Codex, Claude Code, OpenCode, and other mainstream AI coding tools. The platform supports enterprise-grade reliability at a scale of hundreds of billions of tokens per day, as well as business-to-business settlement and invoicing for domestic and international entities. As an exclusive benefit for AxonHub users, <a href="https://lj.s.gy/Wo8IuN" target="_blank">purchase a subscription through this link</a> for just $1.99 and receive $50 worth of Coding Plan credits. Referral rewards are also available, with up to 20% commission for successful referrals.
+      </td>
+    </tr>
     <tr>
       <td align="center" valign="middle">
         <a href="https://bloome.im/app?ref=MjgMzmCY&utm_medium=github&utm_source=looplj-axonhub-ivor-202606" target="_blank">
@@ -387,15 +421,19 @@ For detailed configuration instructions, please refer to [configuration document
 git clone https://github.com/looplj/axonhub.git
 cd axonhub
 
-# Set environment variables
-export AXONHUB_DB_DIALECT="tidb"
-export AXONHUB_DB_DSN="<USER>.root:<PASSWORD>@tcp(gateway01.us-west-2.prod.aws.tidbcloud.com:4000)/axonhub?tls=true&parseTime=true&multiStatements=true&charset=utf8mb4"
+# Create a local environment file (replace image digests and password)
+umask 077
+cat > .env <<'EOF'
+DB_PASSWORD=replace-with-a-long-random-password
+AXONHUB_IMAGE=looplj/axonhub@sha256:replace-with-axonhub-digest
+POSTGRES_IMAGE=postgres@sha256:replace-with-postgres-digest
+EOF
 
 # Start services
-docker-compose up -d
+docker compose --env-file .env up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 ```
 
 #### Helm Kubernetes Deployment

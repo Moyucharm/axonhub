@@ -18,6 +18,11 @@ var (
 	DoneResponse = &Response{
 		Object: "[DONE]",
 	}
+
+	// ErrStreamIncomplete means a streaming response ended without a protocol
+	// terminal event. Pipelines may retry it only before meaningful output is
+	// committed to the caller.
+	ErrStreamIncomplete = errors.New("stream ended without terminal event")
 )
 
 // Request is the unified llm request model for AxonHub, to keep compatibility with major app and framework.
@@ -257,6 +262,9 @@ type Request struct {
 
 	// Moderation is the standalone /v1/moderations request payload.
 	Moderation *ModerationRequest `json:"moderation_request,omitempty"`
+
+	// AlphaSearch is the raw Codex/CPA /v1/alpha/search request payload.
+	AlphaSearch *AlphaSearchRequest `json:"alpha_search_request,omitempty"`
 
 	// RawRequest is the raw request from the client.
 	RawRequest *httpclient.Request `json:"raw_request,omitempty"`
@@ -716,6 +724,9 @@ type Response struct {
 
 	// Moderation is the standalone /v1/moderations response payload.
 	Moderation *ModerationResponse `json:"moderation,omitempty"`
+
+	// AlphaSearch is the raw Codex/CPA /v1/alpha/search response payload.
+	AlphaSearch *AlphaSearchResponse `json:"alpha_search_response,omitempty"`
 
 	// RequestType is the outbound request type from the llm service.
 	// e.g. the request from the chat/completions endpoint is in the chat type.

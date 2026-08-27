@@ -18,7 +18,20 @@ import (
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm/httpclient"
+	"github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
+
+func TestModelFetcher_getDefaultModelsByType_returns_xAI_subscription_models(t *testing.T) {
+	// Given
+	fetcher := NewModelFetcher(httpclient.NewHttpClient(), nil)
+
+	// When
+	models := fetcher.getDefaultModelsByType(t.Context(), channel.TypeXaiSubscription)
+
+	// Then
+	require.Len(t, models, len(subscription.DefaultModels()))
+	require.Equal(t, subscription.DefaultModels()[0], models[0].ID)
+}
 
 // setupProviderConfMockServer creates a mock HTTP server returning provider conf JSON.
 // The callCounter is incremented on each request (if not nil).
@@ -320,6 +333,18 @@ func TestPrepareModelsEndpoint(t *testing.T) {
 			channelType: channel.TypeOpenai,
 			baseURL:     "https://custom.api.com/custom/path#",
 			expectedURL: "https://custom.api.com/custom/path/models",
+		},
+		{
+			name:        "OpenAI secure WebSocket endpoint",
+			channelType: channel.TypeOpenai,
+			baseURL:     "wss://api.openai.com/v1#",
+			expectedURL: "https://api.openai.com/v1/models",
+		},
+		{
+			name:        "OpenAI WebSocket endpoint",
+			channelType: channel.TypeOpenai,
+			baseURL:     "ws://api.example.com/v1",
+			expectedURL: "http://api.example.com/v1/models",
 		},
 		{
 			name:        "Deepseek",

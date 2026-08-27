@@ -14,7 +14,21 @@ import (
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/pipeline"
 	"github.com/looplj/axonhub/llm/streams"
+	"github.com/looplj/axonhub/llm/transformer"
 )
+
+// codexResponsesPassThroughHeaders contains Codex identity metadata that can
+// accompany a pass-through body. Keep this as an explicit allowlist: inbound
+// credentials, transport headers, and protocol-selection headers are never copied.
+var codexResponsesPassThroughHeaders = []string{
+	"X-Codex-Turn-Metadata",
+	"X-Codex-Window-Id",
+	"X-Client-Request-Id",
+	"X-Codex-Beta-Features",
+	"Session-Id",
+	"Originator",
+	"Thread-Id",
+}
 
 // isPassThroughEnabled returns true when the effective pass-through flag for the current
 // channel is enabled and both the inbound and outbound API formats are identical.
@@ -83,6 +97,9 @@ func applyPassThroughRequestBody(outbound *PersistentOutboundTransformer, system
 
 		channel := outbound.GetCurrentChannel()
 		llmReq := outbound.state.LlmRequest
+		if !outbound.allowPassThroughBody(ctx, llmReq, request) {
+			return request, nil
+		}
 
 		// Multipart bodies cannot be reused: the outbound transformer rebuilds the
 		// multipart payload with a new boundary in Content-Type, so replaying the inbound
@@ -109,6 +126,47 @@ func applyPassThroughRequestBody(outbound *PersistentOutboundTransformer, system
 
 		request.Body = body
 		outbound.state.PassThroughApplied = true
+
+		return request, nil
+	})
+}
+
+func (p *PersistentOutboundTransformer) allowPassThroughBody(ctx context.Context, llmReq *llm.Request, providerReq *httpclient.Request) bool {
+	policy, ok := p.wrapped.(transformer.PassThroughBodyPolicy)
+	if !ok {
+		return true
+	}
+
+	return policy.AllowPassThroughBody(ctx, llmReq, providerReq)
+}
+
+// applyPassThroughRequestHeaders forwards Codex identity metadata paired with
+// a pass-through body. Protocol-selection headers such as Responses Lite are
+// deliberately excluded: the Codex transformer decides whether they apply.
+func applyPassThroughRequestHeaders(outbound *PersistentOutboundTransformer) pipeline.Middleware {
+	return pipeline.OnRawRequest("pass-through-request-headers", func(_ context.Context, request *httpclient.Request) (*httpclient.Request, error) {
+		if !outbound.state.PassThroughApplied || outbound.state.LlmRequest == nil ||
+			outbound.state.LlmRequest.APIFormat != llm.APIFormatOpenAIResponse ||
+			outbound.state.LlmRequest.RawRequest == nil {
+			return request, nil
+		}
+
+		if request.Headers == nil {
+			request.Headers = make(http.Header)
+		}
+
+		inboundHeaders := outbound.state.LlmRequest.RawRequest.Headers
+		for _, header := range codexResponsesPassThroughHeaders {
+			values := inboundHeaders.Values(header)
+			if len(values) == 0 {
+				continue
+			}
+
+			request.Headers.Del(header)
+			for _, value := range values {
+				request.Headers.Add(header, value)
+			}
+		}
 
 		return request, nil
 	})
@@ -156,6 +214,7 @@ func passThroughBodyNeedsModelPatch(apiFormat llm.APIFormat) bool {
 		llm.APIFormatOpenAIResponseCompact,
 		llm.APIFormatOpenAIEmbedding,
 		llm.APIFormatOpenAIModeration,
+		llm.APIFormatOpenAIAlphaSearch,
 		llm.APIFormatJinaEmbedding,
 		llm.APIFormatJinaRerank,
 		llm.APIFormatAnthropicMessage,

@@ -42,6 +42,7 @@ const requestFormatConditionOptions = [
   'openai/embeddings',
   'openai/video',
   'openai/moderations',
+  'openai/alpha_search',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',
@@ -868,6 +869,8 @@ export function ModelsAssociationDialog() {
           queryAllChannelModels: settings!.queryAllChannelModels,
           defaultModelAPIIncludeAll: settings!.defaultModelAPIIncludeAll,
           autoReasoningEffort: settings!.autoReasoningEffort,
+          modelBlacklistRegex: settings!.modelBlacklistRegex,
+          hideUnroutableModelsInList: settings!.hideUnroutableModelsInList,
           developerSettings: nextDeveloperSettings.sort((a, b) => a.developer.localeCompare(b.developer)),
         });
         handleClose();

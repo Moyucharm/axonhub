@@ -903,7 +903,7 @@ func TestPassThroughChannelStream_DrainsBufferedEventsAfterCancel(t *testing.T) 
 
 	require.Len(t, events, 2)
 	assert.Equal(t, []byte("[DONE]"), events[1].Data)
-	assert.True(t, isTerminalStreamEvent(events[1]))
+	assert.True(t, IsTerminalStreamEvent(events[1]))
 }
 
 func TestPassThroughChannelStream_StopsAtEmptyBufferAfterCancel(t *testing.T) {
@@ -1009,6 +1009,12 @@ type passthroughOutbound struct {
 	format llm.APIFormat
 }
 
+type passthroughPolicyOutbound struct {
+	passthroughOutbound
+
+	allow bool
+}
+
 func (t *passthroughOutbound) APIFormat() llm.APIFormat { return t.format }
 
 func (t *passthroughOutbound) TransformRequest(ctx context.Context, req *llm.Request) (*httpclient.Request, error) {
@@ -1031,6 +1037,10 @@ func (t *passthroughOutbound) TransformError(ctx context.Context, err *httpclien
 
 func (t *passthroughOutbound) AggregateStreamChunks(ctx context.Context, _ *httpclient.Request, chunks []*httpclient.StreamEvent) ([]byte, llm.ResponseMeta, error) {
 	return nil, llm.ResponseMeta{}, nil
+}
+
+func (t *passthroughPolicyOutbound) AllowPassThroughBody(ctx context.Context, llmReq *llm.Request, providerReq *httpclient.Request) bool {
+	return t.allow
 }
 
 // passthroughInbound is an inbound transformer that maps llm responses 1:1 to raw events.
@@ -1381,6 +1391,127 @@ func TestApplyPassThroughBodyPreservesMappedModel(t *testing.T) {
 
 	processed.Body[0] = '['
 	require.Equal(t, `{"model":"my-alias","messages":[{"role":"user","content":"hi"}],"temperature":0.4}`, string(outbound.state.LlmRequest.RawRequest.Body))
+}
+
+func TestApplyPassThroughBodySkipsWhenOutboundPolicyRejects(t *testing.T) {
+	ctx := context.Background()
+
+	channel := &biz.Channel{
+		Channel: &ent.Channel{
+			ID:   1,
+			Name: "policy-pass-through",
+			Settings: &objects.ChannelSettings{
+				PassThroughBody: lo.ToPtr(true),
+			},
+		},
+	}
+
+	outbound := &PersistentOutboundTransformer{
+		wrapped: &passthroughPolicyOutbound{
+			passthroughOutbound: passthroughOutbound{format: llm.APIFormatOpenAIResponse},
+			allow:               false,
+		},
+		state: &PersistenceState{
+			CurrentCandidate:      &ChannelModelsCandidate{Channel: channel},
+			OriginalRequestStream: lo.ToPtr(true),
+			LlmRequest: &llm.Request{
+				Model:     "gpt-5.4-mini",
+				APIFormat: llm.APIFormatOpenAIResponse,
+				Stream:    lo.ToPtr(true),
+				RawRequest: &httpclient.Request{
+					APIFormat: string(llm.APIFormatOpenAIResponse),
+					Body:      []byte(`{"model":"gpt-5.4-mini","input":"hi","stream":true,"temperature":0.4}`),
+				},
+			},
+		},
+	}
+
+	request := &httpclient.Request{
+		APIFormat: string(llm.APIFormatOpenAIResponse),
+		Body:      []byte(`{"model":"gpt-5.4-mini","input":[{"role":"user","content":"hi"}],"stream":true}`),
+	}
+
+	processed, err := applyPassThroughRequestBody(outbound, nil).OnOutboundRawRequest(ctx, request)
+	require.NoError(t, err)
+	require.False(t, outbound.state.PassThroughApplied)
+	require.Equal(t, request, processed)
+	require.False(t, gjson.GetBytes(processed.Body, "temperature").Exists())
+}
+
+func TestApplyPassThroughRequestHeaders(t *testing.T) {
+	inboundHeaders := http.Header{
+		"X-Codex-Turn-Metadata":                  {`{"session_id":"session-123","turn_id":"turn-456"}`},
+		"X-Codex-Window-Id":                      {"window-123"},
+		"X-Client-Request-Id":                    {"request-123"},
+		"X-Codex-Beta-Features":                  {"js_repl"},
+		"Session-Id":                             {"session-123"},
+		"Originator":                             {"codex_desktop_rs"},
+		"X-Openai-Internal-Codex-Responses-Lite": {"true"},
+		"Thread-Id":                              {"thread-123"},
+		"Authorization":                          {"Bearer inbound-secret"},
+		"Cookie":                                 {"session=inbound-secret"},
+		"Host":                                   {"client.example"},
+		"Content-Length":                         {"12345"},
+		"X-Untrusted-Custom-Header":              {"do-not-forward"},
+	}
+	outbound := &PersistentOutboundTransformer{
+		state: &PersistenceState{
+			PassThroughApplied: true,
+			LlmRequest: &llm.Request{
+				APIFormat:  llm.APIFormatOpenAIResponse,
+				RawRequest: &httpclient.Request{Headers: inboundHeaders},
+			},
+		},
+	}
+	request := &httpclient.Request{Headers: http.Header{
+		"Authorization": {"Bearer provider-secret"},
+		"Originator":    {"axonhub"},
+	}}
+
+	processed, err := applyPassThroughRequestHeaders(outbound).OnOutboundRawRequest(context.Background(), request)
+	require.NoError(t, err)
+
+	for _, header := range codexResponsesPassThroughHeaders {
+		require.Equal(t, inboundHeaders.Values(header), processed.Headers.Values(header), header)
+	}
+	require.Equal(t, "Bearer provider-secret", processed.Headers.Get("Authorization"))
+	require.Empty(t, processed.Headers.Get("X-Openai-Internal-Codex-Responses-Lite"))
+	require.Empty(t, processed.Headers.Get("Cookie"))
+	require.Empty(t, processed.Headers.Get("Host"))
+	require.Empty(t, processed.Headers.Get("Content-Length"))
+	require.Empty(t, processed.Headers.Get("X-Untrusted-Custom-Header"))
+}
+
+func TestApplyPassThroughRequestHeadersRequiresResponsesBodyPassThrough(t *testing.T) {
+	tests := []struct {
+		name               string
+		passThroughApplied bool
+		apiFormat          llm.APIFormat
+	}{
+		{name: "body pass-through not applied", apiFormat: llm.APIFormatOpenAIResponse},
+		{name: "different API format", passThroughApplied: true, apiFormat: llm.APIFormatOpenAIChatCompletion},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outbound := &PersistentOutboundTransformer{
+				state: &PersistenceState{
+					PassThroughApplied: tt.passThroughApplied,
+					LlmRequest: &llm.Request{
+						APIFormat: tt.apiFormat,
+						RawRequest: &httpclient.Request{Headers: http.Header{
+							"X-Codex-Turn-Metadata": {"must-not-forward"},
+						}},
+					},
+				},
+			}
+			request := &httpclient.Request{Headers: make(http.Header)}
+
+			processed, err := applyPassThroughRequestHeaders(outbound).OnOutboundRawRequest(context.Background(), request)
+			require.NoError(t, err)
+			require.Empty(t, processed.Headers.Get("X-Codex-Turn-Metadata"))
+		})
+	}
 }
 
 func TestApplyPassThroughBodyPreservesMappedModelForJinaRerank(t *testing.T) {
