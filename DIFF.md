@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11） |
 | 当前基线提交（分叉点） | `b9af5ae2`（2026-08-04，官方 unstable，约定生效前遗留）feat(channels): add Groq channel (#2144) |
 | 本次跟进的官方 unstable | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；主人明确批准跟进例外） |
-| 本分支版本号 | `v1.0.0-beta8+azusa.v0.2`（本次跟进期间暂不创建 tag，见第 5 节） |
+| 本分支版本号 | `v1.0.0-beta8+azusa.v0.3`（已创建 tag 并触发镜像构建，见 3.7 节） |
 
 ### 更新本文件的方法
 
@@ -169,6 +169,12 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - ProviderQuotaStatus 实体与配额感知负载均衡；
 - CPA 管理与 usage stream。
 
+### 3.7 自用版本发布（`v1.0.0-beta8+azusa.v0.3`）
+
+- `internal/build/VERSION` 设为 `v1.0.0-beta8+azusa.v0.3`，包含 3.4～3.5 节的 AtlasCloud 再移除与合并回归修复。
+- 创建 git tag `v1.0.0-beta8+azusa.v0.3` 并推送，触发镜像构建；自用 Docker 镜像通过 `docker-selfhosted.yml`（`workflow_dispatch`）在 `自用` 分支触发，镜像 tag 为 `v1.0.0-beta8_azusa.v0.3`。
+- 上游最新发行版仍为 `v1.0.0-beta7`（beta8 尚未发布），故发行基线不变、仅递增增强号。
+
 ## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的本次跟进内容与升级参考
 
 本次合并前 `自用` HEAD 为 `a731dac1`；官方最新发行版仍是 `v1.0.0-beta7`（`b4d1fd04`），而 `upstream-tmp/unstable` 为 `a037c0bf`，相对 beta7 包含 **62 个未发行提交**。本次跟进属于主人明确批准的 unstable 例外。本次合并涉及的主要功能：
@@ -196,7 +202,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
-- **当前状态**：本次跟进暂保留 `v1.0.0-beta8+azusa.v0.2`，不创建新 tag、不触发镜像发布。由于官方正式发行版仍是 beta7，本次合并不改变发行基线；等新的 release tag 发布后，再按本约定对齐基准并更新版本号。
+- **当前状态**：`2026-08-28` 发布 `v1.0.0-beta8+azusa.v0.3`（含 AtlasCloud 再移除与合并回归修复，见 3.7 节）。由于官方正式发行版仍是 beta7，本次合并不改变发行基线；等新的 release tag 发布后，再按本约定对齐基准并更新版本号。
 
 ### 官方新发行版发布时的升级流程
 
@@ -227,6 +233,8 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 | `531ff9d2` | feat(frontend) | 冷却 UI 与 i18n |
 | `91de02a2` | fix(keypool) | RetryCount 总请求数语义 |
 | `a80d2b89` | build | 自用版本号 v1.0.0-beta8+azusa.v0.1 |
+| `1e9fb8af` | fix | 合并回归修复：beta9 迁移标记、API Key 规则守卫、AtlasCloud 再移除 |
+| tag `v1.0.0-beta8+azusa.v0.3` | build | 自用版本号 v1.0.0-beta8+azusa.v0.3（含 3.4～3.5 节修复） |
 | `7a7ae1d1` | docs | 新增 DIFF.md 差异记录 |
 | `3558b214` | chore | 自用 Docker 构建工作流 + .agent 忽略 |
 | `fa04299f` | fix(frontend) | pnpm 10 重新生成 lockfile（Docker 构建修复） |
