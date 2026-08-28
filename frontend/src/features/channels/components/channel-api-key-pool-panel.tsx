@@ -526,6 +526,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
         onOpenChange={setRulesOpen}
         currentRow={channel}
         onChannelChange={onChannelChange}
+      />
     </>
   );
 }
