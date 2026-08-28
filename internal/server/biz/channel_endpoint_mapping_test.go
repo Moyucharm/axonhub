@@ -34,8 +34,11 @@ func TestDefaultEndpointsForChannelType_UseLLMAPIFormatValues(t *testing.T) {
 			},
 		},
 		{
-			name: "atlascloud keeps openai-compatible built-in endpoints",
-			typ:  channel.TypeAtlascloud,
+			// Legacy AtlasCloud channels are normalized to plain openai
+			// channels before any endpoint resolution, so they get the full
+			// openai default endpoint set.
+			name: "legacy atlascloud normalizes to openai endpoints",
+			typ:  channel.NormalizeLegacyType(channel.LegacyTypeAtlascloud),
 			expected: []string{
 				llm.APIFormatOpenAIChatCompletion.String(),
 				llm.APIFormatOpenAIEmbedding.String(),
@@ -44,6 +47,9 @@ func TestDefaultEndpointsForChannelType_UseLLMAPIFormatValues(t *testing.T) {
 				llm.APIFormatOpenAIImageVariation.String(),
 				llm.APIFormatOpenAIVideo.String(),
 				llm.APIFormatOpenAIModeration.String(),
+				llm.APIFormatOpenAISpeech.String(),
+				llm.APIFormatOpenAITranscription.String(),
+				llm.APIFormatOpenAITranslation.String(),
 			},
 		},
 		{

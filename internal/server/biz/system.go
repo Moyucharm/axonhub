@@ -80,6 +80,13 @@ const (
 	// The value is JSON-encoded OnboardingInfo struct.
 	SystemKeyOnboarded = "system_onboarded"
 
+	// SystemKeyDataMigrateV1_0_0_Beta9Done marks that the v1.0.0-beta9 data
+	// migration (stale settings.providerQuota purge + SQLite updated_at repair)
+	// completed successfully. It exists because the self-hosted build version
+	// (v1.0.0-beta8+azusa.vX) stays below the migration version, so the plain
+	// semver gate would otherwise re-run the cleanup on every startup.
+	SystemKeyDataMigrateV1_0_0_Beta9Done = "data_migrate_v1_0_0_beta9_done"
+
 	// SystemKeyModelSettings is the key used to store model-related settings.
 	// The value is JSON-encoded SystemModelSettings struct.
 	SystemKeyModelSettings = "system_model_settings"

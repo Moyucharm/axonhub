@@ -145,6 +145,30 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - `internal/build/VERSION` 设为 `v1.0.0-beta8+azusa.v0.1`（详见第 5 节版本号约定）。
 - 创建 git tag `v1.0.0-beta8+azusa.v0.1`。
 
+### 3.4 移除 AtlasCloud 渠道类型
+
+自用分支不需要 AtlasCloud 渠道，已从**可选渠道类型**中完整移除：
+
+- Ent schema 渠道 enum 不再包含 `atlascloud`（`make generate` 重新生成 Ent/GraphQL/前端 schema）。
+- 后端端点映射、前端配置（`config_channels.ts`/`config_providers.ts`）、图标组件与中英文文案同步移除。
+- **旧数据兼容**：保留 `channel.LegacyTypeAtlascloud` 与 `NormalizeLegacyType`，旧数据库行和备份文件中的 `atlascloud` 值在启动迁移与恢复时自动归一化为 `openai`，历史数据零丢失。
+
+### 3.5 合并回归修复（2026-08-28）
+
+2026-08-27 unstable 合并（见 2.6 节）引入三处回归，均已修复：
+
+1. **AtlasCloud 被合并重新引入**：渠道 enum 冲突解决时整体采纳上游列表，把此前已移除的 `atlascloud` 带了回来。已按 3.4 节再次移除；教训：enum/枚举类冲突必须逐值核对自用移除清单。
+2. **Beta9 数据迁移每次启动重复执行**：构建版本 `v1.0.0-beta8+azusa.vX` 永远低于迁移版本 `v1.0.0-beta9`，semver 门禁形同虚设。修复方式：迁移成功后在 `systems` 表写入一次性完成标记（`data_migrate_v1_0_0_beta9_done`），后续启动检测到标记即跳过；清理失败不写标记、下次重试；标记读取失败则 fail-open 继续幂等清理。不提升版本号、不改历史迁移版本语义。
+3. **`apiKeyRuleActionInFlight` 判断错误且缺少 claim/release 生命周期**：合并后映射中无人写入条目，并发守卫在生产中永不触发。已恢复上游「存在即进行中」语义：规则动作执行前 claim（值 `false`），完成后 release；并发成功将值改写为 `true`（streak 已重置）；动作失败时保留内存 streak 记忆并释放 claim。
+
+### 3.6 ProviderQuota 范围说明
+
+「移除 ProviderQuota」仅指**渠道级旧配置** `settings.providerQuota`（OpenCode Go workspace ID + 认证 Cookie，已无业务读取方，beta9 数据迁移安全清除）。以下均为**当前功能，继续保留**：
+
+- 全局配置 `conf.ProviderQuota`（`provider_quota.check_interval` / `warning_check_interval_ratio`）；
+- ProviderQuotaStatus 实体与配额感知负载均衡；
+- CPA 管理与 usage stream。
+
 ## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的本次跟进内容与升级参考
 
 本次合并前 `自用` HEAD 为 `a731dac1`；官方最新发行版仍是 `v1.0.0-beta7`（`b4d1fd04`），而 `upstream-tmp/unstable` 为 `a037c0bf`，相对 beta7 包含 **62 个未发行提交**。本次跟进属于主人明确批准的 unstable 例外。本次合并涉及的主要功能：
@@ -156,7 +180,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 
 ### ✅ 合并后的冲突决策记录
 
-本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型并入渠道 enum。旧 `settings.providerQuota` 配置按 beta9 安全迁移删除，新的 ProviderQuotaStatus/CPA 不受影响。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
+本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型并入渠道 enum（注意：enum 冲突整体采纳上游时曾把自用已移除的 `atlascloud` 一并带回，详见 3.4/3.5 节，现已再次移除）。旧渠道级 `settings.providerQuota` 配置按 beta9 安全迁移删除（仅渠道级字段；全局 `provider_quota` 配置与 ProviderQuotaStatus/CPA 功能不受影响，详见 3.6 节），且迁移经一次性完成标记防止重复执行（详见 3.5 节）。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
 
 ## 5. 版本号约定与基准规则
 

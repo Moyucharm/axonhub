@@ -6,6 +6,7 @@ import (
 	sqldriver "database/sql/driver"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"entgo.io/ent/dialect"
@@ -17,7 +18,9 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/ent/migrate/datamigrate"
+	"github.com/looplj/axonhub/internal/ent/system"
 	"github.com/looplj/axonhub/internal/objects"
+	"github.com/looplj/axonhub/internal/server/biz"
 )
 
 func extractSettingsJSONField(t *testing.T, driver *entsql.Driver, id int, path string) []byte {
@@ -244,7 +247,9 @@ func TestV1_0_0_Beta9_StripsMonotonicSuffixIsIdempotent(t *testing.T) {
 
 type recordingDriver struct {
 	dialect     string
+	sql         *sql.DB
 	execQueries []string
+	queries     []string
 }
 
 func (d *recordingDriver) Dialect() string { return d.dialect }
@@ -255,8 +260,38 @@ func (d *recordingDriver) Tx(context.Context) (dialect.Tx, error) {
 	return nil, errors.New("unexpected tx")
 }
 
-func (d *recordingDriver) Query(context.Context, string, any, any) error {
-	return errors.New("unexpected query")
+// recordingScanner answers fake-driver queries. INSERT ... RETURNING gets one
+// row carrying id=1 so the marker upsert succeeds; plain SELECTs get zero rows
+// so the marker lookup maps to ent NotFound and the migration proceeds.
+type recordingScanner struct{ oneRow bool }
+
+func (s *recordingScanner) Next() bool {
+	n := s.oneRow
+	s.oneRow = false
+	return n
+}
+func (s *recordingScanner) Close() error                            { return nil }
+func (s *recordingScanner) Columns() ([]string, error)              { return []string{"id"}, nil }
+func (s *recordingScanner) ColumnTypes() ([]*sql.ColumnType, error) { return nil, nil }
+func (s *recordingScanner) Err() error                              { return nil }
+func (s *recordingScanner) NextResultSet() bool                     { return false }
+func (s *recordingScanner) Scan(dest ...any) error {
+	for _, d := range dest {
+		if p, ok := d.(*int64); ok {
+			*p = 1
+		}
+	}
+	return nil
+}
+
+func (d *recordingDriver) Query(_ context.Context, query string, _ any, v any) error {
+	d.queries = append(d.queries, query)
+	rows, ok := v.(*entsql.Rows)
+	if !ok {
+		return fmt.Errorf("expected *entsql.Rows, got %T", v)
+	}
+	rows.ColumnScanner = &recordingScanner{oneRow: strings.Contains(query, "INSERT")}
+	return nil
 }
 
 func (d *recordingDriver) Exec(_ context.Context, query string, _ any, v any) error {
@@ -269,6 +304,89 @@ func (d *recordingDriver) Exec(_ context.Context, query string, _ any, v any) er
 	return nil
 }
 
+// execFailingDriver wraps a real dialect.Driver and injects an Exec failure for
+// queries containing failQuery, without affecting Query calls.
+type execFailingDriver struct {
+	dialect.Driver
+	failQuery string
+}
+
+func (d *execFailingDriver) Exec(ctx context.Context, query string, args any, v any) error {
+	if strings.Contains(query, d.failQuery) {
+		return fmt.Errorf("injected exec failure for %q", d.failQuery)
+	}
+	return d.Driver.Exec(ctx, query, args, v)
+}
+
+func markerCount(t *testing.T, client *ent.Client, ctx context.Context) int {
+	t.Helper()
+	n, err := client.System.Query().
+		Where(system.KeyEQ(biz.SystemKeyDataMigrateV1_0_0_Beta9Done)).
+		Count(ctx)
+	require.NoError(t, err)
+	return n
+}
+
+func TestV1_0_0_Beta9_WritesCompletionMarker(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:beta9-marker?mode=memory&_fk=1")
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(context.Background())
+	require.Equal(t, 0, markerCount(t, client, ctx))
+
+	require.NoError(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, client))
+	require.Equal(t, 1, markerCount(t, client, ctx))
+}
+
+func TestV1_0_0_Beta9_SkipsCleanupWhenMarkerPresent(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:beta9-skip?mode=memory&_fk=1")
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(context.Background())
+	require.NoError(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, client))
+
+	// Simulate a late-arriving legacy row AFTER the migration already ran.
+	driver := client.Driver().(*entsql.Driver)
+	ch := client.Channel.Create().
+		SetName("late-legacy").
+		SetType(channel.TypeOpenai).
+		SetCredentials(objects.ChannelCredentials{APIKey: "sk-test"}).
+		SetSupportedModels([]string{"test-model"}).
+		SetDefaultTestModel("test-model").
+		SaveX(ctx)
+	_, err := driver.ExecContext(ctx,
+		"UPDATE channels SET settings = ? WHERE id = ?",
+		`{"providerQuota":{"opencodeGo":{"workspaceId":"wk_3"}}}`, ch.ID)
+	require.NoError(t, err)
+
+	// The completion marker makes the re-run skip cleanup entirely, so the
+	// stale providerQuota injected above stays untouched.
+	require.NoError(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, client))
+	require.NotNil(t, extractSettingsJSONField(t, driver, ch.ID, "$.providerQuota"))
+	require.Equal(t, 1, markerCount(t, client, ctx))
+}
+
+func TestV1_0_0_Beta9_FailedCleanupDoesNotWriteMarker(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:beta9-fail?mode=memory&_fk=1")
+	defer client.Close()
+
+	wrapped := &execFailingDriver{
+		Driver:    client.Driver(),
+		failQuery: "json_remove",
+	}
+	failing := ent.NewClient(ent.Driver(wrapped))
+	defer failing.Close()
+
+	ctx := authz.WithTestBypass(context.Background())
+
+	require.Error(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, failing))
+	require.Equal(t, 0, markerCount(t, client, ctx))
+
+	// Once the failure is gone, the next run completes and writes the marker.
+	require.NoError(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, client))
+	require.Equal(t, 1, markerCount(t, client, ctx))
+}
+
 func TestV1_0_0_Beta9_PostgresSkipsMonotonicUpdatedAtCleanup(t *testing.T) {
 	drv := &recordingDriver{dialect: dialect.Postgres}
 	client := ent.NewClient(ent.Driver(drv))
@@ -276,7 +394,17 @@ func TestV1_0_0_Beta9_PostgresSkipsMonotonicUpdatedAtCleanup(t *testing.T) {
 
 	ctx := authz.WithTestBypass(context.Background())
 	require.NoError(t, datamigrate.NewV1_0_0_Beta9().Migrate(ctx, client))
+
+	// Only the providerQuota purge is issued via Exec; the monotonic cleanup
+	// is skipped on Postgres. The marker lookup and the INSERT ... RETURNING
+	// completion-marker upsert travel through the Query path.
 	require.Equal(t, []string{
 		`UPDATE channels SET settings = settings #- '{providerQuota}' WHERE settings ? 'providerQuota'`,
 	}, drv.execQueries)
+	// The marker key travels as a bind argument, so assert on statement shape:
+	// first the marker lookup, then the INSERT ... RETURNING upsert.
+	require.Len(t, drv.queries, 2)
+	require.Regexp(t, `^SELECT "systems"`, drv.queries[0])
+	require.Regexp(t, `^INSERT INTO "systems"`, drv.queries[1])
+	require.Contains(t, drv.queries[1], "RETURNING")
 }

@@ -515,8 +515,15 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRulesWithChannel(
 			failurePolicy.DeleteOnThreshold = perf.APIKey != objects.OAuthCredentialRef
 		}
 
+		// Claim the action before touching persistent state so concurrent
+		// evaluations of the same rule skip instead of double-acting.
+		svc.claimAPIKeyRuleAction(perf.ChannelID, policyKey)
+		defer svc.releaseAPIKeyRuleAction(perf.ChannelID, policyKey)
+
 		_, acted, err := svc.recordAPIKeyFailure(ctx, perf.ChannelID, perf.APIKey, perf.ResponseStatusCode, perf.ErrorMessage, failurePolicy)
 		if err != nil {
+			// The claim is released below; keep the in-memory trace so the
+			// streak survives until the next evaluation after the failure.
 			svc.rememberFailedAPIKeyRuleAction(perf.ChannelID, policyKey)
 			log.Error(ctx, "Failed to persist channel API key rule failure",
 				log.Int("channel_id", perf.ChannelID),
@@ -533,10 +540,36 @@ func (svc *ChannelService) checkAndHandleChannelAPIKeyRulesWithChannel(
 func (svc *ChannelService) apiKeyRuleActionInFlight(channelID int, ruleKey string) bool {
 	svc.apiKeyErrorCountsLock.Lock()
 	defer svc.apiKeyErrorCountsLock.Unlock()
-	return svc.apiKeyRuleActionsInFlight[channelID] != nil && !svc.apiKeyRuleActionsInFlight[channelID][ruleKey] && func() bool {
-		_, ok := svc.apiKeyRuleActionsInFlight[channelID][ruleKey]
-		return ok
-	}()
+	// Presence in the map means an action for this rule has been claimed: the
+	// value tracks whether a concurrent success already reset the streak while
+	// the action was executing.
+	_, ok := svc.apiKeyRuleActionsInFlight[channelID][ruleKey]
+	return ok
+}
+
+// claimAPIKeyRuleAction marks a rule action as executing so concurrent
+// evaluations of the same rule skip it instead of double-counting or firing
+// duplicate disable actions/webhooks.
+func (svc *ChannelService) claimAPIKeyRuleAction(channelID int, ruleKey string) {
+	svc.apiKeyErrorCountsLock.Lock()
+	defer svc.apiKeyErrorCountsLock.Unlock()
+	if svc.apiKeyRuleActionsInFlight[channelID] == nil {
+		svc.apiKeyRuleActionsInFlight[channelID] = make(map[string]bool)
+	}
+	svc.apiKeyRuleActionsInFlight[channelID][ruleKey] = false
+}
+
+// releaseAPIKeyRuleAction removes the claim once the action attempt finished
+// (success or failure), so later failures can trigger the rule again.
+func (svc *ChannelService) releaseAPIKeyRuleAction(channelID int, ruleKey string) {
+	svc.apiKeyErrorCountsLock.Lock()
+	defer svc.apiKeyErrorCountsLock.Unlock()
+	if m := svc.apiKeyRuleActionsInFlight[channelID]; m != nil {
+		delete(m, ruleKey)
+		if len(m) == 0 {
+			delete(svc.apiKeyRuleActionsInFlight, channelID)
+		}
+	}
 }
 
 func (svc *ChannelService) rememberFailedAPIKeyRuleAction(channelID int, ruleKey string) {

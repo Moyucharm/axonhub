@@ -27,7 +27,7 @@ test('Cline is available as a channel type in frontend schemas and configs', () 
   assert.match(providersConfig, /cline:\s*{[\s\S]*channelTypes:\s*\[\s*'cline'\s*\]/, 'PROVIDER_CONFIGS should expose a Cline provider');
 });
 
-test('Qiniu exposes OpenAI and Anthropic channel variants after AtlasCloud', () => {
+test('Qiniu exposes OpenAI and Anthropic channel variants', () => {
   const schema = read('features/channels/data/schema.ts');
   const channelsConfig = read('features/channels/data/config_channels.ts');
   const providersConfig = read('features/channels/data/config_providers.ts');
@@ -36,8 +36,10 @@ test('Qiniu exposes OpenAI and Anthropic channel variants after AtlasCloud', () 
   assert.match(channelsConfig, /qiniu:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.qnaigc\.com\/v1'[\s\S]*apiFormat:\s*OPENAI_CHAT_COMPLETIONS/);
   assert.match(channelsConfig, /qiniu_anthropic:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.qnaigc\.com'[\s\S]*apiFormat:\s*ANTHROPIC_MESSAGES/);
   assert.match(providersConfig, /qiniu:\s*{[\s\S]*channelTypes:\s*\[\s*'qiniu_anthropic',\s*'qiniu'\s*\]/);
-  assert.ok(channelsConfig.indexOf('atlascloud:') < channelsConfig.indexOf('qiniu:'));
-  assert.ok(providersConfig.indexOf('atlascloud:') < providersConfig.indexOf('qiniu:'));
+  // AtlasCloud was removed: it must not reappear as a channel or provider.
+  assert.ok(!channelsConfig.includes('atlascloud:'), 'atlascloud channel must stay removed');
+  assert.ok(!providersConfig.includes('atlascloud:'), 'atlascloud provider must stay removed');
+  assert.ok(!schema.includes("'atlascloud'"), 'atlascloud channel type must stay removed');
 });
 
 test('Fenno exposes a third-party Codex channel', () => {

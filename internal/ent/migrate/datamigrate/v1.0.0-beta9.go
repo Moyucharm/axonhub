@@ -6,10 +6,13 @@ import (
 	"fmt"
 
 	"entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/ent/system"
 	"github.com/looplj/axonhub/internal/log"
+	"github.com/looplj/axonhub/internal/server/biz"
 )
 
 // V1_0_0_Beta9 implements DataMigrator for version 1.0.0-beta9 migration.
@@ -48,6 +51,24 @@ func (v *V1_0_0_Beta9) Version() string {
 func (v *V1_0_0_Beta9) Migrate(ctx context.Context, client *ent.Client) (retErr error) {
 	ctx = authz.WithSystemBypass(ctx, "database-migrate")
 
+	// The self-hosted build version (v1.0.0-beta8+azusa.vX) stays below this
+	// migration's version, so the migrator's semver gate re-runs it on every
+	// startup. The cleanup is idempotent, but it still scans/rewrites channels
+	// each boot, so record a one-shot completion marker once both steps have
+	// succeeded and skip them afterwards. The marker is written only after a
+	// fully successful pass, so a failure is always retried on next start.
+	done, err := v.isDone(ctx, client)
+	if err != nil {
+		// Fail open: the cleanup below is idempotent, so a transient failure
+		// while reading the marker must not block the migration itself. A
+		// broken database surfaces on the first UPDATE anyway.
+		log.Warn(ctx, "Failed to check v1.0.0-beta9 data migration marker, will re-run idempotent cleanup",
+			log.Cause(err))
+	} else if done {
+		log.Info(ctx, "Skipping v1.0.0-beta9 data migration: completion marker present")
+		return nil
+	}
+
 	// Use the dialect.Driver.Exec interface rather than asserting a concrete
 	// *entsql.Driver: under read-replica configuration the ent client wraps the
 	// driver in a routerDriver (internal/server/db), which still implements
@@ -57,7 +78,42 @@ func (v *V1_0_0_Beta9) Migrate(ctx context.Context, client *ent.Client) (retErr 
 	if retErr = v.purgeProviderQuota(ctx, client, dialectName); retErr != nil {
 		return retErr
 	}
-	return v.stripMonotonicUpdatedAt(ctx, client, dialectName)
+	if retErr = v.stripMonotonicUpdatedAt(ctx, client, dialectName); retErr != nil {
+		return retErr
+	}
+	return v.markDone(ctx, client)
+}
+
+// isDone reports whether the beta9 data migration already completed successfully.
+// A missing marker returns (false, nil); any other query failure is returned to
+// the caller, which fails open by re-running the idempotent cleanup.
+func (v *V1_0_0_Beta9) isDone(ctx context.Context, client *ent.Client) (bool, error) {
+	_, err := client.System.Query().
+		Where(system.KeyEQ(biz.SystemKeyDataMigrateV1_0_0_Beta9Done)).
+		Only(ctx)
+	if err == nil {
+		return true, nil
+	}
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+// markDone persists the one-shot completion marker after a fully successful pass.
+func (v *V1_0_0_Beta9) markDone(ctx context.Context, client *ent.Client) error {
+	err := client.System.Create().
+		SetKey(biz.SystemKeyDataMigrateV1_0_0_Beta9Done).
+		SetValue("true").
+		OnConflict(entsql.ConflictColumns("key")).
+		UpdateNewValues().
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to write v1.0.0-beta9 data migration marker: %w", err)
+	}
+
+	log.Info(ctx, "Recorded v1.0.0-beta9 data migration completion marker")
+	return nil
 }
 
 // purgeProviderQuota removes the obsolete settings.providerQuota key.

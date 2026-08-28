@@ -33,7 +33,6 @@ import {
   OpenCode,
   Groq,
 } from '@lobehub/icons';
-import { AtlasCloudIcon } from '../components/atlas-cloud-icon';
 import { EvolinkIcon } from '../components/evolink-icon';
 import { FennoIcon } from '../components/fenno-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
@@ -80,14 +79,6 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     apiFormat: OPENAI_CHAT_COMPLETIONS,
     color: 'bg-white-100 text-white-800 border-white-200',
     icon: OpenAI,
-  },
-  atlascloud: {
-    channelType: 'atlascloud',
-    baseURL: 'https://api.atlascloud.ai/v1',
-    defaultModels: ['deepseek-v3', 'qwen-plus', 'kimi-k2', 'glm-4.7'],
-    apiFormat: OPENAI_CHAT_COMPLETIONS,
-    color: 'bg-sky-100 text-sky-800 border-sky-200',
-    icon: AtlasCloudIcon,
   },
   qiniu: {
     channelType: 'qiniu',
@@ -823,7 +814,6 @@ export const getDefaultModels = (channelType: ChannelType): string[] => {
  */
 export type Provider =
   | 'openai'
-  | 'atlascloud'
   | 'qiniu'
   | 'fenno'
   | 'cline'
@@ -869,7 +859,6 @@ export type Provider =
 export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   openai: 'openai',
   openai_responses: 'openai',
-  atlascloud: 'atlascloud',
   qiniu: 'qiniu',
   qiniu_anthropic: 'qiniu',
   fenno: 'fenno',

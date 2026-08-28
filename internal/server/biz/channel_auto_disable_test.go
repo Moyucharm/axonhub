@@ -1044,6 +1044,48 @@ func TestChannelService_ChannelAPIKeyRuleDoesNotStartConcurrentAction(t *testing
 	require.True(t, streakReset)
 }
 
+func TestChannelService_ChannelAPIKeyRuleClaimsAndReleasesAction(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	svc := newTestChannelService(client)
+	duration := 30
+	rule := objects.APIKeyAutoDisableRule{
+		StatusCodes:            []int{429},
+		Times:                  1,
+		Action:                 objects.APIKeyAutoDisableActionTemporary,
+		DisableDurationMinutes: &duration,
+	}
+	ch := createTestChannelWithAPIKeys(t, client, ctx, "claim-release", []string{"key1", "key2"})
+	ch, err := client.Channel.UpdateOneID(ch.ID).
+		SetPolicies(objects.ChannelPolicies{APIKeyAutoDisableRules: []objects.APIKeyAutoDisableRule{rule}}).
+		Save(ctx)
+	require.NoError(t, err)
+	svc.SetEnabledChannelsForTest([]*Channel{buildChannel(ch, nil)})
+
+	ruleKey := apiKeyRuleCounterKey("key1", 0, rule)
+
+	// A claim makes the rule in flight regardless of the stored value; the
+	// value only records whether a concurrent success already reset the streak.
+	svc.claimAPIKeyRuleAction(ch.ID, ruleKey)
+	require.True(t, svc.apiKeyRuleActionInFlight(ch.ID, ruleKey))
+	svc.apiKeyRuleActionsInFlight[ch.ID][ruleKey] = true
+	require.True(t, svc.apiKeyRuleActionInFlight(ch.ID, ruleKey))
+
+	// An executed action must release its claim so later failures can
+	// trigger the rule again.
+	svc.releaseAPIKeyRuleAction(ch.ID, ruleKey)
+	require.False(t, svc.apiKeyRuleActionInFlight(ch.ID, ruleKey))
+
+	// A fresh threshold hit acts and leaves no stale claim behind.
+	_, acted := svc.checkAndHandleChannelAPIKeyRules(ctx, &PerformanceRecord{
+		ChannelID: ch.ID, APIKey: "key1", ResponseStatusCode: 429,
+	})
+	require.True(t, acted)
+	require.NotContains(t, svc.apiKeyRuleActionsInFlight, ch.ID)
+}
+
 func TestChannelService_ResetAPIKeyFailureExported(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()
