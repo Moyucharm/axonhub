@@ -201,7 +201,7 @@ type ChannelService struct {
 	apiKeyErrorCounts          map[int]map[string]map[int]int
 	apiKeyRuleActionsInFlight  map[int]map[string]bool
 	apiKeyErrorCountsLock      sync.Mutex
-	apiKeyOpsLock              sync.Mutex
+	apiKeyOpsLocks             [channelAPIKeyOpsLockShardCount]sync.Mutex
 	channelAutoDisableOpsLocks [channelAutoDisableLockShardCount]sync.Mutex
 
 	modelSyncMu sync.Mutex
@@ -219,10 +219,25 @@ type ChannelService struct {
 	perfCh chan *PerformanceRecord
 }
 
-const channelAutoDisableLockShardCount = 64
+const (
+	channelAutoDisableLockShardCount = 64
+	channelAPIKeyOpsLockShardCount   = 64
+)
+
+func shardedChannelLockIndex(channelID int, shardCount int) int {
+	index := channelID % shardCount
+	if index < 0 {
+		return -index
+	}
+	return index
+}
 
 func (svc *ChannelService) channelAutoDisableLock(channelID int) *sync.Mutex {
-	return &svc.channelAutoDisableOpsLocks[channelID%channelAutoDisableLockShardCount]
+	return &svc.channelAutoDisableOpsLocks[shardedChannelLockIndex(channelID, channelAutoDisableLockShardCount)]
+}
+
+func (svc *ChannelService) channelAPIKeyOpsLock(channelID int) *sync.Mutex {
+	return &svc.apiKeyOpsLocks[shardedChannelLockIndex(channelID, channelAPIKeyOpsLockShardCount)]
 }
 
 func (svc *ChannelService) SetAPIKeyTester(tester ChannelAPIKeyTester) {

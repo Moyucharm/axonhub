@@ -18,6 +18,7 @@ import {
   useChannelDisabledAPIKeys,
   useCheckChannelAPIKeys,
   useDisableChannelAPIKey,
+  useDisableSelectedChannelAPIKeys,
   useEnableAllChannelAPIKeys,
   useEnableChannelAPIKey,
   useEnableSelectedChannelAPIKeys,
@@ -28,7 +29,7 @@ import {
   useUpdateChannel,
 } from '../data/channels';
 import { Channel } from '../data/schema';
-import { DEFAULT_API_KEY_POOL_REQUEST_COUNT } from '../utils/key-pool';
+import { DEFAULT_API_KEY_POOL_REQUEST_COUNT, partitionSelectedAPIKeys, reconcileRemovedAPIKeys } from '../utils/key-pool';
 import { mergeChannelSettingsForUpdate } from '../utils/merge';
 import { ChannelsAvailabilityDialog } from './channels-availability-dialog';
 
@@ -91,6 +92,10 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   );
 
   const allKeys = localKeys ?? channel.credentials?.apiKeys ?? [];
+  const selectedKeys = useMemo(() => Array.from(selected), [selected]);
+  const selectedByStatus = useMemo(() => partitionSelectedAPIKeys(selectedKeys, disabledSet), [disabledSet, selectedKeys]);
+  const selectedDisabledKeys = selectedByStatus.disabled;
+  const selectedEnabledKeys = selectedByStatus.enabled;
   const keys = useMemo(
     () =>
       allKeys.filter((key) => {
@@ -111,6 +116,7 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
   const enableAllKeys = useEnableAllChannelAPIKeys();
   const enableSelectedKeys = useEnableSelectedChannelAPIKeys();
   const disableKey = useDisableChannelAPIKey();
+  const disableSelectedKeys = useDisableSelectedChannelAPIKeys();
   const testKey = useTestChannelAPIKey();
   const updateChannel = useUpdateChannel();
 
@@ -181,21 +187,21 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
 
   const handleRemove = async () => {
     if (selected.size === 0) return;
-    await removeKeys.mutateAsync({ channelID: channel.id, keys: Array.from(selected) });
-    syncNext(allKeys.filter((key) => !selected.has(key)));
+    const result = await removeKeys.mutateAsync({ channelID: channel.id, keys: Array.from(selected) });
+    syncNext(reconcileRemovedAPIKeys(allKeys, selected, result.message));
     setSelected(new Set());
     setConfirmRemoveOpen(false);
   };
 
   const handleEnableSelected = async () => {
-    if (selected.size === 0) return;
-    await enableSelectedKeys.mutateAsync({ channelID: channel.id, keys: Array.from(selected) });
+    if (selectedDisabledKeys.length === 0) return;
+    await enableSelectedKeys.mutateAsync({ channelID: channel.id, keys: selectedDisabledKeys });
     setSelected(new Set());
   };
 
   const handleDisableSelected = async () => {
-    if (selected.size === 0) return;
-    await Promise.all(Array.from(selected).map((key) => disableKey.mutateAsync({ channelID: channel.id, key })));
+    if (selectedEnabledKeys.length === 0) return;
+    await disableSelectedKeys.mutateAsync({ channelID: channel.id, keys: selectedEnabledKeys });
     setSelected(new Set());
     setConfirmDisableOpen(false);
   };
@@ -257,7 +263,6 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
     setSettingsOpen(false);
   };
 
-  const selectedDisabledCount = Array.from(selected).filter((key) => disabledSet.has(key)).length;
   const totalKeys = allKeys.length;
   const enabledKeys = Math.max(0, totalKeys - disabledSet.size);
   const channelRuleCount = channel.policies?.apiKeyAutoDisableRules?.length ?? 0;
@@ -380,11 +385,11 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
           </div>
           <DialogFooter className='flex shrink-0 flex-wrap items-center gap-2'>
             <div className='mr-auto flex flex-wrap items-center gap-2'>
-              <Button variant='outline' size='sm' onClick={() => setConfirmDisableOpen(true)} disabled={selected.size === 0 || selectedDisabledCount === 0}>
-                {t('channels.keyPool.disableSelected', { count: selected.size })}
+              <Button variant='outline' size='sm' onClick={() => setConfirmDisableOpen(true)} disabled={selectedEnabledKeys.length === 0}>
+                {t('channels.keyPool.disableSelected', { count: selectedEnabledKeys.length })}
               </Button>
-              <Button variant='outline' size='sm' onClick={handleEnableSelected} disabled={selected.size === 0 || selectedDisabledCount === 0}>
-                {t('channels.keyPool.enableSelected', { count: selected.size })}
+              <Button variant='outline' size='sm' onClick={handleEnableSelected} disabled={selectedDisabledKeys.length === 0}>
+                {t('channels.keyPool.enableSelected', { count: selectedDisabledKeys.length })}
               </Button>
               <Button variant='outline' size='sm' onClick={handleEnableAll} disabled={disabledSet.size === 0}>
                 {t('channels.keyPool.enableAll')}
@@ -500,11 +505,11 @@ export function ChannelAPIKeyPoolPanel({ channel, open, onOpenChange, onChannelC
       <Dialog open={confirmDisableOpen} onOpenChange={setConfirmDisableOpen}>
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
-            <DialogTitle>{t('channels.keyPool.confirmDisableSelected', { count: selected.size })}</DialogTitle>
+            <DialogTitle>{t('channels.keyPool.confirmDisableSelected', { count: selectedEnabledKeys.length })}</DialogTitle>
           </DialogHeader>
           <DialogFooter>
             <Button variant='outline' onClick={() => setConfirmDisableOpen(false)}>{t('common.buttons.cancel')}</Button>
-            <Button variant='destructive' onClick={handleDisableSelected} disabled={disableKey.isPending}>{t('common.buttons.confirm')}</Button>
+            <Button variant='destructive' onClick={handleDisableSelected} disabled={disableSelectedKeys.isPending}>{t('common.buttons.confirm')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

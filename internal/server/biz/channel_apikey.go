@@ -16,7 +16,6 @@ import (
 	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
-	"github.com/looplj/axonhub/internal/pkg/xcontext"
 )
 
 const (
@@ -46,186 +45,120 @@ func (svc *ChannelService) DisableAPIKey(
 		return fmt.Errorf("api key cannot be empty")
 	}
 
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	// 读取 channel
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+	var expiry *time.Time
+	if len(expiresAt) > 0 {
+		expiry = expiresAt[0]
 	}
+	_, err := svc.disableAPIKeys(ctx, channelID, []string{key}, errorCode, reason, expiry)
+	return err
+}
 
-	// 检查 key 是否在 credentials 中。OAuth 渠道用固定的 OAuthCredentialRef 作为
-	// 唯一凭证标识，所以这里按凭证引用而非明文 key 匹配。
-	allKeys := ch.Credentials.GetAllCredentialRefs()
+// DisableSelectedAPIKeys disables multiple keys in one channel state mutation.
+func (svc *ChannelService) DisableSelectedAPIKeys(ctx context.Context, channelID int, keys []string) error {
+	_, err := svc.disableAPIKeys(ctx, channelID, keys, 0, "Manually disabled by user", nil)
+	return err
+}
 
-	found := slices.Contains(allKeys, key)
-	if !found {
-		// key 不在 credentials 中，忽略
-		return nil
-	}
-
-	activeDisabledKeys := lo.Filter(ch.DisabledAPIKeys, func(dk objects.DisabledAPIKey, _ int) bool {
-		return !dk.IsExpired()
-	})
-
-	disabled := lo.ContainsBy(activeDisabledKeys, func(dk objects.DisabledAPIKey) bool {
-		return dk.Key == key
-	})
-
-	if disabled {
-		// 已禁用，忽略
-		return nil
-	}
-
-	// 追加到 disabled_api_keys
-	disabledKey := objects.DisabledAPIKey{
-		Key:        key,
-		DisabledAt: time.Now(),
-		ErrorCode:  errorCode,
-		Reason:     reason,
-	}
-	for _, state := range ch.Credentials.APIKeyStates {
-		if state.Key == key {
-			disabledKey.FailureCount = state.FailureCount
-			disabledKey.LastFailedAt = state.LastFailedAt
-			break
+func (svc *ChannelService) disableAPIKeys(
+	ctx context.Context,
+	channelID int,
+	keys []string,
+	errorCode int,
+	reason string,
+	expiresAt *time.Time,
+) (int, error) {
+	keysToDisable := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if key != "" {
+			keysToDisable[key] = struct{}{}
 		}
 	}
-	if len(expiresAt) > 0 {
-		disabledKey.ExpiresAt = expiresAt[0]
+	if len(keysToDisable) == 0 {
+		return 0, nil
 	}
 
-	newDisabledKeys := append(activeDisabledKeys, disabledKey)
+	disabledCount := 0
+	channelDisabled := false
+	changed, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		activeDisabledKeys := lo.Filter(ch.DisabledAPIKeys, func(dk objects.DisabledAPIKey, _ int) bool {
+			return !dk.IsExpired()
+		})
+		disabledSet := make(map[string]struct{}, len(activeDisabledKeys))
+		for _, disabled := range activeDisabledKeys {
+			disabledSet[disabled.Key] = struct{}{}
+		}
 
-	// 计算 enabled 凭证
-	enabledKeys := ch.Credentials.GetEnabledCredentialRefs(newDisabledKeys)
+		now := time.Now()
+		newDisabledKeys := cloneDisabledAPIKeys(activeDisabledKeys)
+		disabledCount = 0
+		for _, key := range ch.Credentials.GetAllCredentialRefs() {
+			if _, requested := keysToDisable[key]; !requested {
+				continue
+			}
+			if _, disabled := disabledSet[key]; disabled {
+				continue
+			}
 
-	// 更新 channel
-	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		SetDisabledAPIKeys(newDisabledKeys)
+			disabledKey := objects.DisabledAPIKey{
+				Key:        key,
+				DisabledAt: now,
+				ErrorCode:  errorCode,
+				Reason:     reason,
+				ExpiresAt:  expiresAt,
+			}
+			for _, state := range ch.Credentials.APIKeyStates {
+				if state.Key == key {
+					disabledKey.FailureCount = state.FailureCount
+					disabledKey.LastFailedAt = state.LastFailedAt
+					break
+				}
+			}
+			newDisabledKeys = append(newDisabledKeys, disabledKey)
+			disabledSet[key] = struct{}{}
+			disabledCount++
+		}
+		if disabledCount == 0 && len(activeDisabledKeys) == len(ch.DisabledAPIKeys) {
+			return nil, nil
+		}
 
-	// 如果没有可用 key 了，禁用整个 channel
-	channelDisabled := len(enabledKeys) == 0
-	if channelDisabled {
-		update.SetStatus(channel.StatusDisabled)
-		update.SetErrorMessage(fmt.Sprintf("%s (last error: %d)", allKeysDisabledErrorPrefix, errorCode))
-		update.SetAutoDisabledAt(time.Now())
-		log.Warn(ctx, "Channel disabled because all API keys are disabled",
-			log.Int("channel_id", channelID),
-			log.String("channel_name", ch.Name),
-		)
+		channelDisabled = len(ch.Credentials.GetEnabledCredentialRefs(newDisabledKeys)) == 0
+		mutation := &channelAPIKeyStateMutation{disabledAPIKeys: &newDisabledKeys}
+		if channelDisabled {
+			status := channel.StatusDisabled
+			errorMessage := fmt.Sprintf("%s (last error: %d)", allKeysDisabledErrorPrefix, errorCode)
+			mutation.status = &status
+			mutation.errorMessage = &errorMessage
+			mutation.autoDisabledAt = &now
+			mutation.refreshLocalCache = true
+		}
+		return mutation, nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if !changed {
+		return 0, nil
 	}
 
-	if _, err := update.Save(ctx); err != nil {
-		return fmt.Errorf("failed to disable api key: %w", err)
-	}
-
-	log.Info(ctx, "API key disabled",
+	log.Info(ctx, "API keys disabled",
 		log.Int("channel_id", channelID),
 		log.Int("error_code", errorCode),
+		log.Int("count", disabledCount),
 	)
-
 	if channelDisabled {
-		// Synchronously reload the local cache to immediately stop selecting this channel.
-		// This matches channel-level automatic disposition behavior.
-		reloadCtx, cancel := xcontext.DetachWithTimeout(ctx, 10*time.Second)
-		defer cancel()
-
-		if err := svc.enabledChannelsCache.Load(reloadCtx, true); err != nil {
-			log.Warn(ctx, "Failed to synchronously reload channels after API key exhaustion",
-				log.Int("channel_id", channelID),
-				log.Cause(err),
-			)
-		}
+		log.Warn(ctx, "Channel disabled because all API keys are disabled", log.Int("channel_id", channelID))
 	}
-
-	// Also notify other instances via the watcher for cross-instance cache invalidation.
-	svc.asyncReloadChannels()
-
-	return nil
+	return disabledCount, nil
 }
 
 // EnableAPIKey 重新启用指定 key（从 disabled_api_keys 中移除）.
 func (svc *ChannelService) EnableAPIKey(ctx context.Context, channelID int, key string) error {
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	// 读取 channel
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
-	}
-
-	if len(ch.DisabledAPIKeys) == 0 {
-		// 没有禁用的 key，忽略
-		return nil
-	}
-
-	// 从 disabled_api_keys 中移除指定 key
-	newDisabledKeys := make([]objects.DisabledAPIKey, 0, len(ch.DisabledAPIKeys))
-	found := false
-
-	for _, dk := range ch.DisabledAPIKeys {
-		if dk.Key == key {
-			found = true
-			continue
-		}
-
-		newDisabledKeys = append(newDisabledKeys, dk)
-	}
-
-	if !found {
-		// key 不在禁用列表中，忽略
-		return nil
-	}
-
-	// 更新 channel
-	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		SetDisabledAPIKeys(newDisabledKeys)
-	update = applyRecoveredChannelStatus(ctx, update, ch, ch.Credentials, newDisabledKeys)
-
-	if _, err := update.Save(ctx); err != nil {
-		return fmt.Errorf("failed to enable api key: %w", err)
-	}
-
-	svc.asyncReloadChannels()
-
-	return nil
+	return svc.EnableSelectedAPIKeys(ctx, channelID, []string{key})
 }
 
 // EnableAllAPIKeys 清空 disabled_api_keys.
 func (svc *ChannelService) EnableAllAPIKeys(ctx context.Context, channelID int) error {
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	// 读取 channel
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
-	}
-
-	if len(ch.DisabledAPIKeys) == 0 {
-		// 没有禁用的 key，忽略
-		return nil
-	}
-
-	// 更新 channel，清空 disabled_api_keys
-	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		SetDisabledAPIKeys([]objects.DisabledAPIKey{})
-	update = applyRecoveredChannelStatus(ctx, update, ch, ch.Credentials, nil)
-
-	if _, err := update.Save(ctx); err != nil {
-		return fmt.Errorf("failed to enable all api keys: %w", err)
-	}
-
-	log.Info(ctx, "All API keys enabled",
-		log.Int("channel_id", channelID),
-	)
-
-	svc.asyncReloadChannels()
-
-	return nil
+	return svc.enableAPIKeys(ctx, channelID, nil)
 }
 
 // EnableSelectedAPIKeys re-enables multiple specific keys from disabled_api_keys.
@@ -233,51 +166,42 @@ func (svc *ChannelService) EnableSelectedAPIKeys(ctx context.Context, channelID 
 	if len(keys) == 0 {
 		return nil
 	}
-
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
-	}
-
-	if len(ch.DisabledAPIKeys) == 0 {
-		return nil
-	}
-
 	keysToEnable := make(map[string]struct{}, len(keys))
-	for _, k := range keys {
-		keysToEnable[k] = struct{}{}
+	for _, key := range keys {
+		keysToEnable[key] = struct{}{}
 	}
+	return svc.enableAPIKeys(ctx, channelID, keysToEnable)
+}
 
-	newDisabledKeys := make([]objects.DisabledAPIKey, 0, len(ch.DisabledAPIKeys))
-	for _, dk := range ch.DisabledAPIKeys {
-		if _, found := keysToEnable[dk.Key]; !found {
-			newDisabledKeys = append(newDisabledKeys, dk)
+func (svc *ChannelService) enableAPIKeys(ctx context.Context, channelID int, keysToEnable map[string]struct{}) error {
+	_, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		if len(ch.DisabledAPIKeys) == 0 {
+			return nil, nil
 		}
-	}
 
-	if len(newDisabledKeys) == len(ch.DisabledAPIKeys) {
-		return nil
-	}
+		newDisabledKeys := make([]objects.DisabledAPIKey, 0, len(ch.DisabledAPIKeys))
+		for _, disabled := range ch.DisabledAPIKeys {
+			if keysToEnable != nil {
+				if _, selected := keysToEnable[disabled.Key]; !selected {
+					newDisabledKeys = append(newDisabledKeys, disabled)
+				}
+			}
+		}
+		if len(newDisabledKeys) == len(ch.DisabledAPIKeys) {
+			return nil, nil
+		}
 
-	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		SetDisabledAPIKeys(newDisabledKeys)
-	update = applyRecoveredChannelStatus(ctx, update, ch, ch.Credentials, newDisabledKeys)
-
-	if _, err := update.Save(ctx); err != nil {
-		return fmt.Errorf("failed to enable selected api keys: %w", err)
-	}
-
-	log.Info(ctx, "Selected API keys enabled",
-		log.Int("channel_id", channelID),
-		log.Int("count", len(keys)),
-	)
-
-	svc.asyncReloadChannels()
-
-	return nil
+		mutation := &channelAPIKeyStateMutation{disabledAPIKeys: &newDisabledKeys}
+		if shouldRecoverAPIKeyExhaustedChannel(ch, ch.Credentials, newDisabledKeys) {
+			status := channel.StatusEnabled
+			mutation.status = &status
+			mutation.clearErrorMessage = true
+			mutation.clearAutoDisabledAt = true
+			mutation.refreshLocalCache = true
+		}
+		return mutation, nil
+	})
+	return err
 }
 
 type ImportChannelAPIKeysResult struct {
@@ -302,47 +226,50 @@ func (svc *ChannelService) ImportChannelAPIKeys(ctx context.Context, channelID i
 		return result, nil
 	}
 
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get channel: %w", err)
-	}
-	if ch.Credentials.IsOAuth() {
-		return nil, fmt.Errorf("cannot import API keys for OAuth channels")
-	}
-
-	credentials := ch.Credentials
-	credentials.APIKeys = slices.Clone(credentials.GetAllAPIKeys())
-	credentials.APIKey = ""
-	credentials.Mode = objects.APIKeyModePool
-	credentials.APIKeyStates = slices.Clone(credentials.APIKeyStates)
-	existing := make(map[string]struct{}, len(credentials.APIKeys))
-	for _, key := range credentials.APIKeys {
-		existing[key] = struct{}{}
-	}
-	for _, key := range parsedKeys {
-		if _, found := existing[key]; found {
-			result.Ignored++
-			continue
+	_, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		if ch.Credentials.IsOAuth() {
+			return nil, fmt.Errorf("cannot import API keys for OAuth channels")
 		}
-		existing[key] = struct{}{}
-		credentials.APIKeys = append(credentials.APIKeys, key)
-		credentials.APIKeyStates = append(credentials.APIKeyStates, objects.ChannelAPIKeyState{Key: key})
-		result.Added++
-	}
-	if result.Added == 0 {
-		return result, nil
-	}
 
-	if _, err := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		Where(channel.UpdatedAtEQ(ch.UpdatedAt)).
-		SetCredentials(credentials).
-		Save(ctx); err != nil {
+		credentials := cloneChannelCredentials(ch.Credentials)
+		credentials.APIKeys = slices.Clone(credentials.GetAllAPIKeys())
+		credentials.APIKey = ""
+		credentials.Mode = objects.APIKeyModePool
+		existing := make(map[string]struct{}, len(credentials.APIKeys))
+		for _, key := range credentials.APIKeys {
+			existing[key] = struct{}{}
+		}
+
+		added := 0
+		ignored := 0
+		for _, key := range parsedKeys {
+			if _, found := existing[key]; found {
+				ignored++
+				continue
+			}
+			existing[key] = struct{}{}
+			credentials.APIKeys = append(credentials.APIKeys, key)
+			credentials.APIKeyStates = append(credentials.APIKeyStates, objects.ChannelAPIKeyState{Key: key})
+			added++
+		}
+		result.Added = added
+		result.Ignored = ignored
+		if added == 0 {
+			return nil, nil
+		}
+		mutation := &channelAPIKeyStateMutation{credentials: &credentials}
+		if shouldRecoverAPIKeyExhaustedChannel(ch, credentials, ch.DisabledAPIKeys) {
+			status := channel.StatusEnabled
+			mutation.status = &status
+			mutation.clearErrorMessage = true
+			mutation.clearAutoDisabledAt = true
+			mutation.refreshLocalCache = true
+		}
+		return mutation, nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("failed to import channel API keys: %w", err)
 	}
-	svc.asyncReloadChannels()
 	return result, nil
 }
 
@@ -419,93 +346,103 @@ type DeleteDisabledAPIKeysResult struct {
 // DeleteDisabledAPIKeys removes disabled API keys from both disabled_api_keys list and credentials.
 // It ensures at least one API key remains and prevents deletion for OAuth channels.
 func (svc *ChannelService) DeleteDisabledAPIKeys(ctx context.Context, channelID int, keys []string) (*DeleteDisabledAPIKeysResult, error) {
+	result := &DeleteDisabledAPIKeysResult{Success: true}
 	if len(keys) == 0 {
-		return &DeleteDisabledAPIKeysResult{Success: true}, nil
+		return result, nil
 	}
 
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get channel: %w", err)
-	}
-
-	// Check if channel uses OAuth - cannot delete keys for OAuth channels
-	if ch.Credentials.IsOAuth() {
-		return nil, fmt.Errorf("cannot delete API keys for OAuth channels")
-	}
-
-	keysToDelete := make(map[string]struct{}, len(keys))
-	for _, k := range keys {
-		keysToDelete[k] = struct{}{}
-	}
-
-	// Remove from disabled_api_keys
-	newDisabledKeys := make([]objects.DisabledAPIKey, 0, len(ch.DisabledAPIKeys))
-	for _, dk := range ch.DisabledAPIKeys {
-		if _, found := keysToDelete[dk.Key]; !found {
-			newDisabledKeys = append(newDisabledKeys, dk)
+	requested := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if key != "" {
+			requested[key] = struct{}{}
 		}
 	}
+	if len(requested) == 0 {
+		return result, nil
+	}
 
-	// Remove from credentials
-	newCredentials := ch.Credentials
-	newCredentials.APIKeys = slices.Clone(newCredentials.APIKeys)
-	newCredentials.APIKeyStates = slices.Clone(newCredentials.APIKeyStates)
-	if len(newCredentials.APIKeys) > 0 {
-		filteredKeys := make([]string, 0, len(newCredentials.APIKeys))
-		for _, k := range newCredentials.APIKeys {
-			if _, found := keysToDelete[k]; !found {
-				filteredKeys = append(filteredKeys, k)
+	preserved := false
+	removedCount := 0
+	_, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		if ch.Credentials.IsOAuth() {
+			return nil, fmt.Errorf("cannot delete API keys for OAuth channels")
+		}
+
+		allKeys := ch.Credentials.GetAllAPIKeys()
+		matched := make(map[string]struct{}, len(requested))
+		for _, key := range allKeys {
+			if _, found := requested[key]; found {
+				matched[key] = struct{}{}
 			}
 		}
-
-		newCredentials.APIKeys = filteredKeys
-	}
-
-	if newCredentials.APIKey != "" {
-		if _, found := keysToDelete[newCredentials.APIKey]; found {
-			newCredentials.APIKey = ""
+		if len(matched) == 0 {
+			preserved = false
+			removedCount = 0
+			return nil, nil
 		}
-	}
 
-	newCredentials.APIKeyStates = lo.Filter(newCredentials.APIKeyStates, func(state objects.ChannelAPIKeyState, _ int) bool {
-		_, found := keysToDelete[state.Key]
-		return !found
+		keysToRemove := make(map[string]struct{}, len(matched))
+		for key := range matched {
+			keysToRemove[key] = struct{}{}
+		}
+		remaining := 0
+		for _, key := range allKeys {
+			if _, remove := keysToRemove[key]; !remove {
+				remaining++
+			}
+		}
+		preserved = remaining == 0
+		if preserved {
+			// Preserve a real key in channel order. Request-only values must never
+			// become credentials.
+			delete(keysToRemove, allKeys[0])
+		}
+		removedCount = len(keysToRemove)
+
+		credentials := cloneChannelCredentials(ch.Credentials)
+		if _, remove := keysToRemove[credentials.APIKey]; remove {
+			credentials.APIKey = ""
+		}
+		credentials.APIKeys = lo.Reject(credentials.APIKeys, func(key string, _ int) bool {
+			_, remove := keysToRemove[key]
+			return remove
+		})
+		credentials.APIKeyStates = lo.Reject(credentials.APIKeyStates, func(state objects.ChannelAPIKeyState, _ int) bool {
+			_, requestedKey := matched[state.Key]
+			return requestedKey
+		})
+
+		// Every requested real key leaves the disabled list, including the one
+		// preserved to satisfy the last-key compatibility contract.
+		disabledKeys := lo.Reject(ch.DisabledAPIKeys, func(disabled objects.DisabledAPIKey, _ int) bool {
+			_, requestedKey := matched[disabled.Key]
+			return requestedKey
+		})
+		mutation := &channelAPIKeyStateMutation{
+			credentials:     &credentials,
+			disabledAPIKeys: &disabledKeys,
+		}
+		if shouldRecoverAPIKeyExhaustedChannel(ch, credentials, disabledKeys) {
+			status := channel.StatusEnabled
+			mutation.status = &status
+			mutation.clearErrorMessage = true
+			mutation.clearAutoDisabledAt = true
+			mutation.refreshLocalCache = true
+		}
+		return mutation, nil
 	})
-
-	// Ensure at least one API key remains
-	allKeys := newCredentials.GetAllAPIKeys()
-	if len(allKeys) == 0 {
-		// Restore at least one key from the keys being deleted
-		// Prefer the first key that was supposed to be deleted
-		restoredKey := keys[0]
-		newCredentials.APIKeys = []string{restoredKey}
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete channel API keys: %w", err)
 	}
-
-	update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-		SetDisabledAPIKeys(newDisabledKeys).
-		SetCredentials(newCredentials)
-	update = applyRecoveredChannelStatus(ctx, update, ch, newCredentials, newDisabledKeys)
-
-	if _, err := update.Save(ctx); err != nil {
-		return nil, fmt.Errorf("failed to delete disabled api keys: %w", err)
-	}
-
-	log.Info(ctx, "Disabled API keys deleted",
-		log.Int("channel_id", channelID),
-		log.Int("count", len(keys)),
-	)
-
-	// Check if we had to preserve a key
-	result := &DeleteDisabledAPIKeysResult{Success: true}
-	if len(allKeys) == 0 {
+	if preserved {
 		result.Message = "ONE_KEY_PRESERVED"
 	}
-
-	svc.asyncReloadChannels()
-
+	if removedCount > 0 {
+		log.Info(ctx, "Channel API keys deleted",
+			log.Int("channel_id", channelID),
+			log.Int("count", removedCount),
+		)
+	}
 	return result, nil
 }
 
@@ -521,32 +458,28 @@ func (svc *ChannelService) recordAPIKeyFailure(
 		return 0, false, nil
 	}
 
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	for attempt := 0; attempt < apiKeyStateUpdateMaxRetries; attempt++ {
-		ch, getErr := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-		if getErr != nil {
-			return 0, false, fmt.Errorf("failed to get channel: %w", getErr)
-		}
+	_, err = svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
 		if !slices.Contains(ch.Credentials.GetAllCredentialRefs(), key) {
-			return 0, false, nil
+			count = 0
+			acted = false
+			return nil, nil
 		}
 		if lo.ContainsBy(ch.DisabledAPIKeys, func(disabled objects.DisabledAPIKey) bool {
 			return disabled.Key == key && !disabled.IsExpired()
 		}) {
+			count = 0
 			for _, state := range ch.Credentials.APIKeyStates {
 				if state.Key == key {
-					return state.FailureCount, false, nil
+					count = state.FailureCount
+					break
 				}
 			}
-			return 0, false, nil
+			acted = false
+			return nil, nil
 		}
 
 		now := time.Now()
-		credentials := ch.Credentials
-		credentials.APIKeys = slices.Clone(credentials.APIKeys)
-		credentials.APIKeyStates = slices.Clone(credentials.APIKeyStates)
+		credentials := cloneChannelCredentials(ch.Credentials)
 		stateIndex := slices.IndexFunc(credentials.APIKeyStates, func(state objects.ChannelAPIKeyState) bool {
 			return state.Key == key
 		})
@@ -598,43 +531,28 @@ func (svc *ChannelService) recordAPIKeyFailure(
 			disabledKeys = append(disabledKeys, disabled)
 		}
 
-		update := svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-			Where(channel.UpdatedAtEQ(ch.UpdatedAt)).
-			SetCredentials(credentials)
+		mutation := &channelAPIKeyStateMutation{
+			credentials:         &credentials,
+			suppressCacheReload: !acted,
+		}
 		channelDisabled := acted && len(credentials.GetEnabledCredentialRefs(disabledKeys)) == 0
 		if acted {
-			update.SetDisabledAPIKeys(disabledKeys)
+			mutation.disabledAPIKeys = &disabledKeys
 			if channelDisabled {
-				update.SetStatus(channel.StatusDisabled).
-					SetErrorMessage(fmt.Sprintf("%s (last error: %d)", allKeysDisabledErrorPrefix, errorCode)).
-					SetAutoDisabledAt(now)
+				status := channel.StatusDisabled
+				errorMessage := fmt.Sprintf("%s (last error: %d)", allKeysDisabledErrorPrefix, errorCode)
+				mutation.status = &status
+				mutation.errorMessage = &errorMessage
+				mutation.autoDisabledAt = &now
+				mutation.refreshLocalCache = true
 			}
 		}
-
-		if _, saveErr := update.Save(ctx); saveErr != nil {
-			if ent.IsNotFound(saveErr) {
-				continue
-			}
-			return 0, false, fmt.Errorf("failed to persist api key failure state: %w", saveErr)
-		}
-
-		if acted {
-			if channelDisabled {
-				reloadCtx, cancel := xcontext.DetachWithTimeout(ctx, 10*time.Second)
-				if loadErr := svc.enabledChannelsCache.Load(reloadCtx, true); loadErr != nil {
-					log.Warn(ctx, "Failed to reload channels after API key pool exhaustion",
-						log.Int("channel_id", channelID),
-						log.Cause(loadErr),
-					)
-				}
-				cancel()
-			}
-			svc.asyncReloadChannels()
-		}
-		return count, acted, nil
+		return mutation, nil
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to persist api key failure state: %w", err)
 	}
-
-	return 0, false, fmt.Errorf("failed to persist api key failure state after %d retries", apiKeyStateUpdateMaxRetries)
+	return count, acted, nil
 }
 
 // ResetAPIKeyFailure resets the consecutive failure streak for a channel API key.
@@ -648,48 +566,35 @@ func (svc *ChannelService) resetAPIKeyFailure(ctx context.Context, channelID int
 		return nil
 	}
 
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
-
-	for attempt := 0; attempt < apiKeyStateUpdateMaxRetries; attempt++ {
-		ch, err := svc.entFromContext(ctx).Channel.Get(ctx, channelID)
-		if err != nil {
-			if ent.IsNotFound(err) {
-				return nil
-			}
-			return fmt.Errorf("failed to get channel: %w", err)
-		}
+	_, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
 		if !slices.Contains(ch.Credentials.GetAllCredentialRefs(), key) {
-			return nil
+			return nil, nil
 		}
 
-		credentials := ch.Credentials
-		credentials.APIKeyStates = slices.Clone(credentials.APIKeyStates)
+		credentials := cloneChannelCredentials(ch.Credentials)
 		stateIndex := slices.IndexFunc(credentials.APIKeyStates, func(state objects.ChannelAPIKeyState) bool {
 			return state.Key == key
 		})
 		if stateIndex < 0 || credentials.APIKeyStates[stateIndex].FailureCount == 0 {
-			return nil
+			return nil, nil
 		}
 		credentials.APIKeyStates[stateIndex].FailureCount = 0
 		credentials.APIKeyStates[stateIndex].FailurePolicyKey = ""
 		credentials.APIKeyStates[stateIndex].LastFailedAt = nil
 		credentials.APIKeyStates[stateIndex].LastErrorCode = 0
 		credentials.APIKeyStates[stateIndex].LastError = ""
-
-		_, err = svc.entFromContext(ctx).Channel.UpdateOneID(channelID).
-			Where(channel.UpdatedAtEQ(ch.UpdatedAt)).
-			SetCredentials(credentials).
-			Save(ctx)
-		if err == nil {
+		return &channelAPIKeyStateMutation{
+			credentials:         &credentials,
+			suppressCacheReload: true,
+		}, nil
+	})
+	if err != nil {
+		if ent.IsNotFound(err) {
 			return nil
 		}
-		if !ent.IsNotFound(err) {
-			return fmt.Errorf("failed to reset api key failure state: %w", err)
-		}
+		return fmt.Errorf("failed to reset api key failure state: %w", err)
 	}
-
-	return fmt.Errorf("failed to reset api key failure state after %d retries", apiKeyStateUpdateMaxRetries)
+	return nil
 }
 
 func (svc *ChannelService) CheckChannelAPIKeys(
@@ -832,27 +737,6 @@ func (svc *ChannelService) claimAPIKeyPoolAutoCheck(ctx context.Context, ch *ent
 	return updated != nil, nil
 }
 
-func applyRecoveredChannelStatus(
-	ctx context.Context,
-	update *ent.ChannelUpdateOne,
-	ch *ent.Channel,
-	credentials objects.ChannelCredentials,
-	disabledKeys []objects.DisabledAPIKey,
-) *ent.ChannelUpdateOne {
-	if ch.Status != channel.StatusDisabled || ch.ErrorMessage == nil ||
-		!strings.HasPrefix(*ch.ErrorMessage, allKeysDisabledErrorPrefix) ||
-		len(credentials.GetEnabledCredentialRefs(disabledKeys)) == 0 {
-		return update
-	}
-
-	log.Info(ctx, "Re-enabled channel after API key availability recovered",
-		log.Int("channel_id", ch.ID),
-		log.String("channel_name", ch.Name),
-	)
-
-	return update.SetStatus(channel.StatusEnabled).ClearErrorMessage().ClearAutoDisabledAt()
-}
-
 // cleanupExpiredDisabledAPIKeys prunes elapsed temporary disables and restores
 // channels that were disabled only because all of their keys were unavailable.
 func (svc *ChannelService) cleanupExpiredDisabledAPIKeys(ctx context.Context) {
@@ -890,33 +774,35 @@ func (svc *ChannelService) cleanupExpiredDisabledAPIKeys(ctx context.Context) {
 	}
 
 	if needsReload {
-		svc.asyncReloadChannels()
+		svc.reloadChannelsAfterCommit(ctx)
 	}
 }
 
 func (svc *ChannelService) cleanupChannelExpiredDisabledAPIKeys(ctx context.Context, channelID int) (bool, int, error) {
-	svc.apiKeyOpsLock.Lock()
-	defer svc.apiKeyOpsLock.Unlock()
+	removed := 0
+	changed, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		active := lo.Filter(ch.DisabledAPIKeys, func(dk objects.DisabledAPIKey, _ int) bool {
+			return !dk.IsExpired()
+		})
+		removed = len(ch.DisabledAPIKeys) - len(active)
+		if removed == 0 {
+			return nil, nil
+		}
 
-	entClient := svc.entFromContext(ctx)
-	ch, err := entClient.Channel.Get(ctx, channelID)
-	if err != nil {
-		return false, 0, fmt.Errorf("failed to get channel: %w", err)
-	}
-
-	active := lo.Filter(ch.DisabledAPIKeys, func(dk objects.DisabledAPIKey, _ int) bool {
-		return !dk.IsExpired()
+		mutation := &channelAPIKeyStateMutation{
+			disabledAPIKeys:     &active,
+			suppressCacheReload: true,
+		}
+		if shouldRecoverAPIKeyExhaustedChannel(ch, ch.Credentials, active) {
+			status := channel.StatusEnabled
+			mutation.status = &status
+			mutation.clearErrorMessage = true
+			mutation.clearAutoDisabledAt = true
+		}
+		return mutation, nil
 	})
-	removed := len(ch.DisabledAPIKeys) - len(active)
-	if removed == 0 {
-		return false, 0, nil
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to cleanup expired disabled API keys: %w", err)
 	}
-
-	update := entClient.Channel.UpdateOneID(ch.ID).SetDisabledAPIKeys(active)
-	update = applyRecoveredChannelStatus(ctx, update, ch, ch.Credentials, active)
-	if _, err := update.Save(ctx); err != nil {
-		return false, 0, fmt.Errorf("failed to update channel: %w", err)
-	}
-
-	return true, removed, nil
+	return changed, removed, nil
 }

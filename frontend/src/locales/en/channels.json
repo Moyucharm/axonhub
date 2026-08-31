@@ -195,6 +195,7 @@
   "channels.messages.savePricesSuccess": "Model prices saved successfully",
   "channels.messages.enableAPIKeySuccess": "API key enabled successfully",
   "channels.messages.disableAPIKeySuccess": "API key disabled successfully",
+  "channels.messages.disableSelectedAPIKeysSuccess": "Selected API keys disabled successfully",
   "channels.messages.enableAllAPIKeysSuccess": "All API keys enabled successfully",
   "channels.messages.Unauthorized": "Unauthorized, please check the API key of the channel",
   "channels.messages.Not Found": "Endpoint not found, pleast check the base url of the channel",

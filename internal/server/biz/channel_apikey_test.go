@@ -14,6 +14,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/objects"
+	"github.com/looplj/axonhub/internal/pkg/xcache/live"
 	"github.com/looplj/axonhub/llm/auth"
 )
 
@@ -812,6 +813,234 @@ func TestChannelService_DeleteDisabledAPIKeys_NoDisabledKeys(t *testing.T) {
 	require.Len(t, updatedCh.Credentials.APIKeys, 1)
 	require.Contains(t, updatedCh.Credentials.APIKeys, "key2")
 	require.NotContains(t, updatedCh.Credentials.APIKeys, "key1")
+}
+
+func TestChannelService_DeleteChannelAPIKeys_NeverPersistsUnknownRequestedKey(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("unknown-key-delete").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1", "key2"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key1"}, {Key: "key2"}}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	result, err := svc.RemoveChannelAPIKeys(ctx, ch.ID, []string{"request-only-key", "key1", "key2"})
+	require.NoError(t, err)
+	require.Equal(t, "ONE_KEY_PRESERVED", result.Message)
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"key1"}, updated.Credentials.GetAllAPIKeys())
+	require.NotContains(t, updated.Credentials.GetAllAPIKeys(), "request-only-key")
+	require.Empty(t, updated.DisabledAPIKeys)
+}
+
+func TestChannelService_DeleteChannelAPIKeys_UnknownKeysAreNoOp(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("unknown-key-noop").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1", "key2"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		Save(ctx)
+	require.NoError(t, err)
+
+	result, err := svc.RemoveChannelAPIKeys(ctx, ch.ID, []string{"request-only-key"})
+	require.NoError(t, err)
+	require.Empty(t, result.Message)
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"key1", "key2"}, updated.Credentials.GetAllAPIKeys())
+}
+
+func TestChannelService_DisableSelectedAPIKeys_DisablesRealEnabledKeysOnce(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("batch-disable").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1", "key2", "key3"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key3"}}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.DisableSelectedAPIKeys(ctx, ch.ID, []string{"key1", "key1", "key2", "unknown", "key3"}))
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Len(t, updated.DisabledAPIKeys, 3)
+	require.ElementsMatch(t, []string{"key1", "key2", "key3"}, lo.Map(updated.DisabledAPIKeys, func(item objects.DisabledAPIKey, _ int) string {
+		return item.Key
+	}))
+	require.Equal(t, channel.StatusDisabled, updated.Status)
+}
+
+func TestChannelService_MutateAPIKeyState_RetriesCASConflict(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("api-key-cas-retry").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		Save(ctx)
+	require.NoError(t, err)
+
+	attempts := 0
+	changed, err := svc.mutateChannelAPIKeyState(ctx, ch.ID, func(current *ent.Channel) (*channelAPIKeyStateMutation, error) {
+		attempts++
+		if attempts == 1 {
+			_, updateErr := client.Channel.UpdateOneID(ch.ID).
+				SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key1"}}).
+				Save(ctx)
+			require.NoError(t, updateErr)
+		}
+		credentials := cloneChannelCredentials(current.Credentials)
+		credentials.APIKeys = append(credentials.APIKeys, "key2")
+		return &channelAPIKeyStateMutation{credentials: &credentials}, nil
+	})
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, 2, attempts)
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"key1", "key2"}, updated.Credentials.APIKeys)
+	require.Equal(t, "key1", updated.DisabledAPIKeys[0].Key)
+}
+
+func TestChannelService_ImportChannelAPIKeys_RecoversExhaustedChannel(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	disabledAt := time.Now().Add(-time.Minute)
+	autoDisabledAt := time.Now().Add(-30 * time.Second)
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("import-recovers-exhausted-channel").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: []string{"key1"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		SetStatus(channel.StatusDisabled).
+		SetErrorMessage(fmt.Sprintf("%s (last error: 401)", allKeysDisabledErrorPrefix)).
+		SetAutoDisabledAt(autoDisabledAt).
+		SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key1", DisabledAt: disabledAt}}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	result, err := svc.ImportChannelAPIKeys(ctx, ch.ID, "key2")
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Added)
+
+	updated, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, channel.StatusEnabled, updated.Status)
+	require.Nil(t, updated.ErrorMessage)
+	require.Nil(t, updated.AutoDisabledAt)
+	require.Equal(t, []string{"key2"}, updated.Credentials.GetEnabledAPIKeys(updated.DisabledAPIKeys))
+}
+
+func installReloadableEnabledChannelsCache(t *testing.T, svc *ChannelService) {
+	t.Helper()
+	svc.enabledChannelsCache.Stop()
+	svc.enabledChannelsCache = live.NewCache(live.Options[[]*Channel]{
+		Name:            "enabled_channels_transaction_test",
+		InitialValue:    []*Channel{},
+		RefreshInterval: 24 * time.Hour,
+		RefreshFunc:     svc.onCacheRefreshed,
+		OnSwap:          svc.onEnabledChannelsSwap,
+	})
+	t.Cleanup(svc.Stop)
+}
+
+func TestChannelService_APIKeyRecoveryReloadsCacheAfterTransactionCommit(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+	installReloadableEnabledChannelsCache(t, svc)
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	disabledAt := time.Now().Add(-time.Minute)
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("transaction-cache-recovery").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		SetStatus(channel.StatusDisabled).
+		SetErrorMessage(fmt.Sprintf("%s (last error: 401)", allKeysDisabledErrorPrefix)).
+		SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key1", DisabledAt: disabledAt}}).
+		Save(ctx)
+	require.NoError(t, err)
+	require.Nil(t, svc.GetEnabledChannel(ch.ID))
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	txCtx := ent.NewTxContext(ctx, tx)
+	txCtx = ent.NewContext(txCtx, tx.Client())
+	require.NoError(t, svc.EnableAPIKey(txCtx, ch.ID, "key1"))
+	require.Nil(t, svc.GetEnabledChannel(ch.ID), "cache must not expose uncommitted recovery")
+	require.NoError(t, tx.Commit())
+
+	require.NotNil(t, svc.GetEnabledChannel(ch.ID), "after-commit reload must use the base Ent client")
+}
+
+func TestChannelService_APIKeyRecoveryDoesNotReloadCacheAfterRollback(t *testing.T) {
+	svc, client := setupTestChannelService(t)
+	defer client.Close()
+	installReloadableEnabledChannelsCache(t, svc)
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	disabledAt := time.Now().Add(-time.Minute)
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("transaction-cache-rollback").
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"key1"}}).
+		SetSupportedModels([]string{"gpt-4"}).
+		SetDefaultTestModel("gpt-4").
+		SetStatus(channel.StatusDisabled).
+		SetErrorMessage(fmt.Sprintf("%s (last error: 401)", allKeysDisabledErrorPrefix)).
+		SetDisabledAPIKeys([]objects.DisabledAPIKey{{Key: "key1", DisabledAt: disabledAt}}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	txCtx := ent.NewTxContext(ctx, tx)
+	txCtx = ent.NewContext(txCtx, tx.Client())
+	require.NoError(t, svc.EnableAPIKey(txCtx, ch.ID, "key1"))
+	require.NoError(t, tx.Rollback())
+
+	require.Nil(t, svc.GetEnabledChannel(ch.ID))
+	unchanged, err := client.Channel.Get(ctx, ch.ID)
+	require.NoError(t, err)
+	require.Equal(t, channel.StatusDisabled, unchanged.Status)
+	require.Len(t, unchanged.DisabledAPIKeys, 1)
 }
 
 func TestChannelAPIKeyContextProviderSetsSelectedKey(t *testing.T) {

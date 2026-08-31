@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	// cpaWeeklyPeriodSeconds is the codex weekly (secondary) quota window.
+	// cpaWeeklyPeriodSeconds is the Codex 7d quota window. Primary and
+	// secondary are wire slots; window duration determines weekly semantics.
 	cpaWeeklyPeriodSeconds = 7 * 24 * 60 * 60
 	// cpaEstimateMinPercentDelta is the minimum locally observed percentage
 	// change before an interval estimate is considered reliable.
@@ -53,8 +54,27 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
 		return nil
 	}
-	interval := codexEstimateIntervalForItem(item, observed)
+	decision := codexEstimateIntervalDecisionForItem(item, observed)
+	interval := decision.interval
 	if interval == nil {
+		log.Debug(ctx, "skip CPA quota estimate: incomplete interval",
+			log.Int("cpa_instance_id", instanceID),
+			log.String("auth_index", strings.TrimSpace(authIndex)),
+			log.String("quota_item_id", item.ID),
+			log.Int("period_seconds", *item.PeriodSeconds),
+			log.String("reason", decision.skipReason),
+			log.String("collector_session_id", observed.SecondaryCollectorSessionID),
+			log.Any("baseline_used_percent", observed.SecondaryBaselineUsedPercent),
+			log.Any("latest_used_percent", observed.SecondaryUsedPercent),
+			log.Any("baseline_event_id", observed.SecondaryBaselineEventID),
+			log.Any("latest_event_id", observed.SecondaryLatestEventID),
+			log.Any("observed_reset_at", observed.SecondaryResetAt),
+			log.Any("quota_reset_at", item.ResetAt),
+			log.String("refresh_collector_session_id", item.EstimateCollectorSessionID),
+			log.Any("refresh_baseline_used_percent", item.EstimateBaselineUsedPercent),
+			log.Any("refresh_baseline_event_id", item.EstimateBaselineEventID),
+			log.Any("refresh_latest_event_id", item.EstimateLatestEventID),
+		)
 		return nil
 	}
 	cycleStart := item.ResetAt.Add(-time.Duration(*item.PeriodSeconds) * time.Second)

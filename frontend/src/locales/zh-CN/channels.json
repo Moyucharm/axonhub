@@ -186,6 +186,7 @@
   "channels.messages.savePricesSuccess": "模型价格保存成功",
   "channels.messages.enableAPIKeySuccess": "API 密钥启用成功",
   "channels.messages.disableAPIKeySuccess": "API 密钥禁用成功",
+  "channels.messages.disableSelectedAPIKeysSuccess": "选中的 API 密钥禁用成功",
   "channels.messages.enableAllAPIKeysSuccess": "所有 API 密钥启用成功",
   "channels.messages.syncModelsSuccess": "模型同步成功",
   "channels.messages.Unauthorized": "无权限访问，请检查渠道的 API 密钥",

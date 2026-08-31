@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { partitionSelectedAPIKeys, reconcileRemovedAPIKeys } from '../utils/key-pool.ts';
 
 const srcRoot = join(import.meta.dirname, '..', '..', '..');
 const read = (path) => readFileSync(join(srcRoot, path), 'utf8');
@@ -16,7 +17,7 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
   assert.match(schema, /channelAPIKeyStateSchema[\s\S]*failureCount/);
   const keyPoolUtils = read('features/channels/utils/key-pool.ts');
   assert.match(keyPoolUtils, /DEFAULT_API_KEY_POOL_REQUEST_COUNT = 3/);
-  for (const operation of ['importChannelAPIKeys', 'exportChannelAPIKeys', 'removeChannelAPIKeys', 'checkChannelAPIKeys']) {
+  for (const operation of ['importChannelAPIKeys', 'exportChannelAPIKeys', 'removeChannelAPIKeys', 'checkChannelAPIKeys', 'disableSelectedChannelAPIKeys']) {
     assert.match(data, new RegExp(operation), `${operation} should be wired in the channel data layer`);
   }
 
@@ -53,6 +54,12 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(panel, /useExportChannelAPIKeys/);
   assert.match(panel, /useCheckChannelAPIKeys/);
   assert.match(panel, /onChannelChange/);
+  assert.match(panel, /useDisableSelectedChannelAPIKeys/);
+  assert.match(panel, /partitionSelectedAPIKeys\(selectedKeys, disabledSet\)/);
+  assert.match(panel, /selectedEnabledKeys/);
+  assert.match(panel, /selectedDisabledKeys/);
+  assert.doesNotMatch(panel, /Promise\.all\(Array\.from\(selected\)\.map\(\(key\) => disableKey/);
+  assert.match(panel, /reconcileRemovedAPIKeys\(allKeys, selected, result\.message\)/);
   assert.match(panel, /handleDisableSelected/);
   assert.match(panel, /handleEnableAll/);
   assert.match(panel, /handleSaveSettings/);
@@ -110,10 +117,35 @@ test('key pool UI exposes mode selection and standalone management', () => {
   assert.match(expandedRow, /channels\.keyPool\.keysLabel/);
 });
 
+test('key pool selection partitions enabled and disabled keys', () => {
+  assert.deepEqual(
+    partitionSelectedAPIKeys(['key1', 'key2', 'key3'], new Set(['key2'])),
+    { enabled: ['key1', 'key3'], disabled: ['key2'] }
+  );
+  assert.deepEqual(partitionSelectedAPIKeys([], new Set(['key1'])), { enabled: [], disabled: [] });
+});
+
+test('key pool removal snapshot follows final-key preservation contract', () => {
+  assert.deepEqual(
+    reconcileRemovedAPIKeys(['key1', 'key2', 'key3'], new Set(['key1', 'key3'])),
+    ['key2']
+  );
+  assert.deepEqual(
+    reconcileRemovedAPIKeys(['key1', 'key2'], new Set(['key1', 'key2']), 'ONE_KEY_PRESERVED'),
+    ['key1']
+  );
+  assert.deepEqual(
+    reconcileRemovedAPIKeys(['key1', 'key2'], new Set(['unknown']), 'ONE_KEY_PRESERVED'),
+    ['key1', 'key2']
+  );
+  assert.deepEqual(reconcileRemovedAPIKeys([], new Set(), 'ONE_KEY_PRESERVED'), []);
+});
+
 test('key pool strings exist in English and Simplified Chinese', () => {
   for (const name of ['en', 'zh-CN']) {
     const messages = locale(name);
     for (const key of [
+      'channels.messages.disableSelectedAPIKeysSuccess',
       'channels.keyPool.action',
       'channels.keyPool.mode.single',
       'channels.keyPool.mode.pool',

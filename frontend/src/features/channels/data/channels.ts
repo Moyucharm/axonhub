@@ -715,6 +715,12 @@ const DISABLE_CHANNEL_API_KEY_MUTATION = `
   }
 `;
 
+const DISABLE_SELECTED_CHANNEL_API_KEYS_MUTATION = `
+  mutation DisableSelectedChannelAPIKeys($channelID: ID!, $keys: [String!]!) {
+    disableSelectedChannelAPIKeys(channelID: $channelID, keys: $keys)
+  }
+`;
+
 const ENABLE_CHANNEL_API_KEY_MUTATION = `
   mutation EnableChannelAPIKey($channelID: ID!, $key: String!) {
     enableChannelAPIKey(channelID: $channelID, key: $key)
@@ -2214,6 +2220,32 @@ export function useDisableChannelAPIKey() {
       queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
       queryClient.invalidateQueries({ queryKey: ['channels'] });
       toast.success(t('channels.messages.disableAPIKeySuccess'));
+    },
+  });
+}
+
+export function useDisableSelectedChannelAPIKeys() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+
+  return useMutation({
+    mutationFn: async ({ channelID, keys }: { channelID: string; keys: string[] }) => {
+      try {
+        const data = await graphqlRequest<{ disableSelectedChannelAPIKeys: boolean }>(DISABLE_SELECTED_CHANNEL_API_KEYS_MUTATION, {
+          channelID,
+          keys,
+        });
+        return data.disableSelectedChannelAPIKeys;
+      } catch (error) {
+        handleError(error, { context: 'Disable Selected Channel API Keys' });
+        throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      toast.success(t('channels.messages.disableSelectedAPIKeysSuccess'));
     },
   });
 }

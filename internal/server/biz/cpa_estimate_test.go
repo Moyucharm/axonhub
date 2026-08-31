@@ -119,6 +119,7 @@ func TestCodexEstimateIntervalsRequireLocalPercentageDelta(t *testing.T) {
 	staleReset := matchingReset.Add(-time.Hour)
 	observed.SecondaryResetAt = &staleReset
 	require.Nil(t, codexEstimateIntervalForItem(weekly, observed))
+	require.Equal(t, "reset-mismatch", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
 
 	// A sub-3% local delta is intentionally hidden instead of falling back to
 	// the inaccurate cumulative WHAM denominator.
@@ -126,6 +127,13 @@ func TestCodexEstimateIntervalsRequireLocalPercentageDelta(t *testing.T) {
 	smallLatest := 22.5
 	observed.SecondaryUsedPercent = &smallLatest
 	require.Nil(t, codexEstimateIntervalForItem(weekly, observed))
+	require.Equal(t, "insufficient-percent-delta", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
+
+	observed.SecondaryUsedPercent = &latestPercent
+	invalidLatestEventID := baselineEventID
+	observed.SecondaryLatestEventID = &invalidLatestEventID
+	require.Equal(t, "invalid-event-range", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
+	observed.SecondaryLatestEventID = &latestEventID
 
 	monthlyPeriod := 30 * 24 * 60 * 60
 	monthlyUsed := 50.0

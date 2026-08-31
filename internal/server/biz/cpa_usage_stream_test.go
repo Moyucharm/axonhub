@@ -80,6 +80,55 @@ func TestUsageCollectorDrainsPendingBatchAfterCancellation(t *testing.T) {
 	}
 }
 
+func TestParseCodexWeeklyObservationUsesReportedDuration(t *testing.T) {
+	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
+	event := func(headers map[string]any) *cpaclient.UsageEvent {
+		return &cpaclient.UsageEvent{ResponseHeaders: headers}
+	}
+
+	primaryWeekly, ok := parseCodexWeeklyObservation("session-a", 10, event(map[string]any{
+		"x-codex-primary-used-percent":   "14",
+		"x-codex-primary-window-minutes": "10080",
+		"x-codex-primary-reset-at":       strconv.FormatInt(resetAt.Unix(), 10),
+	}))
+	require.True(t, ok)
+	require.InDelta(t, 14, primaryWeekly.usedPercent, 1e-9)
+	require.Equal(t, resetAt, primaryWeekly.resetAt)
+
+	secondaryWeekly, ok := parseCodexWeeklyObservation("session-a", 11, event(map[string]any{
+		"x-codex-primary-used-percent":     "40",
+		"x-codex-primary-window-minutes":   "300",
+		"x-codex-primary-reset-at":         strconv.FormatInt(resetAt.Add(-time.Hour).Unix(), 10),
+		"x-codex-secondary-used-percent":   "15",
+		"x-codex-secondary-window-minutes": "10080",
+		"x-codex-secondary-reset-at":       strconv.FormatInt(resetAt.Unix(), 10),
+	}))
+	require.True(t, ok)
+	require.InDelta(t, 15, secondaryWeekly.usedPercent, 1e-9)
+	require.Equal(t, resetAt, secondaryWeekly.resetAt)
+
+	_, ok = parseCodexWeeklyObservation("session-a", 12, event(map[string]any{
+		"x-codex-primary-used-percent":   "40",
+		"x-codex-primary-window-minutes": "300",
+		"x-codex-primary-reset-at":       strconv.FormatInt(resetAt.Unix(), 10),
+	}))
+	require.False(t, ok, "an explicit 5h primary must not become a weekly observation")
+
+	legacy, ok := parseCodexWeeklyObservation("session-a", 13, event(map[string]any{
+		"x-codex-secondary-used-percent": "16",
+		"x-codex-secondary-reset-at":     strconv.FormatInt(resetAt.Unix(), 10),
+	}))
+	require.True(t, ok)
+	require.InDelta(t, 16, legacy.usedPercent, 1e-9)
+
+	_, ok = parseCodexWeeklyObservation("session-a", 14, event(map[string]any{
+		"x-codex-secondary-used-percent":   "16",
+		"x-codex-secondary-window-minutes": "300",
+		"x-codex-secondary-reset-at":       strconv.FormatInt(resetAt.Unix(), 10),
+	}))
+	require.False(t, ok, "an explicit non-weekly secondary must not use the legacy fallback")
+}
+
 func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_usage_interval?mode=memory&_fk=1")
 	defer client.Close()
@@ -101,7 +150,8 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	require.NoError(t, err)
 
 	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
-	event := func(percent string, offset time.Duration) *cpaclient.UsageEvent {
+	eventForSlot := func(slot, percent string, offset time.Duration) *cpaclient.UsageEvent {
+		prefix := "x-codex-" + slot + "-"
 		return &cpaclient.UsageEvent{
 			Timestamp: resetAt.Add(-time.Hour + offset),
 			AuthIndex: "auth-1",
@@ -109,10 +159,14 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 			Model:     "gpt-5.2",
 			Tokens:    cpaclient.UsageEventTokens{InputTokens: 10},
 			ResponseHeaders: map[string]any{
-				"x-codex-secondary-used-percent": percent,
-				"x-codex-secondary-reset-at":     strconv.FormatInt(resetAt.Unix(), 10),
+				prefix + "used-percent":   percent,
+				prefix + "window-minutes": "10080",
+				prefix + "reset-at":       strconv.FormatInt(resetAt.Unix(), 10),
 			},
 		}
+	}
+	event := func(percent string, offset time.Duration) *cpaclient.UsageEvent {
+		return eventForSlot("secondary", percent, offset)
 	}
 	svc := &CPAService{
 		AbstractService:      &AbstractService{db: client},
@@ -131,6 +185,17 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	require.InDelta(t, 6.4, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
 	require.InDelta(t, 10.2, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
 	require.Less(t, *loaded.QuotaObserved.SecondaryBaselineEventID, *loaded.QuotaObserved.SecondaryLatestEventID)
+
+	// A weekly-only account can expose the same 7d window in the primary wire
+	// slot. Duration normalization must advance the existing weekly interval.
+	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
+		{instanceID: instance.ID, session: sessionA, event: eventForSlot("primary", "12.0", 90*time.Second)},
+	}))
+	loaded, err = client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.InDelta(t, 6.4, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 12.0, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
+
 	_, sessionALatest := sessionA.checkpoint("auth-1")
 	require.Equal(t, *loaded.QuotaObserved.SecondaryLatestEventID, sessionALatest)
 
@@ -195,9 +260,9 @@ func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
 	require.Equal(t, 30, eventID)
 }
 
-func TestAdvanceCodexSecondaryObservationReanchorsWithoutZeroUsage(t *testing.T) {
+func TestAdvanceCodexWeeklyObservationReanchorsWithoutZeroUsage(t *testing.T) {
 	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
-	observed, reanchored := advanceCodexSecondaryObservation(objects.CPAQuotaObserved{}, codexSecondaryObservation{
+	observed, reanchored := advanceCodexWeeklyObservation(objects.CPAQuotaObserved{}, codexWeeklyObservation{
 		collectorSessionID: "session-a",
 		eventID:            10,
 		usedPercent:        6.4,
@@ -208,7 +273,7 @@ func TestAdvanceCodexSecondaryObservationReanchorsWithoutZeroUsage(t *testing.T)
 	require.InDelta(t, 6.4, *observed.SecondaryBaselineUsedPercent, 1e-9)
 	require.Equal(t, 10, *observed.SecondaryBaselineEventID)
 
-	observed, reanchored = advanceCodexSecondaryObservation(observed, codexSecondaryObservation{
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-a",
 		eventID:            11,
 		usedPercent:        9.5,
@@ -221,7 +286,7 @@ func TestAdvanceCodexSecondaryObservationReanchorsWithoutZeroUsage(t *testing.T)
 
 	// A different collector (development/production handoff) always starts a
 	// fresh local interval at its first actual observation.
-	observed, reanchored = advanceCodexSecondaryObservation(observed, codexSecondaryObservation{
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-b",
 		eventID:            20,
 		usedPercent:        61.0,
@@ -234,7 +299,7 @@ func TestAdvanceCodexSecondaryObservationReanchorsWithoutZeroUsage(t *testing.T)
 	// Codex can reset early. A changed reset_at reanchors even though the first
 	// observed usage in the new window is already non-zero.
 	activityReset := resetAt.Add(24 * time.Hour)
-	observed, reanchored = advanceCodexSecondaryObservation(observed, codexSecondaryObservation{
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-b",
 		eventID:            21,
 		usedPercent:        7.2,
@@ -245,7 +310,7 @@ func TestAdvanceCodexSecondaryObservationReanchorsWithoutZeroUsage(t *testing.T)
 	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
 
 	// A grant/reset card may preserve reset_at but lower used percentage.
-	observed, reanchored = advanceCodexSecondaryObservation(observed, codexSecondaryObservation{
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-b",
 		eventID:            22,
 		usedPercent:        3.1,

@@ -3,6 +3,38 @@ import type { Channel } from '../data/schema';
 
 export const DEFAULT_API_KEY_POOL_REQUEST_COUNT = 3;
 
+export function partitionSelectedAPIKeys(
+  selectedKeys: Iterable<string>,
+  disabledKeys: ReadonlySet<string>
+): { enabled: string[]; disabled: string[] } {
+  const enabled: string[] = [];
+  const disabled: string[] = [];
+  for (const key of selectedKeys) {
+    if (disabledKeys.has(key)) {
+      disabled.push(key);
+    } else {
+      enabled.push(key);
+    }
+  }
+  return { enabled, disabled };
+}
+
+/**
+ * Reconcile the local key snapshot with the backend's final-key preservation
+ * contract after a remove mutation.
+ */
+export function reconcileRemovedAPIKeys(
+  allKeys: string[],
+  selectedKeys: ReadonlySet<string>,
+  message?: string
+): string[] {
+  const remaining = allKeys.filter((key) => !selectedKeys.has(key));
+  if (message === 'ONE_KEY_PRESERVED' && remaining.length === 0 && allKeys.length > 0) {
+    return [allKeys[0]];
+  }
+  return remaining;
+}
+
 export interface ChannelAPIKeySummary {
   total: number;
   enabled: number;

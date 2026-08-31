@@ -1025,6 +1025,7 @@ type Mutation {
 
   # Channel API Key Management
   disableChannelAPIKey(channelID: ID!, key: String!): Boolean!
+  disableSelectedChannelAPIKeys(channelID: ID!, keys: [String!]!): Boolean!
   enableChannelAPIKey(channelID: ID!, key: String!): Boolean!
   enableAllChannelAPIKeys(channelID: ID!): Boolean!
   enableSelectedChannelAPIKeys(channelID: ID!, keys: [String!]!): Boolean!

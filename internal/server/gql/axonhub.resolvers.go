@@ -401,6 +401,15 @@ func (r *mutationResolver) DisableChannelAPIKey(ctx context.Context, channelID o
 	return true, nil
 }
 
+// DisableSelectedChannelAPIKeys is the resolver for the disableSelectedChannelAPIKeys field.
+func (r *mutationResolver) DisableSelectedChannelAPIKeys(ctx context.Context, channelID objects.GUID, keys []string) (bool, error) {
+	if err := r.channelService.DisableSelectedAPIKeys(ctx, channelID.ID, keys); err != nil {
+		return false, fmt.Errorf("failed to disable selected channel API keys: %w", err)
+	}
+
+	return true, nil
+}
+
 // EnableChannelAPIKey is the resolver for the enableChannelAPIKey field.
 func (r *mutationResolver) EnableChannelAPIKey(ctx context.Context, channelID objects.GUID, key string) (bool, error) {
 	if err := r.channelService.EnableAPIKey(ctx, channelID.ID, key); err != nil {

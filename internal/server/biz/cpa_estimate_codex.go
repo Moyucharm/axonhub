@@ -11,7 +11,7 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
-type codexSecondaryObservation struct {
+type codexWeeklyObservation struct {
 	collectorSessionID string
 	eventID            int
 	usedPercent        float64
@@ -20,17 +20,19 @@ type codexSecondaryObservation struct {
 }
 
 // observeCodexUsageIntervals advances the precise 7d observation interval from
-// persisted usage events. The first observation of a collector session or
-// upstream quota window is only a baseline; it does not need to be zero usage.
+// persisted usage events. Primary and secondary are wire slots, so the weekly
+// window is normalized by its reported duration before advancing the interval.
+// The first observation of a collector session or upstream quota window is only
+// a baseline; it does not need to be zero usage.
 func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []persistedUsageEvent) {
-	byCredential := make(map[int][]codexSecondaryObservation)
+	byCredential := make(map[int][]codexWeeklyObservation)
 	for _, persisted := range events {
 		envelope := persisted.envelope
 		event := envelope.event
 		if event == nil || event.Failed || !strings.EqualFold(strings.TrimSpace(event.Provider), "codex") {
 			continue
 		}
-		observation, ok := parseCodexSecondaryObservation(envelope.sessionID(), persisted.eventID, event)
+		observation, ok := parseCodexWeeklyObservation(envelope.sessionID(), persisted.eventID, event)
 		if !ok {
 			continue
 		}
@@ -60,7 +62,7 @@ func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []
 		reanchored := false
 		for _, observation := range byCredential[credential.ID] {
 			var changed bool
-			observed, changed = advanceCodexSecondaryObservation(observed, observation)
+			observed, changed = advanceCodexWeeklyObservation(observed, observation)
 			reanchored = reanchored || changed
 		}
 		if observed.SecondaryUsedPercent == nil {
@@ -107,19 +109,45 @@ func (envelope usageEventEnvelope) sessionID() string {
 	return envelope.session.id
 }
 
-func parseCodexSecondaryObservation(sessionID string, eventID int, event interface {
+func parseCodexWeeklyObservation(sessionID string, eventID int, event interface {
 	HeaderValue(string) string
-}) (codexSecondaryObservation, bool) {
-	rawPercent := strings.TrimSuffix(event.HeaderValue("x-codex-secondary-used-percent"), "%")
+}) (codexWeeklyObservation, bool) {
+	if sessionID == "" || eventID <= 0 {
+		return codexWeeklyObservation{}, false
+	}
+	for _, slot := range []string{"primary", "secondary"} {
+		prefix := "x-codex-" + slot + "-"
+		minutes, err := strconv.Atoi(strings.TrimSpace(event.HeaderValue(prefix + "window-minutes")))
+		if err != nil || minutes*60 != cpaWeeklyPeriodSeconds {
+			continue
+		}
+		if observation, ok := parseCodexWeeklyWindowObservation(sessionID, eventID, prefix, event); ok {
+			return observation, true
+		}
+	}
+
+	// Older CPA HTTP usage records can carry the legacy secondary percent/reset
+	// pair without window-minutes. Keep accepting that established 7d shape, but
+	// never reinterpret an explicitly non-weekly secondary duration.
+	if strings.TrimSpace(event.HeaderValue("x-codex-secondary-window-minutes")) == "" {
+		return parseCodexWeeklyWindowObservation(sessionID, eventID, "x-codex-secondary-", event)
+	}
+	return codexWeeklyObservation{}, false
+}
+
+func parseCodexWeeklyWindowObservation(sessionID string, eventID int, prefix string, event interface {
+	HeaderValue(string) string
+}) (codexWeeklyObservation, bool) {
+	rawPercent := strings.TrimSuffix(event.HeaderValue(prefix+"used-percent"), "%")
 	percent, err := strconv.ParseFloat(strings.TrimSpace(rawPercent), 64)
 	if err != nil || percent < 0 || percent > 100 {
-		return codexSecondaryObservation{}, false
+		return codexWeeklyObservation{}, false
 	}
-	resetAt := parseHeaderUnixTime(event.HeaderValue("x-codex-secondary-reset-at"))
-	if sessionID == "" || eventID <= 0 || resetAt == nil {
-		return codexSecondaryObservation{}, false
+	resetAt := parseHeaderUnixTime(event.HeaderValue(prefix + "reset-at"))
+	if resetAt == nil {
+		return codexWeeklyObservation{}, false
 	}
-	return codexSecondaryObservation{
+	return codexWeeklyObservation{
 		collectorSessionID: sessionID,
 		eventID:            eventID,
 		usedPercent:        percent,
@@ -128,9 +156,9 @@ func parseCodexSecondaryObservation(sessionID string, eventID int, event interfa
 	}, true
 }
 
-func advanceCodexSecondaryObservation(
+func advanceCodexWeeklyObservation(
 	observed objects.CPAQuotaObserved,
-	next codexSecondaryObservation,
+	next codexWeeklyObservation,
 ) (objects.CPAQuotaObserved, bool) {
 	reanchor := observed.SecondaryCollectorSessionID != next.collectorSessionID ||
 		observed.SecondaryBaselineUsedPercent == nil ||
@@ -172,76 +200,94 @@ type codexEstimateInterval struct {
 	source      string
 }
 
+type codexEstimateIntervalDecision struct {
+	interval   *codexEstimateInterval
+	skipReason string
+}
+
 func codexEstimateIntervalForItem(
 	item *objects.CPAQuotaItem,
 	observed objects.CPAQuotaObserved,
 ) *codexEstimateInterval {
+	return codexEstimateIntervalDecisionForItem(item, observed).interval
+}
+
+func codexEstimateIntervalDecisionForItem(
+	item *objects.CPAQuotaItem,
+	observed objects.CPAQuotaObserved,
+) codexEstimateIntervalDecision {
 	if item == nil || item.PeriodSeconds == nil || item.ResetAt == nil {
-		return nil
+		return codexEstimateIntervalDecision{skipReason: "missing-window-metadata"}
 	}
 	period := *item.PeriodSeconds
 	switch {
 	case period == cpaWeeklyPeriodSeconds:
-		return codexSecondaryEstimateInterval(item, observed)
+		return codexWeeklyEstimateIntervalDecision(item, observed)
 	case isMonthlyQuotaPeriod(period):
-		return codexRefreshEstimateInterval(item)
+		return codexRefreshEstimateIntervalDecision(item)
 	default:
-		return nil
+		return codexEstimateIntervalDecision{skipReason: "unsupported-window-period"}
 	}
 }
 
-func codexSecondaryEstimateInterval(
+func codexWeeklyEstimateIntervalDecision(
 	item *objects.CPAQuotaItem,
 	observed objects.CPAQuotaObserved,
-) *codexEstimateInterval {
+) codexEstimateIntervalDecision {
 	if observed.SecondaryCollectorSessionID == "" ||
 		observed.SecondaryBaselineUsedPercent == nil ||
 		observed.SecondaryBaselineEventID == nil ||
 		observed.SecondaryUsedPercent == nil ||
 		observed.SecondaryLatestEventID == nil ||
-		observed.SecondaryResetAt == nil ||
-		!sameQuotaReset(*observed.SecondaryResetAt, *item.ResetAt) ||
-		*observed.SecondaryLatestEventID <= *observed.SecondaryBaselineEventID {
-		return nil
+		observed.SecondaryResetAt == nil {
+		return codexEstimateIntervalDecision{skipReason: "missing-weekly-observation"}
+	}
+	if !sameQuotaReset(*observed.SecondaryResetAt, *item.ResetAt) {
+		return codexEstimateIntervalDecision{skipReason: "reset-mismatch"}
+	}
+	if *observed.SecondaryLatestEventID <= *observed.SecondaryBaselineEventID {
+		return codexEstimateIntervalDecision{skipReason: "invalid-event-range"}
 	}
 	// WHAM is commonly integer-rounded. A drop exceeding one percentage point
 	// while reset_at remains unchanged is still treated as an activity reset or
 	// quota expansion, but sub-point rounding differences do not invalidate a
 	// precise header interval.
 	if item.UsedPercent != nil && *item.UsedPercent+1 < *observed.SecondaryUsedPercent {
-		return nil
+		return codexEstimateIntervalDecision{skipReason: "quota-percent-regression"}
 	}
 	delta := *observed.SecondaryUsedPercent - *observed.SecondaryBaselineUsedPercent
 	if delta < cpaEstimateMinPercentDelta {
-		return nil
+		return codexEstimateIntervalDecision{skipReason: "insufficient-percent-delta"}
 	}
-	return &codexEstimateInterval{
+	return codexEstimateIntervalDecision{interval: &codexEstimateInterval{
 		usedPercent: delta,
 		fromEventID: *observed.SecondaryBaselineEventID,
 		toEventID:   *observed.SecondaryLatestEventID,
 		source:      "precise-header-delta",
-	}
+	}}
 }
 
-func codexRefreshEstimateInterval(item *objects.CPAQuotaItem) *codexEstimateInterval {
+func codexRefreshEstimateIntervalDecision(item *objects.CPAQuotaItem) codexEstimateIntervalDecision {
 	if item.EstimateCollectorSessionID == "" ||
 		item.EstimateBaselineUsedPercent == nil ||
 		item.EstimateBaselineEventID == nil ||
 		item.EstimateLatestEventID == nil ||
-		item.UsedPercent == nil ||
-		*item.EstimateLatestEventID <= *item.EstimateBaselineEventID {
-		return nil
+		item.UsedPercent == nil {
+		return codexEstimateIntervalDecision{skipReason: "missing-refresh-observation"}
+	}
+	if *item.EstimateLatestEventID <= *item.EstimateBaselineEventID {
+		return codexEstimateIntervalDecision{skipReason: "invalid-event-range"}
 	}
 	delta := *item.UsedPercent - *item.EstimateBaselineUsedPercent
 	if delta < cpaEstimateMinPercentDelta {
-		return nil
+		return codexEstimateIntervalDecision{skipReason: "insufficient-percent-delta"}
 	}
-	return &codexEstimateInterval{
+	return codexEstimateIntervalDecision{interval: &codexEstimateInterval{
 		usedPercent: delta,
 		fromEventID: *item.EstimateBaselineEventID,
 		toEventID:   *item.EstimateLatestEventID,
 		source:      "refresh-delta",
-	}
+	}}
 }
 
 func prepareCodexMonthlyInterval(

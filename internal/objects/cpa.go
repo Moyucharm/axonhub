@@ -52,9 +52,12 @@ type CPAQuotaItem struct {
 }
 
 // CPAQuotaObserved captures a continuous local observation interval for the
-// precise Codex secondary quota percentage. A collector restart, reset change,
-// or percentage regression starts a new interval at whatever percentage is
-// first observed; a reset never needs to be seen at exactly zero usage.
+// precise Codex 7d quota percentage, normalized by reported window duration.
+// The Secondary* JSON fields retain their historical names for compatibility;
+// they may contain a weekly signal originating from either wire slot. A
+// collector restart, reset change, or percentage regression starts a new
+// interval at whatever percentage is first observed; a reset never needs to be
+// seen at exactly zero usage.
 type CPAQuotaObserved struct {
 	SecondaryCollectorSessionID  string     `json:"secondary_collector_session_id,omitempty"`
 	SecondaryBaselineUsedPercent *float64   `json:"secondary_baseline_used_percent,omitempty"`
