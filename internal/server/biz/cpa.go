@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/semaphore"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
@@ -53,12 +52,10 @@ type CPAService struct {
 	SystemService     *SystemService
 	ChannelService    *ChannelService
 	quotaRegistry     *cpaclient.QuotaRegistry
-	clientFactory     func(cpaclient.Config) (cpaclient.ManagementClient, error)
-	refreshGroup      singleflight.Group
+	connections       *cpaConnectionProvider
+	quotaExecutor     *cpaQuotaExecutor
+	repository        *cpaRepository
 	syncGroup         singleflight.Group
-	globalQuota       *semaphore.Weighted
-	instanceQuotaMu   sync.Mutex
-	instanceQuota     map[int]*semaphore.Weighted
 	instanceWriteMu   sync.Mutex
 	instanceWrite     map[int]*cpaInstanceWriteEntry
 	usageWriteMu      sync.Mutex
@@ -84,16 +81,11 @@ type CPAService struct {
 
 // NewCPAService creates the CPA management service.
 func NewCPAService(params CPAServiceParams) *CPAService {
-	return &CPAService{
+	svc := &CPAService{
 		AbstractService: &AbstractService{db: params.Ent},
 		SystemService:   params.SystemService,
 		ChannelService:  params.ChannelService,
 		quotaRegistry:   cpaclient.NewQuotaRegistry(),
-		clientFactory: func(config cpaclient.Config) (cpaclient.ManagementClient, error) {
-			return cpaclient.NewClient(config)
-		},
-		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
-		instanceQuota:   make(map[int]*semaphore.Weighted),
 		instanceWrite:   make(map[int]*cpaInstanceWriteEntry),
 		usageWrite:      semaphore.NewWeighted(1),
 		refreshProgress: make(map[int]*cpaRefreshProgressState),
@@ -102,6 +94,10 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 			return time.Duration(15+rand.IntN(46)) * time.Second
 		},
 	}
+	svc.connections = newCPAConnectionProvider(params.SystemService)
+	svc.repository = newCPARepository(svc)
+	svc.quotaExecutor = newCPAQuotaExecutor(svc.quotaRegistry, svc.applyQuotaEstimate, svc.now)
+	return svc
 }
 
 // CreateCPAInstanceInput creates one CPA connection.
@@ -361,9 +357,9 @@ func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 		svc.refreshUsageStreamsAsync()
 		return err
 	}
-	svc.instanceQuotaMu.Lock()
-	delete(svc.instanceQuota, id)
-	svc.instanceQuotaMu.Unlock()
+	if svc.quotaExecutor != nil {
+		svc.quotaExecutor.forgetInstance(id)
+	}
 	svc.refreshProgressMu.Lock()
 	delete(svc.refreshProgress, id)
 	svc.refreshProgressMu.Unlock()
@@ -493,40 +489,17 @@ func normalizeCPADisabledPatrolInterval(value *int) (int, error) {
 }
 
 func (svc *CPAService) encryptSecret(ctx context.Context, secret string) (string, error) {
-	systemSecret, err := authz.RunWithSystemBypass(ctx, "cpa-encrypt-secret", func(bypassCtx context.Context) (string, error) {
-		return svc.SystemService.SecretKey(bypassCtx)
-	})
-	if err != nil {
-		return "", fmt.Errorf("load system secret for CPA encryption: %w", err)
-	}
-	return encryptCPASecret(systemSecret, secret)
+	return svc.connections.encryptSecret(ctx, secret)
 }
 
 func (svc *CPAService) decryptSecret(ctx context.Context, ciphertext string) (string, error) {
-	systemSecret, err := authz.RunWithSystemBypass(ctx, "cpa-decrypt-secret", func(bypassCtx context.Context) (string, error) {
-		return svc.SystemService.SecretKey(bypassCtx)
-	})
-	if err != nil {
-		return "", fmt.Errorf("load system secret for CPA decryption: %w", err)
-	}
-	return decryptCPASecret(systemSecret, ciphertext)
+	return svc.connections.decryptSecret(ctx, ciphertext)
 }
 
 func (svc *CPAService) clientForInstance(ctx context.Context, instance *ent.CPAInstance) (cpaclient.ManagementClient, error) {
-	secret, err := svc.decryptSecret(ctx, instance.EncryptedSecret)
-	if err != nil {
-		return nil, err
-	}
-	return svc.newCPAClient(cpaclient.Config{
-		BaseURL:          instance.BaseURL,
-		ManagementSecret: secret,
-		InsecureSkipTLS:  instance.InsecureSkipTLS,
-	})
+	return svc.connections.openInstance(ctx, instance)
 }
 
 func (svc *CPAService) newCPAClient(config cpaclient.Config) (cpaclient.ManagementClient, error) {
-	if svc.clientFactory != nil {
-		return svc.clientFactory(config)
-	}
-	return cpaclient.NewClient(config)
+	return svc.connections.openConfig(config)
 }

@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/looplj/axonhub/internal/authz"
@@ -19,18 +17,18 @@ import (
 )
 
 func TestCPARefreshWorkerConvertsPanicToSingleFailure(t *testing.T) {
-	resultCh := make(chan error, 1)
+	resultCh := make(chan cpaQuotaExecutionOutcome, 1)
 	callbackCount := 0
-	runCPARefreshWorker(t.Context(), 7, 11, resultCh, func(failed bool) {
+	runCPARefreshWorker(t.Context(), 7, 11, resultCh, func(outcome cpaQuotaExecutionOutcome) {
 		callbackCount++
-		require.True(t, failed)
-	}, func() error {
+		require.Equal(t, cpaQuotaExecutionFailure, outcome.status)
+	}, func() cpaQuotaExecutionOutcome {
 		panic("boom")
 	})
 
 	select {
-	case refreshErr := <-resultCh:
-		require.ErrorContains(t, refreshErr, "CPA credential refresh panicked: boom")
+	case outcome := <-resultCh:
+		require.ErrorContains(t, outcome.err, "CPA credential refresh panicked: boom")
 	case <-time.After(time.Second):
 		t.Fatal("refresh worker did not publish its failure")
 	}
@@ -43,13 +41,13 @@ func TestCPARefreshWorkerConvertsPanicToSingleFailure(t *testing.T) {
 }
 
 func TestCPARefreshWorkerContainsProgressCallbackPanic(t *testing.T) {
-	resultCh := make(chan error, 1)
+	resultCh := make(chan cpaQuotaExecutionOutcome, 1)
 	require.NotPanics(t, func() {
-		runCPARefreshWorker(t.Context(), 7, 11, resultCh, func(bool) {
+		runCPARefreshWorker(t.Context(), 7, 11, resultCh, func(cpaQuotaExecutionOutcome) {
 			panic("progress boom")
-		}, func() error { return nil })
+		}, func() cpaQuotaExecutionOutcome { return cpaQuotaExecutionOutcome{status: cpaQuotaExecutionSuccess} })
 	})
-	require.NoError(t, <-resultCh)
+	require.NoError(t, (<-resultCh).err)
 }
 
 func TestCPARefreshProjectionUsesCurrentCredential(t *testing.T) {
@@ -86,12 +84,7 @@ func TestCPARefreshProjectionUsesCurrentCredential(t *testing.T) {
 			defer client.Close()
 			ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 			now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
-			svc := &CPAService{
-				AbstractService: &AbstractService{db: client},
-				quotaRegistry:   cpaclient.NewQuotaRegistry(),
-				globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
-				now:             func() time.Time { return now },
-			}
+			svc := newCPAServiceForTest(client, func() time.Time { return now })
 			instance := client.CPAInstance.Create().
 				SetName("refresh projection").
 				SetBaseURL("http://127.0.0.1:8320").
@@ -135,24 +128,29 @@ func TestCPARefreshProjectionUsesCurrentCredential(t *testing.T) {
 				return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"account":{"has_claude_pro":true}}`)}, nil
 			}}
 
-			errCh := make(chan error, 1)
+			outcomeCh := make(chan cpaQuotaExecutionOutcome, 1)
 			go func() {
 				defer func() {
 					if recovered := recover(); recovered != nil {
-						errCh <- fmt.Errorf("refresh goroutine panicked: %v", recovered)
+						outcomeCh <- newCPAQuotaFailureOutcome(
+							credential.CpaInstanceID,
+							credential.ID,
+							time.Now().UTC(),
+							fmt.Errorf("refresh goroutine panicked: %v", recovered),
+						)
 					}
 				}()
-				errCh <- svc.refreshOneCredential(ctx, managementClient, credential)
+				outcomeCh <- svc.refreshCredentialOutcome(ctx, managementClient, credential)
 			}()
 
 			<-started
 			require.NoError(t, tt.mutate(client.CPACredential.UpdateOneID(credential.ID)).Exec(ctx))
 			close(release)
-			refreshErr := <-errCh
+			outcome := <-outcomeCh
 			if tt.fetchError {
-				require.ErrorContains(t, refreshErr, "quota fetch failed")
+				require.ErrorContains(t, outcome.err, "quota fetch failed")
 			} else {
-				require.NoError(t, refreshErr)
+				require.NoError(t, outcome.err)
 			}
 
 			updated := client.CPACredential.GetX(ctx, credential.ID)
@@ -166,12 +164,22 @@ func TestCPARefreshProjectionUsesCurrentCredential(t *testing.T) {
 }
 
 type cpaTestManagementClient struct {
-	callProvider func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error)
+	callProvider        func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error)
+	listCredentials     func(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error)
+	patchAuthFileStatus func(context.Context, string, string, bool) error
+	closeIdle           func()
 }
 
-func (c *cpaTestManagementClient) CloseIdleConnections() {}
+func (c *cpaTestManagementClient) CloseIdleConnections() {
+	if c.closeIdle != nil {
+		c.closeIdle()
+	}
+}
 
-func (c *cpaTestManagementClient) ListCredentials(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error) {
+func (c *cpaTestManagementClient) ListCredentials(ctx context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error) {
+	if c.listCredentials != nil {
+		return c.listCredentials(ctx)
+	}
 	return nil, cpaclient.BuildInfo{}, errors.New("unexpected ListCredentials call")
 }
 
@@ -186,6 +194,9 @@ func (c *cpaTestManagementClient) ListUsageQueue(context.Context, int) ([]*cpacl
 	return nil, errors.New("unexpected ListUsageQueue call")
 }
 
-func (c *cpaTestManagementClient) PatchAuthFileStatus(context.Context, string, string, bool) error {
+func (c *cpaTestManagementClient) PatchAuthFileStatus(ctx context.Context, name, authIndex string, disabled bool) error {
+	if c.patchAuthFileStatus != nil {
+		return c.patchAuthFileStatus(ctx, name, authIndex, disabled)
+	}
 	return errors.New("unexpected PatchAuthFileStatus call")
 }

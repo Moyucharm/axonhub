@@ -34,20 +34,27 @@ func (svc *CPAService) beginRefreshProgress(instanceID, requested, skipped int) 
 	return state
 }
 
-// recordRefreshResult counts one finished credential refresh when batch is
+// recordRefreshOutcome counts one finished credential refresh when batch is
 // still the current manual refresh for the instance.
-func (svc *CPAService) recordRefreshResult(instanceID int, batch *cpaRefreshProgressState, failed bool) {
+func (svc *CPAService) recordRefreshOutcome(instanceID int, batch *cpaRefreshProgressState, outcome cpaQuotaExecutionOutcome) {
 	svc.refreshProgressMu.Lock()
 	defer svc.refreshProgressMu.Unlock()
 	state, ok := svc.refreshProgress[instanceID]
 	if !ok || state != batch || !state.progress.Running {
 		return
 	}
-	state.progress.Completed++
-	if failed {
-		state.progress.Failed++
-	} else {
+	switch outcome.status {
+	case cpaQuotaExecutionSkipped:
+		return
+	case cpaQuotaExecutionSuccess:
+		state.progress.Completed++
 		state.progress.Succeeded++
+	case cpaQuotaExecutionFailure:
+		state.progress.Completed++
+		state.progress.Failed++
+	default:
+		state.progress.Completed++
+		state.progress.Failed++
 	}
 }
 

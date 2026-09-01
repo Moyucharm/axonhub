@@ -21,7 +21,7 @@ CPA 只注册一个 `cpa-runtime` fixed-rate dispatcher。dispatcher 查询所�
 
 cooldown 与 health 正交。有效 cooldown 定义为 `quota_cooling && (quota_cooldown_until IS NULL || quota_cooldown_until > now)`，因此有 reset time 的 cooldown 可在读取时懒恢复，没有 reset time 的耗尽状态则保持有效直到下一次 quota 写入；当同一 snapshot 同时包含有限 reset 与无 reset 的耗尽窗口时，无 reset 窗口优先，`quota_cooldown_until` 必须保持 nil。
 
-quota refresh 的网络请求仍使用开始时的 credential 输入，但成功与失败结果进入实例写锁后都会重新读取当前 credential，再用当前 display/status/disabled/unavailable 与本次 quota outcome 计算 projection，避免并发 sync/toggle 被旧实体覆盖。runtime job 与 batch refresh worker 都安装顶层 panic guard；batch worker 无论正常返回还是 panic 都只发布一个结果，progress callback 的 panic 也被隔离。
+quota refresh 的网络请求仍使用开始时的 credential 输入，但 typed outcome 进入 repository 写锁后会重新读取当前 credential，再用当前 display/status/disabled/unavailable 与本次 quota outcome 计算 projection，避免并发 sync/toggle 被旧实体覆盖。provider fetch、singleflight 和实例/全局 semaphore 由独立 quota executor 负责，详见 [CPA 执行边界与自动巡检编排](./2026-09-01-cpa-execution-boundaries.md)。runtime job 与 batch refresh worker 都安装顶层 panic guard；batch worker 无论正常返回还是 panic 都只发布一个结果，progress callback 的 panic 也被隔离。
 
 凭证查询把 search、provider、plan、enabled/disabled、abnormal、cooldown 和 abnormal-only 全部下推 SQL。稳定顺序为 `priority DESC, display_name_sort_key, display_name_sort_length, id`，cursor 保存同一组排序值，数据查询只读取 `first + 1` 行。旧 `{priority, display_name, id}` cursor 仍可转换为新排序投影。
 

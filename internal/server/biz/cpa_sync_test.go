@@ -20,11 +20,9 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 
-	svc := &CPAService{
-		AbstractService: &AbstractService{db: client},
-		quotaRegistry:   cpaclient.NewQuotaRegistry(),
-		now:             func() time.Time { return time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC) },
-	}
+	svc := newCPAServiceForTest(client, func() time.Time {
+		return time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+	})
 	instance, err := client.CPAInstance.Create().
 		SetName("Primary CPA").
 		SetBaseURL("http://127.0.0.1:8317").
@@ -109,7 +107,7 @@ func TestCPASyncRemapsSwappedAuthIndexesWithoutMergingHistory(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_swap?mode=memory&_fk=1")
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
-	svc := &CPAService{AbstractService: &AbstractService{db: client}, quotaRegistry: cpaclient.NewQuotaRegistry()}
+	svc := newCPAServiceForTest(client, nil)
 	instance, err := client.CPAInstance.Create().
 		SetName("swap").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").Save(ctx)
 	require.NoError(t, err)
@@ -155,7 +153,7 @@ func TestCPASyncRejectsDuplicateTargetAuthIndex(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_duplicate_auth?mode=memory&_fk=1")
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
-	svc := &CPAService{AbstractService: &AbstractService{db: client}, quotaRegistry: cpaclient.NewQuotaRegistry()}
+	svc := newCPAServiceForTest(client, nil)
 	instance, err := client.CPAInstance.Create().
 		SetName("duplicate").SetBaseURL("http://127.0.0.1:8318").SetEncryptedSecret("encrypted").Save(ctx)
 	require.NoError(t, err)
@@ -175,11 +173,9 @@ func TestCPASyncClearsLegacyOAuthPlanPlaceholder(t *testing.T) {
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 
-	svc := &CPAService{
-		AbstractService: &AbstractService{db: client},
-		quotaRegistry:   cpaclient.NewQuotaRegistry(),
-		now:             func() time.Time { return time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC) },
-	}
+	svc := newCPAServiceForTest(client, func() time.Time {
+		return time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC)
+	})
 	instance, err := client.CPAInstance.Create().
 		SetName("Legacy CPA").
 		SetBaseURL("http://127.0.0.1:8317").
@@ -300,11 +296,9 @@ func TestDeleteInstanceRemovesCredentials(t *testing.T) {
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 
-	svc := &CPAService{
-		AbstractService: &AbstractService{db: client},
-		quotaRegistry:   cpaclient.NewQuotaRegistry(),
-		now:             func() time.Time { return time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC) },
-	}
+	svc := newCPAServiceForTest(client, func() time.Time {
+		return time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+	})
 	instance, err := client.CPAInstance.Create().
 		SetName("Delete me").
 		SetBaseURL("http://127.0.0.1:8317").

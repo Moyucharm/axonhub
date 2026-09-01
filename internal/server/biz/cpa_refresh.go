@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -51,22 +49,18 @@ func (svc *CPAService) RefreshInstance(ctx context.Context, instanceID int, prov
 	}
 	refreshBatch := svc.beginRefreshProgress(instanceID, len(filtered)-skipped, skipped)
 	defer svc.finishRefreshProgress(instanceID, refreshBatch)
-	result, refreshErr := svc.refreshCredentialBatch(ctx, instance, filtered, func(failed bool) {
-		svc.recordRefreshResult(instanceID, refreshBatch, failed)
+	result, refreshErr := svc.refreshCredentialBatch(ctx, instance, filtered, func(outcome cpaQuotaExecutionOutcome) {
+		svc.recordRefreshOutcome(instanceID, refreshBatch, outcome)
 	})
 	svc.scheduleNextRefresh(ctx, instance, svc.now().Add(time.Duration(instance.RefreshIntervalMinutes)*time.Minute))
 	return result, refreshErr
 }
 
 func (svc *CPAService) RefreshCredential(ctx context.Context, credentialID int) (*CPACredentialView, error) {
-	credential, err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(cpacredential.IDEQ(credentialID)).
-		WithCpaInstance().
-		Only(ctx)
+	credential, instance, err := svc.repository.credentialWithInstance(ctx, credentialID)
 	if err != nil {
 		return nil, fmt.Errorf("get CPA credential for refresh: %w", err)
 	}
-	instance := credential.Edges.CpaInstance
 	if instance == nil || !instance.Enabled {
 		return nil, fmt.Errorf("CPA instance is disabled")
 	}
@@ -79,15 +73,12 @@ func (svc *CPAService) RefreshCredential(ctx context.Context, credentialID int) 
 		return nil, err
 	}
 	defer client.CloseIdleConnections()
-	if err := svc.refreshOneCredential(ctx, client, credential); err != nil {
-		return nil, err
+	outcome := svc.refreshCredentialOutcome(ctx, client, credential)
+	if outcome.err != nil {
+		return nil, outcome.err
 	}
 	svc.scheduleNextRefresh(ctx, instance, svc.now().Add(time.Duration(instance.RefreshIntervalMinutes)*time.Minute))
-	updated, err := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
-	if err != nil {
-		return nil, fmt.Errorf("reload CPA credential after refresh: %w", err)
-	}
-	return buildCPACredentialView(instance, updated, svc.now()), nil
+	return buildCPACredentialView(instance, outcome.credential, svc.now()), nil
 }
 
 // ToggleCredential enables or disables one CPA credential through the remote
@@ -95,14 +86,10 @@ func (svc *CPAService) RefreshCredential(ctx context.Context, credentialID int) 
 // the single source of truth for the disabled flag: the local row converges
 // via the credential sync that follows the successful patch.
 func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, disabled bool) (*CPACredentialView, error) {
-	credential, err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(cpacredential.IDEQ(credentialID)).
-		WithCpaInstance().
-		Only(ctx)
+	credential, instance, err := svc.repository.credentialWithInstance(ctx, credentialID)
 	if err != nil {
 		return nil, fmt.Errorf("get CPA credential for toggle: %w", err)
 	}
-	instance := credential.Edges.CpaInstance
 	if instance == nil || !instance.Enabled {
 		return nil, fmt.Errorf("CPA instance is disabled")
 	}
@@ -118,7 +105,7 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 	if err := client.PatchAuthFileStatus(ctx, credential.RemoteName, credential.AuthIndex, disabled); err != nil {
 		return nil, fmt.Errorf("toggle CPA credential on remote: %w", err)
 	}
-	if _, err := svc.syncInstanceCredentials(ctx, instance); err != nil {
+	if _, err := svc.syncInstanceCredentialsWithClient(ctx, instance, client); err != nil {
 		log.Warn(ctx, "CPA remote credential toggle succeeded but local sync failed",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Int("credential_id", credential.ID),
@@ -134,21 +121,34 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 	return buildCPACredentialView(instance, updated, svc.now()), nil
 }
 
-func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential, onResult func(failed bool)) (*CPARefreshResult, error) {
+func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential, onResult func(cpaQuotaExecutionOutcome)) (*CPARefreshResult, error) {
 	client, err := svc.clientForInstance(ctx, instance)
 	if err != nil {
 		return nil, err
 	}
 	defer client.CloseIdleConnections()
+	result, _, err := svc.refreshCredentialBatchOutcomesWithClient(ctx, instance, client, credentials, onResult)
+	return result, err
+}
+
+func (svc *CPAService) refreshCredentialBatchOutcomesWithClient(
+	ctx context.Context,
+	instance *ent.CPAInstance,
+	client cpaclient.ManagementClient,
+	credentials []*ent.CPACredential,
+	onResult func(cpaQuotaExecutionOutcome),
+) (*CPARefreshResult, []cpaQuotaExecutionOutcome, error) {
 
 	result := &CPARefreshResult{}
+	outcomes := make([]cpaQuotaExecutionOutcome, 0, len(credentials))
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(maxCPAInstanceConcurrency)
-	resultCh := make(chan error, len(credentials))
+	resultCh := make(chan cpaQuotaExecutionOutcome, len(credentials))
 	for _, credential := range credentials {
 		credential := credential
 		if !svc.supportsStoredQuota(credential) {
 			result.Skipped++
+			outcomes = append(outcomes, newCPAQuotaSkippedOutcome(credential, "quota unsupported"))
 			continue
 		}
 		result.Requested++
@@ -159,42 +159,57 @@ func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent
 				credential.ID,
 				resultCh,
 				onResult,
-				func() error { return svc.refreshOneCredential(groupCtx, client, credential) },
+				func() cpaQuotaExecutionOutcome { return svc.refreshCredentialOutcome(groupCtx, client, credential) },
 			)
 			return nil
 		})
 	}
 	_ = group.Wait()
 	close(resultCh)
-	for refreshErr := range resultCh {
-		if refreshErr != nil {
-			result.Failed++
-		} else {
-			result.Succeeded++
-		}
+	for outcome := range resultCh {
+		outcomes = append(outcomes, outcome)
+		accumulateCPARefreshResult(result, outcome)
 	}
-	return result, nil
+	return result, outcomes, nil
+}
+
+func accumulateCPARefreshResult(result *CPARefreshResult, outcome cpaQuotaExecutionOutcome) {
+	switch outcome.status {
+	case cpaQuotaExecutionSuccess:
+		result.Succeeded++
+	case cpaQuotaExecutionFailure:
+		result.Failed++
+	case cpaQuotaExecutionSkipped:
+		result.Skipped++
+	default:
+		result.Failed++
+	}
 }
 
 func runCPARefreshWorker(
 	ctx context.Context,
 	instanceID int,
 	credentialID int,
-	resultCh chan<- error,
-	onResult func(failed bool),
-	refresh func() error,
+	resultCh chan<- cpaQuotaExecutionOutcome,
+	onResult func(cpaQuotaExecutionOutcome),
+	refresh func() cpaQuotaExecutionOutcome,
 ) {
-	var refreshErr error
+	outcome := cpaQuotaExecutionOutcome{instanceID: instanceID, credentialID: credentialID}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			refreshErr = fmt.Errorf("CPA credential refresh panicked: %v", recovered)
+			outcome = newCPAQuotaFailureOutcome(
+				instanceID,
+				credentialID,
+				time.Now().UTC(),
+				fmt.Errorf("CPA credential refresh panicked: %v", recovered),
+			)
 			log.Error(ctx, "CPA credential refresh worker panicked",
 				log.Int("cpa_instance_id", instanceID),
 				log.Int("credential_id", credentialID),
 				log.Any("panic", recovered),
 			)
 		}
-		resultCh <- refreshErr
+		resultCh <- outcome
 		if onResult != nil {
 			func() {
 				defer func() {
@@ -206,116 +221,25 @@ func runCPARefreshWorker(
 						)
 					}
 				}()
-				onResult(refreshErr != nil)
+				onResult(outcome)
 			}()
 		}
 	}()
-	refreshErr = refresh()
+	outcome = refresh()
 }
 
-func (svc *CPAService) refreshOneCredential(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential) error {
-	key := fmt.Sprintf("credential:%d", credential.ID)
-	_, err, _ := svc.refreshGroup.Do(key, func() (any, error) {
-		instanceLimiter := svc.instanceQuotaLimiter(credential.CpaInstanceID)
-		if err := instanceLimiter.Acquire(ctx, 1); err != nil {
-			return nil, err
-		}
-		defer instanceLimiter.Release(1)
-		if err := svc.globalQuota.Acquire(ctx, 1); err != nil {
-			return nil, err
-		}
-		defer svc.globalQuota.Release(1)
-
-		now := svc.now()
-		result, fetchErr := svc.quotaRegistry.Fetch(ctx, client, cpaclient.CredentialInput{
-			AuthIndex:   credential.AuthIndex,
-			Provider:    credential.Provider,
-			PlanType:    credential.PlanType,
-			ProjectID:   credential.QuotaContext.ProjectID,
-			AccountID:   credential.QuotaContext.CodexAccountID,
-			AccountType: credential.QuotaContext.AccountType,
-			Paid:        credential.QuotaContext.Paid,
-		})
-		if fetchErr != nil {
-			message := sanitizeCPAErrorMessage(fetchErr.Error())
-			updateErr := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
-				current, currentErr := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
-				if currentErr != nil {
-					return fmt.Errorf("reload CPA credential before quota error: %w", currentErr)
-				}
-				projection := projectStoredCPACredentialWithQuota(
-					current,
-					objects.CPAQuotaStateError,
-					current.QuotaData,
-					now,
-				)
-				update := svc.entFromContext(ctx).CPACredential.UpdateOneID(current.ID).
-					SetQuotaState(string(objects.CPAQuotaStateError)).
-					SetQuotaLastAttemptAt(now).
-					SetQuotaLastFailureAt(now).
-					SetQuotaLastError(message).
-					SetDisplayNameSortKey(projection.displayNameSortKey).
-					SetDisplayNameSortLength(projection.displayNameSortLength).
-					SetHealthState(string(projection.healthState)).
-					SetQuotaCooling(projection.quotaCooling).
-					SetProjectionVersion(currentCPAProjectionVersion)
-				if projection.quotaCooldownUntil == nil {
-					update.ClearQuotaCooldownUntil()
-				} else {
-					update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
-				}
-				return update.Exec(ctx)
-			})
-			if updateErr != nil {
-				return nil, fmt.Errorf("persist CPA quota error: %w", updateErr)
-			}
-			return nil, fetchErr
-		}
-
-		snapshot := result.Snapshot
-		if result.State == objects.CPAQuotaStateSuccess && strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") {
-			svc.applyQuotaEstimate(ctx, credential, &snapshot)
-		}
-		persistedSnapshot := snapshot
-		if result.State == objects.CPAQuotaStateUnsupported || result.State == objects.CPAQuotaStateInsufficientData {
-			persistedSnapshot = objects.CPAQuotaSnapshot{}
-		}
-		if err := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
-			current, currentErr := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
-			if currentErr != nil {
-				return fmt.Errorf("reload CPA credential before quota result: %w", currentErr)
-			}
-			projection := projectStoredCPACredentialWithQuota(current, result.State, persistedSnapshot, now)
-			update := svc.entFromContext(ctx).CPACredential.UpdateOneID(current.ID).
-				SetQuotaState(string(result.State)).
-				SetQuotaLastAttemptAt(now).
-				SetQuotaLastError("").
-				SetDisplayNameSortKey(projection.displayNameSortKey).
-				SetDisplayNameSortLength(projection.displayNameSortLength).
-				SetHealthState(string(projection.healthState)).
-				SetQuotaCooling(projection.quotaCooling).
-				SetProjectionVersion(currentCPAProjectionVersion)
-			if projection.quotaCooldownUntil == nil {
-				update.ClearQuotaCooldownUntil()
-			} else {
-				update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
-			}
-			if result.PlanType != "" {
-				update.SetPlanType(result.PlanType)
-			}
-			switch result.State {
-			case objects.CPAQuotaStateSuccess:
-				update.SetQuotaData(persistedSnapshot).SetQuotaLastSuccessAt(now)
-			case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
-				update.SetQuotaData(persistedSnapshot)
-			}
-			return update.Exec(ctx)
-		}); err != nil {
-			return nil, fmt.Errorf("persist CPA quota result: %w", err)
-		}
-		return nil, nil
-	})
-	return err
+func (svc *CPAService) refreshCredentialOutcome(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential) cpaQuotaExecutionOutcome {
+	outcome := svc.quotaExecutor.execute(ctx, client, credential)
+	if outcome.status == cpaQuotaExecutionSkipped {
+		return outcome
+	}
+	persisted, err := svc.repository.applyQuotaOutcome(ctx, outcome)
+	if err != nil {
+		outcome.status = cpaQuotaExecutionFailure
+		outcome.err = err
+		return outcome
+	}
+	return persisted
 }
 
 // applyQuotaEstimate computes and attaches an independent interval estimate to
@@ -342,20 +266,6 @@ func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.C
 		item.EstimatedCostUSD = &cost
 		item.EstimateSource = estimate.Source
 	}
-}
-
-func (svc *CPAService) instanceQuotaLimiter(instanceID int) *semaphore.Weighted {
-	svc.instanceQuotaMu.Lock()
-	defer svc.instanceQuotaMu.Unlock()
-	if svc.instanceQuota == nil {
-		svc.instanceQuota = make(map[int]*semaphore.Weighted)
-	}
-	limiter := svc.instanceQuota[instanceID]
-	if limiter == nil {
-		limiter = semaphore.NewWeighted(maxCPAInstanceConcurrency)
-		svc.instanceQuota[instanceID] = limiter
-	}
-	return limiter
 }
 
 func (svc *CPAService) scheduleNextRefresh(ctx context.Context, instance *ent.CPAInstance, next time.Time) {

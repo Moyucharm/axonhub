@@ -1,8 +1,10 @@
 package biz
 
 import (
+	"context"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -180,6 +182,28 @@ func TestCPAQueryUsesStableKeysetAndOverviewAggregates(t *testing.T) {
 		{Provider: "kimi", Count: 1},
 		{Provider: "xai", Count: 1},
 	}, overview.Providers)
+}
+
+func TestCPARuntimeJobsRespectCrossInstanceConcurrencyLimit(t *testing.T) {
+	jobs := make([]cpaRuntimeJob, 12)
+	for index := range jobs {
+		jobs[index] = cpaRuntimeJob{instance: &ent.CPAInstance{ID: index + 1}}
+	}
+	var active atomic.Int32
+	var maximum atomic.Int32
+	runCPARuntimeJobs(context.Background(), jobs, func(context.Context, cpaRuntimeJob) {
+		current := active.Add(1)
+		for {
+			observed := maximum.Load()
+			if current <= observed || maximum.CompareAndSwap(observed, current) {
+				break
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+		active.Add(-1)
+	})
+	require.LessOrEqual(t, maximum.Load(), int32(maxCPAInstanceConcurrency))
+	require.Equal(t, int32(maxCPAInstanceConcurrency), maximum.Load())
 }
 
 func TestCPARuntimeOperationsExecuteInOrder(t *testing.T) {

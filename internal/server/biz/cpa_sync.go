@@ -17,6 +17,17 @@ func (svc *CPAService) syncInstanceCredentials(ctx context.Context, instance *en
 	value, err, _ := svc.syncGroup.Do(fmt.Sprintf("instance:%d", instance.ID), func() (any, error) {
 		return svc.syncInstanceCredentialsOnce(ctx, instance)
 	})
+	return synchronizedCPACredentials(value, err)
+}
+
+func (svc *CPAService) syncInstanceCredentialsWithClient(ctx context.Context, instance *ent.CPAInstance, client cpaclient.ManagementClient) ([]*ent.CPACredential, error) {
+	value, err, _ := svc.syncGroup.Do(fmt.Sprintf("instance:%d", instance.ID), func() (any, error) {
+		return svc.syncInstanceCredentialsOnceWithClient(ctx, instance, client)
+	})
+	return synchronizedCPACredentials(value, err)
+}
+
+func synchronizedCPACredentials(value any, err error) ([]*ent.CPACredential, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -32,8 +43,12 @@ func (svc *CPAService) syncInstanceCredentialsOnce(ctx context.Context, instance
 	if err != nil {
 		return nil, err
 	}
-	defer client.CloseIdleConnections()
+	return withCPAConnection(client, func(client cpaclient.ManagementClient) ([]*ent.CPACredential, error) {
+		return svc.syncInstanceCredentialsOnceWithClient(ctx, instance, client)
+	})
+}
 
+func (svc *CPAService) syncInstanceCredentialsOnceWithClient(ctx context.Context, instance *ent.CPAInstance, client cpaclient.ManagementClient) ([]*ent.CPACredential, error) {
 	now := svc.now()
 	authFiles, buildInfo, err := client.ListCredentials(ctx)
 	if err != nil {
@@ -43,7 +58,7 @@ func (svc *CPAService) syncInstanceCredentialsOnce(ctx context.Context, instance
 
 	err = svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
 		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
-			if err := svc.syncCredentialSnapshot(txCtx, instance, authFiles.Files, now); err != nil {
+			if err := svc.repository.syncCredentialSnapshot(txCtx, instance, authFiles.Files, now); err != nil {
 				return err
 			}
 			return svc.entFromContext(txCtx).CPAInstance.UpdateOneID(instance.ID).
@@ -71,7 +86,11 @@ func (svc *CPAService) syncInstanceCredentialsOnce(ctx context.Context, instance
 }
 
 func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent.CPAInstance, files []cpaclient.AuthFile, now time.Time) error {
-	client := svc.entFromContext(ctx)
+	return svc.repository.syncCredentialSnapshot(ctx, instance, files, now)
+}
+
+func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, instance *ent.CPAInstance, files []cpaclient.AuthFile, now time.Time) error {
+	client := repository.entFromContext(ctx)
 	existing, err := client.CPACredential.Query().
 		Where(cpacredential.CpaInstanceIDEQ(instance.ID)).
 		All(ctx)
@@ -136,7 +155,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 		current := currentByKey[key]
 		if current == nil {
 			quotaState := objects.CPAQuotaStatePending
-			if !svc.supportsNormalizedQuota(normalized) {
+			if !repository.supportsNormalizedQuota(normalized) {
 				quotaState = objects.CPAQuotaStateUnsupported
 			}
 			projection := projectCPACredential(
@@ -188,7 +207,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 		quotaData := current.QuotaData
 		if quotaCapabilityChanged {
 			quotaState = objects.CPAQuotaStatePending
-			if !svc.supportsNormalizedQuota(normalized) {
+			if !repository.supportsNormalizedQuota(normalized) {
 				quotaState = objects.CPAQuotaStateUnsupported
 			}
 			quotaData = objects.CPAQuotaSnapshot{}
@@ -257,7 +276,7 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 		}
 	}
 	if len(remaps) > 0 {
-		svc.invalidateUsageCredentialCache(instance.ID)
+		repository.invalidateUsageCredentialCache(instance.ID)
 	}
 	return nil
 }

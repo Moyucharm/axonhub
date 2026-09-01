@@ -81,7 +81,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 
 ### 2.4 CPA 管理（CLIProxyAPI，只读首期）
 
-**提交**：待后续提交
+**提交**：`8e503fc0`（runtime/projection/keyset/overview checkpoint）；本轮执行边界改动尚未提交
 
 新增独立一级「CPA 管理」功能，用于注册多个 CLIProxyAPI 实例并集中查看其 auth-files 凭证与额度快照：
 
@@ -89,7 +89,9 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **密钥边界**：CPA 管理密钥以 JWT secret 经 HKDF-SHA256 派生的 AES-256-GCM 密钥可逆加密保存；GraphQL 仅返回 `hasSecret`，编辑留空保留原密钥，永不回显明文或密文。该方案不抵御同时取得完整数据库（含 JWT secret）的攻击。**注意：轮换 JWT secret 会使所有已保存的 CPA 管理密钥无法解密**（加密密钥由 JWT secret 派生，无多密钥版本化）；轮换后需对每个实例重新填写管理密钥（`updateCPAInstance` 传入新密钥即原地更新）。
 - **只读凭证同步**：同步 CPA auth-files 的安全元数据；成功同步后硬删除已消失凭证，失败同步保留旧快照；支持 runtime-only 凭证，禁止下载 auth JSON 或持久化 access/refresh token、原始额度响应。
 - **额度请求边界**：CPA 管理模块的 Codex、Claude、Antigravity、Kimi、xAI free 额度请求全部通过所选 CPA 的 `/v0/management/api-call` 发出，AxonHub 不直连供应商额度 API；xAI paid 不执行付费健康探测并标记为不支持。该限制仅适用于 CPA 管理，不影响现有渠道额度功能。
-- **刷新与并发**：单实例独立周期调度，启动/重新启用后 15–60 秒随机抖动；自动刷新跳过 disabled/unavailable，手动刷新仅跳过 disabled；单实例最多 4、全局最多 8 个并发，同一凭证请求合并，单项失败不终止批次并保留上次成功快照。
+- **刷新、执行边界与并发**：统一 `cpa-runtime` 以数据库 optimistic claim 领取同一实例到期的 snapshot refresh、enabled patrol 与 disabled patrol，并按固定顺序串行执行；不同实例最多 4 个 runtime job。quota executor 负责同凭证 singleflight、单实例最多 4、全局最多 8 个 provider 请求，并产出 typed outcome；repository 在实例写锁内重读当前 credential 后统一写入 quota/projection，失败保留上次成功 snapshot，单项失败不终止批次。手动刷新包含 disabled credential；自动巡检分别处理 enabled/disabled candidate，5 小时窗口不触发自动禁用。
+- **查询投影与分页**：凭证持久化自然排序键、health、cooldown 和 projection version；列表过滤下推 SQL，按 `priority DESC + natural sort projection + id` 做 keyset pagination。GraphQL 使用单一 `cpaOverview` 返回 stats/provider/plan types，旧 root fields 在兼容期内保留 deprecated。
+- **自动巡检收敛**：patrol 复用一次实例管理 client，依据 fresh persisted credential 产出 `none/disable/enable` 决策；remote patch 仍以 CPA 为 disabled 事实来源，成功后立即复用同一 client 同步本地 snapshot。
 - **独立界面**：新增 `/cpa` 路由与侧栏入口，复用系统级 `read_settings` / `write_settings` 权限；页面按单实例查看，提供固定供应商分组、名称/邮箱搜索、状态/套餐筛选、统计卡片、紧凑额度摘要与可展开多窗口详情，不复刻 CPA 自身面板。
 - **网络安全**：仅允许 HTTP(S)，拒绝 URL userinfo、query/fragment、非同主机重定向及 HTTPS→HTTP 降级；请求有超时和响应大小限制；实例级跳过证书校验默认关闭并在表单、状态区持续警告。
 

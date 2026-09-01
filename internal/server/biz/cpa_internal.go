@@ -121,6 +121,10 @@ func (svc *CPAService) runCPARuntime(ctx context.Context) {
 		}
 	}
 
+	runCPARuntimeJobs(ctx, jobs, svc.executeCPARuntimeJob)
+}
+
+func runCPARuntimeJobs(ctx context.Context, jobs []cpaRuntimeJob, execute func(context.Context, cpaRuntimeJob)) {
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(maxCPAInstanceConcurrency)
 	for _, job := range jobs {
@@ -135,7 +139,7 @@ func (svc *CPAService) runCPARuntime(ctx context.Context) {
 					)
 				}
 			}()
-			svc.executeCPARuntimeJob(groupCtx, job)
+			execute(groupCtx, job)
 			return nil
 		})
 	}
