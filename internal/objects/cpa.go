@@ -13,6 +13,17 @@ const (
 	CPAQuotaStateInsufficientData CPAQuotaState = "insufficient_data"
 )
 
+// CPACredentialHealthState is the persisted, time-independent health projection.
+// Quota cooldown remains orthogonal so it can expire lazily without a database write.
+type CPACredentialHealthState string
+
+const (
+	CPACredentialHealthHealthy  CPACredentialHealthState = "healthy"
+	CPACredentialHealthAbnormal CPACredentialHealthState = "abnormal"
+	CPACredentialHealthPending  CPACredentialHealthState = "pending"
+	CPACredentialHealthDisabled CPACredentialHealthState = "disabled"
+)
+
 // CPAQuotaSnapshot stores the normalized, provider-independent quota view.
 type CPAQuotaSnapshot struct {
 	Items []CPAQuotaItem `json:"items,omitempty"`

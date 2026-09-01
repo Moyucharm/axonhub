@@ -98,31 +98,37 @@ var schemaGraph = func() *sqlgraph.Schema {
 		},
 		Type: "CPACredential",
 		Fields: map[string]*sqlgraph.FieldSpec{
-			cpacredential.FieldCreatedAt:          {Type: field.TypeTime, Column: cpacredential.FieldCreatedAt},
-			cpacredential.FieldUpdatedAt:          {Type: field.TypeTime, Column: cpacredential.FieldUpdatedAt},
-			cpacredential.FieldCpaInstanceID:      {Type: field.TypeInt, Column: cpacredential.FieldCpaInstanceID},
-			cpacredential.FieldExternalKey:        {Type: field.TypeString, Column: cpacredential.FieldExternalKey},
-			cpacredential.FieldAuthIndex:          {Type: field.TypeString, Column: cpacredential.FieldAuthIndex},
-			cpacredential.FieldRemoteName:         {Type: field.TypeString, Column: cpacredential.FieldRemoteName},
-			cpacredential.FieldLabel:              {Type: field.TypeString, Column: cpacredential.FieldLabel},
-			cpacredential.FieldDisplayName:        {Type: field.TypeString, Column: cpacredential.FieldDisplayName},
-			cpacredential.FieldProvider:           {Type: field.TypeString, Column: cpacredential.FieldProvider},
-			cpacredential.FieldEmail:              {Type: field.TypeString, Column: cpacredential.FieldEmail},
-			cpacredential.FieldStatus:             {Type: field.TypeString, Column: cpacredential.FieldStatus},
-			cpacredential.FieldStatusMessage:      {Type: field.TypeString, Column: cpacredential.FieldStatusMessage},
-			cpacredential.FieldDisabled:           {Type: field.TypeBool, Column: cpacredential.FieldDisabled},
-			cpacredential.FieldUnavailable:        {Type: field.TypeBool, Column: cpacredential.FieldUnavailable},
-			cpacredential.FieldRuntimeOnly:        {Type: field.TypeBool, Column: cpacredential.FieldRuntimeOnly},
-			cpacredential.FieldPriority:           {Type: field.TypeInt, Column: cpacredential.FieldPriority},
-			cpacredential.FieldPlanType:           {Type: field.TypeString, Column: cpacredential.FieldPlanType},
-			cpacredential.FieldQuotaContext:       {Type: field.TypeJSON, Column: cpacredential.FieldQuotaContext},
-			cpacredential.FieldQuotaState:         {Type: field.TypeString, Column: cpacredential.FieldQuotaState},
-			cpacredential.FieldQuotaData:          {Type: field.TypeJSON, Column: cpacredential.FieldQuotaData},
-			cpacredential.FieldQuotaLastAttemptAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastAttemptAt},
-			cpacredential.FieldQuotaLastSuccessAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastSuccessAt},
-			cpacredential.FieldQuotaLastFailureAt: {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastFailureAt},
-			cpacredential.FieldQuotaLastError:     {Type: field.TypeString, Column: cpacredential.FieldQuotaLastError},
-			cpacredential.FieldQuotaObserved:      {Type: field.TypeJSON, Column: cpacredential.FieldQuotaObserved},
+			cpacredential.FieldCreatedAt:             {Type: field.TypeTime, Column: cpacredential.FieldCreatedAt},
+			cpacredential.FieldUpdatedAt:             {Type: field.TypeTime, Column: cpacredential.FieldUpdatedAt},
+			cpacredential.FieldCpaInstanceID:         {Type: field.TypeInt, Column: cpacredential.FieldCpaInstanceID},
+			cpacredential.FieldExternalKey:           {Type: field.TypeString, Column: cpacredential.FieldExternalKey},
+			cpacredential.FieldAuthIndex:             {Type: field.TypeString, Column: cpacredential.FieldAuthIndex},
+			cpacredential.FieldRemoteName:            {Type: field.TypeString, Column: cpacredential.FieldRemoteName},
+			cpacredential.FieldLabel:                 {Type: field.TypeString, Column: cpacredential.FieldLabel},
+			cpacredential.FieldDisplayName:           {Type: field.TypeString, Column: cpacredential.FieldDisplayName},
+			cpacredential.FieldDisplayNameSortKey:    {Type: field.TypeString, Column: cpacredential.FieldDisplayNameSortKey},
+			cpacredential.FieldDisplayNameSortLength: {Type: field.TypeInt, Column: cpacredential.FieldDisplayNameSortLength},
+			cpacredential.FieldProvider:              {Type: field.TypeString, Column: cpacredential.FieldProvider},
+			cpacredential.FieldEmail:                 {Type: field.TypeString, Column: cpacredential.FieldEmail},
+			cpacredential.FieldStatus:                {Type: field.TypeString, Column: cpacredential.FieldStatus},
+			cpacredential.FieldStatusMessage:         {Type: field.TypeString, Column: cpacredential.FieldStatusMessage},
+			cpacredential.FieldDisabled:              {Type: field.TypeBool, Column: cpacredential.FieldDisabled},
+			cpacredential.FieldUnavailable:           {Type: field.TypeBool, Column: cpacredential.FieldUnavailable},
+			cpacredential.FieldRuntimeOnly:           {Type: field.TypeBool, Column: cpacredential.FieldRuntimeOnly},
+			cpacredential.FieldPriority:              {Type: field.TypeInt, Column: cpacredential.FieldPriority},
+			cpacredential.FieldPlanType:              {Type: field.TypeString, Column: cpacredential.FieldPlanType},
+			cpacredential.FieldQuotaContext:          {Type: field.TypeJSON, Column: cpacredential.FieldQuotaContext},
+			cpacredential.FieldQuotaState:            {Type: field.TypeString, Column: cpacredential.FieldQuotaState},
+			cpacredential.FieldHealthState:           {Type: field.TypeString, Column: cpacredential.FieldHealthState},
+			cpacredential.FieldQuotaCooling:          {Type: field.TypeBool, Column: cpacredential.FieldQuotaCooling},
+			cpacredential.FieldQuotaCooldownUntil:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaCooldownUntil},
+			cpacredential.FieldProjectionVersion:     {Type: field.TypeInt, Column: cpacredential.FieldProjectionVersion},
+			cpacredential.FieldQuotaData:             {Type: field.TypeJSON, Column: cpacredential.FieldQuotaData},
+			cpacredential.FieldQuotaLastAttemptAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastAttemptAt},
+			cpacredential.FieldQuotaLastSuccessAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastSuccessAt},
+			cpacredential.FieldQuotaLastFailureAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastFailureAt},
+			cpacredential.FieldQuotaLastError:        {Type: field.TypeString, Column: cpacredential.FieldQuotaLastError},
+			cpacredential.FieldQuotaObserved:         {Type: field.TypeJSON, Column: cpacredential.FieldQuotaObserved},
 		},
 	}
 	graph.Nodes[3] = &sqlgraph.Node{
@@ -1853,6 +1859,16 @@ func (f *CPACredentialFilter) WhereDisplayName(p entql.StringP) {
 	f.Where(p.Field(cpacredential.FieldDisplayName))
 }
 
+// WhereDisplayNameSortKey applies the entql string predicate on the display_name_sort_key field.
+func (f *CPACredentialFilter) WhereDisplayNameSortKey(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldDisplayNameSortKey))
+}
+
+// WhereDisplayNameSortLength applies the entql int predicate on the display_name_sort_length field.
+func (f *CPACredentialFilter) WhereDisplayNameSortLength(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldDisplayNameSortLength))
+}
+
 // WhereProvider applies the entql string predicate on the provider field.
 func (f *CPACredentialFilter) WhereProvider(p entql.StringP) {
 	f.Where(p.Field(cpacredential.FieldProvider))
@@ -1906,6 +1922,26 @@ func (f *CPACredentialFilter) WhereQuotaContext(p entql.BytesP) {
 // WhereQuotaState applies the entql string predicate on the quota_state field.
 func (f *CPACredentialFilter) WhereQuotaState(p entql.StringP) {
 	f.Where(p.Field(cpacredential.FieldQuotaState))
+}
+
+// WhereHealthState applies the entql string predicate on the health_state field.
+func (f *CPACredentialFilter) WhereHealthState(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldHealthState))
+}
+
+// WhereQuotaCooling applies the entql bool predicate on the quota_cooling field.
+func (f *CPACredentialFilter) WhereQuotaCooling(p entql.BoolP) {
+	f.Where(p.Field(cpacredential.FieldQuotaCooling))
+}
+
+// WhereQuotaCooldownUntil applies the entql time.Time predicate on the quota_cooldown_until field.
+func (f *CPACredentialFilter) WhereQuotaCooldownUntil(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldQuotaCooldownUntil))
+}
+
+// WhereProjectionVersion applies the entql int predicate on the projection_version field.
+func (f *CPACredentialFilter) WhereProjectionVersion(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldProjectionVersion))
 }
 
 // WhereQuotaData applies the entql json.RawMessage predicate on the quota_data field.

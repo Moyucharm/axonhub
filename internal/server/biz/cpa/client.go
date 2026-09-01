@@ -24,6 +24,17 @@ const (
 	maxUsageQueueBodySize = 16 << 20
 )
 
+// ManagementClient contains the remote operations used by the CPA business layer.
+// Keeping the protocol behind this interface lets sync, refresh, and patrol
+// workflows use the same boundary and makes their remote behavior testable.
+type ManagementClient interface {
+	CloseIdleConnections()
+	ListCredentials(context.Context) (*AuthFilesResponse, BuildInfo, error)
+	CallProvider(context.Context, ProviderCall) (*ProviderCallResult, error)
+	ListUsageQueue(context.Context, int) ([]*UsageEvent, error)
+	PatchAuthFileStatus(context.Context, string, string, bool) error
+}
+
 // Client communicates with one CLIProxyAPI management endpoint.
 type Client struct {
 	baseURL          *url.URL

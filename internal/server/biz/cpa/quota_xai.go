@@ -19,7 +19,7 @@ type xaiQuotaAdapter struct{}
 
 func (xaiQuotaAdapter) Provider() string { return "xai" }
 
-func (xaiQuotaAdapter) Fetch(ctx context.Context, client *Client, input CredentialInput) (QuotaResult, error) {
+func (xaiQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
 	if input.Paid || strings.EqualFold(input.PlanType, "paid") {
 		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: "paid"}, nil
 	}

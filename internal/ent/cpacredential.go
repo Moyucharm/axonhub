@@ -36,6 +36,10 @@ type CPACredential struct {
 	Label string `json:"label,omitempty"`
 	// DisplayName holds the value of the "display_name" field.
 	DisplayName string `json:"display_name,omitempty"`
+	// DisplayNameSortKey holds the value of the "display_name_sort_key" field.
+	DisplayNameSortKey string `json:"display_name_sort_key,omitempty"`
+	// DisplayNameSortLength holds the value of the "display_name_sort_length" field.
+	DisplayNameSortLength int `json:"display_name_sort_length,omitempty"`
 	// Provider holds the value of the "provider" field.
 	Provider string `json:"provider,omitempty"`
 	// Email holds the value of the "email" field.
@@ -58,6 +62,14 @@ type CPACredential struct {
 	QuotaContext objects.CPAQuotaContext `json:"-"`
 	// QuotaState holds the value of the "quota_state" field.
 	QuotaState string `json:"quota_state,omitempty"`
+	// HealthState holds the value of the "health_state" field.
+	HealthState string `json:"health_state,omitempty"`
+	// QuotaCooling holds the value of the "quota_cooling" field.
+	QuotaCooling bool `json:"quota_cooling,omitempty"`
+	// QuotaCooldownUntil holds the value of the "quota_cooldown_until" field.
+	QuotaCooldownUntil *time.Time `json:"quota_cooldown_until,omitempty"`
+	// ProjectionVersion holds the value of the "projection_version" field.
+	ProjectionVersion int `json:"projection_version,omitempty"`
 	// QuotaData holds the value of the "quota_data" field.
 	QuotaData objects.CPAQuotaSnapshot `json:"quota_data,omitempty"`
 	// QuotaLastAttemptAt holds the value of the "quota_last_attempt_at" field.
@@ -103,13 +115,13 @@ func (*CPACredential) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case cpacredential.FieldQuotaContext, cpacredential.FieldQuotaData, cpacredential.FieldQuotaObserved:
 			values[i] = new([]byte)
-		case cpacredential.FieldDisabled, cpacredential.FieldUnavailable, cpacredential.FieldRuntimeOnly:
+		case cpacredential.FieldDisabled, cpacredential.FieldUnavailable, cpacredential.FieldRuntimeOnly, cpacredential.FieldQuotaCooling:
 			values[i] = new(sql.NullBool)
-		case cpacredential.FieldID, cpacredential.FieldCpaInstanceID, cpacredential.FieldPriority:
+		case cpacredential.FieldID, cpacredential.FieldCpaInstanceID, cpacredential.FieldDisplayNameSortLength, cpacredential.FieldPriority, cpacredential.FieldProjectionVersion:
 			values[i] = new(sql.NullInt64)
-		case cpacredential.FieldExternalKey, cpacredential.FieldAuthIndex, cpacredential.FieldRemoteName, cpacredential.FieldLabel, cpacredential.FieldDisplayName, cpacredential.FieldProvider, cpacredential.FieldEmail, cpacredential.FieldStatus, cpacredential.FieldStatusMessage, cpacredential.FieldPlanType, cpacredential.FieldQuotaState, cpacredential.FieldQuotaLastError:
+		case cpacredential.FieldExternalKey, cpacredential.FieldAuthIndex, cpacredential.FieldRemoteName, cpacredential.FieldLabel, cpacredential.FieldDisplayName, cpacredential.FieldDisplayNameSortKey, cpacredential.FieldProvider, cpacredential.FieldEmail, cpacredential.FieldStatus, cpacredential.FieldStatusMessage, cpacredential.FieldPlanType, cpacredential.FieldQuotaState, cpacredential.FieldHealthState, cpacredential.FieldQuotaLastError:
 			values[i] = new(sql.NullString)
-		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt:
+		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaCooldownUntil, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -180,6 +192,18 @@ func (_m *CPACredential) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.DisplayName = value.String
 			}
+		case cpacredential.FieldDisplayNameSortKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field display_name_sort_key", values[i])
+			} else if value.Valid {
+				_m.DisplayNameSortKey = value.String
+			}
+		case cpacredential.FieldDisplayNameSortLength:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field display_name_sort_length", values[i])
+			} else if value.Valid {
+				_m.DisplayNameSortLength = int(value.Int64)
+			}
 		case cpacredential.FieldProvider:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field provider", values[i])
@@ -247,6 +271,31 @@ func (_m *CPACredential) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field quota_state", values[i])
 			} else if value.Valid {
 				_m.QuotaState = value.String
+			}
+		case cpacredential.FieldHealthState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field health_state", values[i])
+			} else if value.Valid {
+				_m.HealthState = value.String
+			}
+		case cpacredential.FieldQuotaCooling:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field quota_cooling", values[i])
+			} else if value.Valid {
+				_m.QuotaCooling = value.Bool
+			}
+		case cpacredential.FieldQuotaCooldownUntil:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field quota_cooldown_until", values[i])
+			} else if value.Valid {
+				_m.QuotaCooldownUntil = new(time.Time)
+				*_m.QuotaCooldownUntil = value.Time
+			}
+		case cpacredential.FieldProjectionVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field projection_version", values[i])
+			} else if value.Valid {
+				_m.ProjectionVersion = int(value.Int64)
 			}
 		case cpacredential.FieldQuotaData:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -356,6 +405,12 @@ func (_m *CPACredential) String() string {
 	builder.WriteString("display_name=")
 	builder.WriteString(_m.DisplayName)
 	builder.WriteString(", ")
+	builder.WriteString("display_name_sort_key=")
+	builder.WriteString(_m.DisplayNameSortKey)
+	builder.WriteString(", ")
+	builder.WriteString("display_name_sort_length=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DisplayNameSortLength))
+	builder.WriteString(", ")
 	builder.WriteString("provider=")
 	builder.WriteString(_m.Provider)
 	builder.WriteString(", ")
@@ -387,6 +442,20 @@ func (_m *CPACredential) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("quota_state=")
 	builder.WriteString(_m.QuotaState)
+	builder.WriteString(", ")
+	builder.WriteString("health_state=")
+	builder.WriteString(_m.HealthState)
+	builder.WriteString(", ")
+	builder.WriteString("quota_cooling=")
+	builder.WriteString(fmt.Sprintf("%v", _m.QuotaCooling))
+	builder.WriteString(", ")
+	if v := _m.QuotaCooldownUntil; v != nil {
+		builder.WriteString("quota_cooldown_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("projection_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ProjectionVersion))
 	builder.WriteString(", ")
 	builder.WriteString("quota_data=")
 	builder.WriteString(fmt.Sprintf("%v", _m.QuotaData))

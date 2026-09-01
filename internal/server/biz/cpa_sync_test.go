@@ -91,6 +91,7 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CPACredential.UpdateOne(codexCredential).
 		SetQuotaState(string(objects.CPAQuotaStateError)).
+		SetHealthState(string(objects.CPACredentialHealthAbnormal)).
 		SetQuotaLastError("quota request failed").
 		Exec(ctx))
 	stats, err = svc.CredentialStats(ctx, instance.ID)

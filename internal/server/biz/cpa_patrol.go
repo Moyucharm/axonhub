@@ -2,141 +2,17 @@ package biz
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
-	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
-	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
-	"github.com/looplj/axonhub/internal/server/scheduler"
 )
-
-// CPA credential auto-manage patrols. The enabled patrol watches active
-// credentials for quota exhaustion or expiry and disables them remotely; the
-// disabled patrol re-checks disabled credentials and re-enables them once their
-// quota recovered. Recovery is decided purely by patrol results, never by
-// computing reset times.
-const (
-	cpaEnabledPatrolTaskName  = "cpa-enabled-patrol"
-	cpaDisabledPatrolTaskName = "cpa-disabled-patrol"
-)
-
-// RegisterCPAPatrolTasks initializes patrol schedules and registers both patrol
-// dispatchers with the scheduler service.
-func (svc *CPAService) RegisterCPAPatrolTasks(ctx context.Context, schedulerService *scheduler.Scheduler) error {
-	ctx = authz.WithSystemBypass(ctx, "cpa-patrol-register")
-	now := svc.now()
-	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
-		Where(
-			cpainstance.EnabledEQ(true),
-			cpainstance.AutoManageEnabledEQ(true),
-			cpainstance.Or(
-				cpainstance.NextEnabledPatrolAtIsNil(),
-				cpainstance.NextDisabledPatrolAtIsNil(),
-			),
-		).
-		All(ctx)
-	if err != nil {
-		return fmt.Errorf("initialize CPA patrol schedule: %w", err)
-	}
-	for _, instance := range instances {
-		update := svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID)
-		if instance.NextEnabledPatrolAt == nil {
-			update.SetNextEnabledPatrolAt(now.Add(svc.jitter()))
-		}
-		if instance.NextDisabledPatrolAt == nil {
-			update.SetNextDisabledPatrolAt(now.Add(svc.jitter()))
-		}
-		if err := update.Exec(ctx); err != nil {
-			return fmt.Errorf("schedule CPA instance %d patrols: %w", instance.ID, err)
-		}
-	}
-
-	if err := schedulerService.Register(ctx, scheduler.TaskSpec{
-		Name:        cpaEnabledPatrolTaskName,
-		Description: "Patrol enabled CPA credentials for quota exhaustion and expiry",
-		FixRate:     cpaRefreshDispatcherInterval,
-	}, svc.runEnabledPatrol); err != nil {
-		return err
-	}
-	return schedulerService.Register(ctx, scheduler.TaskSpec{
-		Name:        cpaDisabledPatrolTaskName,
-		Description: "Patrol disabled CPA credentials for quota recovery",
-		FixRate:     cpaRefreshDispatcherInterval,
-	}, svc.runDisabledPatrol)
-}
-
-func (svc *CPAService) runEnabledPatrol(ctx context.Context) {
-	ctx = authz.WithSystemBypass(ctx, cpaEnabledPatrolTaskName)
-	now := svc.now()
-	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
-		Where(
-			cpainstance.EnabledEQ(true),
-			cpainstance.AutoManageEnabledEQ(true),
-			cpainstance.Or(
-				cpainstance.NextEnabledPatrolAtIsNil(),
-				cpainstance.NextEnabledPatrolAtLTE(now),
-			),
-		).
-		All(ctx)
-	if err != nil {
-		log.Error(ctx, "failed to query CPA instances for enabled patrol", log.Cause(err))
-		return
-	}
-
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(maxCPAInstanceConcurrency)
-	for _, instance := range instances {
-		instance := instance
-		group.Go(func() error {
-			svc.patrolInstanceEnabled(groupCtx, instance)
-			return nil
-		})
-	}
-	_ = group.Wait()
-}
-
-func (svc *CPAService) runDisabledPatrol(ctx context.Context) {
-	ctx = authz.WithSystemBypass(ctx, cpaDisabledPatrolTaskName)
-	now := svc.now()
-	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
-		Where(
-			cpainstance.EnabledEQ(true),
-			cpainstance.AutoManageEnabledEQ(true),
-			cpainstance.Or(
-				cpainstance.NextDisabledPatrolAtIsNil(),
-				cpainstance.NextDisabledPatrolAtLTE(now),
-			),
-		).
-		All(ctx)
-	if err != nil {
-		log.Error(ctx, "failed to query CPA instances for disabled patrol", log.Cause(err))
-		return
-	}
-
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(maxCPAInstanceConcurrency)
-	for _, instance := range instances {
-		instance := instance
-		group.Go(func() error {
-			svc.patrolInstanceDisabled(groupCtx, instance)
-			return nil
-		})
-	}
-	_ = group.Wait()
-}
 
 // patrolInstanceEnabled refreshes quotas of all enabled credentials and
 // remotely disables any that expired or exhausted a non-five-hour quota.
 func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.CPAInstance) {
-	next := svc.now().Add(time.Duration(instance.EnabledPatrolIntervalMinutes) * time.Minute)
-	svc.scheduleNextEnabledPatrol(ctx, instance, next)
-
 	client, err := svc.clientForInstance(ctx, instance)
 	if err != nil {
 		log.Warn(ctx, "CPA enabled patrol failed to build client",
@@ -189,18 +65,11 @@ func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.
 			)
 			continue
 		}
-		// The disable decision is made purely from the refreshed snapshot so a
-		// successful quota fetch overrides stale JWT subscription dates, matching
-		// deriveCPAExpired's documented semantics.
-		exhausted, _, exhaustedItem := cpaAutoManageQuotaCooldownDetail(fresh.QuotaData, svc.now())
-		expired := deriveCPAExpired(fresh, svc.now())
-		if !expired && !exhausted {
+		reason, exhaustedItem := cpaCredentialDisableReason(fresh, svc.now())
+		if reason == "" {
 			continue
 		}
-		reason := "quota exhausted"
-		if expired {
-			reason = "expired"
-		} else if exhaustedItem != nil {
+		if reason == "quota exhausted" && exhaustedItem != nil {
 			log.Info(ctx, "CPA credential quota exhaustion confirmed",
 				log.Int("cpa_instance_id", instance.ID),
 				log.Int("credential_id", fresh.ID),
@@ -217,9 +86,6 @@ func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.
 // patrolInstanceDisabled refreshes quotas of all disabled credentials and
 // remotely re-enables those whose quota recovered and that are not expired.
 func (svc *CPAService) patrolInstanceDisabled(ctx context.Context, instance *ent.CPAInstance) {
-	next := svc.now().Add(time.Duration(instance.DisabledPatrolIntervalMinutes) * time.Minute)
-	svc.scheduleNextDisabledPatrol(ctx, instance, next)
-
 	client, err := svc.clientForInstance(ctx, instance)
 	if err != nil {
 		log.Warn(ctx, "CPA disabled patrol failed to build client",
@@ -358,34 +224,6 @@ func (svc *CPAService) enableCredentialRemotely(ctx context.Context, instance *e
 func (svc *CPAService) syncAfterPatch(ctx context.Context, instance *ent.CPAInstance) {
 	if _, err := svc.syncInstanceCredentials(ctx, instance); err != nil {
 		log.Warn(ctx, "CPA credential sync after toggle failed",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-	}
-}
-
-func (svc *CPAService) scheduleNextEnabledPatrol(ctx context.Context, instance *ent.CPAInstance, next time.Time) {
-	if !instance.Enabled || !instance.AutoManageEnabled {
-		return
-	}
-	if err := svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
-		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextEnabledPatrolAt(next).Exec(ctx)
-	}); err != nil {
-		log.Warn(ctx, "failed to schedule CPA next enabled patrol",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-	}
-}
-
-func (svc *CPAService) scheduleNextDisabledPatrol(ctx context.Context, instance *ent.CPAInstance, next time.Time) {
-	if !instance.Enabled || !instance.AutoManageEnabled {
-		return
-	}
-	if err := svc.withCPAInstanceWriteRetry(ctx, instance.ID, func() error {
-		return svc.entFromContext(ctx).CPAInstance.UpdateOneID(instance.ID).SetNextDisabledPatrolAt(next).Exec(ctx)
-	}); err != nil {
-		log.Warn(ctx, "failed to schedule CPA next disabled patrol",
 			log.Int("cpa_instance_id", instance.ID),
 			log.Cause(err),
 		)

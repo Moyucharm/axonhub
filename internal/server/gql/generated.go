@@ -434,6 +434,11 @@ type ComplexityRoot struct {
 		UsageStreamEnabled            func(childComplexity int) int
 	}
 
+	CPAOverview struct {
+		Providers func(childComplexity int) int
+		Stats     func(childComplexity int) int
+	}
+
 	CPAPageInfo struct {
 		EndCursor       func(childComplexity int) int
 		HasNextPage     func(childComplexity int) int
@@ -444,6 +449,12 @@ type ComplexityRoot struct {
 	CPAProviderCount struct {
 		Count    func(childComplexity int) int
 		Provider func(childComplexity int) int
+	}
+
+	CPAProviderOverview struct {
+		Count     func(childComplexity int) int
+		PlanTypes func(childComplexity int) int
+		Provider  func(childComplexity int) int
 	}
 
 	CPAQuotaItem struct {
@@ -1581,6 +1592,7 @@ type ComplexityRoot struct {
 		CpaCredentialStats              func(childComplexity int, instanceID int) int
 		CpaInstance                     func(childComplexity int, id int) int
 		CpaInstances                    func(childComplexity int) int
+		CpaOverview                     func(childComplexity int, instanceID int) int
 		CpaPlanTypes                    func(childComplexity int, instanceID int, provider string) int
 		CpaProviderCounts               func(childComplexity int, instanceID int) int
 		CpaRefreshProgress              func(childComplexity int, instanceID int) int
@@ -2651,6 +2663,7 @@ type QueryResolver interface {
 	CpaInstances(ctx context.Context) ([]*biz.CPAInstanceView, error)
 	CpaInstance(ctx context.Context, id int) (*biz.CPAInstanceView, error)
 	QueryCPACredentials(ctx context.Context, input biz.QueryCPACredentialsInput) (*biz.CPACredentialConnection, error)
+	CpaOverview(ctx context.Context, instanceID int) (*biz.CPAOverview, error)
 	CpaCredentialStats(ctx context.Context, instanceID int) (*biz.CPACredentialStats, error)
 	CpaProviderCounts(ctx context.Context, instanceID int) ([]*biz.CPAProviderCount, error)
 	CpaPlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error)
@@ -4112,6 +4125,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CPAManagedInstance.UsageStreamEnabled(childComplexity), true
 
+	case "CPAOverview.providers":
+		if e.complexity.CPAOverview.Providers == nil {
+			break
+		}
+
+		return e.complexity.CPAOverview.Providers(childComplexity), true
+	case "CPAOverview.stats":
+		if e.complexity.CPAOverview.Stats == nil {
+			break
+		}
+
+		return e.complexity.CPAOverview.Stats(childComplexity), true
+
 	case "CPAPageInfo.endCursor":
 		if e.complexity.CPAPageInfo.EndCursor == nil {
 			break
@@ -4149,6 +4175,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAProviderCount.Provider(childComplexity), true
+
+	case "CPAProviderOverview.count":
+		if e.complexity.CPAProviderOverview.Count == nil {
+			break
+		}
+
+		return e.complexity.CPAProviderOverview.Count(childComplexity), true
+	case "CPAProviderOverview.planTypes":
+		if e.complexity.CPAProviderOverview.PlanTypes == nil {
+			break
+		}
+
+		return e.complexity.CPAProviderOverview.PlanTypes(childComplexity), true
+	case "CPAProviderOverview.provider":
+		if e.complexity.CPAProviderOverview.Provider == nil {
+			break
+		}
+
+		return e.complexity.CPAProviderOverview.Provider(childComplexity), true
 
 	case "CPAQuotaItem.description":
 		if e.complexity.CPAQuotaItem.Description == nil {
@@ -9540,6 +9585,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.CpaInstances(childComplexity), true
+	case "Query.cpaOverview":
+		if e.complexity.Query.CpaOverview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cpaOverview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.CpaOverview(childComplexity, args["instanceID"].(int)), true
 	case "Query.cpaPlanTypes":
 		if e.complexity.Query.CpaPlanTypes == nil {
 			break
@@ -15719,6 +15775,17 @@ func (ec *executionContext) field_Query_cpaInstance_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cpaOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["instanceID"] = arg0
 	return args, nil
 }
 
@@ -23738,6 +23805,80 @@ func (ec *executionContext) fieldContext_CPAManagedInstance_updatedAt(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAOverview_stats(ctx context.Context, field graphql.CollectedField, obj *biz.CPAOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAOverview_stats,
+		func(ctx context.Context) (any, error) {
+			return obj.Stats, nil
+		},
+		nil,
+		ec.marshalNCPACredentialStats2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialStats,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAOverview_stats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "available":
+				return ec.fieldContext_CPACredentialStats_available(ctx, field)
+			case "total":
+				return ec.fieldContext_CPACredentialStats_total(ctx, field)
+			case "abnormal":
+				return ec.fieldContext_CPACredentialStats_abnormal(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPACredentialStats", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAOverview_providers(ctx context.Context, field graphql.CollectedField, obj *biz.CPAOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAOverview_providers,
+		func(ctx context.Context) (any, error) {
+			return obj.Providers, nil
+		},
+		nil,
+		ec.marshalNCPAProviderOverview2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderOverviewᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAOverview_providers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "provider":
+				return ec.fieldContext_CPAProviderOverview_provider(ctx, field)
+			case "count":
+				return ec.fieldContext_CPAProviderOverview_count(ctx, field)
+			case "planTypes":
+				return ec.fieldContext_CPAProviderOverview_planTypes(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAProviderOverview", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAPageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *biz.CPAPageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23907,6 +24048,93 @@ func (ec *executionContext) fieldContext_CPAProviderCount_count(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAProviderOverview_provider(ctx context.Context, field graphql.CollectedField, obj *biz.CPAProviderOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAProviderOverview_provider,
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAProviderOverview_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAProviderOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAProviderOverview_count(ctx context.Context, field graphql.CollectedField, obj *biz.CPAProviderOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAProviderOverview_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAProviderOverview_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAProviderOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAProviderOverview_planTypes(ctx context.Context, field graphql.CollectedField, obj *biz.CPAProviderOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAProviderOverview_planTypes,
+		func(ctx context.Context) (any, error) {
+			return obj.PlanTypes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAProviderOverview_planTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAProviderOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -54060,6 +54288,53 @@ func (ec *executionContext) fieldContext_Query_queryCPACredentials(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_queryCPACredentials_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cpaOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_cpaOverview,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().CpaOverview(ctx, fc.Args["instanceID"].(int))
+		},
+		nil,
+		ec.marshalNCPAOverview2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAOverview,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_cpaOverview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "stats":
+				return ec.fieldContext_CPAOverview_stats(ctx, field)
+			case "providers":
+				return ec.fieldContext_CPAOverview_providers(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAOverview", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cpaOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -100238,6 +100513,50 @@ func (ec *executionContext) _CPAManagedInstance(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var cPAOverviewImplementors = []string{"CPAOverview"}
+
+func (ec *executionContext) _CPAOverview(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAOverview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAOverviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAOverview")
+		case "stats":
+			out.Values[i] = ec._CPAOverview_stats(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providers":
+			out.Values[i] = ec._CPAOverview_providers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPAPageInfoImplementors = []string{"CPAPageInfo"}
 
 func (ec *executionContext) _CPAPageInfo(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAPageInfo) graphql.Marshaler {
@@ -100304,6 +100623,55 @@ func (ec *executionContext) _CPAProviderCount(ctx context.Context, sel ast.Selec
 			}
 		case "count":
 			out.Values[i] = ec._CPAProviderCount_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPAProviderOverviewImplementors = []string{"CPAProviderOverview"}
+
+func (ec *executionContext) _CPAProviderOverview(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAProviderOverview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAProviderOverviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAProviderOverview")
+		case "provider":
+			out.Values[i] = ec._CPAProviderOverview_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._CPAProviderOverview_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "planTypes":
+			out.Values[i] = ec._CPAProviderOverview_planTypes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -111770,6 +112138,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cpaOverview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cpaOverview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "cpaCredentialStats":
 			field := field
 
@@ -120335,6 +120725,20 @@ func (ec *executionContext) marshalNCPAManagedInstance2ᚖgithubᚗcomᚋlooplj�
 	return ec._CPAManagedInstance(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCPAOverview2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAOverview(ctx context.Context, sel ast.SelectionSet, v biz.CPAOverview) graphql.Marshaler {
+	return ec._CPAOverview(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPAOverview2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAOverview(ctx context.Context, sel ast.SelectionSet, v *biz.CPAOverview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAOverview(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCPAPageInfo2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAPageInfo(ctx context.Context, sel ast.SelectionSet, v *biz.CPAPageInfo) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -120397,6 +120801,60 @@ func (ec *executionContext) marshalNCPAProviderCount2ᚖgithubᚗcomᚋloopljᚋ
 		return graphql.Null
 	}
 	return ec._CPAProviderCount(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCPAProviderOverview2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderOverviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.CPAProviderOverview) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPAProviderOverview2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderOverview(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCPAProviderOverview2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderOverview(ctx context.Context, sel ast.SelectionSet, v *biz.CPAProviderOverview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAProviderOverview(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCPAQuotaItem2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaItem(ctx context.Context, sel ast.SelectionSet, v objects.CPAQuotaItem) graphql.Marshaler {

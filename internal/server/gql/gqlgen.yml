@@ -110,6 +110,12 @@ models:
   CPAPageInfo:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPAPageInfo
+  CPAOverview:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAOverview
+  CPAProviderOverview:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAProviderOverview
   Any:
     model:
       - github.com/99designs/gqlgen/graphql.Any

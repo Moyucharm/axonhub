@@ -3,6 +3,7 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
@@ -103,6 +104,8 @@ var (
 		{Name: "remote_name", Type: field.TypeString},
 		{Name: "label", Type: field.TypeString, Default: ""},
 		{Name: "display_name", Type: field.TypeString},
+		{Name: "display_name_sort_key", Type: field.TypeString, Default: ""},
+		{Name: "display_name_sort_length", Type: field.TypeInt, Default: 0},
 		{Name: "provider", Type: field.TypeString, Default: "unknown"},
 		{Name: "email", Type: field.TypeString, Default: ""},
 		{Name: "status", Type: field.TypeString, Default: "unknown"},
@@ -114,6 +117,10 @@ var (
 		{Name: "plan_type", Type: field.TypeString, Default: ""},
 		{Name: "quota_context", Type: field.TypeJSON},
 		{Name: "quota_state", Type: field.TypeString, Default: "pending"},
+		{Name: "health_state", Type: field.TypeString, Default: "pending"},
+		{Name: "quota_cooling", Type: field.TypeBool, Default: false},
+		{Name: "quota_cooldown_until", Type: field.TypeTime, Nullable: true},
+		{Name: "projection_version", Type: field.TypeInt, Default: 0},
 		{Name: "quota_data", Type: field.TypeJSON},
 		{Name: "quota_last_attempt_at", Type: field.TypeTime, Nullable: true},
 		{Name: "quota_last_success_at", Type: field.TypeTime, Nullable: true},
@@ -130,7 +137,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "cpa_credentials_cpa_instances_credentials",
-				Columns:    []*schema.Column{CpaCredentialsColumns[25]},
+				Columns:    []*schema.Column{CpaCredentialsColumns[31]},
 				RefColumns: []*schema.Column{CpaInstancesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -139,32 +146,47 @@ var (
 			{
 				Name:    "cpacredential_cpa_instance_id_external_key",
 				Unique:  true,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[3]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[3]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_provider",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[8]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[10]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_disabled",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[12]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[14]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_unavailable",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[13]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[15]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_plan_type",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[16]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[18]},
 			},
 			{
-				Name:    "cpacredential_cpa_instance_id_priority_display_name",
+				Name:    "cpacredential_cpa_instance_id_health_state",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[25], CpaCredentialsColumns[15], CpaCredentialsColumns[7]},
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[21]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_quota_cooling_quota_cooldown_until",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[22], CpaCredentialsColumns[23]},
+			},
+			{
+				Name:    "cpacredential_cpa_instance_id_priority_display_name_sort_key_display_name_sort_length_id",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[17], CpaCredentialsColumns[8], CpaCredentialsColumns[9], CpaCredentialsColumns[0]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						CpaCredentialsColumns[17].Name: true,
+					},
+				},
 			},
 		},
 	}

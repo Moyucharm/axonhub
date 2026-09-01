@@ -16,7 +16,7 @@ type kimiQuotaAdapter struct{}
 
 func (kimiQuotaAdapter) Provider() string { return "kimi" }
 
-func (kimiQuotaAdapter) Fetch(ctx context.Context, client *Client, input CredentialInput) (QuotaResult, error) {
+func (kimiQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
 	var payload map[string]any
 	if _, err := callJSON(ctx, client, ProviderCall{
 		AuthIndex: input.AuthIndex,

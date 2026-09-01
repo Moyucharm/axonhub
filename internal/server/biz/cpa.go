@@ -53,6 +53,7 @@ type CPAService struct {
 	SystemService     *SystemService
 	ChannelService    *ChannelService
 	quotaRegistry     *cpaclient.QuotaRegistry
+	clientFactory     func(cpaclient.Config) (cpaclient.ManagementClient, error)
 	refreshGroup      singleflight.Group
 	syncGroup         singleflight.Group
 	globalQuota       *semaphore.Weighted
@@ -88,6 +89,9 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 		SystemService:   params.SystemService,
 		ChannelService:  params.ChannelService,
 		quotaRegistry:   cpaclient.NewQuotaRegistry(),
+		clientFactory: func(config cpaclient.Config) (cpaclient.ManagementClient, error) {
+			return cpaclient.NewClient(config)
+		},
 		globalQuota:     semaphore.NewWeighted(maxCPAGlobalConcurrency),
 		instanceQuota:   make(map[int]*semaphore.Weighted),
 		instanceWrite:   make(map[int]*cpaInstanceWriteEntry),
@@ -160,51 +164,14 @@ type CPAInstanceView struct {
 }
 
 func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstanceInput) (*CPAInstanceView, error) {
-	name := strings.TrimSpace(input.Name)
-	if name == "" {
-		return nil, fmt.Errorf("CPA instance name is required")
-	}
-	normalizedURL, err := cpaclient.NormalizeBaseURL(input.BaseURL)
+	config, err := normalizeCreateCPAInstanceConfig(input)
 	if err != nil {
 		return nil, err
 	}
-	secret := strings.TrimSpace(input.ManagementSecret)
-	if secret == "" {
-		return nil, fmt.Errorf("CPA management secret is required")
-	}
-	interval, err := normalizeCPARefreshInterval(input.RefreshIntervalMinutes)
-	if err != nil {
-		return nil, err
-	}
-	enabledPatrolInterval, err := normalizeCPAEnabledPatrolInterval(input.EnabledPatrolIntervalMinutes)
-	if err != nil {
-		return nil, err
-	}
-	disabledPatrolInterval, err := normalizeCPADisabledPatrolInterval(input.DisabledPatrolIntervalMinutes)
-	if err != nil {
-		return nil, err
-	}
-	enabled := true
-	if input.Enabled != nil {
-		enabled = *input.Enabled
-	}
-	autoRefresh := true
-	if input.AutoRefreshEnabled != nil {
-		autoRefresh = *input.AutoRefreshEnabled
-	}
-	autoManage := false
-	if input.AutoManageEnabled != nil {
-		autoManage = *input.AutoManageEnabled
-	}
-	usageStream := false
-	if input.UsageStreamEnabled != nil {
-		usageStream = *input.UsageStreamEnabled
-	}
-
-	client, err := cpaclient.NewClient(cpaclient.Config{
-		BaseURL:          normalizedURL,
-		ManagementSecret: secret,
-		InsecureSkipTLS:  input.InsecureSkipTLS,
+	client, err := svc.newCPAClient(cpaclient.Config{
+		BaseURL:          config.baseURL,
+		ManagementSecret: config.managementSecret,
+		InsecureSkipTLS:  config.insecureSkipTLS,
 	})
 	if err != nil {
 		return nil, err
@@ -215,7 +182,7 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 		return nil, fmt.Errorf("validate CPA connection: %w", err)
 	}
 
-	encryptedSecret, err := svc.encryptSecret(ctx, secret)
+	encryptedSecret, err := svc.encryptSecret(ctx, config.managementSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -223,26 +190,26 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 	var created *ent.CPAInstance
 	err = svc.RunInTransaction(ctx, func(txCtx context.Context) error {
 		builder := svc.entFromContext(txCtx).CPAInstance.Create().
-			SetName(name).
-			SetBaseURL(normalizedURL).
+			SetName(config.name).
+			SetBaseURL(config.baseURL).
 			SetEncryptedSecret(encryptedSecret).
-			SetEnabled(enabled).
-			SetInsecureSkipTLS(input.InsecureSkipTLS).
-			SetAutoRefreshEnabled(autoRefresh).
-			SetRefreshIntervalMinutes(interval).
-			SetAutoManageEnabled(autoManage).
-			SetUsageStreamEnabled(usageStream).
-			SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
-			SetDisabledPatrolIntervalMinutes(disabledPatrolInterval).
+			SetEnabled(config.enabled).
+			SetInsecureSkipTLS(config.insecureSkipTLS).
+			SetAutoRefreshEnabled(config.autoRefreshEnabled).
+			SetRefreshIntervalMinutes(config.refreshIntervalMinutes).
+			SetAutoManageEnabled(config.autoManageEnabled).
+			SetUsageStreamEnabled(config.usageStreamEnabled).
+			SetEnabledPatrolIntervalMinutes(config.enabledPatrolInterval).
+			SetDisabledPatrolIntervalMinutes(config.disabledPatrolInterval).
 			SetServerVersion(buildInfo.Version).
 			SetServerCommit(buildInfo.Commit).
 			SetServerBuildDate(buildInfo.BuildDate).
 			SetLastSyncAttemptAt(now).
 			SetLastSyncSuccessAt(now)
-		if enabled && autoRefresh {
+		if config.enabled && config.autoRefreshEnabled {
 			builder.SetNextRefreshAt(now.Add(svc.jitter()))
 		}
-		if enabled && autoManage {
+		if config.enabled && config.autoManageEnabled {
 			builder.
 				SetNextEnabledPatrolAt(now.Add(svc.jitter())).
 				SetNextDisabledPatrolAt(now.Add(svc.jitter()))
@@ -266,72 +233,11 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 		return nil, fmt.Errorf("get CPA instance: %w", err)
 	}
 
-	name := current.Name
-	if input.Name != nil {
-		name = strings.TrimSpace(*input.Name)
-		if name == "" {
-			return nil, fmt.Errorf("CPA instance name is required")
-		}
+	config, secretChanged, connectionChanged, err := mergeUpdateCPAInstanceConfig(current, input)
+	if err != nil {
+		return nil, err
 	}
-	baseURL := current.BaseURL
-	if input.BaseURL != nil {
-		baseURL, err = cpaclient.NormalizeBaseURL(*input.BaseURL)
-		if err != nil {
-			return nil, err
-		}
-	}
-	enabled := current.Enabled
-	if input.Enabled != nil {
-		enabled = *input.Enabled
-	}
-	insecureSkipTLS := current.InsecureSkipTLS
-	if input.InsecureSkipTLS != nil {
-		insecureSkipTLS = *input.InsecureSkipTLS
-	}
-	autoRefresh := current.AutoRefreshEnabled
-	if input.AutoRefreshEnabled != nil {
-		autoRefresh = *input.AutoRefreshEnabled
-	}
-	interval := current.RefreshIntervalMinutes
-	if input.RefreshIntervalMinutes != nil {
-		interval, err = normalizeCPARefreshInterval(input.RefreshIntervalMinutes)
-		if err != nil {
-			return nil, err
-		}
-	}
-	autoManage := current.AutoManageEnabled
-	if input.AutoManageEnabled != nil {
-		autoManage = *input.AutoManageEnabled
-	}
-	usageStream := current.UsageStreamEnabled
-	if input.UsageStreamEnabled != nil {
-		usageStream = *input.UsageStreamEnabled
-	}
-	enabledPatrolInterval := current.EnabledPatrolIntervalMinutes
-	if input.EnabledPatrolIntervalMinutes != nil {
-		enabledPatrolInterval, err = normalizeCPAEnabledPatrolInterval(input.EnabledPatrolIntervalMinutes)
-		if err != nil {
-			return nil, err
-		}
-	}
-	disabledPatrolInterval := current.DisabledPatrolIntervalMinutes
-	if input.DisabledPatrolIntervalMinutes != nil {
-		disabledPatrolInterval, err = normalizeCPADisabledPatrolInterval(input.DisabledPatrolIntervalMinutes)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	secretChanged := input.ManagementSecret != nil && strings.TrimSpace(*input.ManagementSecret) != ""
-	secret := ""
-	if secretChanged {
-		secret = strings.TrimSpace(*input.ManagementSecret)
-	}
-	baseURLChanged := baseURL != current.BaseURL
-	if baseURLChanged && !secretChanged {
-		return nil, fmt.Errorf("CPA management secret is required when changing the base URL")
-	}
-	connectionChanged := baseURLChanged || insecureSkipTLS != current.InsecureSkipTLS || secretChanged || (!current.Enabled && enabled)
+	secret := config.managementSecret
 	var authFiles *cpaclient.AuthFilesResponse
 	var buildInfo cpaclient.BuildInfo
 	if connectionChanged {
@@ -341,10 +247,10 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 				return nil, err
 			}
 		}
-		client, clientErr := cpaclient.NewClient(cpaclient.Config{
-			BaseURL:          baseURL,
+		client, clientErr := svc.newCPAClient(cpaclient.Config{
+			BaseURL:          config.baseURL,
 			ManagementSecret: secret,
-			InsecureSkipTLS:  insecureSkipTLS,
+			InsecureSkipTLS:  config.insecureSkipTLS,
 		})
 		if clientErr != nil {
 			return nil, clientErr
@@ -368,24 +274,24 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 	err = svc.withCPAInstanceWriteRetry(ctx, id, func() error {
 		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
 			builder := svc.entFromContext(txCtx).CPAInstance.UpdateOneID(id).
-				SetName(name).
-				SetBaseURL(baseURL).
+				SetName(config.name).
+				SetBaseURL(config.baseURL).
 				SetEncryptedSecret(encryptedSecret).
-				SetEnabled(enabled).
-				SetInsecureSkipTLS(insecureSkipTLS).
-				SetAutoRefreshEnabled(autoRefresh).
-				SetRefreshIntervalMinutes(interval).
-				SetAutoManageEnabled(autoManage).
-				SetUsageStreamEnabled(usageStream).
-				SetEnabledPatrolIntervalMinutes(enabledPatrolInterval).
-				SetDisabledPatrolIntervalMinutes(disabledPatrolInterval)
-			if !enabled || !autoRefresh {
+				SetEnabled(config.enabled).
+				SetInsecureSkipTLS(config.insecureSkipTLS).
+				SetAutoRefreshEnabled(config.autoRefreshEnabled).
+				SetRefreshIntervalMinutes(config.refreshIntervalMinutes).
+				SetAutoManageEnabled(config.autoManageEnabled).
+				SetUsageStreamEnabled(config.usageStreamEnabled).
+				SetEnabledPatrolIntervalMinutes(config.enabledPatrolInterval).
+				SetDisabledPatrolIntervalMinutes(config.disabledPatrolInterval)
+			if !config.enabled || !config.autoRefreshEnabled {
 				builder.ClearNextRefreshAt()
 			} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
 				builder.SetNextRefreshAt(now.Add(svc.jitter()))
 			}
 			patrolChanged := input.AutoManageEnabled != nil || input.EnabledPatrolIntervalMinutes != nil || input.DisabledPatrolIntervalMinutes != nil
-			if !enabled || !autoManage {
+			if !config.enabled || !config.autoManageEnabled {
 				builder.ClearNextEnabledPatrolAt().ClearNextDisabledPatrolAt()
 			} else if connectionChanged || patrolChanged {
 				builder.
@@ -606,14 +512,21 @@ func (svc *CPAService) decryptSecret(ctx context.Context, ciphertext string) (st
 	return decryptCPASecret(systemSecret, ciphertext)
 }
 
-func (svc *CPAService) clientForInstance(ctx context.Context, instance *ent.CPAInstance) (*cpaclient.Client, error) {
+func (svc *CPAService) clientForInstance(ctx context.Context, instance *ent.CPAInstance) (cpaclient.ManagementClient, error) {
 	secret, err := svc.decryptSecret(ctx, instance.EncryptedSecret)
 	if err != nil {
 		return nil, err
 	}
-	return cpaclient.NewClient(cpaclient.Config{
+	return svc.newCPAClient(cpaclient.Config{
 		BaseURL:          instance.BaseURL,
 		ManagementSecret: secret,
 		InsecureSkipTLS:  instance.InsecureSkipTLS,
 	})
+}
+
+func (svc *CPAService) newCPAClient(config cpaclient.Config) (cpaclient.ManagementClient, error) {
+	if svc.clientFactory != nil {
+		return svc.clientFactory(config)
+	}
+	return cpaclient.NewClient(config)
 }

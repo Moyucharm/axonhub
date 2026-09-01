@@ -107,6 +107,17 @@ type CPAProviderCount {
   count: Int!
 }
 
+type CPAProviderOverview {
+  provider: String!
+  count: Int!
+  planTypes: [String!]!
+}
+
+type CPAOverview {
+  stats: CPACredentialStats!
+  providers: [CPAProviderOverview!]!
+}
+
 type CPARefreshResult {
   requested: Int!
   succeeded: Int!
@@ -166,9 +177,10 @@ extend type Query {
   cpaInstances: [CPAManagedInstance!]!
   cpaInstance(id: Int!): CPAManagedInstance!
   queryCPACredentials(input: QueryCPACredentialsInput!): CPACredentialConnection!
-  cpaCredentialStats(instanceID: Int!): CPACredentialStats!
-  cpaProviderCounts(instanceID: Int!): [CPAProviderCount!]!
-  cpaPlanTypes(instanceID: Int!, provider: String!): [String!]!
+  cpaOverview(instanceID: Int!): CPAOverview!
+  cpaCredentialStats(instanceID: Int!): CPACredentialStats! @deprecated(reason: "Use cpaOverview")
+  cpaProviderCounts(instanceID: Int!): [CPAProviderCount!]! @deprecated(reason: "Use cpaOverview")
+  cpaPlanTypes(instanceID: Int!, provider: String!): [String!]! @deprecated(reason: "Use cpaOverview")
   cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
 }
 

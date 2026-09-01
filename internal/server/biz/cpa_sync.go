@@ -139,13 +139,24 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 			if !svc.supportsNormalizedQuota(normalized) {
 				quotaState = objects.CPAQuotaStateUnsupported
 			}
-			created, createErr := client.CPACredential.Create().
+			projection := projectCPACredential(
+				normalized.DisplayName,
+				normalized.Status,
+				normalized.Disabled,
+				normalized.Unavailable,
+				quotaState,
+				objects.CPAQuotaSnapshot{},
+				now,
+			)
+			create := client.CPACredential.Create().
 				SetCpaInstanceID(instance.ID).
 				SetExternalKey(normalized.ExternalKey).
 				SetAuthIndex(normalized.AuthIndex).
 				SetRemoteName(normalized.RemoteName).
 				SetLabel(normalized.Label).
 				SetDisplayName(normalized.DisplayName).
+				SetDisplayNameSortKey(projection.displayNameSortKey).
+				SetDisplayNameSortLength(projection.displayNameSortLength).
 				SetProvider(normalized.Provider).
 				SetEmail(normalized.Email).
 				SetStatus(normalized.Status).
@@ -157,7 +168,13 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 				SetPlanType(normalized.PlanType).
 				SetQuotaContext(normalized.QuotaContext).
 				SetQuotaState(string(quotaState)).
-				Save(ctx)
+				SetHealthState(string(projection.healthState)).
+				SetQuotaCooling(projection.quotaCooling).
+				SetProjectionVersion(currentCPAProjectionVersion)
+			if projection.quotaCooldownUntil != nil {
+				create.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+			}
+			created, createErr := create.Save(ctx)
 			if createErr != nil {
 				return fmt.Errorf("create CPA credential %q: %w", normalized.RemoteName, createErr)
 			}
@@ -167,12 +184,32 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 
 		providerChanged := current.Provider != normalized.Provider
 		quotaCapabilityChanged := providerChanged || current.QuotaContext.Paid != normalized.QuotaContext.Paid
+		quotaState := objects.CPAQuotaState(current.QuotaState)
+		quotaData := current.QuotaData
+		if quotaCapabilityChanged {
+			quotaState = objects.CPAQuotaStatePending
+			if !svc.supportsNormalizedQuota(normalized) {
+				quotaState = objects.CPAQuotaStateUnsupported
+			}
+			quotaData = objects.CPAQuotaSnapshot{}
+		}
+		projection := projectCPACredential(
+			normalized.DisplayName,
+			normalized.Status,
+			normalized.Disabled,
+			normalized.Unavailable,
+			quotaState,
+			quotaData,
+			now,
+		)
 		update := client.CPACredential.UpdateOneID(current.ID).
 			SetExternalKey(normalized.ExternalKey).
 			SetAuthIndex(normalized.AuthIndex).
 			SetRemoteName(normalized.RemoteName).
 			SetLabel(normalized.Label).
 			SetDisplayName(normalized.DisplayName).
+			SetDisplayNameSortKey(projection.displayNameSortKey).
+			SetDisplayNameSortLength(projection.displayNameSortLength).
 			SetProvider(normalized.Provider).
 			SetEmail(normalized.Email).
 			SetStatus(normalized.Status).
@@ -181,18 +218,22 @@ func (svc *CPAService) syncCredentialSnapshot(ctx context.Context, instance *ent
 			SetUnavailable(normalized.Unavailable).
 			SetRuntimeOnly(normalized.RuntimeOnly).
 			SetPriority(normalized.Priority).
-			SetQuotaContext(normalized.QuotaContext)
+			SetQuotaContext(normalized.QuotaContext).
+			SetHealthState(string(projection.healthState)).
+			SetQuotaCooling(projection.quotaCooling).
+			SetProjectionVersion(currentCPAProjectionVersion)
+		if projection.quotaCooldownUntil == nil {
+			update.ClearQuotaCooldownUntil()
+		} else {
+			update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+		}
 		if normalized.PlanType != "" || current.PlanType == "" || strings.EqualFold(current.PlanType, "oauth") {
 			update.SetPlanType(normalized.PlanType)
 		}
 		if quotaCapabilityChanged {
-			quotaState := objects.CPAQuotaStatePending
-			if !svc.supportsNormalizedQuota(normalized) {
-				quotaState = objects.CPAQuotaStateUnsupported
-			}
 			update.
 				SetQuotaState(string(quotaState)).
-				SetQuotaData(objects.CPAQuotaSnapshot{}).
+				SetQuotaData(quotaData).
 				SetQuotaLastError("").
 				ClearQuotaLastAttemptAt().
 				ClearQuotaLastSuccessAt().

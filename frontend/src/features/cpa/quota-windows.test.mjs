@@ -204,10 +204,12 @@ test('formatTime renders a fallback dash for missing timestamps', () => {
 
 test('CPA page renders quota capsules via QuotaWindowsBlock and QuotaSummaryCapsule', () => {
   const index = read('features/cpa/index.tsx');
+  const table = read('features/cpa/components/credential-table.tsx');
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
   const capsule = read('components/quota-capsule.tsx');
-  assert.match(index, /QuotaWindowsBlock/);
-  assert.match(index, /QuotaSummaryCapsule/);
+  assert.match(index, /CPACredentialTable/);
+  assert.match(table, /QuotaWindowsBlock/);
+  assert.match(table, /QuotaSummaryCapsule/);
   assert.match(summary, /QuotaCapsule/);
   assert.match(summary, /size='sm'/);
   assert.match(capsule, /type CapsuleSize = 'md' \| 'sm'/);
@@ -269,15 +271,16 @@ test('quota capsule remaining i18n keys exist in both locales', () => {
 });
 
 test('CPA credential column shows email with filename on hover and defaults to 50 rows', () => {
-  const index = read('features/cpa/index.tsx');
+  const table = read('features/cpa/components/credential-table.tsx');
+  const controller = read('features/cpa/use-cpa-controller.ts');
   // Email-only main line with displayName fallback, filename in the hover tooltip.
-  assert.match(index, /credential\.email \|\| credential\.displayName/);
-  assert.match(index, /credential\.remoteName/);
-  assert.match(index, /TooltipContent side='top'/);
+  assert.match(table, /credential\.email \|\| credential\.displayName/);
+  assert.match(table, /credential\.remoteName/);
+  assert.match(table, /TooltipContent side='top'/);
   // Page size defaults to 50 (keeps the selectable sizes list).
-  assert.match(index, /CPA_TABLE_PAGE_SIZES = \[10, 20, 30, 40, 50\]/);
-  assert.match(index, /includes\(value\) \? value : 50/);
-  assert.match(index, /return 50;/);
+  assert.match(controller, /CPA_TABLE_PAGE_SIZES = \[10, 20, 30, 40, 50\]/);
+  assert.match(controller, /includes\(value\) \? value : 50/);
+  assert.match(controller, /return 50;/);
 });
 
 test('cpaQuotaItemsToWindows passes through quota value estimates', () => {

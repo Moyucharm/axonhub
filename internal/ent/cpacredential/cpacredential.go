@@ -32,6 +32,10 @@ const (
 	FieldLabel = "label"
 	// FieldDisplayName holds the string denoting the display_name field in the database.
 	FieldDisplayName = "display_name"
+	// FieldDisplayNameSortKey holds the string denoting the display_name_sort_key field in the database.
+	FieldDisplayNameSortKey = "display_name_sort_key"
+	// FieldDisplayNameSortLength holds the string denoting the display_name_sort_length field in the database.
+	FieldDisplayNameSortLength = "display_name_sort_length"
 	// FieldProvider holds the string denoting the provider field in the database.
 	FieldProvider = "provider"
 	// FieldEmail holds the string denoting the email field in the database.
@@ -54,6 +58,14 @@ const (
 	FieldQuotaContext = "quota_context"
 	// FieldQuotaState holds the string denoting the quota_state field in the database.
 	FieldQuotaState = "quota_state"
+	// FieldHealthState holds the string denoting the health_state field in the database.
+	FieldHealthState = "health_state"
+	// FieldQuotaCooling holds the string denoting the quota_cooling field in the database.
+	FieldQuotaCooling = "quota_cooling"
+	// FieldQuotaCooldownUntil holds the string denoting the quota_cooldown_until field in the database.
+	FieldQuotaCooldownUntil = "quota_cooldown_until"
+	// FieldProjectionVersion holds the string denoting the projection_version field in the database.
+	FieldProjectionVersion = "projection_version"
 	// FieldQuotaData holds the string denoting the quota_data field in the database.
 	FieldQuotaData = "quota_data"
 	// FieldQuotaLastAttemptAt holds the string denoting the quota_last_attempt_at field in the database.
@@ -90,6 +102,8 @@ var Columns = []string{
 	FieldRemoteName,
 	FieldLabel,
 	FieldDisplayName,
+	FieldDisplayNameSortKey,
+	FieldDisplayNameSortLength,
 	FieldProvider,
 	FieldEmail,
 	FieldStatus,
@@ -101,6 +115,10 @@ var Columns = []string{
 	FieldPlanType,
 	FieldQuotaContext,
 	FieldQuotaState,
+	FieldHealthState,
+	FieldQuotaCooling,
+	FieldQuotaCooldownUntil,
+	FieldProjectionVersion,
 	FieldQuotaData,
 	FieldQuotaLastAttemptAt,
 	FieldQuotaLastSuccessAt,
@@ -143,6 +161,10 @@ var (
 	DefaultLabel string
 	// DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
 	DisplayNameValidator func(string) error
+	// DefaultDisplayNameSortKey holds the default value on creation for the "display_name_sort_key" field.
+	DefaultDisplayNameSortKey string
+	// DefaultDisplayNameSortLength holds the default value on creation for the "display_name_sort_length" field.
+	DefaultDisplayNameSortLength int
 	// DefaultProvider holds the default value on creation for the "provider" field.
 	DefaultProvider string
 	// DefaultEmail holds the default value on creation for the "email" field.
@@ -165,6 +187,12 @@ var (
 	DefaultQuotaContext objects.CPAQuotaContext
 	// DefaultQuotaState holds the default value on creation for the "quota_state" field.
 	DefaultQuotaState string
+	// DefaultHealthState holds the default value on creation for the "health_state" field.
+	DefaultHealthState string
+	// DefaultQuotaCooling holds the default value on creation for the "quota_cooling" field.
+	DefaultQuotaCooling bool
+	// DefaultProjectionVersion holds the default value on creation for the "projection_version" field.
+	DefaultProjectionVersion int
 	// DefaultQuotaData holds the default value on creation for the "quota_data" field.
 	DefaultQuotaData objects.CPAQuotaSnapshot
 	// DefaultQuotaLastError holds the default value on creation for the "quota_last_error" field.
@@ -221,6 +249,16 @@ func ByDisplayName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDisplayName, opts...).ToFunc()
 }
 
+// ByDisplayNameSortKey orders the results by the display_name_sort_key field.
+func ByDisplayNameSortKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisplayNameSortKey, opts...).ToFunc()
+}
+
+// ByDisplayNameSortLength orders the results by the display_name_sort_length field.
+func ByDisplayNameSortLength(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisplayNameSortLength, opts...).ToFunc()
+}
+
 // ByProvider orders the results by the provider field.
 func ByProvider(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProvider, opts...).ToFunc()
@@ -269,6 +307,26 @@ func ByPlanType(opts ...sql.OrderTermOption) OrderOption {
 // ByQuotaState orders the results by the quota_state field.
 func ByQuotaState(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaState, opts...).ToFunc()
+}
+
+// ByHealthState orders the results by the health_state field.
+func ByHealthState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHealthState, opts...).ToFunc()
+}
+
+// ByQuotaCooling orders the results by the quota_cooling field.
+func ByQuotaCooling(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQuotaCooling, opts...).ToFunc()
+}
+
+// ByQuotaCooldownUntil orders the results by the quota_cooldown_until field.
+func ByQuotaCooldownUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQuotaCooldownUntil, opts...).ToFunc()
+}
+
+// ByProjectionVersion orders the results by the projection_version field.
+func ByProjectionVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProjectionVersion, opts...).ToFunc()
 }
 
 // ByQuotaLastAttemptAt orders the results by the quota_last_attempt_at field.

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
-import type { CPAQuotaItem } from '@/features/cpa/data';
+import type { CPAQuotaItem } from '../types';
 import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups } from '@/features/cpa/quota-windows';
 
 // Compact quota cell for the CPA credential table. Windows are normally

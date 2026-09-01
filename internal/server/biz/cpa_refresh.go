@@ -153,11 +153,14 @@ func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent
 		}
 		result.Requested++
 		group.Go(func() error {
-			err := svc.refreshOneCredential(groupCtx, client, credential)
-			resultCh <- err
-			if onResult != nil {
-				onResult(err != nil)
-			}
+			runCPARefreshWorker(
+				groupCtx,
+				instance.ID,
+				credential.ID,
+				resultCh,
+				onResult,
+				func() error { return svc.refreshOneCredential(groupCtx, client, credential) },
+			)
 			return nil
 		})
 	}
@@ -173,7 +176,44 @@ func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent
 	return result, nil
 }
 
-func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclient.Client, credential *ent.CPACredential) error {
+func runCPARefreshWorker(
+	ctx context.Context,
+	instanceID int,
+	credentialID int,
+	resultCh chan<- error,
+	onResult func(failed bool),
+	refresh func() error,
+) {
+	var refreshErr error
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			refreshErr = fmt.Errorf("CPA credential refresh panicked: %v", recovered)
+			log.Error(ctx, "CPA credential refresh worker panicked",
+				log.Int("cpa_instance_id", instanceID),
+				log.Int("credential_id", credentialID),
+				log.Any("panic", recovered),
+			)
+		}
+		resultCh <- refreshErr
+		if onResult != nil {
+			func() {
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						log.Error(ctx, "CPA credential refresh progress callback panicked",
+							log.Int("cpa_instance_id", instanceID),
+							log.Int("credential_id", credentialID),
+							log.Any("panic", recovered),
+						)
+					}
+				}()
+				onResult(refreshErr != nil)
+			}()
+		}
+	}()
+	refreshErr = refresh()
+}
+
+func (svc *CPAService) refreshOneCredential(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential) error {
 	key := fmt.Sprintf("credential:%d", credential.ID)
 	_, err, _ := svc.refreshGroup.Do(key, func() (any, error) {
 		instanceLimiter := svc.instanceQuotaLimiter(credential.CpaInstanceID)
@@ -199,12 +239,32 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 		if fetchErr != nil {
 			message := sanitizeCPAErrorMessage(fetchErr.Error())
 			updateErr := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
-				return svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
+				current, currentErr := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
+				if currentErr != nil {
+					return fmt.Errorf("reload CPA credential before quota error: %w", currentErr)
+				}
+				projection := projectStoredCPACredentialWithQuota(
+					current,
+					objects.CPAQuotaStateError,
+					current.QuotaData,
+					now,
+				)
+				update := svc.entFromContext(ctx).CPACredential.UpdateOneID(current.ID).
 					SetQuotaState(string(objects.CPAQuotaStateError)).
 					SetQuotaLastAttemptAt(now).
 					SetQuotaLastFailureAt(now).
 					SetQuotaLastError(message).
-					Exec(ctx)
+					SetDisplayNameSortKey(projection.displayNameSortKey).
+					SetDisplayNameSortLength(projection.displayNameSortLength).
+					SetHealthState(string(projection.healthState)).
+					SetQuotaCooling(projection.quotaCooling).
+					SetProjectionVersion(currentCPAProjectionVersion)
+				if projection.quotaCooldownUntil == nil {
+					update.ClearQuotaCooldownUntil()
+				} else {
+					update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+				}
+				return update.Exec(ctx)
 			})
 			if updateErr != nil {
 				return nil, fmt.Errorf("persist CPA quota error: %w", updateErr)
@@ -216,19 +276,38 @@ func (svc *CPAService) refreshOneCredential(ctx context.Context, client *cpaclie
 		if result.State == objects.CPAQuotaStateSuccess && strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") {
 			svc.applyQuotaEstimate(ctx, credential, &snapshot)
 		}
+		persistedSnapshot := snapshot
+		if result.State == objects.CPAQuotaStateUnsupported || result.State == objects.CPAQuotaStateInsufficientData {
+			persistedSnapshot = objects.CPAQuotaSnapshot{}
+		}
 		if err := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
-			update := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
+			current, currentErr := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
+			if currentErr != nil {
+				return fmt.Errorf("reload CPA credential before quota result: %w", currentErr)
+			}
+			projection := projectStoredCPACredentialWithQuota(current, result.State, persistedSnapshot, now)
+			update := svc.entFromContext(ctx).CPACredential.UpdateOneID(current.ID).
 				SetQuotaState(string(result.State)).
 				SetQuotaLastAttemptAt(now).
-				SetQuotaLastError("")
+				SetQuotaLastError("").
+				SetDisplayNameSortKey(projection.displayNameSortKey).
+				SetDisplayNameSortLength(projection.displayNameSortLength).
+				SetHealthState(string(projection.healthState)).
+				SetQuotaCooling(projection.quotaCooling).
+				SetProjectionVersion(currentCPAProjectionVersion)
+			if projection.quotaCooldownUntil == nil {
+				update.ClearQuotaCooldownUntil()
+			} else {
+				update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+			}
 			if result.PlanType != "" {
 				update.SetPlanType(result.PlanType)
 			}
 			switch result.State {
 			case objects.CPAQuotaStateSuccess:
-				update.SetQuotaData(snapshot).SetQuotaLastSuccessAt(now)
+				update.SetQuotaData(persistedSnapshot).SetQuotaLastSuccessAt(now)
 			case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
-				update.SetQuotaData(objects.CPAQuotaSnapshot{})
+				update.SetQuotaData(persistedSnapshot)
 			}
 			return update.Exec(ctx)
 		}); err != nil {

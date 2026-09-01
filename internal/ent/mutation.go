@@ -2101,40 +2101,48 @@ func (m *APIKeyProfileTemplateMutation) ResetEdge(name string) error {
 // CPACredentialMutation represents an operation that mutates the CPACredential nodes in the graph.
 type CPACredentialMutation struct {
 	config
-	op                    Op
-	typ                   string
-	id                    *int
-	created_at            *time.Time
-	updated_at            *time.Time
-	external_key          *string
-	auth_index            *string
-	remote_name           *string
-	label                 *string
-	display_name          *string
-	provider              *string
-	email                 *string
-	status                *string
-	status_message        *string
-	disabled              *bool
-	unavailable           *bool
-	runtime_only          *bool
-	priority              *int
-	addpriority           *int
-	plan_type             *string
-	quota_context         *objects.CPAQuotaContext
-	quota_state           *string
-	quota_data            *objects.CPAQuotaSnapshot
-	quota_last_attempt_at *time.Time
-	quota_last_success_at *time.Time
-	quota_last_failure_at *time.Time
-	quota_last_error      *string
-	quota_observed        *objects.CPAQuotaObserved
-	clearedFields         map[string]struct{}
-	cpa_instance          *int
-	clearedcpa_instance   bool
-	done                  bool
-	oldValue              func(context.Context) (*CPACredential, error)
-	predicates            []predicate.CPACredential
+	op                          Op
+	typ                         string
+	id                          *int
+	created_at                  *time.Time
+	updated_at                  *time.Time
+	external_key                *string
+	auth_index                  *string
+	remote_name                 *string
+	label                       *string
+	display_name                *string
+	display_name_sort_key       *string
+	display_name_sort_length    *int
+	adddisplay_name_sort_length *int
+	provider                    *string
+	email                       *string
+	status                      *string
+	status_message              *string
+	disabled                    *bool
+	unavailable                 *bool
+	runtime_only                *bool
+	priority                    *int
+	addpriority                 *int
+	plan_type                   *string
+	quota_context               *objects.CPAQuotaContext
+	quota_state                 *string
+	health_state                *string
+	quota_cooling               *bool
+	quota_cooldown_until        *time.Time
+	projection_version          *int
+	addprojection_version       *int
+	quota_data                  *objects.CPAQuotaSnapshot
+	quota_last_attempt_at       *time.Time
+	quota_last_success_at       *time.Time
+	quota_last_failure_at       *time.Time
+	quota_last_error            *string
+	quota_observed              *objects.CPAQuotaObserved
+	clearedFields               map[string]struct{}
+	cpa_instance                *int
+	clearedcpa_instance         bool
+	done                        bool
+	oldValue                    func(context.Context) (*CPACredential, error)
+	predicates                  []predicate.CPACredential
 }
 
 var _ ent.Mutation = (*CPACredentialMutation)(nil)
@@ -2521,6 +2529,98 @@ func (m *CPACredentialMutation) OldDisplayName(ctx context.Context) (v string, e
 // ResetDisplayName resets all changes to the "display_name" field.
 func (m *CPACredentialMutation) ResetDisplayName() {
 	m.display_name = nil
+}
+
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (m *CPACredentialMutation) SetDisplayNameSortKey(s string) {
+	m.display_name_sort_key = &s
+}
+
+// DisplayNameSortKey returns the value of the "display_name_sort_key" field in the mutation.
+func (m *CPACredentialMutation) DisplayNameSortKey() (r string, exists bool) {
+	v := m.display_name_sort_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayNameSortKey returns the old "display_name_sort_key" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldDisplayNameSortKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayNameSortKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayNameSortKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayNameSortKey: %w", err)
+	}
+	return oldValue.DisplayNameSortKey, nil
+}
+
+// ResetDisplayNameSortKey resets all changes to the "display_name_sort_key" field.
+func (m *CPACredentialMutation) ResetDisplayNameSortKey() {
+	m.display_name_sort_key = nil
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (m *CPACredentialMutation) SetDisplayNameSortLength(i int) {
+	m.display_name_sort_length = &i
+	m.adddisplay_name_sort_length = nil
+}
+
+// DisplayNameSortLength returns the value of the "display_name_sort_length" field in the mutation.
+func (m *CPACredentialMutation) DisplayNameSortLength() (r int, exists bool) {
+	v := m.display_name_sort_length
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayNameSortLength returns the old "display_name_sort_length" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldDisplayNameSortLength(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayNameSortLength is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayNameSortLength requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayNameSortLength: %w", err)
+	}
+	return oldValue.DisplayNameSortLength, nil
+}
+
+// AddDisplayNameSortLength adds i to the "display_name_sort_length" field.
+func (m *CPACredentialMutation) AddDisplayNameSortLength(i int) {
+	if m.adddisplay_name_sort_length != nil {
+		*m.adddisplay_name_sort_length += i
+	} else {
+		m.adddisplay_name_sort_length = &i
+	}
+}
+
+// AddedDisplayNameSortLength returns the value that was added to the "display_name_sort_length" field in this mutation.
+func (m *CPACredentialMutation) AddedDisplayNameSortLength() (r int, exists bool) {
+	v := m.adddisplay_name_sort_length
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDisplayNameSortLength resets all changes to the "display_name_sort_length" field.
+func (m *CPACredentialMutation) ResetDisplayNameSortLength() {
+	m.display_name_sort_length = nil
+	m.adddisplay_name_sort_length = nil
 }
 
 // SetProvider sets the "provider" field.
@@ -2939,6 +3039,183 @@ func (m *CPACredentialMutation) ResetQuotaState() {
 	m.quota_state = nil
 }
 
+// SetHealthState sets the "health_state" field.
+func (m *CPACredentialMutation) SetHealthState(s string) {
+	m.health_state = &s
+}
+
+// HealthState returns the value of the "health_state" field in the mutation.
+func (m *CPACredentialMutation) HealthState() (r string, exists bool) {
+	v := m.health_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHealthState returns the old "health_state" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldHealthState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHealthState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHealthState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHealthState: %w", err)
+	}
+	return oldValue.HealthState, nil
+}
+
+// ResetHealthState resets all changes to the "health_state" field.
+func (m *CPACredentialMutation) ResetHealthState() {
+	m.health_state = nil
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (m *CPACredentialMutation) SetQuotaCooling(b bool) {
+	m.quota_cooling = &b
+}
+
+// QuotaCooling returns the value of the "quota_cooling" field in the mutation.
+func (m *CPACredentialMutation) QuotaCooling() (r bool, exists bool) {
+	v := m.quota_cooling
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaCooling returns the old "quota_cooling" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaCooling(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaCooling is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaCooling requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaCooling: %w", err)
+	}
+	return oldValue.QuotaCooling, nil
+}
+
+// ResetQuotaCooling resets all changes to the "quota_cooling" field.
+func (m *CPACredentialMutation) ResetQuotaCooling() {
+	m.quota_cooling = nil
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (m *CPACredentialMutation) SetQuotaCooldownUntil(t time.Time) {
+	m.quota_cooldown_until = &t
+}
+
+// QuotaCooldownUntil returns the value of the "quota_cooldown_until" field in the mutation.
+func (m *CPACredentialMutation) QuotaCooldownUntil() (r time.Time, exists bool) {
+	v := m.quota_cooldown_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaCooldownUntil returns the old "quota_cooldown_until" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldQuotaCooldownUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaCooldownUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaCooldownUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaCooldownUntil: %w", err)
+	}
+	return oldValue.QuotaCooldownUntil, nil
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (m *CPACredentialMutation) ClearQuotaCooldownUntil() {
+	m.quota_cooldown_until = nil
+	m.clearedFields[cpacredential.FieldQuotaCooldownUntil] = struct{}{}
+}
+
+// QuotaCooldownUntilCleared returns if the "quota_cooldown_until" field was cleared in this mutation.
+func (m *CPACredentialMutation) QuotaCooldownUntilCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldQuotaCooldownUntil]
+	return ok
+}
+
+// ResetQuotaCooldownUntil resets all changes to the "quota_cooldown_until" field.
+func (m *CPACredentialMutation) ResetQuotaCooldownUntil() {
+	m.quota_cooldown_until = nil
+	delete(m.clearedFields, cpacredential.FieldQuotaCooldownUntil)
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (m *CPACredentialMutation) SetProjectionVersion(i int) {
+	m.projection_version = &i
+	m.addprojection_version = nil
+}
+
+// ProjectionVersion returns the value of the "projection_version" field in the mutation.
+func (m *CPACredentialMutation) ProjectionVersion() (r int, exists bool) {
+	v := m.projection_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectionVersion returns the old "projection_version" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldProjectionVersion(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectionVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectionVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectionVersion: %w", err)
+	}
+	return oldValue.ProjectionVersion, nil
+}
+
+// AddProjectionVersion adds i to the "projection_version" field.
+func (m *CPACredentialMutation) AddProjectionVersion(i int) {
+	if m.addprojection_version != nil {
+		*m.addprojection_version += i
+	} else {
+		m.addprojection_version = &i
+	}
+}
+
+// AddedProjectionVersion returns the value that was added to the "projection_version" field in this mutation.
+func (m *CPACredentialMutation) AddedProjectionVersion() (r int, exists bool) {
+	v := m.addprojection_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProjectionVersion resets all changes to the "projection_version" field.
+func (m *CPACredentialMutation) ResetProjectionVersion() {
+	m.projection_version = nil
+	m.addprojection_version = nil
+}
+
 // SetQuotaData sets the "quota_data" field.
 func (m *CPACredentialMutation) SetQuotaData(oqs objects.CPAQuotaSnapshot) {
 	m.quota_data = &oqs
@@ -3268,7 +3545,7 @@ func (m *CPACredentialMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPACredentialMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 31)
 	if m.created_at != nil {
 		fields = append(fields, cpacredential.FieldCreatedAt)
 	}
@@ -3292,6 +3569,12 @@ func (m *CPACredentialMutation) Fields() []string {
 	}
 	if m.display_name != nil {
 		fields = append(fields, cpacredential.FieldDisplayName)
+	}
+	if m.display_name_sort_key != nil {
+		fields = append(fields, cpacredential.FieldDisplayNameSortKey)
+	}
+	if m.display_name_sort_length != nil {
+		fields = append(fields, cpacredential.FieldDisplayNameSortLength)
 	}
 	if m.provider != nil {
 		fields = append(fields, cpacredential.FieldProvider)
@@ -3325,6 +3608,18 @@ func (m *CPACredentialMutation) Fields() []string {
 	}
 	if m.quota_state != nil {
 		fields = append(fields, cpacredential.FieldQuotaState)
+	}
+	if m.health_state != nil {
+		fields = append(fields, cpacredential.FieldHealthState)
+	}
+	if m.quota_cooling != nil {
+		fields = append(fields, cpacredential.FieldQuotaCooling)
+	}
+	if m.quota_cooldown_until != nil {
+		fields = append(fields, cpacredential.FieldQuotaCooldownUntil)
+	}
+	if m.projection_version != nil {
+		fields = append(fields, cpacredential.FieldProjectionVersion)
 	}
 	if m.quota_data != nil {
 		fields = append(fields, cpacredential.FieldQuotaData)
@@ -3368,6 +3663,10 @@ func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.Label()
 	case cpacredential.FieldDisplayName:
 		return m.DisplayName()
+	case cpacredential.FieldDisplayNameSortKey:
+		return m.DisplayNameSortKey()
+	case cpacredential.FieldDisplayNameSortLength:
+		return m.DisplayNameSortLength()
 	case cpacredential.FieldProvider:
 		return m.Provider()
 	case cpacredential.FieldEmail:
@@ -3390,6 +3689,14 @@ func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.QuotaContext()
 	case cpacredential.FieldQuotaState:
 		return m.QuotaState()
+	case cpacredential.FieldHealthState:
+		return m.HealthState()
+	case cpacredential.FieldQuotaCooling:
+		return m.QuotaCooling()
+	case cpacredential.FieldQuotaCooldownUntil:
+		return m.QuotaCooldownUntil()
+	case cpacredential.FieldProjectionVersion:
+		return m.ProjectionVersion()
 	case cpacredential.FieldQuotaData:
 		return m.QuotaData()
 	case cpacredential.FieldQuotaLastAttemptAt:
@@ -3427,6 +3734,10 @@ func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldLabel(ctx)
 	case cpacredential.FieldDisplayName:
 		return m.OldDisplayName(ctx)
+	case cpacredential.FieldDisplayNameSortKey:
+		return m.OldDisplayNameSortKey(ctx)
+	case cpacredential.FieldDisplayNameSortLength:
+		return m.OldDisplayNameSortLength(ctx)
 	case cpacredential.FieldProvider:
 		return m.OldProvider(ctx)
 	case cpacredential.FieldEmail:
@@ -3449,6 +3760,14 @@ func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldQuotaContext(ctx)
 	case cpacredential.FieldQuotaState:
 		return m.OldQuotaState(ctx)
+	case cpacredential.FieldHealthState:
+		return m.OldHealthState(ctx)
+	case cpacredential.FieldQuotaCooling:
+		return m.OldQuotaCooling(ctx)
+	case cpacredential.FieldQuotaCooldownUntil:
+		return m.OldQuotaCooldownUntil(ctx)
+	case cpacredential.FieldProjectionVersion:
+		return m.OldProjectionVersion(ctx)
 	case cpacredential.FieldQuotaData:
 		return m.OldQuotaData(ctx)
 	case cpacredential.FieldQuotaLastAttemptAt:
@@ -3525,6 +3844,20 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDisplayName(v)
+		return nil
+	case cpacredential.FieldDisplayNameSortKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayNameSortKey(v)
+		return nil
+	case cpacredential.FieldDisplayNameSortLength:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayNameSortLength(v)
 		return nil
 	case cpacredential.FieldProvider:
 		v, ok := value.(string)
@@ -3603,6 +3936,34 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuotaState(v)
 		return nil
+	case cpacredential.FieldHealthState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHealthState(v)
+		return nil
+	case cpacredential.FieldQuotaCooling:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaCooling(v)
+		return nil
+	case cpacredential.FieldQuotaCooldownUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaCooldownUntil(v)
+		return nil
+	case cpacredential.FieldProjectionVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectionVersion(v)
+		return nil
 	case cpacredential.FieldQuotaData:
 		v, ok := value.(objects.CPAQuotaSnapshot)
 		if !ok {
@@ -3653,8 +4014,14 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *CPACredentialMutation) AddedFields() []string {
 	var fields []string
+	if m.adddisplay_name_sort_length != nil {
+		fields = append(fields, cpacredential.FieldDisplayNameSortLength)
+	}
 	if m.addpriority != nil {
 		fields = append(fields, cpacredential.FieldPriority)
+	}
+	if m.addprojection_version != nil {
+		fields = append(fields, cpacredential.FieldProjectionVersion)
 	}
 	return fields
 }
@@ -3664,8 +4031,12 @@ func (m *CPACredentialMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *CPACredentialMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case cpacredential.FieldDisplayNameSortLength:
+		return m.AddedDisplayNameSortLength()
 	case cpacredential.FieldPriority:
 		return m.AddedPriority()
+	case cpacredential.FieldProjectionVersion:
+		return m.AddedProjectionVersion()
 	}
 	return nil, false
 }
@@ -3675,12 +4046,26 @@ func (m *CPACredentialMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *CPACredentialMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case cpacredential.FieldDisplayNameSortLength:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDisplayNameSortLength(v)
+		return nil
 	case cpacredential.FieldPriority:
 		v, ok := value.(int)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddPriority(v)
+		return nil
+	case cpacredential.FieldProjectionVersion:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProjectionVersion(v)
 		return nil
 	}
 	return fmt.Errorf("unknown CPACredential numeric field %s", name)
@@ -3690,6 +4075,9 @@ func (m *CPACredentialMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *CPACredentialMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(cpacredential.FieldQuotaCooldownUntil) {
+		fields = append(fields, cpacredential.FieldQuotaCooldownUntil)
+	}
 	if m.FieldCleared(cpacredential.FieldQuotaLastAttemptAt) {
 		fields = append(fields, cpacredential.FieldQuotaLastAttemptAt)
 	}
@@ -3716,6 +4104,9 @@ func (m *CPACredentialMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *CPACredentialMutation) ClearField(name string) error {
 	switch name {
+	case cpacredential.FieldQuotaCooldownUntil:
+		m.ClearQuotaCooldownUntil()
+		return nil
 	case cpacredential.FieldQuotaLastAttemptAt:
 		m.ClearQuotaLastAttemptAt()
 		return nil
@@ -3760,6 +4151,12 @@ func (m *CPACredentialMutation) ResetField(name string) error {
 	case cpacredential.FieldDisplayName:
 		m.ResetDisplayName()
 		return nil
+	case cpacredential.FieldDisplayNameSortKey:
+		m.ResetDisplayNameSortKey()
+		return nil
+	case cpacredential.FieldDisplayNameSortLength:
+		m.ResetDisplayNameSortLength()
+		return nil
 	case cpacredential.FieldProvider:
 		m.ResetProvider()
 		return nil
@@ -3792,6 +4189,18 @@ func (m *CPACredentialMutation) ResetField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaState:
 		m.ResetQuotaState()
+		return nil
+	case cpacredential.FieldHealthState:
+		m.ResetHealthState()
+		return nil
+	case cpacredential.FieldQuotaCooling:
+		m.ResetQuotaCooling()
+		return nil
+	case cpacredential.FieldQuotaCooldownUntil:
+		m.ResetQuotaCooldownUntil()
+		return nil
+	case cpacredential.FieldProjectionVersion:
+		m.ResetProjectionVersion()
 		return nil
 	case cpacredential.FieldQuotaData:
 		m.ResetQuotaData()

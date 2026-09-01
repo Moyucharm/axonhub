@@ -106,6 +106,41 @@ func (_u *CPACredentialUpdate) SetNillableDisplayName(v *string) *CPACredentialU
 	return _u
 }
 
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (_u *CPACredentialUpdate) SetDisplayNameSortKey(v string) *CPACredentialUpdate {
+	_u.mutation.SetDisplayNameSortKey(v)
+	return _u
+}
+
+// SetNillableDisplayNameSortKey sets the "display_name_sort_key" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableDisplayNameSortKey(v *string) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetDisplayNameSortKey(*v)
+	}
+	return _u
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (_u *CPACredentialUpdate) SetDisplayNameSortLength(v int) *CPACredentialUpdate {
+	_u.mutation.ResetDisplayNameSortLength()
+	_u.mutation.SetDisplayNameSortLength(v)
+	return _u
+}
+
+// SetNillableDisplayNameSortLength sets the "display_name_sort_length" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableDisplayNameSortLength(v *int) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetDisplayNameSortLength(*v)
+	}
+	return _u
+}
+
+// AddDisplayNameSortLength adds value to the "display_name_sort_length" field.
+func (_u *CPACredentialUpdate) AddDisplayNameSortLength(v int) *CPACredentialUpdate {
+	_u.mutation.AddDisplayNameSortLength(v)
+	return _u
+}
+
 // SetProvider sets the "provider" field.
 func (_u *CPACredentialUpdate) SetProvider(v string) *CPACredentialUpdate {
 	_u.mutation.SetProvider(v)
@@ -264,6 +299,75 @@ func (_u *CPACredentialUpdate) SetNillableQuotaState(v *string) *CPACredentialUp
 	if v != nil {
 		_u.SetQuotaState(*v)
 	}
+	return _u
+}
+
+// SetHealthState sets the "health_state" field.
+func (_u *CPACredentialUpdate) SetHealthState(v string) *CPACredentialUpdate {
+	_u.mutation.SetHealthState(v)
+	return _u
+}
+
+// SetNillableHealthState sets the "health_state" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableHealthState(v *string) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetHealthState(*v)
+	}
+	return _u
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (_u *CPACredentialUpdate) SetQuotaCooling(v bool) *CPACredentialUpdate {
+	_u.mutation.SetQuotaCooling(v)
+	return _u
+}
+
+// SetNillableQuotaCooling sets the "quota_cooling" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableQuotaCooling(v *bool) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetQuotaCooling(*v)
+	}
+	return _u
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (_u *CPACredentialUpdate) SetQuotaCooldownUntil(v time.Time) *CPACredentialUpdate {
+	_u.mutation.SetQuotaCooldownUntil(v)
+	return _u
+}
+
+// SetNillableQuotaCooldownUntil sets the "quota_cooldown_until" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableQuotaCooldownUntil(v *time.Time) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetQuotaCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (_u *CPACredentialUpdate) ClearQuotaCooldownUntil() *CPACredentialUpdate {
+	_u.mutation.ClearQuotaCooldownUntil()
+	return _u
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (_u *CPACredentialUpdate) SetProjectionVersion(v int) *CPACredentialUpdate {
+	_u.mutation.ResetProjectionVersion()
+	_u.mutation.SetProjectionVersion(v)
+	return _u
+}
+
+// SetNillableProjectionVersion sets the "projection_version" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableProjectionVersion(v *int) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetProjectionVersion(*v)
+	}
+	return _u
+}
+
+// AddProjectionVersion adds value to the "projection_version" field.
+func (_u *CPACredentialUpdate) AddProjectionVersion(v int) *CPACredentialUpdate {
+	_u.mutation.AddProjectionVersion(v)
 	return _u
 }
 
@@ -481,6 +585,15 @@ func (_u *CPACredentialUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if value, ok := _u.mutation.DisplayName(); ok {
 		_spec.SetField(cpacredential.FieldDisplayName, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.DisplayNameSortKey(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayNameSortLength(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortLength, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedDisplayNameSortLength(); ok {
+		_spec.AddField(cpacredential.FieldDisplayNameSortLength, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.Provider(); ok {
 		_spec.SetField(cpacredential.FieldProvider, field.TypeString, value)
 	}
@@ -516,6 +629,24 @@ func (_u *CPACredentialUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if value, ok := _u.mutation.QuotaState(); ok {
 		_spec.SetField(cpacredential.FieldQuotaState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.HealthState(); ok {
+		_spec.SetField(cpacredential.FieldHealthState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.QuotaCooling(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooling, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.QuotaCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.QuotaCooldownUntilCleared() {
+		_spec.ClearField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ProjectionVersion(); ok {
+		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedProjectionVersion(); ok {
+		_spec.AddField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.QuotaData(); ok {
 		_spec.SetField(cpacredential.FieldQuotaData, field.TypeJSON, value)
@@ -642,6 +773,41 @@ func (_u *CPACredentialUpdateOne) SetNillableDisplayName(v *string) *CPACredenti
 	if v != nil {
 		_u.SetDisplayName(*v)
 	}
+	return _u
+}
+
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (_u *CPACredentialUpdateOne) SetDisplayNameSortKey(v string) *CPACredentialUpdateOne {
+	_u.mutation.SetDisplayNameSortKey(v)
+	return _u
+}
+
+// SetNillableDisplayNameSortKey sets the "display_name_sort_key" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableDisplayNameSortKey(v *string) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetDisplayNameSortKey(*v)
+	}
+	return _u
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (_u *CPACredentialUpdateOne) SetDisplayNameSortLength(v int) *CPACredentialUpdateOne {
+	_u.mutation.ResetDisplayNameSortLength()
+	_u.mutation.SetDisplayNameSortLength(v)
+	return _u
+}
+
+// SetNillableDisplayNameSortLength sets the "display_name_sort_length" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableDisplayNameSortLength(v *int) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetDisplayNameSortLength(*v)
+	}
+	return _u
+}
+
+// AddDisplayNameSortLength adds value to the "display_name_sort_length" field.
+func (_u *CPACredentialUpdateOne) AddDisplayNameSortLength(v int) *CPACredentialUpdateOne {
+	_u.mutation.AddDisplayNameSortLength(v)
 	return _u
 }
 
@@ -803,6 +969,75 @@ func (_u *CPACredentialUpdateOne) SetNillableQuotaState(v *string) *CPACredentia
 	if v != nil {
 		_u.SetQuotaState(*v)
 	}
+	return _u
+}
+
+// SetHealthState sets the "health_state" field.
+func (_u *CPACredentialUpdateOne) SetHealthState(v string) *CPACredentialUpdateOne {
+	_u.mutation.SetHealthState(v)
+	return _u
+}
+
+// SetNillableHealthState sets the "health_state" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableHealthState(v *string) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetHealthState(*v)
+	}
+	return _u
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (_u *CPACredentialUpdateOne) SetQuotaCooling(v bool) *CPACredentialUpdateOne {
+	_u.mutation.SetQuotaCooling(v)
+	return _u
+}
+
+// SetNillableQuotaCooling sets the "quota_cooling" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableQuotaCooling(v *bool) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetQuotaCooling(*v)
+	}
+	return _u
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (_u *CPACredentialUpdateOne) SetQuotaCooldownUntil(v time.Time) *CPACredentialUpdateOne {
+	_u.mutation.SetQuotaCooldownUntil(v)
+	return _u
+}
+
+// SetNillableQuotaCooldownUntil sets the "quota_cooldown_until" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableQuotaCooldownUntil(v *time.Time) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetQuotaCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (_u *CPACredentialUpdateOne) ClearQuotaCooldownUntil() *CPACredentialUpdateOne {
+	_u.mutation.ClearQuotaCooldownUntil()
+	return _u
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (_u *CPACredentialUpdateOne) SetProjectionVersion(v int) *CPACredentialUpdateOne {
+	_u.mutation.ResetProjectionVersion()
+	_u.mutation.SetProjectionVersion(v)
+	return _u
+}
+
+// SetNillableProjectionVersion sets the "projection_version" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableProjectionVersion(v *int) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetProjectionVersion(*v)
+	}
+	return _u
+}
+
+// AddProjectionVersion adds value to the "projection_version" field.
+func (_u *CPACredentialUpdateOne) AddProjectionVersion(v int) *CPACredentialUpdateOne {
+	_u.mutation.AddProjectionVersion(v)
 	return _u
 }
 
@@ -1050,6 +1285,15 @@ func (_u *CPACredentialUpdateOne) sqlSave(ctx context.Context) (_node *CPACreden
 	if value, ok := _u.mutation.DisplayName(); ok {
 		_spec.SetField(cpacredential.FieldDisplayName, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.DisplayNameSortKey(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortKey, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayNameSortLength(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortLength, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedDisplayNameSortLength(); ok {
+		_spec.AddField(cpacredential.FieldDisplayNameSortLength, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.Provider(); ok {
 		_spec.SetField(cpacredential.FieldProvider, field.TypeString, value)
 	}
@@ -1085,6 +1329,24 @@ func (_u *CPACredentialUpdateOne) sqlSave(ctx context.Context) (_node *CPACreden
 	}
 	if value, ok := _u.mutation.QuotaState(); ok {
 		_spec.SetField(cpacredential.FieldQuotaState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.HealthState(); ok {
+		_spec.SetField(cpacredential.FieldHealthState, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.QuotaCooling(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooling, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.QuotaCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.QuotaCooldownUntilCleared() {
+		_spec.ClearField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ProjectionVersion(); ok {
+		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedProjectionVersion(); ok {
+		_spec.AddField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.QuotaData(); ok {
 		_spec.SetField(cpacredential.FieldQuotaData, field.TypeJSON, value)

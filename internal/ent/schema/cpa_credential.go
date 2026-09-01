@@ -30,6 +30,8 @@ func (CPACredential) Fields() []ent.Field {
 		field.String("remote_name").NotEmpty(),
 		field.String("label").Default(""),
 		field.String("display_name").NotEmpty(),
+		field.String("display_name_sort_key").Default(""),
+		field.Int("display_name_sort_length").Default(0),
 		field.String("provider").Default("unknown"),
 		field.String("email").Default(""),
 		field.String("status").Default("unknown"),
@@ -44,6 +46,10 @@ func (CPACredential) Fields() []ent.Field {
 			Sensitive().
 			Annotations(entgql.Skip(entgql.SkipAll)),
 		field.String("quota_state").Default(string(objects.CPAQuotaStatePending)),
+		field.String("health_state").Default(string(objects.CPACredentialHealthPending)),
+		field.Bool("quota_cooling").Default(false),
+		field.Time("quota_cooldown_until").Optional().Nillable(),
+		field.Int("projection_version").Default(0),
 		field.JSON("quota_data", objects.CPAQuotaSnapshot{}).
 			Default(objects.CPAQuotaSnapshot{}).
 			Annotations(entgql.Skip(entgql.SkipAll)),
@@ -78,7 +84,10 @@ func (CPACredential) Indexes() []ent.Index {
 		index.Fields("cpa_instance_id", "disabled"),
 		index.Fields("cpa_instance_id", "unavailable"),
 		index.Fields("cpa_instance_id", "plan_type"),
-		index.Fields("cpa_instance_id", "priority", "display_name"),
+		index.Fields("cpa_instance_id", "health_state"),
+		index.Fields("cpa_instance_id", "quota_cooling", "quota_cooldown_until"),
+		index.Fields("cpa_instance_id", "priority", "display_name_sort_key", "display_name_sort_length", "id").
+			Annotations(entsql.DescColumns("priority")),
 	}
 }
 

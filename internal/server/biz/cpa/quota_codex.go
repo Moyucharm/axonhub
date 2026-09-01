@@ -16,7 +16,7 @@ type codexQuotaAdapter struct{}
 
 func (codexQuotaAdapter) Provider() string { return "codex" }
 
-func (codexQuotaAdapter) Fetch(ctx context.Context, client *Client, input CredentialInput) (QuotaResult, error) {
+func (codexQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
 	headers := map[string]string{
 		"Authorization": "Bearer $TOKEN$",
 		"Content-Type":  "application/json",

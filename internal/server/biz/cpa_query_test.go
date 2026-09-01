@@ -87,6 +87,90 @@ func TestCPAQuotaCooldownIgnoresPassedReset(t *testing.T) {
 	require.True(t, cooling)
 	require.NotNil(t, until)
 	require.True(t, until.Equal(upcoming))
+
+	// An exhausted window without a reset is indefinite, even when another
+	// exhausted window advertises a finite reset time.
+	cooling, until = cpaQuotaCooldown(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{ID: "weekly", UsedPercent: &used, ResetAt: &upcoming},
+		{ID: "monthly-balance", UsedPercent: &used},
+	}}, now)
+	require.True(t, cooling)
+	require.Nil(t, until)
+}
+
+func TestCPAQuotaCooldownCombinations(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	used := 100.0
+	passed := now.Add(-time.Hour)
+	soon := now.Add(time.Hour)
+	later := now.Add(24 * time.Hour)
+	fiveHours := 5 * 60 * 60
+	weekly := 7 * 24 * 60 * 60
+
+	tests := []struct {
+		name      string
+		items     []objects.CPAQuotaItem
+		cooling   bool
+		wantUntil *time.Time
+	}{
+		{
+			name:      "single future reset",
+			items:     []objects.CPAQuotaItem{{ID: "weekly", UsedPercent: &used, ResetAt: &later}},
+			cooling:   true,
+			wantUntil: &later,
+		},
+		{
+			name:    "single resetless window",
+			items:   []objects.CPAQuotaItem{{ID: "balance", UsedPercent: &used}},
+			cooling: true,
+		},
+		{
+			name: "multiple future resets choose earliest",
+			items: []objects.CPAQuotaItem{
+				{ID: "weekly", UsedPercent: &used, ResetAt: &later},
+				{ID: "hourly", UsedPercent: &used, ResetAt: &soon},
+			},
+			cooling:   true,
+			wantUntil: &soon,
+		},
+		{
+			name: "resetless window overrides finite reset",
+			items: []objects.CPAQuotaItem{
+				{ID: "weekly", UsedPercent: &used, ResetAt: &later},
+				{ID: "balance", UsedPercent: &used},
+			},
+			cooling: true,
+		},
+		{
+			name:    "expired resets are ignored",
+			items:   []objects.CPAQuotaItem{{ID: "hourly", UsedPercent: &used, ResetAt: &passed}},
+			cooling: false,
+		},
+		{
+			name: "UI cooldown includes five hour window",
+			items: []objects.CPAQuotaItem{
+				{ID: "code-primary", PeriodSeconds: &fiveHours, UsedPercent: &used, ResetAt: &soon},
+				{ID: "code-secondary", PeriodSeconds: &weekly, UsedPercent: &used, ResetAt: &later},
+			},
+			cooling:   true,
+			wantUntil: &soon,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cooling, until := cpaQuotaCooldown(objects.CPAQuotaSnapshot{Items: tt.items}, now)
+			require.Equal(t, tt.cooling, cooling)
+			if tt.wantUntil == nil {
+				require.Nil(t, until)
+				return
+			}
+			require.NotNil(t, until)
+			require.True(t, until.Equal(*tt.wantUntil))
+		})
+	}
 }
 
 func TestCPAAutoManageQuotaCooldownIgnoresFiveHour(t *testing.T) {
@@ -231,6 +315,7 @@ func TestQueryCredentialsStatusFilterAndCooldown(t *testing.T) {
 		}}}).
 		Save(ctx)
 	require.NoError(t, err)
+	require.NoError(t, svc.backfillCPACredentialProjections(ctx))
 
 	abnormal, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,

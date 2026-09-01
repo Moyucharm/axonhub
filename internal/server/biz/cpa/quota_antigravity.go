@@ -23,7 +23,7 @@ type antigravityQuotaAdapter struct{}
 
 func (antigravityQuotaAdapter) Provider() string { return "antigravity" }
 
-func (antigravityQuotaAdapter) Fetch(ctx context.Context, client *Client, input CredentialInput) (QuotaResult, error) {
+func (antigravityQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
 	if strings.TrimSpace(input.ProjectID) == "" {
 		return QuotaResult{State: objects.CPAQuotaStateInsufficientData, PlanType: input.PlanType}, nil
 	}

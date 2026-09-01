@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
 import { CHANNEL_CONFIGS, type ChannelType } from '@/features/channels/data/config_channels';
-import type { CPAProviderCount } from '../data';
+import type { CPAProviderCount } from '../types';
 
 // Ensures all values are valid ChannelType keys at compile time.
 const PROVIDER_CHANNEL_TYPES = {

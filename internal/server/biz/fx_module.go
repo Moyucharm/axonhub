@@ -126,13 +126,6 @@ var Module = fx.Module("biz",
 			},
 		})
 	}),
-	fx.Invoke(func(lc fx.Lifecycle, svc *CPAService, s *scheduler.Scheduler) {
-		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
-				return svc.RegisterUsageCleanupTask(ctx, s)
-			},
-		})
-	}),
 	fx.Invoke(func(lc fx.Lifecycle, svc *CPAService) {
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {

@@ -182,60 +182,80 @@ func init() {
 	cpacredentialDescDisplayName := cpacredentialFields[5].Descriptor()
 	// cpacredential.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
 	cpacredential.DisplayNameValidator = cpacredentialDescDisplayName.Validators[0].(func(string) error)
+	// cpacredentialDescDisplayNameSortKey is the schema descriptor for display_name_sort_key field.
+	cpacredentialDescDisplayNameSortKey := cpacredentialFields[6].Descriptor()
+	// cpacredential.DefaultDisplayNameSortKey holds the default value on creation for the display_name_sort_key field.
+	cpacredential.DefaultDisplayNameSortKey = cpacredentialDescDisplayNameSortKey.Default.(string)
+	// cpacredentialDescDisplayNameSortLength is the schema descriptor for display_name_sort_length field.
+	cpacredentialDescDisplayNameSortLength := cpacredentialFields[7].Descriptor()
+	// cpacredential.DefaultDisplayNameSortLength holds the default value on creation for the display_name_sort_length field.
+	cpacredential.DefaultDisplayNameSortLength = cpacredentialDescDisplayNameSortLength.Default.(int)
 	// cpacredentialDescProvider is the schema descriptor for provider field.
-	cpacredentialDescProvider := cpacredentialFields[6].Descriptor()
+	cpacredentialDescProvider := cpacredentialFields[8].Descriptor()
 	// cpacredential.DefaultProvider holds the default value on creation for the provider field.
 	cpacredential.DefaultProvider = cpacredentialDescProvider.Default.(string)
 	// cpacredentialDescEmail is the schema descriptor for email field.
-	cpacredentialDescEmail := cpacredentialFields[7].Descriptor()
+	cpacredentialDescEmail := cpacredentialFields[9].Descriptor()
 	// cpacredential.DefaultEmail holds the default value on creation for the email field.
 	cpacredential.DefaultEmail = cpacredentialDescEmail.Default.(string)
 	// cpacredentialDescStatus is the schema descriptor for status field.
-	cpacredentialDescStatus := cpacredentialFields[8].Descriptor()
+	cpacredentialDescStatus := cpacredentialFields[10].Descriptor()
 	// cpacredential.DefaultStatus holds the default value on creation for the status field.
 	cpacredential.DefaultStatus = cpacredentialDescStatus.Default.(string)
 	// cpacredentialDescStatusMessage is the schema descriptor for status_message field.
-	cpacredentialDescStatusMessage := cpacredentialFields[9].Descriptor()
+	cpacredentialDescStatusMessage := cpacredentialFields[11].Descriptor()
 	// cpacredential.DefaultStatusMessage holds the default value on creation for the status_message field.
 	cpacredential.DefaultStatusMessage = cpacredentialDescStatusMessage.Default.(string)
 	// cpacredentialDescDisabled is the schema descriptor for disabled field.
-	cpacredentialDescDisabled := cpacredentialFields[10].Descriptor()
+	cpacredentialDescDisabled := cpacredentialFields[12].Descriptor()
 	// cpacredential.DefaultDisabled holds the default value on creation for the disabled field.
 	cpacredential.DefaultDisabled = cpacredentialDescDisabled.Default.(bool)
 	// cpacredentialDescUnavailable is the schema descriptor for unavailable field.
-	cpacredentialDescUnavailable := cpacredentialFields[11].Descriptor()
+	cpacredentialDescUnavailable := cpacredentialFields[13].Descriptor()
 	// cpacredential.DefaultUnavailable holds the default value on creation for the unavailable field.
 	cpacredential.DefaultUnavailable = cpacredentialDescUnavailable.Default.(bool)
 	// cpacredentialDescRuntimeOnly is the schema descriptor for runtime_only field.
-	cpacredentialDescRuntimeOnly := cpacredentialFields[12].Descriptor()
+	cpacredentialDescRuntimeOnly := cpacredentialFields[14].Descriptor()
 	// cpacredential.DefaultRuntimeOnly holds the default value on creation for the runtime_only field.
 	cpacredential.DefaultRuntimeOnly = cpacredentialDescRuntimeOnly.Default.(bool)
 	// cpacredentialDescPriority is the schema descriptor for priority field.
-	cpacredentialDescPriority := cpacredentialFields[13].Descriptor()
+	cpacredentialDescPriority := cpacredentialFields[15].Descriptor()
 	// cpacredential.DefaultPriority holds the default value on creation for the priority field.
 	cpacredential.DefaultPriority = cpacredentialDescPriority.Default.(int)
 	// cpacredentialDescPlanType is the schema descriptor for plan_type field.
-	cpacredentialDescPlanType := cpacredentialFields[14].Descriptor()
+	cpacredentialDescPlanType := cpacredentialFields[16].Descriptor()
 	// cpacredential.DefaultPlanType holds the default value on creation for the plan_type field.
 	cpacredential.DefaultPlanType = cpacredentialDescPlanType.Default.(string)
 	// cpacredentialDescQuotaContext is the schema descriptor for quota_context field.
-	cpacredentialDescQuotaContext := cpacredentialFields[15].Descriptor()
+	cpacredentialDescQuotaContext := cpacredentialFields[17].Descriptor()
 	// cpacredential.DefaultQuotaContext holds the default value on creation for the quota_context field.
 	cpacredential.DefaultQuotaContext = cpacredentialDescQuotaContext.Default.(objects.CPAQuotaContext)
 	// cpacredentialDescQuotaState is the schema descriptor for quota_state field.
-	cpacredentialDescQuotaState := cpacredentialFields[16].Descriptor()
+	cpacredentialDescQuotaState := cpacredentialFields[18].Descriptor()
 	// cpacredential.DefaultQuotaState holds the default value on creation for the quota_state field.
 	cpacredential.DefaultQuotaState = cpacredentialDescQuotaState.Default.(string)
+	// cpacredentialDescHealthState is the schema descriptor for health_state field.
+	cpacredentialDescHealthState := cpacredentialFields[19].Descriptor()
+	// cpacredential.DefaultHealthState holds the default value on creation for the health_state field.
+	cpacredential.DefaultHealthState = cpacredentialDescHealthState.Default.(string)
+	// cpacredentialDescQuotaCooling is the schema descriptor for quota_cooling field.
+	cpacredentialDescQuotaCooling := cpacredentialFields[20].Descriptor()
+	// cpacredential.DefaultQuotaCooling holds the default value on creation for the quota_cooling field.
+	cpacredential.DefaultQuotaCooling = cpacredentialDescQuotaCooling.Default.(bool)
+	// cpacredentialDescProjectionVersion is the schema descriptor for projection_version field.
+	cpacredentialDescProjectionVersion := cpacredentialFields[22].Descriptor()
+	// cpacredential.DefaultProjectionVersion holds the default value on creation for the projection_version field.
+	cpacredential.DefaultProjectionVersion = cpacredentialDescProjectionVersion.Default.(int)
 	// cpacredentialDescQuotaData is the schema descriptor for quota_data field.
-	cpacredentialDescQuotaData := cpacredentialFields[17].Descriptor()
+	cpacredentialDescQuotaData := cpacredentialFields[23].Descriptor()
 	// cpacredential.DefaultQuotaData holds the default value on creation for the quota_data field.
 	cpacredential.DefaultQuotaData = cpacredentialDescQuotaData.Default.(objects.CPAQuotaSnapshot)
 	// cpacredentialDescQuotaLastError is the schema descriptor for quota_last_error field.
-	cpacredentialDescQuotaLastError := cpacredentialFields[21].Descriptor()
+	cpacredentialDescQuotaLastError := cpacredentialFields[27].Descriptor()
 	// cpacredential.DefaultQuotaLastError holds the default value on creation for the quota_last_error field.
 	cpacredential.DefaultQuotaLastError = cpacredentialDescQuotaLastError.Default.(string)
 	// cpacredentialDescQuotaObserved is the schema descriptor for quota_observed field.
-	cpacredentialDescQuotaObserved := cpacredentialFields[22].Descriptor()
+	cpacredentialDescQuotaObserved := cpacredentialFields[28].Descriptor()
 	// cpacredential.DefaultQuotaObserved holds the default value on creation for the quota_observed field.
 	cpacredential.DefaultQuotaObserved = cpacredentialDescQuotaObserved.Default.(objects.CPAQuotaObserved)
 	cpainstanceMixin := schema.CPAInstance{}.Mixin()

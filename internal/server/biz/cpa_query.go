@@ -10,8 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/predicate"
 	"github.com/looplj/axonhub/internal/objects"
 )
 
@@ -93,9 +96,25 @@ type CPAProviderCount struct {
 	Count    int
 }
 
+// CPAProviderOverview contains one provider's count and plan filter options.
+type CPAProviderOverview struct {
+	Provider  string
+	Count     int
+	PlanTypes []string
+}
+
+// CPAOverview contains all metadata needed above the credential table.
+type CPAOverview struct {
+	Stats     *CPACredentialStats
+	Providers []*CPAProviderOverview
+}
+
 type cpaCredentialCursor struct {
+	Version     int    `json:"v,omitempty"`
 	Priority    int    `json:"priority"`
-	DisplayName string `json:"display_name"`
+	SortKey     string `json:"sort_key,omitempty"`
+	SortLength  int    `json:"sort_length,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
 	ID          int    `json:"id"`
 }
 
@@ -104,8 +123,74 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 	if err != nil {
 		return nil, fmt.Errorf("get CPA instance for credential query: %w", err)
 	}
-	query := svc.entFromContext(ctx).CPACredential.Query().
-		Where(cpacredential.CpaInstanceIDEQ(input.InstanceID))
+	now := svc.now()
+	filtered := applyCPACredentialFilters(
+		svc.entFromContext(ctx).CPACredential.Query(),
+		input,
+		now,
+	)
+	totalCount, err := filtered.Clone().Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count CPA credentials: %w", err)
+	}
+
+	pageSize := input.First
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	pageQuery := filtered
+	hasPreviousPage := input.After != nil && strings.TrimSpace(*input.After) != ""
+	if hasPreviousPage {
+		cursor, decodeErr := decodeCPACredentialCursor(strings.TrimSpace(*input.After))
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		pageQuery = pageQuery.Where(cpaCredentialAfterPredicate(cursor))
+	}
+	credentials, err := pageQuery.
+		Order(
+			cpacredential.ByPriority(sql.OrderDesc()),
+			cpacredential.ByDisplayNameSortKey(),
+			cpacredential.ByDisplayNameSortLength(),
+			cpacredential.ByID(),
+		).
+		Limit(pageSize + 1).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query CPA credential page: %w", err)
+	}
+	hasNextPage := len(credentials) > pageSize
+	if hasNextPage {
+		credentials = credentials[:pageSize]
+	}
+
+	edges := make([]*CPACredentialEdge, 0, len(credentials))
+	for _, credential := range credentials {
+		cursor, encodeErr := encodeCPACredentialCursor(credential)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		edges = append(edges, &CPACredentialEdge{
+			Cursor: cursor,
+			Node:   buildCPACredentialView(instance, credential, now),
+		})
+	}
+	pageInfo := &CPAPageInfo{
+		HasPreviousPage: hasPreviousPage,
+		HasNextPage:     hasNextPage,
+	}
+	if len(edges) > 0 {
+		pageInfo.StartCursor = &edges[0].Cursor
+		pageInfo.EndCursor = &edges[len(edges)-1].Cursor
+	}
+	return &CPACredentialConnection{Edges: edges, PageInfo: pageInfo, TotalCount: totalCount}, nil
+}
+
+func applyCPACredentialFilters(query *ent.CPACredentialQuery, input QueryCPACredentialsInput, now time.Time) *ent.CPACredentialQuery {
+	query = query.Where(cpacredential.CpaInstanceIDEQ(input.InstanceID))
 	if input.Search != nil && strings.TrimSpace(*input.Search) != "" {
 		search := strings.TrimSpace(*input.Search)
 		query = query.Where(cpacredential.Or(
@@ -121,150 +206,183 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 		query = query.Where(cpacredential.PlanTypeIn(input.PlanTypes...))
 	}
 	statusFilter := parseCPAStatusFilter(input.Statuses)
-	// Enabled/disabled map directly onto a column, so push them into SQL and
-	// keep cursor pagination consistent. When derived flags (abnormal/cooldown)
-	// are also selected the result must stay a union of all requested states,
-	// so the whole filter is evaluated in memory instead.
-	if !statusFilter.abnormal && !statusFilter.cooldown {
-		if statusFilter.enabled && !statusFilter.disabled {
-			query = query.Where(cpacredential.DisabledEQ(false))
-		} else if statusFilter.disabled && !statusFilter.enabled {
-			query = query.Where(cpacredential.DisabledEQ(true))
-		}
+	statusPredicates := make([]predicate.CPACredential, 0, 4)
+	if statusFilter.enabled {
+		statusPredicates = append(statusPredicates, cpacredential.DisabledEQ(false))
 	}
+	if statusFilter.disabled {
+		statusPredicates = append(statusPredicates, cpacredential.DisabledEQ(true))
+	}
+	if statusFilter.abnormal {
+		statusPredicates = append(statusPredicates, cpacredential.HealthStateEQ(string(objects.CPACredentialHealthAbnormal)))
+	}
+	if statusFilter.cooldown {
+		statusPredicates = append(statusPredicates, effectiveCPACooldownPredicate(now))
+	}
+	if len(statusPredicates) > 0 {
+		query = query.Where(cpacredential.Or(statusPredicates...))
+	}
+	if input.AbnormalOnly {
+		query = query.Where(cpacredential.HealthStateEQ(string(objects.CPACredentialHealthAbnormal)))
+	}
+	return query
+}
 
-	now := svc.now()
-	credentials, err := query.All(ctx)
+func effectiveCPACooldownPredicate(now time.Time) predicate.CPACredential {
+	return cpacredential.And(
+		cpacredential.QuotaCoolingEQ(true),
+		cpacredential.Or(
+			cpacredential.QuotaCooldownUntilIsNil(),
+			cpacredential.QuotaCooldownUntilGT(now),
+		),
+	)
+}
+
+func cpaCredentialAfterPredicate(cursor cpaCredentialCursor) predicate.CPACredential {
+	return cpacredential.Or(
+		cpacredential.PriorityLT(cursor.Priority),
+		cpacredential.And(
+			cpacredential.PriorityEQ(cursor.Priority),
+			cpacredential.DisplayNameSortKeyGT(cursor.SortKey),
+		),
+		cpacredential.And(
+			cpacredential.PriorityEQ(cursor.Priority),
+			cpacredential.DisplayNameSortKeyEQ(cursor.SortKey),
+			cpacredential.DisplayNameSortLengthGT(cursor.SortLength),
+		),
+		cpacredential.And(
+			cpacredential.PriorityEQ(cursor.Priority),
+			cpacredential.DisplayNameSortKeyEQ(cursor.SortKey),
+			cpacredential.DisplayNameSortLengthEQ(cursor.SortLength),
+			cpacredential.IDGT(cursor.ID),
+		),
+	)
+}
+
+func (svc *CPAService) Overview(ctx context.Context, instanceID int) (*CPAOverview, error) {
+	if _, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID); err != nil {
+		return nil, fmt.Errorf("get CPA instance for overview: %w", err)
+	}
+	stats, err := svc.credentialStatsAggregate(ctx, instanceID, svc.now())
 	if err != nil {
-		return nil, fmt.Errorf("query CPA credentials: %w", err)
+		return nil, err
 	}
-	views := make([]*CPACredentialView, 0, len(credentials))
-	for _, credential := range credentials {
-		view := buildCPACredentialView(instance, credential, now)
-		if input.AbnormalOnly && !view.Abnormal {
-			continue
-		}
-		if !statusFilter.matches(view) {
-			continue
-		}
-		views = append(views, view)
+	providers, err := svc.providerOverviewAggregate(ctx, instanceID)
+	if err != nil {
+		return nil, err
 	}
-	sort.SliceStable(views, func(i, j int) bool {
-		return compareCPACredentials(views[i].credential, views[j].credential) < 0
-	})
-
-	start := 0
-	if input.After != nil && *input.After != "" {
-		cursor, decodeErr := decodeCPACredentialCursor(*input.After)
-		if decodeErr != nil {
-			return nil, decodeErr
-		}
-		start = sort.Search(len(views), func(index int) bool {
-			return compareCredentialToCursor(views[index].credential, cursor) > 0
-		})
-	}
-	pageSize := input.First
-	if pageSize <= 0 {
-		pageSize = 20
-	}
-	if pageSize > 100 {
-		pageSize = 100
-	}
-	end := min(start+pageSize, len(views))
-	page := views[start:end]
-	edges := make([]*CPACredentialEdge, 0, len(page))
-	for _, view := range page {
-		cursor, encodeErr := encodeCPACredentialCursor(view.credential)
-		if encodeErr != nil {
-			return nil, encodeErr
-		}
-		edges = append(edges, &CPACredentialEdge{Cursor: cursor, Node: view})
-	}
-	pageInfo := &CPAPageInfo{
-		HasPreviousPage: start > 0,
-		HasNextPage:     end < len(views),
-	}
-	if len(edges) > 0 {
-		pageInfo.StartCursor = &edges[0].Cursor
-		pageInfo.EndCursor = &edges[len(edges)-1].Cursor
-	}
-	return &CPACredentialConnection{Edges: edges, PageInfo: pageInfo, TotalCount: len(views)}, nil
+	return &CPAOverview{Stats: stats, Providers: providers}, nil
 }
 
 func (svc *CPAService) CredentialStats(ctx context.Context, instanceID int) (*CPACredentialStats, error) {
-	instance, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID)
-	if err != nil {
+	if _, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID); err != nil {
 		return nil, fmt.Errorf("get CPA instance for stats: %w", err)
 	}
-	credentials, err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(cpacredential.CpaInstanceIDEQ(instanceID)).
-		All(ctx)
+	return svc.credentialStatsAggregate(ctx, instanceID, svc.now())
+}
+
+func (svc *CPAService) credentialStatsAggregate(ctx context.Context, instanceID int, now time.Time) (*CPACredentialStats, error) {
+	base := func() *ent.CPACredentialQuery {
+		return svc.entFromContext(ctx).CPACredential.Query().
+			Where(cpacredential.CpaInstanceIDEQ(instanceID))
+	}
+	total, err := base().Count(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("query CPA credential stats: %w", err)
+		return nil, fmt.Errorf("count CPA credentials: %w", err)
 	}
-	stats := &CPACredentialStats{Total: len(credentials)}
-	now := svc.now()
-	for _, credential := range credentials {
-		view := buildCPACredentialView(instance, credential, now)
-		if view.Available {
-			stats.Available++
-		}
-		if view.Abnormal {
-			stats.Abnormal++
-		}
+	abnormal, err := base().
+		Where(cpacredential.HealthStateEQ(string(objects.CPACredentialHealthAbnormal))).
+		Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count abnormal CPA credentials: %w", err)
 	}
-	return stats, nil
+	available, err := base().
+		Where(
+			cpacredential.HealthStateEQ(string(objects.CPACredentialHealthHealthy)),
+			cpacredential.Not(effectiveCPACooldownPredicate(now)),
+		).
+		Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count available CPA credentials: %w", err)
+	}
+	return &CPACredentialStats{Available: available, Total: total, Abnormal: abnormal}, nil
 }
 
 func (svc *CPAService) ProviderCounts(ctx context.Context, instanceID int) ([]*CPAProviderCount, error) {
 	if _, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID); err != nil {
 		return nil, fmt.Errorf("get CPA instance for provider counts: %w", err)
 	}
-	var rows []struct {
-		Provider string `json:"provider"`
-		Count    int    `json:"count"`
+	providers, err := svc.providerOverviewAggregate(ctx, instanceID)
+	if err != nil {
+		return nil, err
 	}
-	if err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(cpacredential.CpaInstanceIDEQ(instanceID)).
-		GroupBy(cpacredential.FieldProvider).
-		Aggregate(ent.Count()).
-		Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("count CPA credentials by provider: %w", err)
-	}
-	result := make([]*CPAProviderCount, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, &CPAProviderCount{Provider: row.Provider, Count: row.Count})
+	result := make([]*CPAProviderCount, 0, len(providers))
+	for _, provider := range providers {
+		result = append(result, &CPAProviderCount{Provider: provider.Provider, Count: provider.Count})
 	}
 	return result, nil
 }
 
-func (svc *CPAService) PlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error) {
-	plans, err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(
-			cpacredential.CpaInstanceIDEQ(instanceID),
-			cpacredential.ProviderEQ(strings.TrimSpace(provider)),
-			cpacredential.PlanTypeNEQ(""),
-		).
-		Select(cpacredential.FieldPlanType).
-		Strings(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("query CPA plan types: %w", err)
+func (svc *CPAService) providerOverviewAggregate(ctx context.Context, instanceID int) ([]*CPAProviderOverview, error) {
+	var rows []struct {
+		Provider string `json:"provider"`
+		PlanType string `json:"plan_type"`
+		Count    int    `json:"count"`
 	}
-	plans = uniqueStrings(plans)
-	sort.Strings(plans)
-	return plans, nil
+	if err := svc.entFromContext(ctx).CPACredential.Query().
+		Where(cpacredential.CpaInstanceIDEQ(instanceID)).
+		GroupBy(cpacredential.FieldProvider, cpacredential.FieldPlanType).
+		Aggregate(ent.Count()).
+		Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("aggregate CPA provider overview: %w", err)
+	}
+	byProvider := make(map[string]*CPAProviderOverview, len(rows))
+	for _, row := range rows {
+		provider := byProvider[row.Provider]
+		if provider == nil {
+			provider = &CPAProviderOverview{Provider: row.Provider}
+			byProvider[row.Provider] = provider
+		}
+		provider.Count += row.Count
+		if row.PlanType != "" {
+			provider.PlanTypes = append(provider.PlanTypes, row.PlanType)
+		}
+	}
+	result := make([]*CPAProviderOverview, 0, len(byProvider))
+	for _, provider := range byProvider {
+		sort.Strings(provider.PlanTypes)
+		result = append(result, provider)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Provider < result[j].Provider })
+	return result, nil
 }
 
-// buildCPACredentialView projects a credential row onto the API view. now is
-// injected so expiry/cooldown derivation stays deterministic in tests.
+func (svc *CPAService) PlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error) {
+	providers, err := svc.providerOverviewAggregate(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	provider = strings.TrimSpace(provider)
+	for _, item := range providers {
+		if item.Provider == provider {
+			return item.PlanTypes, nil
+		}
+	}
+	return []string{}, nil
+}
+
+// buildCPACredentialView projects one SQL-selected credential row onto the API.
+// Time-dependent cooldown expiry and instance staleness remain lazy read logic.
 func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACredential, now time.Time) *CPACredentialView {
-	statusAbnormal := cpaStatusAbnormal(credential.Status)
 	quotaError := credential.QuotaState == string(objects.CPAQuotaStateError)
-	quotaAvailable := credential.QuotaState == string(objects.CPAQuotaStateSuccess) ||
-		credential.QuotaState == string(objects.CPAQuotaStateUnsupported)
-	cooling, cooldownUntil := cpaQuotaCooldown(credential.QuotaData, now)
-	abnormal := !credential.Disabled && (credential.Unavailable || statusAbnormal || quotaError)
-	available := !credential.Disabled && !credential.Unavailable && !statusAbnormal && quotaAvailable && !cooling
+	cooling := effectiveCPACredentialCooling(credential.QuotaCooling, credential.QuotaCooldownUntil, now)
+	var cooldownUntil *time.Time
+	if cooling {
+		cooldownUntil = credential.QuotaCooldownUntil
+	}
+	healthState := objects.CPACredentialHealthState(credential.HealthState)
+	abnormal := healthState == objects.CPACredentialHealthAbnormal
+	available := healthState == objects.CPACredentialHealthHealthy && !cooling
 	instanceStale := !instance.Enabled || (instance.LastError != nil && strings.TrimSpace(*instance.LastError) != "")
 	stale := instanceStale || quotaError
 	return &CPACredentialView{
@@ -366,6 +484,7 @@ func cpaAutoManageQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now tim
 func cpaQuotaCooldownDetailFor(snapshot objects.CPAQuotaSnapshot, now time.Time, ignoreFiveHour bool) (bool, *time.Time, *objects.CPAQuotaItem) {
 	var cooling bool
 	var until *time.Time
+	var indefinite bool
 	var exhaustedItem *objects.CPAQuotaItem
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
@@ -383,6 +502,14 @@ func cpaQuotaCooldownDetailFor(snapshot objects.CPAQuotaSnapshot, now time.Time,
 			exhaustedItem = item
 		}
 		if item.ResetAt == nil {
+			// A valid exhausted window without a reset time is an indefinite
+			// cooldown. It must take precedence over any finite reset time.
+			indefinite = true
+			until = nil
+			exhaustedItem = item
+			continue
+		}
+		if indefinite {
 			continue
 		}
 		if until == nil || item.ResetAt.Before(*until) {
@@ -495,27 +622,6 @@ func parseSubscriptionEndTime(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func compareCPACredentials(left, right *ent.CPACredential) int {
-	if left.Priority != right.Priority {
-		if left.Priority > right.Priority {
-			return -1
-		}
-		return 1
-	}
-	leftName := strings.ToLower(left.DisplayName)
-	rightName := strings.ToLower(right.DisplayName)
-	if result := naturalStringCompare(leftName, rightName); result != 0 {
-		return result
-	}
-	if left.ID < right.ID {
-		return -1
-	}
-	if left.ID > right.ID {
-		return 1
-	}
-	return 0
-}
-
 func naturalStringCompare(left, right string) int {
 	for leftIndex, rightIndex := 0, 0; leftIndex < len(left) && rightIndex < len(right); {
 		leftDigit := left[leftIndex] >= '0' && left[leftIndex] <= '9'
@@ -578,19 +684,13 @@ func naturalStringCompare(left, right string) int {
 	return 0
 }
 
-func compareCredentialToCursor(credential *ent.CPACredential, cursor cpaCredentialCursor) int {
-	return compareCPACredentials(credential, &ent.CPACredential{
-		ID:          cursor.ID,
-		Priority:    cursor.Priority,
-		DisplayName: cursor.DisplayName,
-	})
-}
-
 func encodeCPACredentialCursor(credential *ent.CPACredential) (string, error) {
 	encoded, err := json.Marshal(cpaCredentialCursor{
-		Priority:    credential.Priority,
-		DisplayName: credential.DisplayName,
-		ID:          credential.ID,
+		Version:    2,
+		Priority:   credential.Priority,
+		SortKey:    credential.DisplayNameSortKey,
+		SortLength: credential.DisplayNameSortLength,
+		ID:         credential.ID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode CPA credential cursor: %w", err)
@@ -607,18 +707,12 @@ func decodeCPACredentialCursor(value string) (cpaCredentialCursor, error) {
 	if err := json.Unmarshal(decoded, &cursor); err != nil {
 		return cpaCredentialCursor{}, fmt.Errorf("decode CPA credential cursor: %w", err)
 	}
-	return cursor, nil
-}
-
-func uniqueStrings(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
+	if cursor.Version > 2 {
+		return cpaCredentialCursor{}, fmt.Errorf("decode CPA credential cursor: unsupported version %d", cursor.Version)
 	}
-	return result
+	if cursor.SortKey == "" {
+		cursor.SortKey = cpaDisplayNameSortKey(cursor.DisplayName)
+		cursor.SortLength = cpaDisplayNameSortLength(cursor.DisplayName)
+	}
+	return cursor, nil
 }

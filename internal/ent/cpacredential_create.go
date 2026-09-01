@@ -104,6 +104,34 @@ func (_c *CPACredentialCreate) SetDisplayName(v string) *CPACredentialCreate {
 	return _c
 }
 
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (_c *CPACredentialCreate) SetDisplayNameSortKey(v string) *CPACredentialCreate {
+	_c.mutation.SetDisplayNameSortKey(v)
+	return _c
+}
+
+// SetNillableDisplayNameSortKey sets the "display_name_sort_key" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableDisplayNameSortKey(v *string) *CPACredentialCreate {
+	if v != nil {
+		_c.SetDisplayNameSortKey(*v)
+	}
+	return _c
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (_c *CPACredentialCreate) SetDisplayNameSortLength(v int) *CPACredentialCreate {
+	_c.mutation.SetDisplayNameSortLength(v)
+	return _c
+}
+
+// SetNillableDisplayNameSortLength sets the "display_name_sort_length" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableDisplayNameSortLength(v *int) *CPACredentialCreate {
+	if v != nil {
+		_c.SetDisplayNameSortLength(*v)
+	}
+	return _c
+}
+
 // SetProvider sets the "provider" field.
 func (_c *CPACredentialCreate) SetProvider(v string) *CPACredentialCreate {
 	_c.mutation.SetProvider(v)
@@ -258,6 +286,62 @@ func (_c *CPACredentialCreate) SetNillableQuotaState(v *string) *CPACredentialCr
 	return _c
 }
 
+// SetHealthState sets the "health_state" field.
+func (_c *CPACredentialCreate) SetHealthState(v string) *CPACredentialCreate {
+	_c.mutation.SetHealthState(v)
+	return _c
+}
+
+// SetNillableHealthState sets the "health_state" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableHealthState(v *string) *CPACredentialCreate {
+	if v != nil {
+		_c.SetHealthState(*v)
+	}
+	return _c
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (_c *CPACredentialCreate) SetQuotaCooling(v bool) *CPACredentialCreate {
+	_c.mutation.SetQuotaCooling(v)
+	return _c
+}
+
+// SetNillableQuotaCooling sets the "quota_cooling" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableQuotaCooling(v *bool) *CPACredentialCreate {
+	if v != nil {
+		_c.SetQuotaCooling(*v)
+	}
+	return _c
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (_c *CPACredentialCreate) SetQuotaCooldownUntil(v time.Time) *CPACredentialCreate {
+	_c.mutation.SetQuotaCooldownUntil(v)
+	return _c
+}
+
+// SetNillableQuotaCooldownUntil sets the "quota_cooldown_until" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableQuotaCooldownUntil(v *time.Time) *CPACredentialCreate {
+	if v != nil {
+		_c.SetQuotaCooldownUntil(*v)
+	}
+	return _c
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (_c *CPACredentialCreate) SetProjectionVersion(v int) *CPACredentialCreate {
+	_c.mutation.SetProjectionVersion(v)
+	return _c
+}
+
+// SetNillableProjectionVersion sets the "projection_version" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableProjectionVersion(v *int) *CPACredentialCreate {
+	if v != nil {
+		_c.SetProjectionVersion(*v)
+	}
+	return _c
+}
+
 // SetQuotaData sets the "quota_data" field.
 func (_c *CPACredentialCreate) SetQuotaData(v objects.CPAQuotaSnapshot) *CPACredentialCreate {
 	_c.mutation.SetQuotaData(v)
@@ -406,6 +490,14 @@ func (_c *CPACredentialCreate) defaults() error {
 		v := cpacredential.DefaultLabel
 		_c.mutation.SetLabel(v)
 	}
+	if _, ok := _c.mutation.DisplayNameSortKey(); !ok {
+		v := cpacredential.DefaultDisplayNameSortKey
+		_c.mutation.SetDisplayNameSortKey(v)
+	}
+	if _, ok := _c.mutation.DisplayNameSortLength(); !ok {
+		v := cpacredential.DefaultDisplayNameSortLength
+		_c.mutation.SetDisplayNameSortLength(v)
+	}
 	if _, ok := _c.mutation.Provider(); !ok {
 		v := cpacredential.DefaultProvider
 		_c.mutation.SetProvider(v)
@@ -449,6 +541,18 @@ func (_c *CPACredentialCreate) defaults() error {
 	if _, ok := _c.mutation.QuotaState(); !ok {
 		v := cpacredential.DefaultQuotaState
 		_c.mutation.SetQuotaState(v)
+	}
+	if _, ok := _c.mutation.HealthState(); !ok {
+		v := cpacredential.DefaultHealthState
+		_c.mutation.SetHealthState(v)
+	}
+	if _, ok := _c.mutation.QuotaCooling(); !ok {
+		v := cpacredential.DefaultQuotaCooling
+		_c.mutation.SetQuotaCooling(v)
+	}
+	if _, ok := _c.mutation.ProjectionVersion(); !ok {
+		v := cpacredential.DefaultProjectionVersion
+		_c.mutation.SetProjectionVersion(v)
 	}
 	if _, ok := _c.mutation.QuotaData(); !ok {
 		v := cpacredential.DefaultQuotaData
@@ -500,6 +604,12 @@ func (_c *CPACredentialCreate) check() error {
 			return &ValidationError{Name: "display_name", err: fmt.Errorf(`ent: validator failed for field "CPACredential.display_name": %w`, err)}
 		}
 	}
+	if _, ok := _c.mutation.DisplayNameSortKey(); !ok {
+		return &ValidationError{Name: "display_name_sort_key", err: errors.New(`ent: missing required field "CPACredential.display_name_sort_key"`)}
+	}
+	if _, ok := _c.mutation.DisplayNameSortLength(); !ok {
+		return &ValidationError{Name: "display_name_sort_length", err: errors.New(`ent: missing required field "CPACredential.display_name_sort_length"`)}
+	}
 	if _, ok := _c.mutation.Provider(); !ok {
 		return &ValidationError{Name: "provider", err: errors.New(`ent: missing required field "CPACredential.provider"`)}
 	}
@@ -532,6 +642,15 @@ func (_c *CPACredentialCreate) check() error {
 	}
 	if _, ok := _c.mutation.QuotaState(); !ok {
 		return &ValidationError{Name: "quota_state", err: errors.New(`ent: missing required field "CPACredential.quota_state"`)}
+	}
+	if _, ok := _c.mutation.HealthState(); !ok {
+		return &ValidationError{Name: "health_state", err: errors.New(`ent: missing required field "CPACredential.health_state"`)}
+	}
+	if _, ok := _c.mutation.QuotaCooling(); !ok {
+		return &ValidationError{Name: "quota_cooling", err: errors.New(`ent: missing required field "CPACredential.quota_cooling"`)}
+	}
+	if _, ok := _c.mutation.ProjectionVersion(); !ok {
+		return &ValidationError{Name: "projection_version", err: errors.New(`ent: missing required field "CPACredential.projection_version"`)}
 	}
 	if _, ok := _c.mutation.QuotaData(); !ok {
 		return &ValidationError{Name: "quota_data", err: errors.New(`ent: missing required field "CPACredential.quota_data"`)}
@@ -597,6 +716,14 @@ func (_c *CPACredentialCreate) createSpec() (*CPACredential, *sqlgraph.CreateSpe
 		_spec.SetField(cpacredential.FieldDisplayName, field.TypeString, value)
 		_node.DisplayName = value
 	}
+	if value, ok := _c.mutation.DisplayNameSortKey(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortKey, field.TypeString, value)
+		_node.DisplayNameSortKey = value
+	}
+	if value, ok := _c.mutation.DisplayNameSortLength(); ok {
+		_spec.SetField(cpacredential.FieldDisplayNameSortLength, field.TypeInt, value)
+		_node.DisplayNameSortLength = value
+	}
 	if value, ok := _c.mutation.Provider(); ok {
 		_spec.SetField(cpacredential.FieldProvider, field.TypeString, value)
 		_node.Provider = value
@@ -640,6 +767,22 @@ func (_c *CPACredentialCreate) createSpec() (*CPACredential, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.QuotaState(); ok {
 		_spec.SetField(cpacredential.FieldQuotaState, field.TypeString, value)
 		_node.QuotaState = value
+	}
+	if value, ok := _c.mutation.HealthState(); ok {
+		_spec.SetField(cpacredential.FieldHealthState, field.TypeString, value)
+		_node.HealthState = value
+	}
+	if value, ok := _c.mutation.QuotaCooling(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooling, field.TypeBool, value)
+		_node.QuotaCooling = value
+	}
+	if value, ok := _c.mutation.QuotaCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime, value)
+		_node.QuotaCooldownUntil = &value
+	}
+	if value, ok := _c.mutation.ProjectionVersion(); ok {
+		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
+		_node.ProjectionVersion = value
 	}
 	if value, ok := _c.mutation.QuotaData(); ok {
 		_spec.SetField(cpacredential.FieldQuotaData, field.TypeJSON, value)
@@ -806,6 +949,36 @@ func (u *CPACredentialUpsert) UpdateDisplayName() *CPACredentialUpsert {
 	return u
 }
 
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (u *CPACredentialUpsert) SetDisplayNameSortKey(v string) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldDisplayNameSortKey, v)
+	return u
+}
+
+// UpdateDisplayNameSortKey sets the "display_name_sort_key" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateDisplayNameSortKey() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldDisplayNameSortKey)
+	return u
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (u *CPACredentialUpsert) SetDisplayNameSortLength(v int) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldDisplayNameSortLength, v)
+	return u
+}
+
+// UpdateDisplayNameSortLength sets the "display_name_sort_length" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateDisplayNameSortLength() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldDisplayNameSortLength)
+	return u
+}
+
+// AddDisplayNameSortLength adds v to the "display_name_sort_length" field.
+func (u *CPACredentialUpsert) AddDisplayNameSortLength(v int) *CPACredentialUpsert {
+	u.Add(cpacredential.FieldDisplayNameSortLength, v)
+	return u
+}
+
 // SetProvider sets the "provider" field.
 func (u *CPACredentialUpsert) SetProvider(v string) *CPACredentialUpsert {
 	u.Set(cpacredential.FieldProvider, v)
@@ -941,6 +1114,66 @@ func (u *CPACredentialUpsert) SetQuotaState(v string) *CPACredentialUpsert {
 // UpdateQuotaState sets the "quota_state" field to the value that was provided on create.
 func (u *CPACredentialUpsert) UpdateQuotaState() *CPACredentialUpsert {
 	u.SetExcluded(cpacredential.FieldQuotaState)
+	return u
+}
+
+// SetHealthState sets the "health_state" field.
+func (u *CPACredentialUpsert) SetHealthState(v string) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldHealthState, v)
+	return u
+}
+
+// UpdateHealthState sets the "health_state" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateHealthState() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldHealthState)
+	return u
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (u *CPACredentialUpsert) SetQuotaCooling(v bool) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldQuotaCooling, v)
+	return u
+}
+
+// UpdateQuotaCooling sets the "quota_cooling" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateQuotaCooling() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldQuotaCooling)
+	return u
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (u *CPACredentialUpsert) SetQuotaCooldownUntil(v time.Time) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldQuotaCooldownUntil, v)
+	return u
+}
+
+// UpdateQuotaCooldownUntil sets the "quota_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateQuotaCooldownUntil() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldQuotaCooldownUntil)
+	return u
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (u *CPACredentialUpsert) ClearQuotaCooldownUntil() *CPACredentialUpsert {
+	u.SetNull(cpacredential.FieldQuotaCooldownUntil)
+	return u
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (u *CPACredentialUpsert) SetProjectionVersion(v int) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldProjectionVersion, v)
+	return u
+}
+
+// UpdateProjectionVersion sets the "projection_version" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateProjectionVersion() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldProjectionVersion)
+	return u
+}
+
+// AddProjectionVersion adds v to the "projection_version" field.
+func (u *CPACredentialUpsert) AddProjectionVersion(v int) *CPACredentialUpsert {
+	u.Add(cpacredential.FieldProjectionVersion, v)
 	return u
 }
 
@@ -1172,6 +1405,41 @@ func (u *CPACredentialUpsertOne) UpdateDisplayName() *CPACredentialUpsertOne {
 	})
 }
 
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (u *CPACredentialUpsertOne) SetDisplayNameSortKey(v string) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetDisplayNameSortKey(v)
+	})
+}
+
+// UpdateDisplayNameSortKey sets the "display_name_sort_key" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateDisplayNameSortKey() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateDisplayNameSortKey()
+	})
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (u *CPACredentialUpsertOne) SetDisplayNameSortLength(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetDisplayNameSortLength(v)
+	})
+}
+
+// AddDisplayNameSortLength adds v to the "display_name_sort_length" field.
+func (u *CPACredentialUpsertOne) AddDisplayNameSortLength(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddDisplayNameSortLength(v)
+	})
+}
+
+// UpdateDisplayNameSortLength sets the "display_name_sort_length" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateDisplayNameSortLength() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateDisplayNameSortLength()
+	})
+}
+
 // SetProvider sets the "provider" field.
 func (u *CPACredentialUpsertOne) SetProvider(v string) *CPACredentialUpsertOne {
 	return u.Update(func(s *CPACredentialUpsert) {
@@ -1330,6 +1598,76 @@ func (u *CPACredentialUpsertOne) SetQuotaState(v string) *CPACredentialUpsertOne
 func (u *CPACredentialUpsertOne) UpdateQuotaState() *CPACredentialUpsertOne {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaState()
+	})
+}
+
+// SetHealthState sets the "health_state" field.
+func (u *CPACredentialUpsertOne) SetHealthState(v string) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetHealthState(v)
+	})
+}
+
+// UpdateHealthState sets the "health_state" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateHealthState() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateHealthState()
+	})
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (u *CPACredentialUpsertOne) SetQuotaCooling(v bool) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaCooling(v)
+	})
+}
+
+// UpdateQuotaCooling sets the "quota_cooling" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateQuotaCooling() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaCooling()
+	})
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (u *CPACredentialUpsertOne) SetQuotaCooldownUntil(v time.Time) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaCooldownUntil(v)
+	})
+}
+
+// UpdateQuotaCooldownUntil sets the "quota_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateQuotaCooldownUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaCooldownUntil()
+	})
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (u *CPACredentialUpsertOne) ClearQuotaCooldownUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearQuotaCooldownUntil()
+	})
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (u *CPACredentialUpsertOne) SetProjectionVersion(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetProjectionVersion(v)
+	})
+}
+
+// AddProjectionVersion adds v to the "projection_version" field.
+func (u *CPACredentialUpsertOne) AddProjectionVersion(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddProjectionVersion(v)
+	})
+}
+
+// UpdateProjectionVersion sets the "projection_version" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateProjectionVersion() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateProjectionVersion()
 	})
 }
 
@@ -1743,6 +2081,41 @@ func (u *CPACredentialUpsertBulk) UpdateDisplayName() *CPACredentialUpsertBulk {
 	})
 }
 
+// SetDisplayNameSortKey sets the "display_name_sort_key" field.
+func (u *CPACredentialUpsertBulk) SetDisplayNameSortKey(v string) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetDisplayNameSortKey(v)
+	})
+}
+
+// UpdateDisplayNameSortKey sets the "display_name_sort_key" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateDisplayNameSortKey() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateDisplayNameSortKey()
+	})
+}
+
+// SetDisplayNameSortLength sets the "display_name_sort_length" field.
+func (u *CPACredentialUpsertBulk) SetDisplayNameSortLength(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetDisplayNameSortLength(v)
+	})
+}
+
+// AddDisplayNameSortLength adds v to the "display_name_sort_length" field.
+func (u *CPACredentialUpsertBulk) AddDisplayNameSortLength(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddDisplayNameSortLength(v)
+	})
+}
+
+// UpdateDisplayNameSortLength sets the "display_name_sort_length" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateDisplayNameSortLength() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateDisplayNameSortLength()
+	})
+}
+
 // SetProvider sets the "provider" field.
 func (u *CPACredentialUpsertBulk) SetProvider(v string) *CPACredentialUpsertBulk {
 	return u.Update(func(s *CPACredentialUpsert) {
@@ -1901,6 +2274,76 @@ func (u *CPACredentialUpsertBulk) SetQuotaState(v string) *CPACredentialUpsertBu
 func (u *CPACredentialUpsertBulk) UpdateQuotaState() *CPACredentialUpsertBulk {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaState()
+	})
+}
+
+// SetHealthState sets the "health_state" field.
+func (u *CPACredentialUpsertBulk) SetHealthState(v string) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetHealthState(v)
+	})
+}
+
+// UpdateHealthState sets the "health_state" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateHealthState() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateHealthState()
+	})
+}
+
+// SetQuotaCooling sets the "quota_cooling" field.
+func (u *CPACredentialUpsertBulk) SetQuotaCooling(v bool) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaCooling(v)
+	})
+}
+
+// UpdateQuotaCooling sets the "quota_cooling" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateQuotaCooling() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaCooling()
+	})
+}
+
+// SetQuotaCooldownUntil sets the "quota_cooldown_until" field.
+func (u *CPACredentialUpsertBulk) SetQuotaCooldownUntil(v time.Time) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetQuotaCooldownUntil(v)
+	})
+}
+
+// UpdateQuotaCooldownUntil sets the "quota_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateQuotaCooldownUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateQuotaCooldownUntil()
+	})
+}
+
+// ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
+func (u *CPACredentialUpsertBulk) ClearQuotaCooldownUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearQuotaCooldownUntil()
+	})
+}
+
+// SetProjectionVersion sets the "projection_version" field.
+func (u *CPACredentialUpsertBulk) SetProjectionVersion(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetProjectionVersion(v)
+	})
+}
+
+// AddProjectionVersion adds v to the "projection_version" field.
+func (u *CPACredentialUpsertBulk) AddProjectionVersion(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddProjectionVersion(v)
+	})
+}
+
+// UpdateProjectionVersion sets the "projection_version" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateProjectionVersion() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateProjectionVersion()
 	})
 }
 

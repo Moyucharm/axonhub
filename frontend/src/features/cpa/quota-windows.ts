@@ -8,7 +8,7 @@
 // relative path for runtime imports — the '@' alias is not resolved by node,
 // only by Vite.
 import type { TFunction } from 'i18next';
-import type { CPAQuotaItem } from './data';
+import type { CPAQuotaItem } from './types';
 import type { QuotaWindowItem, QuotaWindowKind } from '../../lib/quota-types.ts';
 import { QUOTA_PERIOD_SHORT_LABELS, QUOTA_KIND_PRIORITY, formatQuotaUSD } from '../../lib/quota-types.ts';
 

@@ -34,7 +34,7 @@ type QuotaResult struct {
 // QuotaAdapter loads quota through CPA for one provider.
 type QuotaAdapter interface {
 	Provider() string
-	Fetch(context.Context, *Client, CredentialInput) (QuotaResult, error)
+	Fetch(context.Context, ManagementClient, CredentialInput) (QuotaResult, error)
 }
 
 // QuotaRegistry contains the first-phase CPA quota adapters.
@@ -67,7 +67,7 @@ func (r *QuotaRegistry) Supports(provider string) bool {
 }
 
 // Fetch executes one registered adapter.
-func (r *QuotaRegistry) Fetch(ctx context.Context, client *Client, input CredentialInput) (QuotaResult, error) {
+func (r *QuotaRegistry) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
 	adapter, ok := r.adapters[NormalizeProvider(input.Provider)]
 	if !ok {
 		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: input.PlanType}, nil
@@ -106,7 +106,7 @@ func NormalizeProvider(raw string) string {
 	}
 }
 
-func callJSON(ctx context.Context, client *Client, call ProviderCall, output any) (*ProviderCallResult, error) {
+func callJSON(ctx context.Context, client ManagementClient, call ProviderCall, output any) (*ProviderCallResult, error) {
 	result, err := client.CallProvider(ctx, call)
 	if err != nil {
 		return nil, err

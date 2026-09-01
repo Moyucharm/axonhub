@@ -90,6 +90,16 @@ func DisplayName(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldDisplayName, v))
 }
 
+// DisplayNameSortKey applies equality check predicate on the "display_name_sort_key" field. It's identical to DisplayNameSortKeyEQ.
+func DisplayNameSortKey(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortLength applies equality check predicate on the "display_name_sort_length" field. It's identical to DisplayNameSortLengthEQ.
+func DisplayNameSortLength(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldDisplayNameSortLength, v))
+}
+
 // Provider applies equality check predicate on the "provider" field. It's identical to ProviderEQ.
 func Provider(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldProvider, v))
@@ -138,6 +148,26 @@ func PlanType(v string) predicate.CPACredential {
 // QuotaState applies equality check predicate on the "quota_state" field. It's identical to QuotaStateEQ.
 func QuotaState(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldQuotaState, v))
+}
+
+// HealthState applies equality check predicate on the "health_state" field. It's identical to HealthStateEQ.
+func HealthState(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldHealthState, v))
+}
+
+// QuotaCooling applies equality check predicate on the "quota_cooling" field. It's identical to QuotaCoolingEQ.
+func QuotaCooling(v bool) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldQuotaCooling, v))
+}
+
+// QuotaCooldownUntil applies equality check predicate on the "quota_cooldown_until" field. It's identical to QuotaCooldownUntilEQ.
+func QuotaCooldownUntil(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldQuotaCooldownUntil, v))
+}
+
+// ProjectionVersion applies equality check predicate on the "projection_version" field. It's identical to ProjectionVersionEQ.
+func ProjectionVersion(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldProjectionVersion, v))
 }
 
 // QuotaLastAttemptAt applies equality check predicate on the "quota_last_attempt_at" field. It's identical to QuotaLastAttemptAtEQ.
@@ -583,6 +613,111 @@ func DisplayNameEqualFold(v string) predicate.CPACredential {
 // DisplayNameContainsFold applies the ContainsFold predicate on the "display_name" field.
 func DisplayNameContainsFold(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldContainsFold(FieldDisplayName, v))
+}
+
+// DisplayNameSortKeyEQ applies the EQ predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyNEQ applies the NEQ predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyNEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyIn applies the In predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldDisplayNameSortKey, vs...))
+}
+
+// DisplayNameSortKeyNotIn applies the NotIn predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyNotIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldDisplayNameSortKey, vs...))
+}
+
+// DisplayNameSortKeyGT applies the GT predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyGT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyGTE applies the GTE predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyGTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyLT applies the LT predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyLT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyLTE applies the LTE predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyLTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyContains applies the Contains predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyContains(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContains(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyHasPrefix applies the HasPrefix predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyHasPrefix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasPrefix(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyHasSuffix applies the HasSuffix predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyHasSuffix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasSuffix(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyEqualFold applies the EqualFold predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyEqualFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEqualFold(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortKeyContainsFold applies the ContainsFold predicate on the "display_name_sort_key" field.
+func DisplayNameSortKeyContainsFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContainsFold(FieldDisplayNameSortKey, v))
+}
+
+// DisplayNameSortLengthEQ applies the EQ predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldDisplayNameSortLength, v))
+}
+
+// DisplayNameSortLengthNEQ applies the NEQ predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthNEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldDisplayNameSortLength, v))
+}
+
+// DisplayNameSortLengthIn applies the In predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldDisplayNameSortLength, vs...))
+}
+
+// DisplayNameSortLengthNotIn applies the NotIn predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthNotIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldDisplayNameSortLength, vs...))
+}
+
+// DisplayNameSortLengthGT applies the GT predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthGT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldDisplayNameSortLength, v))
+}
+
+// DisplayNameSortLengthGTE applies the GTE predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthGTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldDisplayNameSortLength, v))
+}
+
+// DisplayNameSortLengthLT applies the LT predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthLT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldDisplayNameSortLength, v))
+}
+
+// DisplayNameSortLengthLTE applies the LTE predicate on the "display_name_sort_length" field.
+func DisplayNameSortLengthLTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldDisplayNameSortLength, v))
 }
 
 // ProviderEQ applies the EQ predicate on the "provider" field.
@@ -1043,6 +1178,171 @@ func QuotaStateEqualFold(v string) predicate.CPACredential {
 // QuotaStateContainsFold applies the ContainsFold predicate on the "quota_state" field.
 func QuotaStateContainsFold(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldContainsFold(FieldQuotaState, v))
+}
+
+// HealthStateEQ applies the EQ predicate on the "health_state" field.
+func HealthStateEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldHealthState, v))
+}
+
+// HealthStateNEQ applies the NEQ predicate on the "health_state" field.
+func HealthStateNEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldHealthState, v))
+}
+
+// HealthStateIn applies the In predicate on the "health_state" field.
+func HealthStateIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldHealthState, vs...))
+}
+
+// HealthStateNotIn applies the NotIn predicate on the "health_state" field.
+func HealthStateNotIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldHealthState, vs...))
+}
+
+// HealthStateGT applies the GT predicate on the "health_state" field.
+func HealthStateGT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldHealthState, v))
+}
+
+// HealthStateGTE applies the GTE predicate on the "health_state" field.
+func HealthStateGTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldHealthState, v))
+}
+
+// HealthStateLT applies the LT predicate on the "health_state" field.
+func HealthStateLT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldHealthState, v))
+}
+
+// HealthStateLTE applies the LTE predicate on the "health_state" field.
+func HealthStateLTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldHealthState, v))
+}
+
+// HealthStateContains applies the Contains predicate on the "health_state" field.
+func HealthStateContains(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContains(FieldHealthState, v))
+}
+
+// HealthStateHasPrefix applies the HasPrefix predicate on the "health_state" field.
+func HealthStateHasPrefix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasPrefix(FieldHealthState, v))
+}
+
+// HealthStateHasSuffix applies the HasSuffix predicate on the "health_state" field.
+func HealthStateHasSuffix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasSuffix(FieldHealthState, v))
+}
+
+// HealthStateEqualFold applies the EqualFold predicate on the "health_state" field.
+func HealthStateEqualFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEqualFold(FieldHealthState, v))
+}
+
+// HealthStateContainsFold applies the ContainsFold predicate on the "health_state" field.
+func HealthStateContainsFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContainsFold(FieldHealthState, v))
+}
+
+// QuotaCoolingEQ applies the EQ predicate on the "quota_cooling" field.
+func QuotaCoolingEQ(v bool) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldQuotaCooling, v))
+}
+
+// QuotaCoolingNEQ applies the NEQ predicate on the "quota_cooling" field.
+func QuotaCoolingNEQ(v bool) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldQuotaCooling, v))
+}
+
+// QuotaCooldownUntilEQ applies the EQ predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilNEQ applies the NEQ predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilNEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilIn applies the In predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldQuotaCooldownUntil, vs...))
+}
+
+// QuotaCooldownUntilNotIn applies the NotIn predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilNotIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldQuotaCooldownUntil, vs...))
+}
+
+// QuotaCooldownUntilGT applies the GT predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilGT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilGTE applies the GTE predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilGTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilLT applies the LT predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilLT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilLTE applies the LTE predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilLTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldQuotaCooldownUntil, v))
+}
+
+// QuotaCooldownUntilIsNil applies the IsNil predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilIsNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIsNull(FieldQuotaCooldownUntil))
+}
+
+// QuotaCooldownUntilNotNil applies the NotNil predicate on the "quota_cooldown_until" field.
+func QuotaCooldownUntilNotNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotNull(FieldQuotaCooldownUntil))
+}
+
+// ProjectionVersionEQ applies the EQ predicate on the "projection_version" field.
+func ProjectionVersionEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldProjectionVersion, v))
+}
+
+// ProjectionVersionNEQ applies the NEQ predicate on the "projection_version" field.
+func ProjectionVersionNEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldProjectionVersion, v))
+}
+
+// ProjectionVersionIn applies the In predicate on the "projection_version" field.
+func ProjectionVersionIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldProjectionVersion, vs...))
+}
+
+// ProjectionVersionNotIn applies the NotIn predicate on the "projection_version" field.
+func ProjectionVersionNotIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldProjectionVersion, vs...))
+}
+
+// ProjectionVersionGT applies the GT predicate on the "projection_version" field.
+func ProjectionVersionGT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldProjectionVersion, v))
+}
+
+// ProjectionVersionGTE applies the GTE predicate on the "projection_version" field.
+func ProjectionVersionGTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldProjectionVersion, v))
+}
+
+// ProjectionVersionLT applies the LT predicate on the "projection_version" field.
+func ProjectionVersionLT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldProjectionVersion, v))
+}
+
+// ProjectionVersionLTE applies the LTE predicate on the "projection_version" field.
+func ProjectionVersionLTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldProjectionVersion, v))
 }
 
 // QuotaLastAttemptAtEQ applies the EQ predicate on the "quota_last_attempt_at" field.
