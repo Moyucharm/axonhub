@@ -4,16 +4,26 @@ import (
 	"strings"
 )
 
-// LegacyTypeAtlascloud identifies the removed AtlasCloud channel type in old databases and backups.
-const LegacyTypeAtlascloud Type = "atlascloud"
+// Legacy channel types identify removed provider-specific channel types in old databases and backups.
+const (
+	LegacyTypeAtlascloud     Type = "atlascloud"
+	LegacyTypeQiniu          Type = "qiniu"
+	LegacyTypeQiniuAnthropic Type = "qiniu_anthropic"
+	LegacyTypeFenno          Type = "fenno"
+)
 
 // NormalizeLegacyType maps removed channel types to their supported compatibility type.
 func NormalizeLegacyType(t Type) Type {
-	if t == LegacyTypeAtlascloud {
+	switch t {
+	case LegacyTypeAtlascloud, LegacyTypeQiniu:
 		return TypeOpenai
+	case LegacyTypeQiniuAnthropic:
+		return TypeAnthropic
+	case LegacyTypeFenno:
+		return TypeOpenaiResponses
+	default:
+		return t
 	}
-
-	return t
 }
 
 func (t Type) IsAnthropic() bool {

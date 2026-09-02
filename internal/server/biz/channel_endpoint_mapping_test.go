@@ -53,15 +53,26 @@ func TestDefaultEndpointsForChannelType_UseLLMAPIFormatValues(t *testing.T) {
 			},
 		},
 		{
-			name: "qiniu exposes openai chat completions",
-			typ:  channel.TypeQiniu,
+			// Legacy Qiniu OpenAI channels use the generic OpenAI-compatible
+			// endpoint set after startup normalization.
+			name: "legacy qiniu normalizes to openai endpoints",
+			typ:  channel.NormalizeLegacyType(channel.LegacyTypeQiniu),
 			expected: []string{
 				llm.APIFormatOpenAIChatCompletion.String(),
+				llm.APIFormatOpenAIEmbedding.String(),
+				llm.APIFormatOpenAIImageGeneration.String(),
+				llm.APIFormatOpenAIImageEdit.String(),
+				llm.APIFormatOpenAIImageVariation.String(),
+				llm.APIFormatOpenAIVideo.String(),
+				llm.APIFormatOpenAIModeration.String(),
+				llm.APIFormatOpenAISpeech.String(),
+				llm.APIFormatOpenAITranscription.String(),
+				llm.APIFormatOpenAITranslation.String(),
 			},
 		},
 		{
-			name: "qiniu anthropic exposes anthropic messages",
-			typ:  channel.TypeQiniuAnthropic,
+			name: "legacy qiniu anthropic normalizes to anthropic endpoints",
+			typ:  channel.NormalizeLegacyType(channel.LegacyTypeQiniuAnthropic),
 			expected: []string{
 				llm.APIFormatAnthropicMessage.String(),
 			},
@@ -141,8 +152,8 @@ func TestDefaultEndpointsForChannelType_UseLLMAPIFormatValues(t *testing.T) {
 			},
 		},
 		{
-			name:     "fenno defaults to responses only",
-			typ:      channel.TypeFenno,
+			name:     "legacy fenno normalizes to responses only",
+			typ:      channel.NormalizeLegacyType(channel.LegacyTypeFenno),
 			expected: []string{llm.APIFormatOpenAIResponse.String()},
 		},
 		{

@@ -195,6 +195,19 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	_, sessionALatest := sessionA.checkpoint("auth-1")
 	require.Equal(t, *loaded.QuotaObserved.SecondaryLatestEventID, sessionALatest)
 
+	// A process restart recreates the in-memory session but reuses the
+	// persisted collector identity, so the local interval continues.
+	sessionARestart := &usageCollectorSession{id: "session-a"}
+	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
+		{instanceID: instance.ID, session: sessionARestart, event: event("15.3", 2*time.Minute)},
+	}))
+	loaded, err = client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.Equal(t, "session-a", loaded.QuotaObserved.SecondaryCollectorSessionID)
+	require.InDelta(t, 6.4, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 15.3, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
+	require.Less(t, *loaded.QuotaObserved.SecondaryBaselineEventID, *loaded.QuotaObserved.SecondaryLatestEventID)
+
 	canceledCtx, cancel := context.WithCancel(ctx)
 	cancel()
 	require.False(t, svc.persistUsageEvents(canceledCtx, []usageEventEnvelope{
@@ -225,6 +238,7 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 }
 
 func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
+	ctx := context.Background()
 	sessionA := &usageCollectorSession{id: "session-a"}
 	sessionA.recordPersisted("auth-a", 10)
 	sessionA.recordPersisted("auth-b", 20)
@@ -235,10 +249,10 @@ func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
 	}
 	svc := &CPAService{usageCollectors: map[int]*usageCollectorWorker{1: workerA}}
 
-	sessionID, eventID := svc.usageCollectorCheckpoint(1, " auth-a ")
+	sessionID, eventID := svc.usageCollectorCheckpoint(ctx, 1, " auth-a ")
 	require.Equal(t, "session-a", sessionID)
 	require.Equal(t, 10, eventID)
-	_, eventID = svc.usageCollectorCheckpoint(1, "auth-b")
+	_, eventID = svc.usageCollectorCheckpoint(ctx, 1, "auth-b")
 	require.Equal(t, 20, eventID)
 
 	sessionB := &usageCollectorSession{id: "session-b"}
@@ -251,7 +265,7 @@ func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
 	}
 	svc.usageCollectorMu.Unlock()
 
-	sessionID, eventID = svc.usageCollectorCheckpoint(1, "auth-a")
+	sessionID, eventID = svc.usageCollectorCheckpoint(ctx, 1, "auth-a")
 	require.Equal(t, "session-b", sessionID)
 	require.Equal(t, 30, eventID)
 }
@@ -317,13 +331,52 @@ func TestAdvanceCodexWeeklyObservationReanchorsWithoutZeroUsage(t *testing.T) {
 	require.InDelta(t, 3.1, *observed.SecondaryBaselineUsedPercent, 1e-9)
 }
 
+func TestUsageCollectorCheckpointRestoresPersistedEventID(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_usage_checkpoint_fallback?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	instance := client.CPAInstance.Create().
+		SetName("checkpoint fallback").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		SetEnabled(true).
+		SetUsageStreamEnabled(true).
+		SetUsageCollectorID("collector-a").
+		SaveX(ctx)
+	client.CpaUsageEvent.Create().
+		SetCpaInstanceID(instance.ID).
+		SetAuthIndex("auth-1").
+		SetProvider("codex").
+		SetModel("gpt-5.2").
+		SetRequestedAt(time.Now().UTC()).
+		SaveX(ctx)
+
+	svc := newCPAServiceForTest(client, time.Now)
+	session := newUsageCollectorSession("collector-a", nil)
+	svc.usageCollectors = map[int]*usageCollectorWorker{
+		instance.ID: {
+			target:  usageCollectorTarget{instanceID: instance.ID, collectorID: "collector-a"},
+			session: session,
+			done:    make(chan struct{}),
+		},
+	}
+	collectorID, eventID := svc.usageCollectorCheckpoint(ctx, instance.ID, "auth-1")
+	require.Equal(t, "collector-a", collectorID)
+	require.Positive(t, eventID)
+	_, checkpoint := session.checkpoint("auth-1")
+	require.Equal(t, eventID, checkpoint)
+}
+
 func TestUsageCollectorTargetSameConfig(t *testing.T) {
-	base := usageCollectorTarget{instanceID: 1, baseURL: "http://cpa", managementKey: "secret"}
-	if !base.sameConfig(usageCollectorTarget{instanceID: 2, baseURL: "http://cpa", managementKey: "secret"}) {
+	base := usageCollectorTarget{instanceID: 1, baseURL: "http://cpa", managementKey: "secret", collectorID: "collector-a"}
+	if !base.sameConfig(usageCollectorTarget{instanceID: 2, baseURL: "http://cpa", managementKey: "secret", collectorID: "collector-a"}) {
 		t.Fatal("instance identity must not affect connection config equality")
 	}
-	if base.sameConfig(usageCollectorTarget{baseURL: "http://other", managementKey: "secret"}) {
+	if base.sameConfig(usageCollectorTarget{baseURL: "http://other", managementKey: "secret", collectorID: "collector-a"}) {
 		t.Fatal("different base URL must restart the collector")
+	}
+	if base.sameConfig(usageCollectorTarget{baseURL: "http://cpa", managementKey: "secret", collectorID: "collector-b"}) {
+		t.Fatal("different collector identity must restart the collector")
 	}
 }
 

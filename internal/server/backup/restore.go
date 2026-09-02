@@ -632,6 +632,7 @@ func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, c
 				return fmt.Errorf("channel %s already exists", chData.Name)
 			case ConflictStrategyOverwrite:
 				update := db.Channel.UpdateOneID(existing.ID).
+					SetType(channelType).
 					SetNillableBaseURL(baseURL).
 					SetStatus(chData.Status).
 					SetCredentials(credentials).

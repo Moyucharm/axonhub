@@ -100,6 +100,11 @@ func UsageStreamEnabled(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldUsageStreamEnabled, v))
 }
 
+// UsageCollectorID applies equality check predicate on the "usage_collector_id" field. It's identical to UsageCollectorIDEQ.
+func UsageCollectorID(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldUsageCollectorID, v))
+}
+
 // RefreshIntervalMinutes applies equality check predicate on the "refresh_interval_minutes" field. It's identical to RefreshIntervalMinutesEQ.
 func RefreshIntervalMinutes(v int) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldRefreshIntervalMinutes, v))
@@ -483,6 +488,71 @@ func UsageStreamEnabledEQ(v bool) predicate.CPAInstance {
 // UsageStreamEnabledNEQ applies the NEQ predicate on the "usage_stream_enabled" field.
 func UsageStreamEnabledNEQ(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldNEQ(FieldUsageStreamEnabled, v))
+}
+
+// UsageCollectorIDEQ applies the EQ predicate on the "usage_collector_id" field.
+func UsageCollectorIDEQ(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDNEQ applies the NEQ predicate on the "usage_collector_id" field.
+func UsageCollectorIDNEQ(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDIn applies the In predicate on the "usage_collector_id" field.
+func UsageCollectorIDIn(vs ...string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldIn(FieldUsageCollectorID, vs...))
+}
+
+// UsageCollectorIDNotIn applies the NotIn predicate on the "usage_collector_id" field.
+func UsageCollectorIDNotIn(vs ...string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNotIn(FieldUsageCollectorID, vs...))
+}
+
+// UsageCollectorIDGT applies the GT predicate on the "usage_collector_id" field.
+func UsageCollectorIDGT(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGT(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDGTE applies the GTE predicate on the "usage_collector_id" field.
+func UsageCollectorIDGTE(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldGTE(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDLT applies the LT predicate on the "usage_collector_id" field.
+func UsageCollectorIDLT(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLT(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDLTE applies the LTE predicate on the "usage_collector_id" field.
+func UsageCollectorIDLTE(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldLTE(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDContains applies the Contains predicate on the "usage_collector_id" field.
+func UsageCollectorIDContains(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldContains(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDHasPrefix applies the HasPrefix predicate on the "usage_collector_id" field.
+func UsageCollectorIDHasPrefix(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldHasPrefix(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDHasSuffix applies the HasSuffix predicate on the "usage_collector_id" field.
+func UsageCollectorIDHasSuffix(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldHasSuffix(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDEqualFold applies the EqualFold predicate on the "usage_collector_id" field.
+func UsageCollectorIDEqualFold(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEqualFold(FieldUsageCollectorID, v))
+}
+
+// UsageCollectorIDContainsFold applies the ContainsFold predicate on the "usage_collector_id" field.
+func UsageCollectorIDContainsFold(v string) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldContainsFold(FieldUsageCollectorID, v))
 }
 
 // RefreshIntervalMinutesEQ applies the EQ predicate on the "refresh_interval_minutes" field.

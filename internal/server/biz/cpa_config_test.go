@@ -64,6 +64,23 @@ func TestMergeUpdateCPAInstanceConfigPreservesSecretWhenEmpty(t *testing.T) {
 	require.Empty(t, config.managementSecret)
 }
 
+func TestShouldRotateCPAUsageCollector(t *testing.T) {
+	t.Parallel()
+
+	current := &ent.CPAInstance{Enabled: true, UsageStreamEnabled: true}
+	config := cpaInstanceConfig{usageStreamEnabled: true}
+	require.False(t, shouldRotateCPAUsageCollector(current, config, false))
+	require.True(t, shouldRotateCPAUsageCollector(current, config, true))
+
+	config.usageStreamEnabled = false
+	require.True(t, shouldRotateCPAUsageCollector(current, config, false))
+
+	config.usageStreamEnabled = true
+	current.UsageStreamEnabled = false
+	require.True(t, shouldRotateCPAUsageCollector(current, config, false))
+	require.True(t, shouldRotateCPAUsageCollector(nil, config, false))
+}
+
 func TestMergeUpdateCPAInstanceConfigRequiresSecretForURLChange(t *testing.T) {
 	t.Parallel()
 

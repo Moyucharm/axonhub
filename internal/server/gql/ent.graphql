@@ -1278,7 +1278,6 @@ enum ChannelType @goModel(model: "github.com/looplj/axonhub/internal/ent/channel
   deepseek
   deepseek_anthropic
   deepinfra
-  qiniu
   fireworks
   doubao
   doubao_anthropic
@@ -1326,8 +1325,6 @@ enum ChannelType @goModel(model: "github.com/looplj/axonhub/internal/ent/channel
   evolink
   evolink_anthropic
   groq
-  qiniu_anthropic
-  fenno
 }
 """
 ChannelWhereInput is used for filtering Channel objects.

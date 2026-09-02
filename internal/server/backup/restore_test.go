@@ -54,42 +54,82 @@ func TestBackupService_Restore_SystemConfigs(t *testing.T) {
 	require.Equal(t, "target-secret", secretKey.Value)
 }
 
-func TestBackupService_Restore_NormalizesLegacyChannelType(t *testing.T) {
-	client, service, ctx := setupBackupTest(t)
-	defer client.Close()
+func TestBackupService_Restore_NormalizesLegacyChannelTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    channel.Type
+		expected channel.Type
+	}{
+		{name: "atlascloud", input: channel.LegacyTypeAtlascloud, expected: channel.TypeOpenai},
+		{name: "qiniu", input: channel.LegacyTypeQiniu, expected: channel.TypeOpenai},
+		{name: "qiniu-anthropic", input: channel.LegacyTypeQiniuAnthropic, expected: channel.TypeAnthropic},
+		{name: "fenno", input: channel.LegacyTypeFenno, expected: channel.TypeOpenaiResponses},
+	}
 
-	data, err := json.Marshal(BackupData{
-		Version: BackupVersion,
-		Channels: []*BackupChannel{
-			{
-				Channel: ent.Channel{
-					Type:             channel.LegacyTypeAtlascloud,
-					Name:             "Legacy AtlasCloud Channel",
-					BaseURL:          "https://api.atlascloud.ai/v1",
-					Status:           channel.StatusEnabled,
-					SupportedModels:  []string{"deepseek-v3"},
-					DefaultTestModel: "deepseek-v3",
-					Settings:         &objects.ChannelSettings{},
-				},
-				Credentials: objects.ChannelCredentials{APIKey: "legacy-api-key"},
-			},
-		},
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, strategy := range []struct {
+				name         string
+				conflict     ConflictStrategy
+				seedExisting bool
+			}{
+				{name: "create", conflict: ConflictStrategyError},
+				{name: "overwrite", conflict: ConflictStrategyOverwrite, seedExisting: true},
+			} {
+				t.Run(strategy.name, func(t *testing.T) {
+					client, service, ctx := setupBackupTest(t)
+					defer client.Close()
 
-	err = service.Restore(ctx, data, RestoreOptions{
-		IncludeChannels:         true,
-		ChannelConflictStrategy: ConflictStrategyError,
-	})
-	require.NoError(t, err)
+					channelName := "Legacy " + tt.name + " Channel"
+					if strategy.seedExisting {
+						_, err := client.Channel.Create().
+							SetType(channel.TypeOpenai).
+							SetName(channelName).
+							SetBaseURL("https://existing.example.com/v1").
+							SetStatus(channel.StatusDisabled).
+							SetCredentials(objects.ChannelCredentials{APIKey: "existing-key"}).
+							SetSupportedModels([]string{"existing-model"}).
+							SetDefaultTestModel("existing-model").
+							Save(ctx)
+						require.NoError(t, err)
+					}
 
-	restored, err := client.Channel.Query().Where(channel.Name("Legacy AtlasCloud Channel")).Only(ctx)
-	require.NoError(t, err)
-	require.Equal(t, channel.TypeOpenai, restored.Type)
-	require.Equal(t, "https://api.atlascloud.ai/v1", restored.BaseURL)
-	require.Equal(t, "legacy-api-key", restored.Credentials.APIKey)
-	require.Equal(t, []string{"deepseek-v3"}, restored.SupportedModels)
-	require.Equal(t, "deepseek-v3", restored.DefaultTestModel)
+					data, err := json.Marshal(BackupData{
+						Version: BackupVersion,
+						Channels: []*BackupChannel{
+							{
+								Channel: ent.Channel{
+									Type:             tt.input,
+									Name:             channelName,
+									BaseURL:          "https://legacy.example.com/v1",
+									Status:           channel.StatusEnabled,
+									SupportedModels:  []string{"legacy-model"},
+									DefaultTestModel: "legacy-model",
+									Settings:         &objects.ChannelSettings{},
+								},
+								Credentials: objects.ChannelCredentials{APIKey: "legacy-api-key"},
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = service.Restore(ctx, data, RestoreOptions{
+						IncludeChannels:         true,
+						ChannelConflictStrategy: strategy.conflict,
+					})
+					require.NoError(t, err)
+
+					restored, err := client.Channel.Query().Where(channel.Name(channelName)).Only(ctx)
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, restored.Type)
+					require.Equal(t, "https://legacy.example.com/v1", restored.BaseURL)
+					require.Equal(t, "legacy-api-key", restored.Credentials.APIKey)
+					require.Equal(t, []string{"legacy-model"}, restored.SupportedModels)
+					require.Equal(t, "legacy-model", restored.DefaultTestModel)
+				})
+			}
+		})
+	}
 }
 
 func TestBackupService_Restore(t *testing.T) {

@@ -1,8 +1,8 @@
-import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
-import type { CPAQuotaItem } from '../types';
 import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups } from '@/features/cpa/quota-windows';
+import type { CPAQuotaItem } from '../types';
 
 // Compact quota cell for the CPA credential table. Windows are normally
 // grouped by backend pool (antigravity: Gemini vs Claude/GPT), while Codex
@@ -11,10 +11,10 @@ import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups
 //   - <=2 pools      -> one bar per pool, all visible
 //   - >2 pools       -> first two bars inline, everything else behind a +N
 //                       overflow button placed after the last bar.
-// Grid columns [auto_1fr_auto]: the label column shrinks to the widest actual
-// group name of THIS cell (no reserved dead space for short names like
-// "Code"), the capsule takes all remaining width, and the trailing auto
-// column hosts the inline +N overflow button.
+// Grid columns [auto_max-content_auto]: the label column shrinks to the widest
+// actual group name of THIS cell (no reserved dead space for short names like
+// "Code"), the quota capsule keeps its full width, and the trailing auto column
+// hosts the inline +N overflow button.
 const MAX_INLINE_GROUPS = 2;
 
 export function QuotaSummaryCapsule({
@@ -35,22 +35,19 @@ export function QuotaSummaryCapsule({
   const inline = groups.slice(0, MAX_INLINE_GROUPS);
   // Every window without its own inline bar: non-representative windows of
   // shown pools plus all windows of truncated pools.
-  const hidden = [
-    ...inline.flatMap(({ rest }) => rest),
-    ...groups.slice(MAX_INLINE_GROUPS).flatMap(({ rep, rest }) => [rep, ...rest]),
-  ];
+  const hidden = [...inline.flatMap(({ rest }) => rest), ...groups.slice(MAX_INLINE_GROUPS).flatMap(({ rep, rest }) => [rep, ...rest])];
 
   // Single ungrouped window keeps the bare capsule, matching the old layout.
   if (inline.length === 1 && !inline[0].group && hidden.length === 0) {
     return (
-      <span className='flex w-52 min-w-0'>
+      <span className='flex w-max min-w-52'>
         <QuotaCapsule window={inline[0].rep} size='sm' />
       </span>
     );
   }
 
   return (
-    <div className='grid w-60 min-w-0 grid-cols-[auto_1fr_auto] items-center gap-x-1.5 gap-y-1'>
+    <div className='grid w-max min-w-60 grid-cols-[auto_max-content_auto] items-center gap-x-1.5 gap-y-1'>
       {inline.map(({ group, rep }, index) => {
         const label = shortGroupLabel(group, t);
         const isLast = index === inline.length - 1;
@@ -69,7 +66,7 @@ export function QuotaSummaryCapsule({
           ) : (
             <span key={`${rep.id}-label`} />
           ),
-          <span key={`${rep.id}-capsule`} className='min-w-0'>
+          <span key={`${rep.id}-capsule`} className='w-max min-w-52'>
             <QuotaCapsule window={rep} size='sm' />
           </span>,
           isLast && hidden.length > 0 ? (
@@ -77,7 +74,7 @@ export function QuotaSummaryCapsule({
               <button
                 type='button'
                 aria-label={t('quota.capsule.more')}
-                className='text-muted-foreground hover:bg-muted/60 hover:text-foreground rounded-full border bg-muted/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors'
+                className='text-muted-foreground hover:bg-muted/60 hover:text-foreground bg-muted/40 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors'
               >
                 +{hidden.length}
               </button>

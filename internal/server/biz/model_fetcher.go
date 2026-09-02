@@ -173,12 +173,6 @@ type FetchModelsResult struct {
 	Fallback bool
 }
 
-var qiniuFallbackModels = []ModelIdentify{{ID: "deepseek-v3"}}
-
-func isQiniuChannelType(channelType channel.Type) bool {
-	return channelType == channel.TypeQiniu || channelType == channel.TypeQiniuAnthropic
-}
-
 func (f *ModelFetcher) getDefaultModelsByType(ctx context.Context, typ channel.Type) []ModelIdentify {
 	//nolint:exhaustive // only supports default model fetching for specific channel types.
 	switch typ {
@@ -412,11 +406,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 	channelType := channel.Type(input.ChannelType)
 
 	if apiKey == "" {
-		if isQiniuChannelType(channelType) {
-			return &FetchModelsResult{
-				Models: qiniuFallbackModels,
-			}, nil
-		}
 		if isOfficialOnlyType(channelType) {
 			if models := f.getDefaultModelsByType(ctx, channelType); models != nil {
 				return &FetchModelsResult{Models: models}, nil
@@ -511,11 +500,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 	}
 
 	if err != nil {
-		if isQiniuChannelType(channelType) {
-			return &FetchModelsResult{
-				Models: qiniuFallbackModels,
-			}, nil
-		}
 		return &FetchModelsResult{
 			Models: []ModelIdentify{},
 			Error:  lo.ToPtr(fmt.Sprintf("failed to fetch models: %v", err)),
@@ -523,11 +507,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		if isQiniuChannelType(channelType) {
-			return &FetchModelsResult{
-				Models: qiniuFallbackModels,
-			}, nil
-		}
 		return &FetchModelsResult{
 			Models: []ModelIdentify{},
 			Error:  lo.ToPtr(fmt.Sprintf("failed to fetch models: %v", resp.StatusCode)),
@@ -536,11 +515,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 
 	models, err := f.parseModelsResponse(resp.Body)
 	if err != nil {
-		if isQiniuChannelType(channelType) {
-			return &FetchModelsResult{
-				Models: qiniuFallbackModels,
-			}, nil
-		}
 		return &FetchModelsResult{
 			Models: []ModelIdentify{},
 			Error:  lo.ToPtr(fmt.Sprintf("failed to parse models response: %v", err)),

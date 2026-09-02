@@ -154,6 +154,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpainstance.FieldInsecureSkipTLS:               {Type: field.TypeBool, Column: cpainstance.FieldInsecureSkipTLS},
 			cpainstance.FieldAutoRefreshEnabled:            {Type: field.TypeBool, Column: cpainstance.FieldAutoRefreshEnabled},
 			cpainstance.FieldUsageStreamEnabled:            {Type: field.TypeBool, Column: cpainstance.FieldUsageStreamEnabled},
+			cpainstance.FieldUsageCollectorID:              {Type: field.TypeString, Column: cpainstance.FieldUsageCollectorID},
 			cpainstance.FieldRefreshIntervalMinutes:        {Type: field.TypeInt, Column: cpainstance.FieldRefreshIntervalMinutes},
 			cpainstance.FieldNextRefreshAt:                 {Type: field.TypeTime, Column: cpainstance.FieldNextRefreshAt},
 			cpainstance.FieldAutoManageEnabled:             {Type: field.TypeBool, Column: cpainstance.FieldAutoManageEnabled},
@@ -2089,6 +2090,11 @@ func (f *CPAInstanceFilter) WhereAutoRefreshEnabled(p entql.BoolP) {
 // WhereUsageStreamEnabled applies the entql bool predicate on the usage_stream_enabled field.
 func (f *CPAInstanceFilter) WhereUsageStreamEnabled(p entql.BoolP) {
 	f.Where(p.Field(cpainstance.FieldUsageStreamEnabled))
+}
+
+// WhereUsageCollectorID applies the entql string predicate on the usage_collector_id field.
+func (f *CPAInstanceFilter) WhereUsageCollectorID(p entql.StringP) {
+	f.Where(p.Field(cpainstance.FieldUsageCollectorID))
 }
 
 // WhereRefreshIntervalMinutes applies the entql int predicate on the refresh_interval_minutes field.

@@ -26,13 +26,21 @@ func migrateLegacyChannelTypes(ctx context.Context, dbDialect string, db *sql.DB
 		query = "UPDATE channels SET type = $1 WHERE type = $2"
 	}
 
-	if _, err := db.ExecContext(
-		ctx,
-		query,
-		channel.TypeOpenai.String(),
-		channel.LegacyTypeAtlascloud.String(),
-	); err != nil {
-		return fmt.Errorf("normalize legacy channel types: %w", err)
+	legacyTypes := []channel.Type{
+		channel.LegacyTypeAtlascloud,
+		channel.LegacyTypeQiniu,
+		channel.LegacyTypeQiniuAnthropic,
+		channel.LegacyTypeFenno,
+	}
+	for _, legacyType := range legacyTypes {
+		if _, err := db.ExecContext(
+			ctx,
+			query,
+			channel.NormalizeLegacyType(legacyType).String(),
+			legacyType.String(),
+		); err != nil {
+			return fmt.Errorf("normalize legacy channel type %q: %w", legacyType, err)
+		}
 	}
 
 	return nil

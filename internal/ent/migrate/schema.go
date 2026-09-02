@@ -215,6 +215,7 @@ var (
 		{Name: "insecure_skip_tls", Type: field.TypeBool, Default: false},
 		{Name: "auto_refresh_enabled", Type: field.TypeBool, Default: true},
 		{Name: "usage_stream_enabled", Type: field.TypeBool, Default: false},
+		{Name: "usage_collector_id", Type: field.TypeString, Default: ""},
 		{Name: "refresh_interval_minutes", Type: field.TypeInt, Default: 5},
 		{Name: "next_refresh_at", Type: field.TypeTime, Nullable: true},
 		{Name: "auto_manage_enabled", Type: field.TypeBool, Default: false},
@@ -249,17 +250,17 @@ var (
 			{
 				Name:    "cpainstance_enabled_auto_refresh_enabled_next_refresh_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[11]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[8], CpaInstancesColumns[12]},
 			},
 			{
 				Name:    "cpainstance_enabled_auto_manage_enabled_next_enabled_patrol_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[12], CpaInstancesColumns[15]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[13], CpaInstancesColumns[16]},
 			},
 			{
 				Name:    "cpainstance_enabled_auto_manage_enabled_next_disabled_patrol_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[12], CpaInstancesColumns[16]},
+				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[13], CpaInstancesColumns[17]},
 			},
 		},
 	}
@@ -269,7 +270,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
 		{Name: "deleted_at", Type: field.TypeInt, Default: 0},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"openai", "openai_responses", "cline", "codex", "vercel", "anthropic", "anthropic_aws", "anthropic_gcp", "gemini_openai", "gemini", "gemini_vertex", "deepseek", "deepseek_anthropic", "deepinfra", "qiniu", "fireworks", "doubao", "doubao_anthropic", "moonshot", "moonshot_anthropic", "zhipu", "zai", "zhipu_anthropic", "zai_anthropic", "anthropic_fake", "openai_fake", "openrouter", "xiaomi", "xiaomi_anthropic", "xai", "xai_responses", "xai_subscription", "ppio", "siliconflow", "volcengine", "volcengine_anthropic", "longcat", "longcat_anthropic", "minimax", "minimax_anthropic", "aihubmix", "aihubmix_anthropic", "burncloud", "modelscope", "bailian", "bailian_anthropic", "moonshot_coding", "jina", "github", "github_copilot", "claudecode", "cerebras", "antigravity", "nanogpt", "nanogpt_responses", "opencode_go", "opencode_go_anthropic", "ollama", "ollama_anthropic", "evolink", "evolink_anthropic", "groq", "qiniu_anthropic", "fenno"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"openai", "openai_responses", "cline", "codex", "vercel", "anthropic", "anthropic_aws", "anthropic_gcp", "gemini_openai", "gemini", "gemini_vertex", "deepseek", "deepseek_anthropic", "deepinfra", "fireworks", "doubao", "doubao_anthropic", "moonshot", "moonshot_anthropic", "zhipu", "zai", "zhipu_anthropic", "zai_anthropic", "anthropic_fake", "openai_fake", "openrouter", "xiaomi", "xiaomi_anthropic", "xai", "xai_responses", "xai_subscription", "ppio", "siliconflow", "volcengine", "volcengine_anthropic", "longcat", "longcat_anthropic", "minimax", "minimax_anthropic", "aihubmix", "aihubmix_anthropic", "burncloud", "modelscope", "bailian", "bailian_anthropic", "moonshot_coding", "jina", "github", "github_copilot", "claudecode", "cerebras", "antigravity", "nanogpt", "nanogpt_responses", "opencode_go", "opencode_go_anthropic", "ollama", "ollama_anthropic", "evolink", "evolink_anthropic", "groq"}},
 		{Name: "base_url", Type: field.TypeString, Nullable: true},
 		{Name: "name", Type: field.TypeString},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"enabled", "disabled", "archived"}, Default: "disabled"},

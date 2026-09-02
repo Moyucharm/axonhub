@@ -30,6 +30,9 @@ func (svc *CPAService) RegisterScheduledTasks(ctx context.Context, schedulerServ
 	if err := svc.backfillCPACredentialProjections(ctx); err != nil {
 		return err
 	}
+	if err := svc.ensureCPAUsageCollectorIdentities(ctx); err != nil {
+		return err
+	}
 	if err := svc.initializeCPASchedules(ctx); err != nil {
 		return err
 	}

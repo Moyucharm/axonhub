@@ -135,6 +135,10 @@ func mergeUpdateCPAInstanceConfig(current *ent.CPAInstance, input UpdateCPAInsta
 	return config, secretChanged, connectionChanged, nil
 }
 
+func shouldRotateCPAUsageCollector(current *ent.CPAInstance, config cpaInstanceConfig, connectionChanged bool) bool {
+	return current == nil || connectionChanged || current.UsageStreamEnabled != config.usageStreamEnabled
+}
+
 func boolOrDefault(value *bool, fallback bool) bool {
 	if value == nil {
 		return fallback

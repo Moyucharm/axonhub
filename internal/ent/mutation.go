@@ -4527,6 +4527,7 @@ type CPAInstanceMutation struct {
 	insecure_skip_tls                   *bool
 	auto_refresh_enabled                *bool
 	usage_stream_enabled                *bool
+	usage_collector_id                  *string
 	refresh_interval_minutes            *int
 	addrefresh_interval_minutes         *int
 	next_refresh_at                     *time.Time
@@ -4973,6 +4974,42 @@ func (m *CPAInstanceMutation) OldUsageStreamEnabled(ctx context.Context) (v bool
 // ResetUsageStreamEnabled resets all changes to the "usage_stream_enabled" field.
 func (m *CPAInstanceMutation) ResetUsageStreamEnabled() {
 	m.usage_stream_enabled = nil
+}
+
+// SetUsageCollectorID sets the "usage_collector_id" field.
+func (m *CPAInstanceMutation) SetUsageCollectorID(s string) {
+	m.usage_collector_id = &s
+}
+
+// UsageCollectorID returns the value of the "usage_collector_id" field in the mutation.
+func (m *CPAInstanceMutation) UsageCollectorID() (r string, exists bool) {
+	v := m.usage_collector_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsageCollectorID returns the old "usage_collector_id" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldUsageCollectorID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsageCollectorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsageCollectorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsageCollectorID: %w", err)
+	}
+	return oldValue.UsageCollectorID, nil
+}
+
+// ResetUsageCollectorID resets all changes to the "usage_collector_id" field.
+func (m *CPAInstanceMutation) ResetUsageCollectorID() {
+	m.usage_collector_id = nil
 }
 
 // SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
@@ -5718,7 +5755,7 @@ func (m *CPAInstanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPAInstanceMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.created_at != nil {
 		fields = append(fields, cpainstance.FieldCreatedAt)
 	}
@@ -5745,6 +5782,9 @@ func (m *CPAInstanceMutation) Fields() []string {
 	}
 	if m.usage_stream_enabled != nil {
 		fields = append(fields, cpainstance.FieldUsageStreamEnabled)
+	}
+	if m.usage_collector_id != nil {
+		fields = append(fields, cpainstance.FieldUsageCollectorID)
 	}
 	if m.refresh_interval_minutes != nil {
 		fields = append(fields, cpainstance.FieldRefreshIntervalMinutes)
@@ -5814,6 +5854,8 @@ func (m *CPAInstanceMutation) Field(name string) (ent.Value, bool) {
 		return m.AutoRefreshEnabled()
 	case cpainstance.FieldUsageStreamEnabled:
 		return m.UsageStreamEnabled()
+	case cpainstance.FieldUsageCollectorID:
+		return m.UsageCollectorID()
 	case cpainstance.FieldRefreshIntervalMinutes:
 		return m.RefreshIntervalMinutes()
 	case cpainstance.FieldNextRefreshAt:
@@ -5869,6 +5911,8 @@ func (m *CPAInstanceMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldAutoRefreshEnabled(ctx)
 	case cpainstance.FieldUsageStreamEnabled:
 		return m.OldUsageStreamEnabled(ctx)
+	case cpainstance.FieldUsageCollectorID:
+		return m.OldUsageCollectorID(ctx)
 	case cpainstance.FieldRefreshIntervalMinutes:
 		return m.OldRefreshIntervalMinutes(ctx)
 	case cpainstance.FieldNextRefreshAt:
@@ -5968,6 +6012,13 @@ func (m *CPAInstanceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsageStreamEnabled(v)
+		return nil
+	case cpainstance.FieldUsageCollectorID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsageCollectorID(v)
 		return nil
 	case cpainstance.FieldRefreshIntervalMinutes:
 		v, ok := value.(int)
@@ -6226,6 +6277,9 @@ func (m *CPAInstanceMutation) ResetField(name string) error {
 		return nil
 	case cpainstance.FieldUsageStreamEnabled:
 		m.ResetUsageStreamEnabled()
+		return nil
+	case cpainstance.FieldUsageCollectorID:
+		m.ResetUsageCollectorID()
 		return nil
 	case cpainstance.FieldRefreshIntervalMinutes:
 		m.ResetRefreshIntervalMinutes()

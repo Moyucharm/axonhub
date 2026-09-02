@@ -22,7 +22,7 @@ type codexWeeklyObservation struct {
 // observeCodexUsageIntervals advances the precise 7d observation interval from
 // persisted usage events. Primary and secondary are wire slots, so the weekly
 // window is normalized by its reported duration before advancing the interval.
-// The first observation of a collector session or upstream quota window is only
+// The first observation of a collector identity or upstream quota window is only
 // a baseline; it does not need to be zero usage.
 func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Context, events []persistedUsageEvent) {
 	byCredential := make(map[int][]codexWeeklyObservation)
@@ -283,15 +283,49 @@ func codexRefreshEstimateIntervalDecision(item *objects.CPAQuotaItem) codexEstim
 	}}
 }
 
+func prepareCodexWeeklyInterval(
+	item *objects.CPAQuotaItem,
+	previous *objects.CPAQuotaItem,
+	observed objects.CPAQuotaObserved,
+	collectorSessionID string,
+) bool {
+	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil ||
+		*item.PeriodSeconds != cpaWeeklyPeriodSeconds || collectorSessionID == "" ||
+		observed.SecondaryCollectorSessionID != collectorSessionID ||
+		observed.SecondaryBaselineUsedPercent == nil || observed.SecondaryBaselineEventID == nil ||
+		observed.SecondaryUsedPercent == nil || observed.SecondaryLatestEventID == nil ||
+		observed.SecondaryResetAt == nil || !sameQuotaReset(*item.ResetAt, *observed.SecondaryResetAt) {
+		clearCodexEstimateInterval(item)
+		return true
+	}
+
+	reanchored := previous == nil || previous.EstimateCollectorSessionID != collectorSessionID ||
+		previous.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineEventID == nil ||
+		previous.EstimateLatestEventID == nil || previous.ResetAt == nil ||
+		!sameQuotaReset(*previous.ResetAt, *item.ResetAt) ||
+		*previous.EstimateBaselineUsedPercent != *observed.SecondaryBaselineUsedPercent ||
+		*previous.EstimateBaselineEventID != *observed.SecondaryBaselineEventID ||
+		*observed.SecondaryLatestEventID < *previous.EstimateLatestEventID
+
+	baselinePercent := *observed.SecondaryBaselineUsedPercent
+	baselineEventID := *observed.SecondaryBaselineEventID
+	latestEventID := *observed.SecondaryLatestEventID
+	item.EstimateCollectorSessionID = collectorSessionID
+	item.EstimateBaselineUsedPercent = &baselinePercent
+	item.EstimateBaselineEventID = &baselineEventID
+	item.EstimateLatestEventID = &latestEventID
+	return reanchored
+}
+
 func prepareCodexMonthlyInterval(
 	item *objects.CPAQuotaItem,
 	previous *objects.CPAQuotaItem,
 	collectorSessionID string,
 	latestEventID int,
-) {
+) bool {
 	if item == nil || item.UsedPercent == nil || item.ResetAt == nil || collectorSessionID == "" {
 		clearCodexEstimateInterval(item)
-		return
+		return true
 	}
 	reanchor := previous == nil || previous.UsedPercent == nil || previous.ResetAt == nil ||
 		previous.EstimateCollectorSessionID != collectorSessionID ||
@@ -306,7 +340,7 @@ func prepareCodexMonthlyInterval(
 		item.EstimateBaselineUsedPercent = &baselinePercent
 		item.EstimateBaselineEventID = &baselineEventID
 		item.EstimateLatestEventID = &baselineEventID
-		return
+		return true
 	}
 	baselinePercent := *previous.EstimateBaselineUsedPercent
 	baselineEventID := *previous.EstimateBaselineEventID
@@ -314,6 +348,41 @@ func prepareCodexMonthlyInterval(
 	item.EstimateBaselineUsedPercent = &baselinePercent
 	item.EstimateBaselineEventID = &baselineEventID
 	item.EstimateLatestEventID = &latestEventID
+	return false
+}
+
+func carryForwardCodexQuotaEstimate(
+	item *objects.CPAQuotaItem,
+	previous *objects.CPAQuotaItem,
+	collectorSessionID string,
+	intervalReanchored bool,
+) {
+	if item == nil || previous == nil || intervalReanchored || collectorSessionID == "" ||
+		previous.EstimatedLimitUSD == nil || previous.EstimatedCostUSD == nil ||
+		item.PeriodSeconds == nil || previous.PeriodSeconds == nil ||
+		*item.PeriodSeconds != *previous.PeriodSeconds || item.ResetAt == nil || previous.ResetAt == nil ||
+		!sameQuotaReset(*item.ResetAt, *previous.ResetAt) ||
+		!isEstimableCodexQuotaPeriod(*item.PeriodSeconds) ||
+		item.EstimateCollectorSessionID != collectorSessionID ||
+		previous.EstimateCollectorSessionID != collectorSessionID ||
+		item.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineUsedPercent == nil ||
+		*item.EstimateBaselineUsedPercent != *previous.EstimateBaselineUsedPercent ||
+		item.EstimateBaselineEventID == nil || previous.EstimateBaselineEventID == nil ||
+		*item.EstimateBaselineEventID != *previous.EstimateBaselineEventID ||
+		item.EstimateLatestEventID == nil || previous.EstimateLatestEventID == nil ||
+		*item.EstimateLatestEventID < *previous.EstimateLatestEventID {
+		return
+	}
+
+	limit := *previous.EstimatedLimitUSD
+	cost := *previous.EstimatedCostUSD
+	item.EstimatedLimitUSD = &limit
+	item.EstimatedCostUSD = &cost
+	item.EstimateSource = previous.EstimateSource
+}
+
+func isEstimableCodexQuotaPeriod(period int) bool {
+	return period == cpaWeeklyPeriodSeconds || isMonthlyQuotaPeriod(period)
 }
 
 func clearCodexEstimateInterval(item *objects.CPAQuotaItem) {

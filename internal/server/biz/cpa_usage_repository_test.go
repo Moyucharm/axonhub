@@ -1,6 +1,7 @@
 package biz
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -43,6 +44,49 @@ func TestCPAUsageRepositoryInvalidatesCredentialLookupCache(t *testing.T) {
 	repository.invalidateCredentialCache(instance.ID)
 	_, found = repository.lookupCredentialID(ctx, instance.ID, "auth-1")
 	require.False(t, found, "invalidated auth-index cache must query the current database state")
+}
+
+func TestCPAUsageRepositoryLoadsLatestPersistedEventIDs(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_usage_repository_checkpoints?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	instance := client.CPAInstance.Create().
+		SetName("usage repository checkpoints").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		SaveX(ctx)
+
+	for _, event := range []struct {
+		authIndex string
+		model     string
+	}{
+		{authIndex: "auth-a", model: "first"},
+		{authIndex: "auth-b", model: "other"},
+		{authIndex: "auth-a", model: "latest"},
+	} {
+		client.CpaUsageEvent.Create().
+			SetCpaInstanceID(instance.ID).
+			SetAuthIndex(event.authIndex).
+			SetProvider("codex").
+			SetModel(event.model).
+			SetRequestedAt(time.Now().UTC()).
+			SaveX(ctx)
+	}
+
+	repository := newCPAServiceForTest(client, time.Now).usageRepository
+	checkpoints, err := repository.latestPersistedEventIDs(ctx, instance.ID)
+	require.NoError(t, err)
+	require.Len(t, checkpoints, 2)
+	require.Greater(t, checkpoints["auth-a"], checkpoints["auth-b"])
+	require.Equal(t, checkpoints["auth-a"], mustLatestUsageEventID(t, repository, ctx, instance.ID, " auth-a "))
+	require.Equal(t, 0, mustLatestUsageEventID(t, repository, ctx, instance.ID, "missing"))
+}
+
+func mustLatestUsageEventID(t *testing.T, repository *cpaUsageRepository, ctx context.Context, instanceID int, authIndex string) int {
+	t.Helper()
+	latest, err := repository.latestPersistedEventID(ctx, instanceID, authIndex)
+	require.NoError(t, err)
+	return latest
 }
 
 func TestCPAUsageRepositoryExpiresCredentialLookupCache(t *testing.T) {

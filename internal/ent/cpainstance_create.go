@@ -125,6 +125,20 @@ func (_c *CPAInstanceCreate) SetNillableUsageStreamEnabled(v *bool) *CPAInstance
 	return _c
 }
 
+// SetUsageCollectorID sets the "usage_collector_id" field.
+func (_c *CPAInstanceCreate) SetUsageCollectorID(v string) *CPAInstanceCreate {
+	_c.mutation.SetUsageCollectorID(v)
+	return _c
+}
+
+// SetNillableUsageCollectorID sets the "usage_collector_id" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableUsageCollectorID(v *string) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetUsageCollectorID(*v)
+	}
+	return _c
+}
+
 // SetRefreshIntervalMinutes sets the "refresh_interval_minutes" field.
 func (_c *CPAInstanceCreate) SetRefreshIntervalMinutes(v int) *CPAInstanceCreate {
 	_c.mutation.SetRefreshIntervalMinutes(v)
@@ -403,6 +417,10 @@ func (_c *CPAInstanceCreate) defaults() error {
 		v := cpainstance.DefaultUsageStreamEnabled
 		_c.mutation.SetUsageStreamEnabled(v)
 	}
+	if _, ok := _c.mutation.UsageCollectorID(); !ok {
+		v := cpainstance.DefaultUsageCollectorID
+		_c.mutation.SetUsageCollectorID(v)
+	}
 	if _, ok := _c.mutation.RefreshIntervalMinutes(); !ok {
 		v := cpainstance.DefaultRefreshIntervalMinutes
 		_c.mutation.SetRefreshIntervalMinutes(v)
@@ -466,6 +484,9 @@ func (_c *CPAInstanceCreate) check() error {
 	}
 	if _, ok := _c.mutation.UsageStreamEnabled(); !ok {
 		return &ValidationError{Name: "usage_stream_enabled", err: errors.New(`ent: missing required field "CPAInstance.usage_stream_enabled"`)}
+	}
+	if _, ok := _c.mutation.UsageCollectorID(); !ok {
+		return &ValidationError{Name: "usage_collector_id", err: errors.New(`ent: missing required field "CPAInstance.usage_collector_id"`)}
 	}
 	if _, ok := _c.mutation.RefreshIntervalMinutes(); !ok {
 		return &ValidationError{Name: "refresh_interval_minutes", err: errors.New(`ent: missing required field "CPAInstance.refresh_interval_minutes"`)}
@@ -565,6 +586,10 @@ func (_c *CPAInstanceCreate) createSpec() (*CPAInstance, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UsageStreamEnabled(); ok {
 		_spec.SetField(cpainstance.FieldUsageStreamEnabled, field.TypeBool, value)
 		_node.UsageStreamEnabled = value
+	}
+	if value, ok := _c.mutation.UsageCollectorID(); ok {
+		_spec.SetField(cpainstance.FieldUsageCollectorID, field.TypeString, value)
+		_node.UsageCollectorID = value
 	}
 	if value, ok := _c.mutation.RefreshIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldRefreshIntervalMinutes, field.TypeInt, value)
@@ -783,6 +808,18 @@ func (u *CPAInstanceUpsert) SetUsageStreamEnabled(v bool) *CPAInstanceUpsert {
 // UpdateUsageStreamEnabled sets the "usage_stream_enabled" field to the value that was provided on create.
 func (u *CPAInstanceUpsert) UpdateUsageStreamEnabled() *CPAInstanceUpsert {
 	u.SetExcluded(cpainstance.FieldUsageStreamEnabled)
+	return u
+}
+
+// SetUsageCollectorID sets the "usage_collector_id" field.
+func (u *CPAInstanceUpsert) SetUsageCollectorID(v string) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldUsageCollectorID, v)
+	return u
+}
+
+// UpdateUsageCollectorID sets the "usage_collector_id" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateUsageCollectorID() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldUsageCollectorID)
 	return u
 }
 
@@ -1168,6 +1205,20 @@ func (u *CPAInstanceUpsertOne) SetUsageStreamEnabled(v bool) *CPAInstanceUpsertO
 func (u *CPAInstanceUpsertOne) UpdateUsageStreamEnabled() *CPAInstanceUpsertOne {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateUsageStreamEnabled()
+	})
+}
+
+// SetUsageCollectorID sets the "usage_collector_id" field.
+func (u *CPAInstanceUpsertOne) SetUsageCollectorID(v string) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetUsageCollectorID(v)
+	})
+}
+
+// UpdateUsageCollectorID sets the "usage_collector_id" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateUsageCollectorID() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateUsageCollectorID()
 	})
 }
 
@@ -1757,6 +1808,20 @@ func (u *CPAInstanceUpsertBulk) SetUsageStreamEnabled(v bool) *CPAInstanceUpsert
 func (u *CPAInstanceUpsertBulk) UpdateUsageStreamEnabled() *CPAInstanceUpsertBulk {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateUsageStreamEnabled()
+	})
+}
+
+// SetUsageCollectorID sets the "usage_collector_id" field.
+func (u *CPAInstanceUpsertBulk) SetUsageCollectorID(v string) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetUsageCollectorID(v)
+	})
+}
+
+// UpdateUsageCollectorID sets the "usage_collector_id" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateUsageCollectorID() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateUsageCollectorID()
 	})
 }
 

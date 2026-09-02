@@ -25,7 +25,6 @@ import {
   Github,
   Claude,
   Cerebras,
-  Qiniu,
   XiaomiMiMo,
   Fireworks,
   Ollama,
@@ -34,7 +33,6 @@ import {
   Groq,
 } from '@lobehub/icons';
 import { EvolinkIcon } from '../components/evolink-icon';
-import { FennoIcon } from '../components/fenno-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
 import { BURNCLOUD_DEFAULT_MODELS } from './burncloud-models';
 import { ApiFormat, ChannelType } from './schema';
@@ -79,30 +77,6 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     apiFormat: OPENAI_CHAT_COMPLETIONS,
     color: 'bg-white-100 text-white-800 border-white-200',
     icon: OpenAI,
-  },
-  qiniu: {
-    channelType: 'qiniu',
-    baseURL: 'https://api.qnaigc.com/v1',
-    defaultModels: ['deepseek-v3'],
-    apiFormat: OPENAI_CHAT_COMPLETIONS,
-    color: 'bg-blue-100 text-blue-800 border-blue-200',
-    icon: Qiniu,
-  },
-  qiniu_anthropic: {
-    channelType: 'qiniu_anthropic',
-    baseURL: 'https://api.qnaigc.com',
-    defaultModels: ['deepseek-v3'],
-    apiFormat: ANTHROPIC_MESSAGES,
-    color: 'bg-blue-100 text-blue-800 border-blue-200',
-    icon: Qiniu,
-  },
-  fenno: {
-    channelType: 'fenno',
-    baseURL: 'https://api.fenno.ai',
-    defaultModels: ['gpt-5.2', 'gpt-5.2-codex'],
-    apiFormat: OPENAI_RESPONSES,
-    color: 'bg-[#EEF2FF] text-[#3155C6] border-[#C7D2FE]',
-    icon: FennoIcon,
   },
   openai_responses: {
     channelType: 'openai_responses',
@@ -814,8 +788,6 @@ export const getDefaultModels = (channelType: ChannelType): string[] => {
  */
 export type Provider =
   | 'openai'
-  | 'qiniu'
-  | 'fenno'
   | 'cline'
   | 'anthropic'
   | 'claudecode'
@@ -859,9 +831,6 @@ export type Provider =
 export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   openai: 'openai',
   openai_responses: 'openai',
-  qiniu: 'qiniu',
-  qiniu_anthropic: 'qiniu',
-  fenno: 'fenno',
   cline: 'cline',
   openai_fake: 'openai',
   anthropic: 'anthropic',

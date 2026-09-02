@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/log"
@@ -27,12 +25,15 @@ type usageCollectorTarget struct {
 	baseURL         string
 	managementKey   string
 	insecureSkipTLS bool
+	collectorID     string
+	latestEventIDs  map[string]int
 }
 
 func (target usageCollectorTarget) sameConfig(other usageCollectorTarget) bool {
 	return target.baseURL == other.baseURL &&
 		target.managementKey == other.managementKey &&
-		target.insecureSkipTLS == other.insecureSkipTLS
+		target.insecureSkipTLS == other.insecureSkipTLS &&
+		target.collectorID == other.collectorID
 }
 
 type usageCollectorSession struct {
@@ -42,10 +43,18 @@ type usageCollectorSession struct {
 	latestEventIDs map[string]int
 }
 
-func newUsageCollectorSession() *usageCollectorSession {
+func newUsageCollectorSession(id string, latestEventIDs map[string]int) *usageCollectorSession {
+	checkpoints := make(map[string]int, len(latestEventIDs))
+	for authIndex, eventID := range latestEventIDs {
+		authIndex = strings.TrimSpace(authIndex)
+		if authIndex == "" || eventID <= 0 {
+			continue
+		}
+		checkpoints[authIndex] = eventID
+	}
 	return &usageCollectorSession{
-		id:             uuid.NewString(),
-		latestEventIDs: make(map[string]int),
+		id:             strings.TrimSpace(id),
+		latestEventIDs: checkpoints,
 	}
 }
 
@@ -96,16 +105,46 @@ func usageCollectorWorkerRunning(worker *usageCollectorWorker, target usageColle
 	}
 }
 
-func (svc *CPAService) usageCollectorCheckpoint(instanceID int, authIndex string) (string, int) {
+func (svc *CPAService) usageCollectorCheckpoint(ctx context.Context, instanceID int, authIndex string) (string, int) {
 	svc.usageCollectorMu.Lock()
 	worker := svc.usageCollectors[instanceID]
-	if worker == nil || !usageCollectorWorkerRunning(worker, worker.target) {
+	if worker != nil && usageCollectorWorkerRunning(worker, worker.target) {
+		session := worker.session
 		svc.usageCollectorMu.Unlock()
+		collectorID, eventID := session.checkpoint(authIndex)
+		if eventID > 0 || svc.usageRepository == nil {
+			return collectorID, eventID
+		}
+		latestEventID, err := svc.usageRepository.latestPersistedEventID(
+			authz.WithSystemBypass(ctx, "cpa-usage-checkpoint"),
+			instanceID,
+			authIndex,
+		)
+		if err == nil && latestEventID > 0 {
+			session.recordPersisted(authIndex, latestEventID)
+			return collectorID, latestEventID
+		}
+		return collectorID, eventID
+	}
+	svc.usageCollectorMu.Unlock()
+
+	if svc.usageRepository == nil {
 		return "", 0
 	}
-	session := worker.session
-	svc.usageCollectorMu.Unlock()
-	return session.checkpoint(authIndex)
+	checkpointCtx := authz.WithSystemBypass(ctx, "cpa-usage-checkpoint")
+	instance, err := svc.entFromContext(checkpointCtx).CPAInstance.Get(checkpointCtx, instanceID)
+	if err != nil || !instance.Enabled || !instance.UsageStreamEnabled {
+		return "", 0
+	}
+	collectorID := strings.TrimSpace(instance.UsageCollectorID)
+	if collectorID == "" {
+		return "", 0
+	}
+	latestEventID, err := svc.usageRepository.latestPersistedEventID(checkpointCtx, instanceID, authIndex)
+	if err != nil {
+		return collectorID, 0
+	}
+	return collectorID, latestEventID
 }
 
 // StartUsageStream retains the public lifecycle name for compatibility, but the
@@ -187,6 +226,26 @@ func (svc *CPAService) RefreshUsageStreams(ctx context.Context) error {
 	}
 	desired := make(map[int]usageCollectorTarget, len(instances))
 	for _, instance := range instances {
+		instance, errEnsure := svc.ensureCPAUsageCollectorIdentity(ctx, instance)
+		if errEnsure != nil {
+			log.Warn(ctx, "skip CPA usage collector for instance without stable identity",
+				log.Int("instance_id", instance.ID),
+				log.Cause(errEnsure),
+			)
+			continue
+		}
+		latestEventIDs := make(map[string]int)
+		if svc.usageRepository != nil {
+			var checkpointErr error
+			latestEventIDs, checkpointErr = svc.usageRepository.latestPersistedEventIDs(ctx, instance.ID)
+			if checkpointErr != nil {
+				log.Warn(ctx, "restore CPA usage collector checkpoints failed",
+					log.Int("instance_id", instance.ID),
+					log.Cause(checkpointErr),
+				)
+				latestEventIDs = make(map[string]int)
+			}
+		}
 		secret, errDecrypt := svc.decryptSecret(ctx, instance.EncryptedSecret)
 		if errDecrypt != nil {
 			log.Warn(ctx, "skip CPA usage collector for instance with undecryptable secret",
@@ -200,6 +259,8 @@ func (svc *CPAService) RefreshUsageStreams(ctx context.Context) error {
 			baseURL:         instance.BaseURL,
 			managementKey:   secret,
 			insecureSkipTLS: instance.InsecureSkipTLS,
+			collectorID:     strings.TrimSpace(instance.UsageCollectorID),
+			latestEventIDs:  latestEventIDs,
 		}
 	}
 
@@ -238,7 +299,7 @@ func (svc *CPAService) RefreshUsageStreams(ctx context.Context) error {
 		collectorCtx, cancel := context.WithCancel(context.Background())
 		worker := &usageCollectorWorker{
 			target:  target,
-			session: newUsageCollectorSession(),
+			session: newUsageCollectorSession(target.collectorID, target.latestEventIDs),
 			cancel:  cancel,
 			done:    make(chan struct{}),
 		}

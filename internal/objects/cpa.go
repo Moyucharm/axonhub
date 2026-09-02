@@ -54,8 +54,10 @@ type CPAQuotaItem struct {
 	EstimateSource string `json:"estimate_source,omitempty"`
 
 	// Estimate interval metadata is persisted inside quota_data but is not
-	// exposed by GraphQL. Monthly windows use it to carry a refresh-to-refresh
-	// baseline without racing the collector-owned precise header observation.
+	// exposed by GraphQL. Weekly and monthly windows use it to carry a stable
+	// local interval baseline without racing the collector-owned observation.
+	// The historical SessionID JSON name is retained for compatibility; the
+	// value is the stable local collector identity for the CPA instance.
 	EstimateCollectorSessionID  string   `json:"estimate_collector_session_id,omitempty"`
 	EstimateBaselineUsedPercent *float64 `json:"estimate_baseline_used_percent,omitempty"`
 	EstimateBaselineEventID     *int     `json:"estimate_baseline_event_id,omitempty"`
@@ -70,6 +72,8 @@ type CPAQuotaItem struct {
 // interval at whatever percentage is first observed; a reset never needs to be
 // seen at exactly zero usage.
 type CPAQuotaObserved struct {
+	// The historical SessionID JSON name is retained for compatibility; the
+	// value is the stable local collector identity for the CPA instance.
 	SecondaryCollectorSessionID  string     `json:"secondary_collector_session_id,omitempty"`
 	SecondaryBaselineUsedPercent *float64   `json:"secondary_baseline_used_percent,omitempty"`
 	SecondaryBaselineEventID     *int       `json:"secondary_baseline_event_id,omitempty"`

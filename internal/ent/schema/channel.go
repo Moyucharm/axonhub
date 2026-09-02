@@ -50,7 +50,6 @@ func (Channel) Fields() []ent.Field {
 				"deepseek",
 				"deepseek_anthropic",
 				"deepinfra",
-				"qiniu",
 				"fireworks",
 				"doubao",
 				"doubao_anthropic",
@@ -98,8 +97,6 @@ func (Channel) Fields() []ent.Field {
 				"evolink",
 				"evolink_anthropic",
 				"groq",
-				"qiniu_anthropic",
-				"fenno",
 			).
 			Annotations(
 				entgql.OrderField("TYPE"),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import test from 'node:test';
 import { pickPrimaryQuotaWindow } from './quota-windows.ts';
 
 const dataDir = import.meta.dirname;
@@ -36,10 +36,7 @@ test('pickPrimaryQuotaWindow prefers weekly over monthly and hourly', () => {
 });
 
 test('pickPrimaryQuotaWindow falls back to monthly when no weekly exists', () => {
-  const windows = [
-    windowItem({ id: 'hourly', kind: 'hourly', percent: 95 }),
-    windowItem({ id: 'monthly', kind: 'monthly', percent: 40 }),
-  ];
+  const windows = [windowItem({ id: 'hourly', kind: 'hourly', percent: 95 }), windowItem({ id: 'monthly', kind: 'monthly', percent: 40 })];
   assert.equal(pickPrimaryQuotaWindow(windows)?.id, 'monthly');
 });
 
@@ -85,8 +82,8 @@ test('quota-windows.ts classifies per-channel windows by kind', () => {
 test('quota capsule renders with testids and keeps header percentage semantics', () => {
   const badges = read('components/quota-badges.tsx');
   const capsule = read('components/quota-capsule.tsx');
-  assert.match(capsule, /data-testid="quota-capsule"/);
-  assert.match(capsule, /data-testid="quota-capsule-more"/);
+  assert.match(capsule, /data-testid=['"]quota-capsule['"]/);
+  assert.match(capsule, /data-testid=['"]quota-capsule-more['"]/);
   // The header battery still uses the tightest-window percentage.
   assert.match(badges, /function getChannelPercentage/);
 });

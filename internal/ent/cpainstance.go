@@ -35,6 +35,8 @@ type CPAInstance struct {
 	AutoRefreshEnabled bool `json:"auto_refresh_enabled,omitempty"`
 	// UsageStreamEnabled holds the value of the "usage_stream_enabled" field.
 	UsageStreamEnabled bool `json:"usage_stream_enabled,omitempty"`
+	// UsageCollectorID holds the value of the "usage_collector_id" field.
+	UsageCollectorID string `json:"usage_collector_id,omitempty"`
 	// RefreshIntervalMinutes holds the value of the "refresh_interval_minutes" field.
 	RefreshIntervalMinutes int `json:"refresh_interval_minutes,omitempty"`
 	// NextRefreshAt holds the value of the "next_refresh_at" field.
@@ -98,7 +100,7 @@ func (*CPAInstance) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case cpainstance.FieldID, cpainstance.FieldRefreshIntervalMinutes, cpainstance.FieldEnabledPatrolIntervalMinutes, cpainstance.FieldDisabledPatrolIntervalMinutes:
 			values[i] = new(sql.NullInt64)
-		case cpainstance.FieldName, cpainstance.FieldBaseURL, cpainstance.FieldEncryptedSecret, cpainstance.FieldServerVersion, cpainstance.FieldServerCommit, cpainstance.FieldServerBuildDate, cpainstance.FieldLastError:
+		case cpainstance.FieldName, cpainstance.FieldBaseURL, cpainstance.FieldEncryptedSecret, cpainstance.FieldUsageCollectorID, cpainstance.FieldServerVersion, cpainstance.FieldServerCommit, cpainstance.FieldServerBuildDate, cpainstance.FieldLastError:
 			values[i] = new(sql.NullString)
 		case cpainstance.FieldCreatedAt, cpainstance.FieldUpdatedAt, cpainstance.FieldNextRefreshAt, cpainstance.FieldNextEnabledPatrolAt, cpainstance.FieldNextDisabledPatrolAt, cpainstance.FieldLastSyncAttemptAt, cpainstance.FieldLastSyncSuccessAt, cpainstance.FieldLastErrorAt:
 			values[i] = new(sql.NullTime)
@@ -176,6 +178,12 @@ func (_m *CPAInstance) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field usage_stream_enabled", values[i])
 			} else if value.Valid {
 				_m.UsageStreamEnabled = value.Bool
+			}
+		case cpainstance.FieldUsageCollectorID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_collector_id", values[i])
+			} else if value.Valid {
+				_m.UsageCollectorID = value.String
 			}
 		case cpainstance.FieldRefreshIntervalMinutes:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -334,6 +342,9 @@ func (_m *CPAInstance) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("usage_stream_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UsageStreamEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("usage_collector_id=")
+	builder.WriteString(_m.UsageCollectorID)
 	builder.WriteString(", ")
 	builder.WriteString("refresh_interval_minutes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RefreshIntervalMinutes))

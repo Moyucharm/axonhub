@@ -237,12 +237,13 @@ test('CPA page renders quota capsules via QuotaWindowsBlock and QuotaSummaryCaps
   assert.match(capsule, /type CapsuleSize = 'md' \| 'sm'/);
 });
 
-test('quota summary uses adaptive label column with inline +N overflow button', () => {
+test('quota summary keeps the bar width beside the inline +N overflow button', () => {
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
   // Label column shrinks to the widest group name of the cell (no dead space
-  // for short names); +N sits after the last bar instead of its own row.
-  assert.match(summary, /grid-cols-\[auto_1fr_auto\]/);
-  assert.match(summary, /w-60 min-w-0/);
+  // for short names); the quota column keeps its full width and +N sits after
+  // the last bar instead of its own row.
+  assert.match(summary, /grid-cols-\[auto_max-content_auto\]/);
+  assert.match(summary, /w-max min-w-60/);
   assert.match(summary, /isLast && hidden\.length > 0/);
   // Placeholder spans keep grid auto-placement aligned when cells are empty.
   assert.match(summary, /<span key=\{`more-\$\{rep\.id\}`} \/>/);
@@ -252,11 +253,28 @@ test('overflow popover reuses the external capsule and wraps full window names',
   const capsule = read('components/quota-capsule.tsx');
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
   assert.match(capsule, /w-\[min\(28rem,calc\(100vw-2rem\)\)\]/);
-  assert.match(capsule, /grid-cols-\[minmax\(0,1fr\)_13rem\]/);
-  assert.match(capsule, /min-w-0 break-words text-left/);
+  assert.match(capsule, /grid-cols-\[minmax\(0,1fr\)_max-content\]/);
+  assert.match(capsule, /w-max min-w-52/);
+  assert.match(capsule, /min-w-0 .*break-words/);
   assert.match(capsule, /<QuotaCapsule window=\{window\} size=\{size\} \/>/);
   assert.doesNotMatch(capsule, /w-36 shrink-0 truncate text-right/);
   assert.match(summary, /<QuotaMorePopover key='more' windows=\{hidden\} size='sm'>/);
+});
+
+test('estimate capsule sits beside the quota bar without shrinking it', () => {
+  const capsule = read('components/quota-capsule.tsx');
+  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
+
+  // The estimate is a sibling after the bordered quota bar, not another item
+  // inside the bar's flex row where it would consume the track width.
+  assert.match(capsule, /<div className=\{cn\('flex w-max min-w-full/);
+  assert.match(capsule, /size === 'sm' \? 'h-7 w-52' : 'h-8 w-full'/);
+  assert.match(capsule, /<CapsuleBar window=\{window\} size=\{size\} \/>\s*<\/div>\s*<EstimateBadge window=\{window\} size=\{size\} \/>/);
+
+  // The +N trigger follows the same external-estimate layout.
+  assert.match(capsule, /group flex w-max min-w-full/);
+  assert.match(capsule, /<EstimateBadge window=\{primary\} \/>/);
+  assert.match(summary, /w-max min-w-52/);
 });
 
 test('quota capsule renders remaining semantics with gradient and chip tones', () => {

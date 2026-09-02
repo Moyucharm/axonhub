@@ -275,7 +275,47 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 	}
 }
 
-func TestPrepareCodexMonthlyIntervalReanchorsOnSessionAndRandomReset(t *testing.T) {
+func TestPrepareCodexWeeklyIntervalKeepsStableBaselineAcrossRefreshes(t *testing.T) {
+	resetAt := time.Date(2026, 9, 7, 3, 42, 28, 0, time.UTC)
+	weeklyPeriod := cpaWeeklyPeriodSeconds
+	baselinePercent := 20.0
+	baselineEventID := 10
+	latestEventID := 20
+	previous := &objects.CPAQuotaItem{
+		ID:                          "weekly",
+		ResetAt:                     &resetAt,
+		PeriodSeconds:               &weeklyPeriod,
+		EstimateCollectorSessionID:  "collector-a",
+		EstimateBaselineUsedPercent: &baselinePercent,
+		EstimateBaselineEventID:     &baselineEventID,
+		EstimateLatestEventID:       &latestEventID,
+	}
+	latestPercent := 35.0
+	current := &objects.CPAQuotaItem{ID: "weekly", ResetAt: &resetAt, PeriodSeconds: &weeklyPeriod}
+	observed := objects.CPAQuotaObserved{
+		SecondaryCollectorSessionID:  "collector-a",
+		SecondaryBaselineUsedPercent: &baselinePercent,
+		SecondaryBaselineEventID:     &baselineEventID,
+		SecondaryUsedPercent:         &latestPercent,
+		SecondaryLatestEventID:       &latestEventID,
+		SecondaryResetAt:             &resetAt,
+	}
+	require.False(t, prepareCodexWeeklyInterval(current, previous, observed, "collector-a"))
+	require.Equal(t, "collector-a", current.EstimateCollectorSessionID)
+	require.Equal(t, baselineEventID, *current.EstimateBaselineEventID)
+	require.Equal(t, latestEventID, *current.EstimateLatestEventID)
+
+	newBaselinePercent := 5.0
+	newBaselineEventID := 30
+	observed.SecondaryBaselineUsedPercent = &newBaselinePercent
+	observed.SecondaryBaselineEventID = &newBaselineEventID
+	observed.SecondaryUsedPercent = &newBaselinePercent
+	observed.SecondaryLatestEventID = &newBaselineEventID
+	require.True(t, prepareCodexWeeklyInterval(current, previous, observed, "collector-a"))
+	require.Equal(t, newBaselineEventID, *current.EstimateBaselineEventID)
+}
+
+func TestPrepareCodexMonthlyIntervalReanchorsOnIdentityAndRandomReset(t *testing.T) {
 	monthlyPeriod := 30 * 24 * 60 * 60
 	resetAt := time.Date(2026, 9, 21, 5, 0, 0, 0, time.UTC)
 	used20 := 20.0
@@ -317,6 +357,179 @@ func TestPrepareCodexMonthlyIntervalReanchorsOnSessionAndRandomReset(t *testing.
 	granted := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used3, ResetAt: &activityReset, PeriodSeconds: &monthlyPeriod}
 	prepareCodexMonthlyInterval(granted, reset, "session-b", 55)
 	require.Equal(t, 3.0, *granted.EstimateBaselineUsedPercent)
+}
+
+func TestCarryForwardCodexQuotaEstimateKeepsCompatibleLastValue(t *testing.T) {
+	t.Parallel()
+
+	resetAt := time.Date(2026, 9, 7, 3, 42, 28, 0, time.UTC)
+	weeklyPeriod := cpaWeeklyPeriodSeconds
+	previousUsed := 40.0
+	previousLimit := 100.0
+	previousCost := 40.0
+	baselinePercent := 20.0
+	baselineEventID := 10
+	latestEventID := 20
+	previous := &objects.CPAQuotaItem{
+		ID:                          "weekly",
+		UsedPercent:                 &previousUsed,
+		ResetAt:                     &resetAt,
+		PeriodSeconds:               &weeklyPeriod,
+		EstimateCollectorSessionID:  "collector-a",
+		EstimateBaselineUsedPercent: &baselinePercent,
+		EstimateBaselineEventID:     &baselineEventID,
+		EstimateLatestEventID:       &latestEventID,
+		EstimatedLimitUSD:           &previousLimit,
+		EstimatedCostUSD:            &previousCost,
+		EstimateSource:              "precise-header-delta",
+	}
+	currentUsed := 50.0
+	current := &objects.CPAQuotaItem{
+		ID:                          "weekly",
+		UsedPercent:                 &currentUsed,
+		ResetAt:                     &resetAt,
+		PeriodSeconds:               &weeklyPeriod,
+		EstimateCollectorSessionID:  "collector-a",
+		EstimateBaselineUsedPercent: &baselinePercent,
+		EstimateBaselineEventID:     &baselineEventID,
+		EstimateLatestEventID:       &latestEventID,
+	}
+	carryForwardCodexQuotaEstimate(current, previous, "collector-a", false)
+	require.NotNil(t, current.EstimatedLimitUSD)
+	require.NotNil(t, current.EstimatedCostUSD)
+	require.Equal(t, previousLimit, *current.EstimatedLimitUSD)
+	require.Equal(t, previousCost, *current.EstimatedCostUSD)
+	require.Equal(t, previous.EstimateSource, current.EstimateSource)
+
+	current = &objects.CPAQuotaItem{ID: "weekly", UsedPercent: &currentUsed, ResetAt: &resetAt, PeriodSeconds: &weeklyPeriod, EstimateCollectorSessionID: "collector-a", EstimateBaselineUsedPercent: &baselinePercent, EstimateBaselineEventID: &baselineEventID, EstimateLatestEventID: &latestEventID}
+	carryForwardCodexQuotaEstimate(current, previous, "collector-b", false)
+	require.Nil(t, current.EstimatedLimitUSD)
+
+	monthlyPeriod := 30 * 24 * 60 * 60
+	monthlyBaseline := 20.0
+	monthlyLatestEventID := 20
+	monthlyPrevious := &objects.CPAQuotaItem{
+		ID:                         "monthly",
+		UsedPercent:                &previousUsed,
+		ResetAt:                    &resetAt,
+		PeriodSeconds:              &monthlyPeriod,
+		EstimateCollectorSessionID: "collector-a",
+		EstimateBaselineUsedPercent: func() *float64 {
+			value := 20.0
+			return &value
+		}(),
+		EstimateBaselineEventID: func() *int {
+			value := 10
+			return &value
+		}(),
+		EstimateLatestEventID: &monthlyLatestEventID,
+		EstimatedLimitUSD:     &previousLimit,
+		EstimatedCostUSD:      &previousCost,
+	}
+	monthlyCurrentUsed := 50.0
+	monthlyCurrent := &objects.CPAQuotaItem{
+		ID:                          "monthly",
+		UsedPercent:                 &monthlyCurrentUsed,
+		ResetAt:                     &resetAt,
+		PeriodSeconds:               &monthlyPeriod,
+		EstimateCollectorSessionID:  "collector-a",
+		EstimateBaselineUsedPercent: &monthlyBaseline,
+		EstimateBaselineEventID: func() *int {
+			value := 10
+			return &value
+		}(),
+		EstimateLatestEventID: &monthlyLatestEventID,
+	}
+	carryForwardCodexQuotaEstimate(monthlyCurrent, monthlyPrevious, "collector-a", false)
+	require.Equal(t, previousLimit, *monthlyCurrent.EstimatedLimitUSD)
+
+	monthlyCurrent = &objects.CPAQuotaItem{
+		ID:                          "monthly",
+		UsedPercent:                 &monthlyCurrentUsed,
+		ResetAt:                     &resetAt,
+		PeriodSeconds:               &monthlyPeriod,
+		EstimateCollectorSessionID:  "collector-a",
+		EstimateBaselineUsedPercent: &monthlyBaseline,
+		EstimateBaselineEventID: func() *int {
+			value := 10
+			return &value
+		}(),
+		EstimateLatestEventID: &monthlyLatestEventID,
+	}
+	carryForwardCodexQuotaEstimate(monthlyCurrent, monthlyPrevious, "collector-a", true)
+	require.Nil(t, monthlyCurrent.EstimatedLimitUSD)
+}
+
+func TestApplyQuotaEstimateDoesNotEraseCompatibleEstimate(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_estimate_preserve?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	resetAt := time.Date(2026, 9, 7, 3, 42, 28, 0, time.UTC)
+	period := cpaWeeklyPeriodSeconds
+	baselinePercent := 20.0
+	latestPercent := 50.0
+	baselineEventID := 10
+	latestEventID := 20
+	observed := objects.CPAQuotaObserved{
+		SecondaryCollectorSessionID:  "collector-a",
+		SecondaryBaselineUsedPercent: &baselinePercent,
+		SecondaryBaselineEventID:     &baselineEventID,
+		SecondaryUsedPercent:         &latestPercent,
+		SecondaryLatestEventID:       &latestEventID,
+		SecondaryResetAt:             &resetAt,
+	}
+	previousLimit := 100.0
+	previousCost := 40.0
+	instance := client.CPAInstance.Create().
+		SetName("preserve estimate").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		SetEnabled(true).
+		SetUsageStreamEnabled(true).
+		SetUsageCollectorID("collector-a").
+		SaveX(ctx)
+	credential := client.CPACredential.Create().
+		SetCpaInstanceID(instance.ID).
+		SetExternalKey("credential-1").
+		SetAuthIndex("auth-1").
+		SetRemoteName("codex.json").
+		SetDisplayName("codex.json").
+		SetProvider("codex").
+		SetQuotaState(string(objects.CPAQuotaStateSuccess)).
+		SetQuotaObserved(observed).
+		SetQuotaData(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
+			ID:                          "weekly",
+			ResetAt:                     &resetAt,
+			PeriodSeconds:               &period,
+			EstimateCollectorSessionID:  "collector-a",
+			EstimateBaselineUsedPercent: &baselinePercent,
+			EstimateBaselineEventID:     &baselineEventID,
+			EstimateLatestEventID:       &latestEventID,
+			EstimatedLimitUSD:           &previousLimit,
+			EstimatedCostUSD:            &previousCost,
+			EstimateSource:              "precise-header-delta",
+		}}}).
+		SaveX(ctx)
+
+	svc := newCPAServiceForTest(client, time.Now)
+	svc.usageCollectors = map[int]*usageCollectorWorker{
+		instance.ID: {
+			target:  usageCollectorTarget{instanceID: instance.ID, collectorID: "collector-a"},
+			session: newUsageCollectorSession("collector-a", map[string]int{"auth-1": latestEventID}),
+			done:    make(chan struct{}),
+		},
+	}
+	loaded := client.CPACredential.GetX(ctx, credential.ID)
+	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
+		ID:            "weekly",
+		UsedPercent:   &latestPercent,
+		ResetAt:       &resetAt,
+		PeriodSeconds: &period,
+	}}}
+	svc.applyQuotaEstimate(ctx, loaded, &snapshot)
+	require.Equal(t, previousLimit, *snapshot.Items[0].EstimatedLimitUSD)
+	require.Equal(t, previousCost, *snapshot.Items[0].EstimatedCostUSD)
+	require.Equal(t, "precise-header-delta", snapshot.Items[0].EstimateSource)
 }
 
 func TestComputeCPAAggregateCostUnpricedModel(t *testing.T) {

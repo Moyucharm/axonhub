@@ -209,6 +209,7 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetName(config.name).
 			SetBaseURL(config.baseURL).
 			SetEncryptedSecret(encryptedSecret).
+			SetUsageCollectorID(newCPAUsageCollectorID()).
 			SetEnabled(config.enabled).
 			SetInsecureSkipTLS(config.insecureSkipTLS).
 			SetAutoRefreshEnabled(config.autoRefreshEnabled).
@@ -286,6 +287,11 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 	}
 
 	now := svc.now()
+	collectorIdentityChanged := shouldRotateCPAUsageCollector(current, config, connectionChanged)
+	collectorID := ""
+	if collectorIdentityChanged {
+		collectorID = newCPAUsageCollectorID()
+	}
 	var updated *ent.CPAInstance
 	err = svc.withCPAInstanceWriteRetry(ctx, id, func() error {
 		return svc.RunInTransaction(ctx, func(txCtx context.Context) error {
@@ -301,6 +307,9 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 				SetUsageStreamEnabled(config.usageStreamEnabled).
 				SetEnabledPatrolIntervalMinutes(config.enabledPatrolInterval).
 				SetDisabledPatrolIntervalMinutes(config.disabledPatrolInterval)
+			if collectorIdentityChanged {
+				builder.SetUsageCollectorID(collectorID)
+			}
 			if !config.enabled || !config.autoRefreshEnabled {
 				builder.ClearNextRefreshAt()
 			} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {

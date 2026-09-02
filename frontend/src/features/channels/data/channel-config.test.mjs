@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dataDir = import.meta.dirname;
@@ -27,36 +27,38 @@ test('Cline is available as a channel type in frontend schemas and configs', () 
   assert.match(providersConfig, /cline:\s*{[\s\S]*channelTypes:\s*\[\s*'cline'\s*\]/, 'PROVIDER_CONFIGS should expose a Cline provider');
 });
 
-test('Qiniu exposes OpenAI and Anthropic channel variants', () => {
+test('Qiniu and Fenno ad channel types are removed', () => {
   const schema = read('features/channels/data/schema.ts');
   const channelsConfig = read('features/channels/data/config_channels.ts');
   const providersConfig = read('features/channels/data/config_providers.ts');
+  const en = parseLocale('en');
+  const zh = parseLocale('zh-CN');
 
-  assert.match(schema, /channelTypeSchema[\s\S]*'qiniu'[\s\S]*'qiniu_anthropic'/);
-  assert.match(channelsConfig, /qiniu:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.qnaigc\.com\/v1'[\s\S]*apiFormat:\s*OPENAI_CHAT_COMPLETIONS/);
-  assert.match(channelsConfig, /qiniu_anthropic:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.qnaigc\.com'[\s\S]*apiFormat:\s*ANTHROPIC_MESSAGES/);
-  assert.match(providersConfig, /qiniu:\s*{[\s\S]*channelTypes:\s*\[\s*'qiniu_anthropic',\s*'qiniu'\s*\]/);
-  // AtlasCloud was removed: it must not reappear as a channel or provider.
+  for (const removedType of ["'qiniu'", "'qiniu_anthropic'", "'fenno'"]) {
+    assert.ok(!schema.includes(removedType), `${removedType} must stay out of the frontend channel schema`);
+  }
+  assert.doesNotMatch(channelsConfig, /qiniu|fenno/);
+  assert.doesNotMatch(providersConfig, /qiniu|fenno/);
+  assert.doesNotMatch(en['channels.dialogs.bulkImport.supportedTypes'], /qiniu|fenno/);
+  assert.doesNotMatch(zh['channels.dialogs.bulkImport.supportedTypes'], /qiniu|fenno/);
+  for (const messages of [en, zh]) {
+    assert.equal(messages['channels.types.qiniu'], undefined);
+    assert.equal(messages['channels.types.qiniu_anthropic'], undefined);
+    assert.equal(messages['channels.types.fenno'], undefined);
+    assert.equal(messages['channels.providers.qiniu'], undefined);
+    assert.equal(messages['channels.providers.fenno'], undefined);
+  }
+
+  assert.match(channelsConfig, /openai:\s*{[\s\S]*apiFormat:\s*OPENAI_CHAT_COMPLETIONS/);
+  assert.match(channelsConfig, /openai_responses:\s*{[\s\S]*apiFormat:\s*OPENAI_RESPONSES/);
+  assert.match(channelsConfig, /anthropic:\s*{[\s\S]*apiFormat:\s*ANTHROPIC_MESSAGES/);
+  assert.match(providersConfig, /openai:\s*{[\s\S]*channelTypes:\s*\[\s*'openai',\s*'openai_responses'\s*\]/);
+  assert.match(providersConfig, /anthropic:\s*{[\s\S]*channelTypes:\s*\[\s*'anthropic',/);
+
+  // AtlasCloud remains removed from the selectable frontend types as well.
   assert.ok(!channelsConfig.includes('atlascloud:'), 'atlascloud channel must stay removed');
   assert.ok(!providersConfig.includes('atlascloud:'), 'atlascloud provider must stay removed');
   assert.ok(!schema.includes("'atlascloud'"), 'atlascloud channel type must stay removed');
-});
-
-test('Fenno exposes a third-party Codex channel', () => {
-  const schema = read('features/channels/data/schema.ts');
-  const channelsConfig = read('features/channels/data/config_channels.ts');
-  const providersConfig = read('features/channels/data/config_providers.ts');
-
-  assert.match(schema, /channelTypeSchema[\s\S]*'fenno'/);
-  assert.match(channelsConfig, /fenno:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.fenno\.ai'[\s\S]*apiFormat:\s*OPENAI_RESPONSES[\s\S]*icon:\s*FennoIcon/);
-  assert.match(channelsConfig, /fenno:\s*{[\s\S]*color:\s*'bg-\[#EEF2FF\] text-\[#3155C6\] border-\[#C7D2FE\]'/);
-  assert.match(providersConfig, /fenno:\s*{[\s\S]*icon:\s*FennoIcon[\s\S]*channelTypes:\s*\[\s*'fenno'\s*\]/);
-  const fennoIcon = read('features/channels/components/fenno-icon.tsx');
-  assert.match(fennoIcon, /@\/assets\/fenno-icon\.webp/);
-  assert.doesNotMatch(fennoIcon, /https?:\/\//);
-  assert.ok(existsSync(join(srcRoot, 'assets/fenno-icon.webp')));
-  assert.ok(channelsConfig.indexOf('qiniu_anthropic:') < channelsConfig.indexOf('fenno:'));
-  assert.ok(providersConfig.indexOf('qiniu:') < providersConfig.indexOf('fenno:'));
 });
 
 

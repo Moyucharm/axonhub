@@ -178,18 +178,45 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - 创建 git tag `v1.0.0-beta8+azusa.v0.3` 并推送，触发镜像构建；自用 Docker 镜像通过 `docker-selfhosted.yml`（`workflow_dispatch`）在 `自用` 分支触发，镜像 tag 为 `v1.0.0-beta8_azusa.v0.3`。
 - 上游最新发行版仍为 `v1.0.0-beta7`（beta8 尚未发布），故发行基线不变、仅递增增强号。
 
+### 3.8 清理 Qiniu/Fenno 广告渠道
+
+上游 #2188 将 Qiniu 与 Fenno 作为可选渠道带入本分支，但它们属于本分支不保留的广告渠道。此次清理覆盖 Ent/GraphQL enum、前端创建列表/provider 配置、批量导入提示、双语文案、Fenno 图标资源和后端专用 transformer/model fallback；不删除用户已有的渠道行或凭据。
+
+旧类型在启动时于 Ent schema migration 之前自动归一化，并在备份恢复（新建与覆盖同名渠道）时使用相同映射：
+
+| 旧值 | 通用类型 | 实际协议 |
+|---|---|---|
+| `qiniu` | `openai` | OpenAI 兼容 / Chat Completions |
+| `qiniu_anthropic` | `anthropic` | Anthropic Messages |
+| `fenno` | `openai_responses` | OpenAI Responses |
+| `atlascloud` | `openai` | 既有 legacy 兼容规则 |
+
+迁移只改写渠道类型，保留 `base_url`、凭据、模型、设置、标签、备注和自定义 endpoints。无自定义 endpoints 的渠道按新通用类型解析默认能力；Fenno 不再使用第三方 Codex 专用 transformer，而使用标准 OpenAI Responses transformer。对应 API 参考文档中的 Fenno 示例也已移除。版本号、tag 和发布基线不因本次工作树清理单独变更。
+
+### 3.9 CPA 额度估算跨服务重启保持连续
+
+修复 Codex CPA 额度金额估算在 AxonHub/air 重启后丢失的问题。原实现每次启动生成随机 collector session，首条新 usage event 会覆盖旧 baseline，后续 quota refresh 又会把没有 `estimated_*` 字段的新快照写回 `quota_data`。
+
+- `CPAInstance` 新增内部 `usage_collector_id`，同一数据库中的同一 CPA 实例跨服务重启和 worker 重建复用稳定 identity；旧实例启动时幂等回填，并尽可能采用已有唯一的旧 observation identity。
+- collector 启动从 `cpa_usage_events` 按 `auth_index` 恢复最新 event ID，月度 refresh 不再因内存 checkpoint 从 0 开始而重建错误 baseline。
+- `Secondary*` 与 `EstimateCollectorSessionID` 的历史 JSON key 保持不变，但语义改为稳定的本地 collector identity；真实 reset、百分比回退、连接来源变化或 usage stream ownership 切换仍会重新建基线。
+- 同窗口、同 reset、同 identity 且没有新区间结果时保留最后一次有效估算；跨周期或跨 ownership 边界不保留旧金额，不放宽 3% 本地区间与定价覆盖率保护。
+- 不改 GraphQL 契约，不把完整 quota response headers 写入 usage event；当前已被旧实现覆盖的历史估算只能从覆盖前备份恢复。
+
+对应决策记录：[CPA 额度估算跨服务重启保持连续](.agent/notes/implemented/bug-fix/2026-09-02-cpa-estimate-survives-restart.md)。本次仅修复行为与持久化兼容，不单独修改版本号、tag 或发布基线。
+
 ## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的本次跟进内容与升级参考
 
 本次合并前 `自用` HEAD 为 `a731dac1`；官方最新发行版仍是 `v1.0.0-beta7`（`b4d1fd04`），而 `upstream-tmp/unstable` 为 `a037c0bf`，相对 beta7 包含 **62 个未发行提交**。本次跟进属于主人明确批准的 unstable 例外。本次合并涉及的主要功能：
 
-- **渠道**：qiniu/fenno 渠道类型（#2188）、unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、渠道级 `downgradeMidConversationSystem` 开关（#2124）。
+- **渠道**：上游 #2188 曾引入 qiniu/fenno 渠道类型；本分支已在 3.8 节清理其可选入口并保留协议迁移。另包含 unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、渠道级 `downgradeMidConversationSystem` 开关（#2124）。
 - **请求链路**：SSE keep alive（#2157）、请求日志表重设计（#2162）、请求日志记录 reasoning_effort（#2158）、请求体「对话阅览」模式（#2182）、request cache rate 展示（#2193）、SQLite TEXT 时间戳兼容与 backup 时区修复（#2189）、失败流/stream 系列修复（#2171/#2178/#2185/#2187/#2192/#2057）。
 - **前端体验**：模型价格对话框虚拟化（#2163）、analytics 筛选 UX 对齐（#2154）。
 - 其余为 fix/chore（#2155/#2172/#2176/#2177/#2190/#2191/#2194；完整清单见附录 B）。
 
 ### ✅ 合并后的冲突决策记录
 
-本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型并入渠道 enum（注意：enum 冲突整体采纳上游时曾把自用已移除的 `atlascloud` 一并带回，详见 3.4/3.5 节，现已再次移除）。旧渠道级 `settings.providerQuota` 配置按 beta9 安全迁移删除（仅渠道级字段；全局 `provider_quota` 配置与 ProviderQuotaStatus/CPA 功能不受影响，详见 3.6 节），且迁移经一次性完成标记防止重复执行（详见 3.5 节）。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
+本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型曾并入渠道 enum，但本分支已按 3.8 节清理可选类型，并保留旧值到通用协议类型的迁移；enum 冲突整体采纳上游时曾把自用已移除的 `atlascloud` 一并带回，详见 3.4/3.5 节，现已再次移除。旧渠道级 `settings.providerQuota` 配置按 beta9 安全迁移删除（仅渠道级字段；全局 `provider_quota` 配置与 ProviderQuotaStatus/CPA 功能不受影响，详见 3.6 节），且迁移经一次性完成标记防止重复执行（详见 3.5 节）。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
 
 ## 5. 版本号约定与基准规则
 

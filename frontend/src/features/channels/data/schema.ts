@@ -60,9 +60,6 @@ export type ChannelEndpoint = z.infer<typeof channelEndpointSchema>;
 export const channelTypeSchema = z.enum([
   'openai',
   'openai_responses',
-  'qiniu',
-  'qiniu_anthropic',
-  'fenno',
   'cline',
   'codex',
   'anthropic',

@@ -1,19 +1,20 @@
 import { memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { QuotaWindowItem, QuotaWindowKind } from '@/lib/quota-types';
+import { pickPrimaryQuotaWindow, formatQuotaUSD } from '@/lib/quota-types';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { QuotaWindowItem, QuotaWindowKind } from '@/lib/quota-types';
-import { pickPrimaryQuotaWindow, formatQuotaUSD } from '@/lib/quota-types';
 
-// Estimate badge rendered behind the quota bar: "≈ $100". Only present when a
-// backend attaches estimatedLimitUSD (currently CPA codex weekly windows).
+// Estimate badge rendered to the right of the quota bar capsule: "≈ $100".
+// Only present when a backend attaches estimatedLimitUSD (currently CPA codex
+// weekly windows).
 const EstimateBadge = memo(function EstimateBadge({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
   if (window.estimatedLimitUSD == null) return null;
   return (
     <span
       className={cn(
-        'text-emerald-600 shrink-0 rounded-full border border-emerald-300/70 bg-emerald-100/60 px-1.5 font-semibold tabular-nums dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
+        'shrink-0 rounded-full border border-emerald-300/70 bg-emerald-100/60 px-1.5 font-semibold text-emerald-600 tabular-nums dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
         size === 'sm' ? 'text-[9px]' : 'text-[10px]'
       )}
       title={window.estimatedCostUSD != null ? `≈ ${formatQuotaUSD(window.estimatedCostUSD)} used` : undefined}
@@ -67,14 +68,10 @@ function severityGradient(percent: number): string {
 
 // Period chip tones per window kind (dark-mode aware).
 const CHIP_TONES: Record<Exclude<QuotaWindowKind, 'other'>, string> = {
-  weekly:
-    'border-sky-300/70 bg-sky-100/80 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300',
-  monthly:
-    'border-violet-300/70 bg-violet-100/80 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300',
-  daily:
-    'border-teal-300/70 bg-teal-100/80 text-teal-700 dark:border-teal-400/30 dark:bg-teal-400/10 dark:text-teal-300',
-  hourly:
-    'border-amber-300/70 bg-amber-100/80 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300',
+  weekly: 'border-sky-300/70 bg-sky-100/80 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300',
+  monthly: 'border-violet-300/70 bg-violet-100/80 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300',
+  daily: 'border-teal-300/70 bg-teal-100/80 text-teal-700 dark:border-teal-400/30 dark:bg-teal-400/10 dark:text-teal-300',
+  hourly: 'border-amber-300/70 bg-amber-100/80 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300',
 };
 
 const CapsuleTrack = memo(function CapsuleTrack({ used, size = 'md' }: { used: number; size?: CapsuleSize }) {
@@ -104,10 +101,7 @@ const CapsuleBar = memo(function CapsuleBar({ window, size = 'md' }: { window: Q
         </span>
       )}
       <CapsuleTrack used={used} size={size} />
-      <span
-        className={`font-semibold tabular-nums ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`}
-        style={{ color: severityColor(used) }}
-      >
+      <span className={`font-semibold tabular-nums ${size === 'sm' ? 'text-[10px]' : 'text-xs'}`} style={{ color: severityColor(used) }}>
         {t('quota.capsule.percent', { percent: remaining })}
       </span>
     </>
@@ -150,10 +144,15 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
 export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
   return (
     <CapsuleTooltip window={window}>
-      <div
-        className={cn('flex w-full items-center gap-1.5 rounded-full border bg-muted/40 px-1.5 transition-colors hover:bg-muted/60', size === 'sm' ? 'h-7' : 'h-8')}
-      >
-        <CapsuleBar window={window} size={size} />
+      <div className={cn('flex w-max min-w-full items-center gap-1.5', size === 'sm' ? 'min-w-52' : undefined)}>
+        <div
+          className={cn(
+            'bg-muted/40 hover:bg-muted/60 flex shrink-0 items-center gap-1.5 rounded-full border px-1.5 transition-colors',
+            size === 'sm' ? 'h-7 w-52' : 'h-8 w-full'
+          )}
+        >
+          <CapsuleBar window={window} size={size} />
+        </div>
         <EstimateBadge window={window} size={size} />
       </div>
     </CapsuleTooltip>
@@ -187,7 +186,7 @@ export function QuotaMorePopover({
     <Popover modal={false}>
       {trigger}
       <PopoverContent className='w-[min(28rem,calc(100vw-2rem))]' align='start' side='top'>
-        <div className='space-y-2'>
+        <div className='space-y-2 overflow-x-auto'>
           <div className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>{t('quota.capsule.more')}</div>
           {windows.map((window) => (
             <QuotaCapsuleRow key={window.id} window={window} size={size} />
@@ -205,11 +204,9 @@ export function QuotaMorePopover({
 function QuotaCapsuleRow({ window, size }: { window: QuotaWindowItem; size: CapsuleSize }) {
   const { t } = useTranslation();
   return (
-    <div className='grid grid-cols-[minmax(0,1fr)_13rem] items-center gap-2'>
-      <span className='min-w-0 break-words text-left text-xs font-medium'>
-        {windowFullName(window, t)}
-      </span>
-      <span className='w-52 min-w-0'>
+    <div className='grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-2'>
+      <span className='min-w-0 text-left text-xs font-medium break-words'>{windowFullName(window, t)}</span>
+      <span className='w-max min-w-52'>
         <QuotaCapsule window={window} size={size} />
       </span>
     </div>
@@ -223,8 +220,8 @@ export function QuotaWindowsBlock({ windows }: { windows: QuotaWindowItem[] }) {
   if (!primary) {
     return (
       <div
-        data-testid="quota-capsule"
-        className='text-muted-foreground flex h-8 w-full items-center justify-center rounded-full border bg-muted/40 text-sm'
+        data-testid='quota-capsule'
+        className='text-muted-foreground bg-muted/40 flex h-8 w-full items-center justify-center rounded-full border text-sm'
       >
         {t('quota.capsule.empty')}
       </div>
@@ -235,23 +232,26 @@ export function QuotaWindowsBlock({ windows }: { windows: QuotaWindowItem[] }) {
 
   if (rest.length === 0) {
     return (
-      <div data-testid="quota-capsule">
+      <div data-testid='quota-capsule'>
         <QuotaCapsule window={primary} />
       </div>
     );
   }
 
   return (
-    <div data-testid="quota-capsule">
+    <div data-testid='quota-capsule'>
       <QuotaMorePopover windows={rest} tooltipWindow={primary}>
         <button
           type='button'
-          data-testid="quota-capsule-more"
+          data-testid='quota-capsule-more'
           aria-label={t('quota.capsule.more')}
-          className='hover:bg-muted/60 flex h-8 w-full items-center gap-1.5 rounded-full border bg-muted/40 px-1.5 transition-colors'
+          className='group flex w-max min-w-full items-center gap-1.5 border-0 bg-transparent p-0'
         >
-          <CapsuleBar window={primary} />
-          <span className='text-muted-foreground text-[10px] font-semibold tabular-nums'>+{rest.length}</span>
+          <span className='group-hover:bg-muted/60 bg-muted/40 flex h-8 w-full shrink-0 items-center gap-1.5 rounded-full border px-1.5 transition-colors'>
+            <CapsuleBar window={primary} />
+            <span className='text-muted-foreground text-[10px] font-semibold tabular-nums'>+{rest.length}</span>
+          </span>
+          <EstimateBadge window={primary} />
         </button>
       </QuotaMorePopover>
     </div>

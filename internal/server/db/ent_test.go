@@ -40,11 +40,27 @@ func TestMigrateLegacyChannelTypes(t *testing.T) {
 	)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO channels (id, type, name, base_url) VALUES
-		(1, 'atlascloud', 'legacy', 'https://api.atlascloud.ai/v1'),
-		(2, 'openai', 'existing', 'https://api.openai.com/v1')
-	`); err != nil {
-		t.Fatal(err)
+
+	tests := []struct {
+		id       int
+		input    string
+		expected string
+		name     string
+		baseURL  string
+	}{
+		{id: 1, input: "atlascloud", expected: "openai", name: "legacy-atlascloud", baseURL: "https://api.atlascloud.ai/v1"},
+		{id: 2, input: "qiniu", expected: "openai", name: "legacy-qiniu", baseURL: "https://api.qnaigc.com/v1"},
+		{id: 3, input: "qiniu_anthropic", expected: "anthropic", name: "legacy-qiniu-anthropic", baseURL: "https://api.qnaigc.com"},
+		{id: 4, input: "fenno", expected: "openai_responses", name: "legacy-fenno", baseURL: "https://api.fenno.ai"},
+		{id: 5, input: "openai", expected: "openai", name: "existing", baseURL: "https://api.openai.com/v1"},
+	}
+	for _, tt := range tests {
+		if _, err := db.Exec(
+			`INSERT INTO channels (id, type, name, base_url) VALUES (?, ?, ?, ?)`,
+			tt.id, tt.input, tt.name, tt.baseURL,
+		); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	ctx := context.Background()
@@ -55,40 +71,66 @@ func TestMigrateLegacyChannelTypes(t *testing.T) {
 		t.Fatalf("second migrateLegacyChannelTypes() error = %v", err)
 	}
 
-	var channelType, name, baseURL string
-	if err := db.QueryRow(`SELECT type, name, base_url FROM channels WHERE id = 1`).Scan(&channelType, &name, &baseURL); err != nil {
-		t.Fatal(err)
-	}
-	if channelType != "openai" {
-		t.Fatalf("legacy channel type = %q, want %q", channelType, "openai")
-	}
-	if name != "legacy" || baseURL != "https://api.atlascloud.ai/v1" {
-		t.Fatalf("legacy channel configuration changed: name=%q base_url=%q", name, baseURL)
-	}
-
-	if err := db.QueryRow(`SELECT type FROM channels WHERE id = 2`).Scan(&channelType); err != nil {
-		t.Fatal(err)
-	}
-	if channelType != "openai" {
-		t.Fatalf("existing OpenAI channel type = %q, want %q", channelType, "openai")
+	for _, tt := range tests {
+		var channelType, name, baseURL string
+		if err := db.QueryRow(`SELECT type, name, base_url FROM channels WHERE id = ?`, tt.id).Scan(&channelType, &name, &baseURL); err != nil {
+			t.Fatal(err)
+		}
+		if channelType != tt.expected {
+			t.Fatalf("channel %q type = %q, want %q", tt.name, channelType, tt.expected)
+		}
+		if name != tt.name || baseURL != tt.baseURL {
+			t.Fatalf("channel %q configuration changed: name=%q base_url=%q", tt.name, name, baseURL)
+		}
 	}
 }
 
-func TestNewEntClientMigratesLegacyChannelTypeBeforeSchemaMigration(t *testing.T) {
+func TestNewEntClientMigratesLegacyChannelTypesBeforeSchemaMigration(t *testing.T) {
 	dsn := "file:" + filepath.Join(t.TempDir(), "legacy-channel.db") + "?_fk=0"
 	client := NewEntClient(Config{Dialect: "sqlite3", DSN: dsn})
 	ctx := authz.WithTestBypass(context.Background())
-	created, err := client.Channel.Create().
-		SetType(channel.TypeOpenai).
-		SetName("legacy-official-channel").
-		SetBaseURL("https://api.atlascloud.ai/v1").
-		SetCredentials(objects.ChannelCredentials{APIKey: "legacy-key"}).
-		SetSupportedModels([]string{"deepseek-v3"}).
-		SetDefaultTestModel("deepseek-v3").
-		Save(ctx)
-	if err != nil {
-		client.Close()
-		t.Fatal(err)
+
+	tests := []struct {
+		name       string
+		seededType channel.Type
+		legacyType string
+		expected   channel.Type
+	}{
+		{name: "legacy-atlascloud", seededType: channel.TypeOpenai, legacyType: "atlascloud", expected: channel.TypeOpenai},
+		{name: "legacy-qiniu", seededType: channel.TypeOpenai, legacyType: "qiniu", expected: channel.TypeOpenai},
+		{name: "legacy-qiniu-anthropic", seededType: channel.TypeAnthropic, legacyType: "qiniu_anthropic", expected: channel.TypeAnthropic},
+		{name: "legacy-fenno", seededType: channel.TypeOpenaiResponses, legacyType: "fenno", expected: channel.TypeOpenaiResponses},
+	}
+	created := make([]struct {
+		id         int
+		name       string
+		legacyType string
+		expected   channel.Type
+	}, 0, len(tests))
+	for _, tt := range tests {
+		createdChannel, err := client.Channel.Create().
+			SetType(tt.seededType).
+			SetName(tt.name).
+			SetBaseURL("https://api.example.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "legacy-key"}).
+			SetSupportedModels([]string{"test-model"}).
+			SetDefaultTestModel("test-model").
+			Save(ctx)
+		if err != nil {
+			client.Close()
+			t.Fatal(err)
+		}
+		created = append(created, struct {
+			id         int
+			name       string
+			legacyType string
+			expected   channel.Type
+		}{
+			id:         createdChannel.ID,
+			name:       tt.name,
+			legacyType: tt.legacyType,
+			expected:   tt.expected,
+		})
 	}
 	if err := client.Close(); err != nil {
 		t.Fatal(err)
@@ -98,9 +140,11 @@ func TestNewEntClientMigratesLegacyChannelTypeBeforeSchemaMigration(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rawDB.Exec(`UPDATE channels SET type = 'atlascloud' WHERE id = ?`, created.ID); err != nil {
-		rawDB.Close()
-		t.Fatal(err)
+	for _, tt := range created {
+		if _, err := rawDB.Exec(`UPDATE channels SET type = ? WHERE id = ?`, tt.legacyType, tt.id); err != nil {
+			rawDB.Close()
+			t.Fatal(err)
+		}
 	}
 	if err := rawDB.Close(); err != nil {
 		t.Fatal(err)
@@ -108,18 +152,20 @@ func TestNewEntClientMigratesLegacyChannelTypeBeforeSchemaMigration(t *testing.T
 
 	migratedClient := NewEntClient(Config{Dialect: "sqlite3", DSN: dsn})
 	defer migratedClient.Close()
-	migrated, err := migratedClient.Channel.Get(ctx, created.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if migrated.Type != channel.TypeOpenai {
-		t.Fatalf("migrated channel type = %q, want %q", migrated.Type, channel.TypeOpenai)
-	}
-	if migrated.BaseURL != "https://api.atlascloud.ai/v1" || migrated.Credentials.APIKey != "legacy-key" {
-		t.Fatalf("migrated channel configuration changed: base_url=%q api_key=%q", migrated.BaseURL, migrated.Credentials.APIKey)
-	}
-	if len(migrated.SupportedModels) != 1 || migrated.SupportedModels[0] != "deepseek-v3" {
-		t.Fatalf("migrated supported models = %v, want [deepseek-v3]", migrated.SupportedModels)
+	for _, tt := range created {
+		migrated, err := migratedClient.Channel.Get(ctx, tt.id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if migrated.Type != tt.expected {
+			t.Fatalf("migrated channel %q type = %q, want %q", tt.name, migrated.Type, tt.expected)
+		}
+		if migrated.BaseURL != "https://api.example.com/v1" || migrated.Credentials.APIKey != "legacy-key" {
+			t.Fatalf("migrated channel %q configuration changed: base_url=%q api_key=%q", tt.name, migrated.BaseURL, migrated.Credentials.APIKey)
+		}
+		if len(migrated.SupportedModels) != 1 || migrated.SupportedModels[0] != "test-model" {
+			t.Fatalf("migrated channel %q supported models = %v, want [test-model]", tt.name, migrated.SupportedModels)
+		}
 	}
 }
 

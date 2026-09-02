@@ -215,6 +215,42 @@ func (repository *cpaUsageRepository) invalidateCredentialCache(instanceID int) 
 	repository.cacheMu.Unlock()
 }
 
+func (repository *cpaUsageRepository) latestPersistedEventIDs(ctx context.Context, instanceID int) (map[string]int, error) {
+	if repository == nil {
+		return map[string]int{}, nil
+	}
+	type usageEventCheckpoint struct {
+		AuthIndex     string `json:"auth_index"`
+		LatestEventID int    `json:"latest_event_id"`
+	}
+	var rows []usageEventCheckpoint
+	err := repository.entFromContext(ctx).CpaUsageEvent.Query().
+		Where(cpausageevent.CpaInstanceIDEQ(instanceID)).
+		GroupBy(cpausageevent.FieldAuthIndex).
+		Aggregate(ent.As(ent.Max(cpausageevent.FieldID), "latest_event_id")).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("query latest CPA usage event IDs: %w", err)
+	}
+	result := make(map[string]int, len(rows))
+	for _, row := range rows {
+		authIndex := strings.TrimSpace(row.AuthIndex)
+		if authIndex == "" || row.LatestEventID <= 0 {
+			continue
+		}
+		result[authIndex] = row.LatestEventID
+	}
+	return result, nil
+}
+
+func (repository *cpaUsageRepository) latestPersistedEventID(ctx context.Context, instanceID int, authIndex string) (int, error) {
+	checkpoints, err := repository.latestPersistedEventIDs(ctx, instanceID)
+	if err != nil {
+		return 0, err
+	}
+	return checkpoints[strings.TrimSpace(authIndex)], nil
+}
+
 func (repository *cpaUsageRepository) observedState(credentialID int) usageObservedState {
 	repository.cacheMu.Lock()
 	defer repository.cacheMu.Unlock()

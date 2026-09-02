@@ -31,6 +31,9 @@ func (CPAInstance) Fields() []ent.Field {
 		// usage_stream_enabled is retained as the compatibility name for the
 		// HTTP usage-queue collector used by codex quota value estimation.
 		field.Bool("usage_stream_enabled").Default(false),
+		// usage_collector_id identifies the local collector ownership boundary and
+		// remains stable across process restarts.
+		field.String("usage_collector_id").Default(""),
 		field.Int("refresh_interval_minutes").Default(5).Min(5).Max(1440),
 		field.Time("next_refresh_at").Optional().Nillable(),
 		field.Bool("auto_manage_enabled").Default(false),
