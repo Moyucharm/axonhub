@@ -19,6 +19,7 @@ interface ServerSidePaginationProps {
   onFirstPage?: () => void;
   onPageSizeChange: (pageSize: number) => void;
   onResetCursor?: () => void;
+  testIdPrefix?: string;
 }
 
 export function ServerSidePagination({
@@ -33,6 +34,7 @@ export function ServerSidePagination({
   onFirstPage,
   onPageSizeChange,
   onResetCursor,
+  testIdPrefix,
 }: ServerSidePaginationProps) {
   const { t } = useTranslation();
   const { resetCursor } = usePaginationSearch({
@@ -56,7 +58,7 @@ export function ServerSidePagination({
               onPageSizeChange(Number(value));
             }}
           >
-            <SelectTrigger className='h-8 w-[70px]'>
+            <SelectTrigger data-testid={testIdPrefix ? `${testIdPrefix}-page-size` : undefined} className='h-8 w-[70px]'>
               <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side='top'>
@@ -79,6 +81,7 @@ export function ServerSidePagination({
         </div>
         <div className='flex items-center space-x-2'>
           <Button
+            data-testid={testIdPrefix ? `${testIdPrefix}-first` : undefined}
             variant='outline'
             className='hidden h-8 w-8 p-0 lg:flex'
             onClick={onFirstPage || onResetCursor || resetCursor}
@@ -87,11 +90,23 @@ export function ServerSidePagination({
             <span className='sr-only'>{t('pagination.firstPage')}</span>
             <DoubleArrowLeftIcon className='h-4 w-4' />
           </Button>
-          <Button variant='outline' className='h-8 w-8 p-0' onClick={onPreviousPage} disabled={!pageInfo?.hasPreviousPage}>
+          <Button
+            data-testid={testIdPrefix ? `${testIdPrefix}-previous` : undefined}
+            variant='outline'
+            className='h-8 w-8 p-0'
+            onClick={onPreviousPage}
+            disabled={!pageInfo?.hasPreviousPage}
+          >
             <span className='sr-only'>{t('pagination.previousPage')}</span>
             <ChevronLeftIcon className='h-4 w-4' />
           </Button>
-          <Button variant='outline' className='h-8 w-8 p-0' onClick={onNextPage} disabled={!pageInfo?.hasNextPage}>
+          <Button
+            data-testid={testIdPrefix ? `${testIdPrefix}-next` : undefined}
+            variant='outline'
+            className='h-8 w-8 p-0'
+            onClick={onNextPage}
+            disabled={!pageInfo?.hasNextPage}
+          >
             <span className='sr-only'>{t('pagination.nextPage')}</span>
             <ChevronRightIcon className='h-4 w-4' />
           </Button>

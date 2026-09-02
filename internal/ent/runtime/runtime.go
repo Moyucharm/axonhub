@@ -254,8 +254,16 @@ func init() {
 	cpacredentialDescQuotaLastError := cpacredentialFields[27].Descriptor()
 	// cpacredential.DefaultQuotaLastError holds the default value on creation for the quota_last_error field.
 	cpacredential.DefaultQuotaLastError = cpacredentialDescQuotaLastError.Default.(string)
+	// cpacredentialDescRefreshLeaseToken is the schema descriptor for refresh_lease_token field.
+	cpacredentialDescRefreshLeaseToken := cpacredentialFields[28].Descriptor()
+	// cpacredential.DefaultRefreshLeaseToken holds the default value on creation for the refresh_lease_token field.
+	cpacredential.DefaultRefreshLeaseToken = cpacredentialDescRefreshLeaseToken.Default.(string)
+	// cpacredentialDescRefreshRevision is the schema descriptor for refresh_revision field.
+	cpacredentialDescRefreshRevision := cpacredentialFields[30].Descriptor()
+	// cpacredential.DefaultRefreshRevision holds the default value on creation for the refresh_revision field.
+	cpacredential.DefaultRefreshRevision = cpacredentialDescRefreshRevision.Default.(int)
 	// cpacredentialDescQuotaObserved is the schema descriptor for quota_observed field.
-	cpacredentialDescQuotaObserved := cpacredentialFields[28].Descriptor()
+	cpacredentialDescQuotaObserved := cpacredentialFields[31].Descriptor()
 	// cpacredential.DefaultQuotaObserved holds the default value on creation for the quota_observed field.
 	cpacredential.DefaultQuotaObserved = cpacredentialDescQuotaObserved.Default.(objects.CPAQuotaObserved)
 	cpainstanceMixin := schema.CPAInstance{}.Mixin()

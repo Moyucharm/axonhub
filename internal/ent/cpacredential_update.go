@@ -459,6 +459,61 @@ func (_u *CPACredentialUpdate) SetNillableQuotaLastError(v *string) *CPACredenti
 	return _u
 }
 
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (_u *CPACredentialUpdate) SetRefreshLeaseToken(v string) *CPACredentialUpdate {
+	_u.mutation.SetRefreshLeaseToken(v)
+	return _u
+}
+
+// SetNillableRefreshLeaseToken sets the "refresh_lease_token" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableRefreshLeaseToken(v *string) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetRefreshLeaseToken(*v)
+	}
+	return _u
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (_u *CPACredentialUpdate) SetRefreshLeaseUntil(v time.Time) *CPACredentialUpdate {
+	_u.mutation.SetRefreshLeaseUntil(v)
+	return _u
+}
+
+// SetNillableRefreshLeaseUntil sets the "refresh_lease_until" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableRefreshLeaseUntil(v *time.Time) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetRefreshLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (_u *CPACredentialUpdate) ClearRefreshLeaseUntil() *CPACredentialUpdate {
+	_u.mutation.ClearRefreshLeaseUntil()
+	return _u
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (_u *CPACredentialUpdate) SetRefreshRevision(v int) *CPACredentialUpdate {
+	_u.mutation.ResetRefreshRevision()
+	_u.mutation.SetRefreshRevision(v)
+	return _u
+}
+
+// SetNillableRefreshRevision sets the "refresh_revision" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableRefreshRevision(v *int) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetRefreshRevision(*v)
+	}
+	return _u
+}
+
+// AddRefreshRevision adds value to the "refresh_revision" field.
+func (_u *CPACredentialUpdate) AddRefreshRevision(v int) *CPACredentialUpdate {
+	_u.mutation.AddRefreshRevision(v)
+	return _u
+}
+
 // SetQuotaObserved sets the "quota_observed" field.
 func (_u *CPACredentialUpdate) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpdate {
 	_u.mutation.SetQuotaObserved(v)
@@ -671,6 +726,21 @@ func (_u *CPACredentialUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if value, ok := _u.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshLeaseToken(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshLeaseUntil(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.RefreshLeaseUntilCleared() {
+		_spec.ClearField(cpacredential.FieldRefreshLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RefreshRevision(); ok {
+		_spec.SetField(cpacredential.FieldRefreshRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRefreshRevision(); ok {
+		_spec.AddField(cpacredential.FieldRefreshRevision, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.QuotaObserved(); ok {
 		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)
@@ -1129,6 +1199,61 @@ func (_u *CPACredentialUpdateOne) SetNillableQuotaLastError(v *string) *CPACrede
 	return _u
 }
 
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (_u *CPACredentialUpdateOne) SetRefreshLeaseToken(v string) *CPACredentialUpdateOne {
+	_u.mutation.SetRefreshLeaseToken(v)
+	return _u
+}
+
+// SetNillableRefreshLeaseToken sets the "refresh_lease_token" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableRefreshLeaseToken(v *string) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetRefreshLeaseToken(*v)
+	}
+	return _u
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (_u *CPACredentialUpdateOne) SetRefreshLeaseUntil(v time.Time) *CPACredentialUpdateOne {
+	_u.mutation.SetRefreshLeaseUntil(v)
+	return _u
+}
+
+// SetNillableRefreshLeaseUntil sets the "refresh_lease_until" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableRefreshLeaseUntil(v *time.Time) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetRefreshLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (_u *CPACredentialUpdateOne) ClearRefreshLeaseUntil() *CPACredentialUpdateOne {
+	_u.mutation.ClearRefreshLeaseUntil()
+	return _u
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (_u *CPACredentialUpdateOne) SetRefreshRevision(v int) *CPACredentialUpdateOne {
+	_u.mutation.ResetRefreshRevision()
+	_u.mutation.SetRefreshRevision(v)
+	return _u
+}
+
+// SetNillableRefreshRevision sets the "refresh_revision" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableRefreshRevision(v *int) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetRefreshRevision(*v)
+	}
+	return _u
+}
+
+// AddRefreshRevision adds value to the "refresh_revision" field.
+func (_u *CPACredentialUpdateOne) AddRefreshRevision(v int) *CPACredentialUpdateOne {
+	_u.mutation.AddRefreshRevision(v)
+	return _u
+}
+
 // SetQuotaObserved sets the "quota_observed" field.
 func (_u *CPACredentialUpdateOne) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialUpdateOne {
 	_u.mutation.SetQuotaObserved(v)
@@ -1371,6 +1496,21 @@ func (_u *CPACredentialUpdateOne) sqlSave(ctx context.Context) (_node *CPACreden
 	}
 	if value, ok := _u.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshLeaseToken(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseToken, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.RefreshLeaseUntil(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.RefreshLeaseUntilCleared() {
+		_spec.ClearField(cpacredential.FieldRefreshLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RefreshRevision(); ok {
+		_spec.SetField(cpacredential.FieldRefreshRevision, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRefreshRevision(); ok {
+		_spec.AddField(cpacredential.FieldRefreshRevision, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.QuotaObserved(); ok {
 		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)

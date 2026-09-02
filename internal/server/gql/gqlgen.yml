@@ -95,6 +95,15 @@ models:
   CPAQuotaItem:
     model:
       - github.com/looplj/axonhub/internal/objects.CPAQuotaItem
+  CPAQuotaState:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAQuotaState
+  CPAConnectionStatus:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAConnectionStatus
+  CPACredentialFilterStatus:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPACredentialFilterStatus
   CPAManagedInstance:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPAInstanceView

@@ -2136,6 +2136,10 @@ type CPACredentialMutation struct {
 	quota_last_success_at       *time.Time
 	quota_last_failure_at       *time.Time
 	quota_last_error            *string
+	refresh_lease_token         *string
+	refresh_lease_until         *time.Time
+	refresh_revision            *int
+	addrefresh_revision         *int
 	quota_observed              *objects.CPAQuotaObserved
 	clearedFields               map[string]struct{}
 	cpa_instance                *int
@@ -3435,6 +3439,147 @@ func (m *CPACredentialMutation) ResetQuotaLastError() {
 	m.quota_last_error = nil
 }
 
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (m *CPACredentialMutation) SetRefreshLeaseToken(s string) {
+	m.refresh_lease_token = &s
+}
+
+// RefreshLeaseToken returns the value of the "refresh_lease_token" field in the mutation.
+func (m *CPACredentialMutation) RefreshLeaseToken() (r string, exists bool) {
+	v := m.refresh_lease_token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshLeaseToken returns the old "refresh_lease_token" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRefreshLeaseToken(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshLeaseToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshLeaseToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshLeaseToken: %w", err)
+	}
+	return oldValue.RefreshLeaseToken, nil
+}
+
+// ResetRefreshLeaseToken resets all changes to the "refresh_lease_token" field.
+func (m *CPACredentialMutation) ResetRefreshLeaseToken() {
+	m.refresh_lease_token = nil
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (m *CPACredentialMutation) SetRefreshLeaseUntil(t time.Time) {
+	m.refresh_lease_until = &t
+}
+
+// RefreshLeaseUntil returns the value of the "refresh_lease_until" field in the mutation.
+func (m *CPACredentialMutation) RefreshLeaseUntil() (r time.Time, exists bool) {
+	v := m.refresh_lease_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshLeaseUntil returns the old "refresh_lease_until" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRefreshLeaseUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshLeaseUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshLeaseUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshLeaseUntil: %w", err)
+	}
+	return oldValue.RefreshLeaseUntil, nil
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (m *CPACredentialMutation) ClearRefreshLeaseUntil() {
+	m.refresh_lease_until = nil
+	m.clearedFields[cpacredential.FieldRefreshLeaseUntil] = struct{}{}
+}
+
+// RefreshLeaseUntilCleared returns if the "refresh_lease_until" field was cleared in this mutation.
+func (m *CPACredentialMutation) RefreshLeaseUntilCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldRefreshLeaseUntil]
+	return ok
+}
+
+// ResetRefreshLeaseUntil resets all changes to the "refresh_lease_until" field.
+func (m *CPACredentialMutation) ResetRefreshLeaseUntil() {
+	m.refresh_lease_until = nil
+	delete(m.clearedFields, cpacredential.FieldRefreshLeaseUntil)
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (m *CPACredentialMutation) SetRefreshRevision(i int) {
+	m.refresh_revision = &i
+	m.addrefresh_revision = nil
+}
+
+// RefreshRevision returns the value of the "refresh_revision" field in the mutation.
+func (m *CPACredentialMutation) RefreshRevision() (r int, exists bool) {
+	v := m.refresh_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshRevision returns the old "refresh_revision" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRefreshRevision(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshRevision: %w", err)
+	}
+	return oldValue.RefreshRevision, nil
+}
+
+// AddRefreshRevision adds i to the "refresh_revision" field.
+func (m *CPACredentialMutation) AddRefreshRevision(i int) {
+	if m.addrefresh_revision != nil {
+		*m.addrefresh_revision += i
+	} else {
+		m.addrefresh_revision = &i
+	}
+}
+
+// AddedRefreshRevision returns the value that was added to the "refresh_revision" field in this mutation.
+func (m *CPACredentialMutation) AddedRefreshRevision() (r int, exists bool) {
+	v := m.addrefresh_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRefreshRevision resets all changes to the "refresh_revision" field.
+func (m *CPACredentialMutation) ResetRefreshRevision() {
+	m.refresh_revision = nil
+	m.addrefresh_revision = nil
+}
+
 // SetQuotaObserved sets the "quota_observed" field.
 func (m *CPACredentialMutation) SetQuotaObserved(oqo objects.CPAQuotaObserved) {
 	m.quota_observed = &oqo
@@ -3545,7 +3690,7 @@ func (m *CPACredentialMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPACredentialMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 34)
 	if m.created_at != nil {
 		fields = append(fields, cpacredential.FieldCreatedAt)
 	}
@@ -3636,6 +3781,15 @@ func (m *CPACredentialMutation) Fields() []string {
 	if m.quota_last_error != nil {
 		fields = append(fields, cpacredential.FieldQuotaLastError)
 	}
+	if m.refresh_lease_token != nil {
+		fields = append(fields, cpacredential.FieldRefreshLeaseToken)
+	}
+	if m.refresh_lease_until != nil {
+		fields = append(fields, cpacredential.FieldRefreshLeaseUntil)
+	}
+	if m.refresh_revision != nil {
+		fields = append(fields, cpacredential.FieldRefreshRevision)
+	}
 	if m.quota_observed != nil {
 		fields = append(fields, cpacredential.FieldQuotaObserved)
 	}
@@ -3707,6 +3861,12 @@ func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.QuotaLastFailureAt()
 	case cpacredential.FieldQuotaLastError:
 		return m.QuotaLastError()
+	case cpacredential.FieldRefreshLeaseToken:
+		return m.RefreshLeaseToken()
+	case cpacredential.FieldRefreshLeaseUntil:
+		return m.RefreshLeaseUntil()
+	case cpacredential.FieldRefreshRevision:
+		return m.RefreshRevision()
 	case cpacredential.FieldQuotaObserved:
 		return m.QuotaObserved()
 	}
@@ -3778,6 +3938,12 @@ func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldQuotaLastFailureAt(ctx)
 	case cpacredential.FieldQuotaLastError:
 		return m.OldQuotaLastError(ctx)
+	case cpacredential.FieldRefreshLeaseToken:
+		return m.OldRefreshLeaseToken(ctx)
+	case cpacredential.FieldRefreshLeaseUntil:
+		return m.OldRefreshLeaseUntil(ctx)
+	case cpacredential.FieldRefreshRevision:
+		return m.OldRefreshRevision(ctx)
 	case cpacredential.FieldQuotaObserved:
 		return m.OldQuotaObserved(ctx)
 	}
@@ -3999,6 +4165,27 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuotaLastError(v)
 		return nil
+	case cpacredential.FieldRefreshLeaseToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshLeaseToken(v)
+		return nil
+	case cpacredential.FieldRefreshLeaseUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshLeaseUntil(v)
+		return nil
+	case cpacredential.FieldRefreshRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshRevision(v)
+		return nil
 	case cpacredential.FieldQuotaObserved:
 		v, ok := value.(objects.CPAQuotaObserved)
 		if !ok {
@@ -4023,6 +4210,9 @@ func (m *CPACredentialMutation) AddedFields() []string {
 	if m.addprojection_version != nil {
 		fields = append(fields, cpacredential.FieldProjectionVersion)
 	}
+	if m.addrefresh_revision != nil {
+		fields = append(fields, cpacredential.FieldRefreshRevision)
+	}
 	return fields
 }
 
@@ -4037,6 +4227,8 @@ func (m *CPACredentialMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedPriority()
 	case cpacredential.FieldProjectionVersion:
 		return m.AddedProjectionVersion()
+	case cpacredential.FieldRefreshRevision:
+		return m.AddedRefreshRevision()
 	}
 	return nil, false
 }
@@ -4067,6 +4259,13 @@ func (m *CPACredentialMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddProjectionVersion(v)
 		return nil
+	case cpacredential.FieldRefreshRevision:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRefreshRevision(v)
+		return nil
 	}
 	return fmt.Errorf("unknown CPACredential numeric field %s", name)
 }
@@ -4086,6 +4285,9 @@ func (m *CPACredentialMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(cpacredential.FieldQuotaLastFailureAt) {
 		fields = append(fields, cpacredential.FieldQuotaLastFailureAt)
+	}
+	if m.FieldCleared(cpacredential.FieldRefreshLeaseUntil) {
+		fields = append(fields, cpacredential.FieldRefreshLeaseUntil)
 	}
 	if m.FieldCleared(cpacredential.FieldQuotaObserved) {
 		fields = append(fields, cpacredential.FieldQuotaObserved)
@@ -4115,6 +4317,9 @@ func (m *CPACredentialMutation) ClearField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaLastFailureAt:
 		m.ClearQuotaLastFailureAt()
+		return nil
+	case cpacredential.FieldRefreshLeaseUntil:
+		m.ClearRefreshLeaseUntil()
 		return nil
 	case cpacredential.FieldQuotaObserved:
 		m.ClearQuotaObserved()
@@ -4216,6 +4421,15 @@ func (m *CPACredentialMutation) ResetField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaLastError:
 		m.ResetQuotaLastError()
+		return nil
+	case cpacredential.FieldRefreshLeaseToken:
+		m.ResetRefreshLeaseToken()
+		return nil
+	case cpacredential.FieldRefreshLeaseUntil:
+		m.ResetRefreshLeaseUntil()
+		return nil
+	case cpacredential.FieldRefreshRevision:
+		m.ResetRefreshRevision()
 		return nil
 	case cpacredential.FieldQuotaObserved:
 		m.ResetQuotaObserved()

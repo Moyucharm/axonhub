@@ -127,7 +127,7 @@ func (svc *CPAService) patrolInstanceDisabled(ctx context.Context, instance *ent
 // ready to be re-enabled: the quota fetch succeeded (success or unsupported
 // counts as usable), no quota window is exhausted, and it has not expired.
 func cpaCredentialRecovered(credential *ent.CPACredential, now time.Time) bool {
-	if deriveCPAExpired(credential, now) {
+	if deriveCPAExpired(credential) {
 		return false
 	}
 	state := objects.CPAQuotaState(credential.QuotaState)

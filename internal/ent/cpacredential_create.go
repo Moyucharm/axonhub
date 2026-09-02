@@ -412,6 +412,48 @@ func (_c *CPACredentialCreate) SetNillableQuotaLastError(v *string) *CPACredenti
 	return _c
 }
 
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (_c *CPACredentialCreate) SetRefreshLeaseToken(v string) *CPACredentialCreate {
+	_c.mutation.SetRefreshLeaseToken(v)
+	return _c
+}
+
+// SetNillableRefreshLeaseToken sets the "refresh_lease_token" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableRefreshLeaseToken(v *string) *CPACredentialCreate {
+	if v != nil {
+		_c.SetRefreshLeaseToken(*v)
+	}
+	return _c
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (_c *CPACredentialCreate) SetRefreshLeaseUntil(v time.Time) *CPACredentialCreate {
+	_c.mutation.SetRefreshLeaseUntil(v)
+	return _c
+}
+
+// SetNillableRefreshLeaseUntil sets the "refresh_lease_until" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableRefreshLeaseUntil(v *time.Time) *CPACredentialCreate {
+	if v != nil {
+		_c.SetRefreshLeaseUntil(*v)
+	}
+	return _c
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (_c *CPACredentialCreate) SetRefreshRevision(v int) *CPACredentialCreate {
+	_c.mutation.SetRefreshRevision(v)
+	return _c
+}
+
+// SetNillableRefreshRevision sets the "refresh_revision" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableRefreshRevision(v *int) *CPACredentialCreate {
+	if v != nil {
+		_c.SetRefreshRevision(*v)
+	}
+	return _c
+}
+
 // SetQuotaObserved sets the "quota_observed" field.
 func (_c *CPACredentialCreate) SetQuotaObserved(v objects.CPAQuotaObserved) *CPACredentialCreate {
 	_c.mutation.SetQuotaObserved(v)
@@ -562,6 +604,14 @@ func (_c *CPACredentialCreate) defaults() error {
 		v := cpacredential.DefaultQuotaLastError
 		_c.mutation.SetQuotaLastError(v)
 	}
+	if _, ok := _c.mutation.RefreshLeaseToken(); !ok {
+		v := cpacredential.DefaultRefreshLeaseToken
+		_c.mutation.SetRefreshLeaseToken(v)
+	}
+	if _, ok := _c.mutation.RefreshRevision(); !ok {
+		v := cpacredential.DefaultRefreshRevision
+		_c.mutation.SetRefreshRevision(v)
+	}
 	if _, ok := _c.mutation.QuotaObserved(); !ok {
 		v := cpacredential.DefaultQuotaObserved
 		_c.mutation.SetQuotaObserved(v)
@@ -657,6 +707,12 @@ func (_c *CPACredentialCreate) check() error {
 	}
 	if _, ok := _c.mutation.QuotaLastError(); !ok {
 		return &ValidationError{Name: "quota_last_error", err: errors.New(`ent: missing required field "CPACredential.quota_last_error"`)}
+	}
+	if _, ok := _c.mutation.RefreshLeaseToken(); !ok {
+		return &ValidationError{Name: "refresh_lease_token", err: errors.New(`ent: missing required field "CPACredential.refresh_lease_token"`)}
+	}
+	if _, ok := _c.mutation.RefreshRevision(); !ok {
+		return &ValidationError{Name: "refresh_revision", err: errors.New(`ent: missing required field "CPACredential.refresh_revision"`)}
 	}
 	if len(_c.mutation.CpaInstanceIDs()) == 0 {
 		return &ValidationError{Name: "cpa_instance", err: errors.New(`ent: missing required edge "CPACredential.cpa_instance"`)}
@@ -803,6 +859,18 @@ func (_c *CPACredentialCreate) createSpec() (*CPACredential, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.QuotaLastError(); ok {
 		_spec.SetField(cpacredential.FieldQuotaLastError, field.TypeString, value)
 		_node.QuotaLastError = value
+	}
+	if value, ok := _c.mutation.RefreshLeaseToken(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseToken, field.TypeString, value)
+		_node.RefreshLeaseToken = value
+	}
+	if value, ok := _c.mutation.RefreshLeaseUntil(); ok {
+		_spec.SetField(cpacredential.FieldRefreshLeaseUntil, field.TypeTime, value)
+		_node.RefreshLeaseUntil = &value
+	}
+	if value, ok := _c.mutation.RefreshRevision(); ok {
+		_spec.SetField(cpacredential.FieldRefreshRevision, field.TypeInt, value)
+		_node.RefreshRevision = value
 	}
 	if value, ok := _c.mutation.QuotaObserved(); ok {
 		_spec.SetField(cpacredential.FieldQuotaObserved, field.TypeJSON, value)
@@ -1252,6 +1320,54 @@ func (u *CPACredentialUpsert) SetQuotaLastError(v string) *CPACredentialUpsert {
 // UpdateQuotaLastError sets the "quota_last_error" field to the value that was provided on create.
 func (u *CPACredentialUpsert) UpdateQuotaLastError() *CPACredentialUpsert {
 	u.SetExcluded(cpacredential.FieldQuotaLastError)
+	return u
+}
+
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (u *CPACredentialUpsert) SetRefreshLeaseToken(v string) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldRefreshLeaseToken, v)
+	return u
+}
+
+// UpdateRefreshLeaseToken sets the "refresh_lease_token" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateRefreshLeaseToken() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldRefreshLeaseToken)
+	return u
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (u *CPACredentialUpsert) SetRefreshLeaseUntil(v time.Time) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldRefreshLeaseUntil, v)
+	return u
+}
+
+// UpdateRefreshLeaseUntil sets the "refresh_lease_until" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateRefreshLeaseUntil() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldRefreshLeaseUntil)
+	return u
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (u *CPACredentialUpsert) ClearRefreshLeaseUntil() *CPACredentialUpsert {
+	u.SetNull(cpacredential.FieldRefreshLeaseUntil)
+	return u
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (u *CPACredentialUpsert) SetRefreshRevision(v int) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldRefreshRevision, v)
+	return u
+}
+
+// UpdateRefreshRevision sets the "refresh_revision" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateRefreshRevision() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldRefreshRevision)
+	return u
+}
+
+// AddRefreshRevision adds v to the "refresh_revision" field.
+func (u *CPACredentialUpsert) AddRefreshRevision(v int) *CPACredentialUpsert {
+	u.Add(cpacredential.FieldRefreshRevision, v)
 	return u
 }
 
@@ -1759,6 +1875,62 @@ func (u *CPACredentialUpsertOne) SetQuotaLastError(v string) *CPACredentialUpser
 func (u *CPACredentialUpsertOne) UpdateQuotaLastError() *CPACredentialUpsertOne {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaLastError()
+	})
+}
+
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (u *CPACredentialUpsertOne) SetRefreshLeaseToken(v string) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshLeaseToken(v)
+	})
+}
+
+// UpdateRefreshLeaseToken sets the "refresh_lease_token" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateRefreshLeaseToken() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshLeaseToken()
+	})
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (u *CPACredentialUpsertOne) SetRefreshLeaseUntil(v time.Time) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshLeaseUntil(v)
+	})
+}
+
+// UpdateRefreshLeaseUntil sets the "refresh_lease_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateRefreshLeaseUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshLeaseUntil()
+	})
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (u *CPACredentialUpsertOne) ClearRefreshLeaseUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRefreshLeaseUntil()
+	})
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (u *CPACredentialUpsertOne) SetRefreshRevision(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshRevision(v)
+	})
+}
+
+// AddRefreshRevision adds v to the "refresh_revision" field.
+func (u *CPACredentialUpsertOne) AddRefreshRevision(v int) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddRefreshRevision(v)
+	})
+}
+
+// UpdateRefreshRevision sets the "refresh_revision" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateRefreshRevision() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshRevision()
 	})
 }
 
@@ -2435,6 +2607,62 @@ func (u *CPACredentialUpsertBulk) SetQuotaLastError(v string) *CPACredentialUpse
 func (u *CPACredentialUpsertBulk) UpdateQuotaLastError() *CPACredentialUpsertBulk {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.UpdateQuotaLastError()
+	})
+}
+
+// SetRefreshLeaseToken sets the "refresh_lease_token" field.
+func (u *CPACredentialUpsertBulk) SetRefreshLeaseToken(v string) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshLeaseToken(v)
+	})
+}
+
+// UpdateRefreshLeaseToken sets the "refresh_lease_token" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateRefreshLeaseToken() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshLeaseToken()
+	})
+}
+
+// SetRefreshLeaseUntil sets the "refresh_lease_until" field.
+func (u *CPACredentialUpsertBulk) SetRefreshLeaseUntil(v time.Time) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshLeaseUntil(v)
+	})
+}
+
+// UpdateRefreshLeaseUntil sets the "refresh_lease_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateRefreshLeaseUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshLeaseUntil()
+	})
+}
+
+// ClearRefreshLeaseUntil clears the value of the "refresh_lease_until" field.
+func (u *CPACredentialUpsertBulk) ClearRefreshLeaseUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRefreshLeaseUntil()
+	})
+}
+
+// SetRefreshRevision sets the "refresh_revision" field.
+func (u *CPACredentialUpsertBulk) SetRefreshRevision(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRefreshRevision(v)
+	})
+}
+
+// AddRefreshRevision adds v to the "refresh_revision" field.
+func (u *CPACredentialUpsertBulk) AddRefreshRevision(v int) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.AddRefreshRevision(v)
+	})
+}
+
+// UpdateRefreshRevision sets the "refresh_revision" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateRefreshRevision() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRefreshRevision()
 	})
 }
 

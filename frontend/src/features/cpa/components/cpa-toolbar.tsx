@@ -2,12 +2,13 @@ import { useMemo } from 'react';
 import { Cross2Icon } from '@radix-ui/react-icons';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
+import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTableFacetedFilter } from '@/components/data-table-faceted-filter';
-import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
 import { planLabel } from '../labels';
-import { cn } from '@/lib/utils';
+import type { CPACredentialFilterStatus } from '../types';
 
 interface RefreshAction {
   canRefresh: boolean;
@@ -18,8 +19,8 @@ interface RefreshAction {
 interface CPAToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
-  statuses: string[];
-  onStatusesChange: (values: string[]) => void;
+  statuses: CPACredentialFilterStatus[];
+  onStatusesChange: (values: CPACredentialFilterStatus[]) => void;
   provider: string;
   selectedPlanTypes: string[];
   planTypes: string[];
@@ -65,25 +66,30 @@ export function CPAToolbar({
       <div className='relative w-[150px] shrink-0 lg:w-auto lg:flex-1'>
         <IconSearch className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
         <Input
+          data-testid='cpa-search'
           placeholder={t('cpa.filters.search')}
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           className='h-8 pl-8'
         />
       </div>
-      <DataTableFacetedFilter
-        title={t('cpa.filters.status')}
-        options={statusOptions}
-        selectedValues={statuses}
-        onSelectedValuesChange={onStatusesChange}
-      />
-      {provider !== 'all' && planOptions.length > 0 && (
+      <div data-testid='cpa-status-filter'>
         <DataTableFacetedFilter
-          title={t('cpa.filters.plan')}
-          options={planOptions}
-          selectedValues={selectedPlanTypes}
-          onSelectedValuesChange={onSelectedPlanTypesChange}
+          title={t('cpa.filters.status')}
+          options={statusOptions}
+          selectedValues={statuses}
+          onSelectedValuesChange={(values) => onStatusesChange(values as CPACredentialFilterStatus[])}
         />
+      </div>
+      {provider !== 'all' && planOptions.length > 0 && (
+        <div data-testid='cpa-plan-filter'>
+          <DataTableFacetedFilter
+            title={t('cpa.filters.plan')}
+            options={planOptions}
+            selectedValues={selectedPlanTypes}
+            onSelectedValuesChange={onSelectedPlanTypesChange}
+          />
+        </div>
       )}
       {isFiltered && (
         <Button
@@ -101,6 +107,7 @@ export function CPAToolbar({
       )}
       <div className='ml-auto shrink-0'>
         <Button
+          data-testid='cpa-refresh-scope'
           className='h-8 shrink-0 space-x-1'
           onClick={refresh.onRefresh}
           disabled={!refresh.canRefresh || refresh.pending}

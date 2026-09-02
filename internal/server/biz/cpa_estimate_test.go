@@ -12,7 +12,6 @@ import (
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
-	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
 func estimateTestSnapshot(usedPercent float64) objects.CPAQuotaSnapshot {
@@ -172,20 +171,16 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 			// Usage-per-unit prices are expressed per one million tokens. This test
 			// uses $1 per token so interval cost maps directly to token count.
 			unitPrice := decimal.NewFromInt(1_000_000)
-			svc := &CPAService{
-				AbstractService: &AbstractService{db: client},
-				priceIndex: map[string]*objects.ModelPrice{
-					"gpt-5.2": {Items: []objects.ModelPriceItem{{
-						ItemCode: objects.PriceItemCodeUsage,
-						Pricing: objects.Pricing{
-							Mode:         objects.PricingModeUsagePerUnit,
-							UsagePerUnit: &unitPrice,
-						},
-					}}},
-				},
-				priceIndexBuiltAt: time.Now(),
-				now:               time.Now,
-			}
+			svc := newCPAServiceForTest(client, time.Now)
+			svc.pricingRepository.setForTest(map[string]*objects.ModelPrice{
+				"gpt-5.2": {Items: []objects.ModelPriceItem{{
+					ItemCode: objects.PriceItemCodeUsage,
+					Pricing: objects.Pricing{
+						Mode:         objects.PricingModeUsagePerUnit,
+						UsagePerUnit: &unitPrice,
+					},
+				}}},
+			}, time.Now())
 			instance, err := client.CPAInstance.Create().
 				SetName(tc.name).
 				SetBaseURL("http://127.0.0.1:8317").
@@ -240,7 +235,7 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 				SecondaryLatestEventID:       &latestEvent.ID,
 				SecondaryResetAt:             &resetAt,
 			}
-			aggregates, err := svc.usageAggregatesByModel(
+			aggregates, err := svc.usageRepository.usageAggregatesByModel(
 				ctx,
 				instance.ID,
 				"idx",
@@ -252,7 +247,7 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, aggregates, "gpt-5.2", "aggregates: %#v", aggregates)
 			require.Equal(t, tc.intervalCost, aggregates["gpt-5.2"].InputTokens, "aggregates: %#v", aggregates)
-			cost, priced := computeCPAAggregateCost(svc.priceIndex, "gpt-5.2", aggregates["gpt-5.2"], time.Now())
+			cost, priced := computeCPAAggregateCost(svc.pricingRepository.snapshot(ctx), "gpt-5.2", aggregates["gpt-5.2"], time.Now())
 			require.True(t, priced)
 			require.False(t, cost.IsZero())
 
@@ -337,11 +332,7 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
 
 	fixedNow := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
-	svc := &CPAService{
-		AbstractService: &AbstractService{db: client},
-		quotaRegistry:   cpaclient.NewQuotaRegistry(),
-		now:             func() time.Time { return fixedNow },
-	}
+	svc := newCPAServiceForTest(client, func() time.Time { return fixedNow })
 
 	instance, err := client.CPAInstance.Create().
 		SetName("est").
@@ -393,4 +384,57 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	// unpriced model dominates; this asserts the aggregation window works via
 	// the unpriced path rather than producing an estimate from stale data.
 	require.Nil(t, estimate)
+}
+
+func TestEstimateCredentialQuotaUsesBuiltinModelPrice(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_builtin_estimate?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+
+	fixedNow := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	svc := newCPAServiceForTest(client, func() time.Time { return fixedNow })
+	instance, err := client.CPAInstance.Create().
+		SetName("builtin-price-estimate").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		Save(ctx)
+	require.NoError(t, err)
+
+	requestedAt := fixedNow.Add(-24 * time.Hour)
+	baselineEvent, err := client.CpaUsageEvent.Create().
+		SetCpaInstanceID(instance.ID).
+		SetAuthIndex("idx").
+		SetProvider("codex").
+		SetModel("gpt-5.6-sol").
+		SetRequestedAt(requestedAt).
+		Save(ctx)
+	require.NoError(t, err)
+	latestEvent, err := client.CpaUsageEvent.Create().
+		SetCpaInstanceID(instance.ID).
+		SetAuthIndex("idx").
+		SetProvider("codex").
+		SetModel("gpt-5.6-sol").
+		SetInputTokens(1_000_000).
+		SetRequestedAt(requestedAt.Add(time.Minute)).
+		Save(ctx)
+	require.NoError(t, err)
+
+	snapshot := estimateTestSnapshot(6)
+	baselinePercent := 1.0
+	latestPercent := 6.0
+	resetAt := *snapshot.Items[0].ResetAt
+	observed := objects.CPAQuotaObserved{
+		SecondaryCollectorSessionID:  "builtin-price-session",
+		SecondaryBaselineUsedPercent: &baselinePercent,
+		SecondaryBaselineEventID:     &baselineEvent.ID,
+		SecondaryUsedPercent:         &latestPercent,
+		SecondaryLatestEventID:       &latestEvent.ID,
+		SecondaryResetAt:             &resetAt,
+	}
+
+	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed)
+	require.NotNil(t, estimate)
+	require.InDelta(t, 5, estimate.CostUSD, 1e-9)
+	require.InDelta(t, 100, estimate.LimitUSD, 1e-9)
+	require.InDelta(t, 5, estimate.UsedPercent, 1e-9)
 }

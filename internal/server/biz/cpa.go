@@ -17,7 +17,6 @@ import (
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/log"
-	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
@@ -65,18 +64,12 @@ type CPAService struct {
 	now               func() time.Time
 	jitter            func() time.Duration
 
+	usageRepository           *cpaUsageRepository
+	pricingRepository         *cpaPricingRepository
 	usageCollectorReconcileMu sync.Mutex
 	usageCollectorMu          sync.Mutex
 	usageCollectors           map[int]*usageCollectorWorker
 	usageCollectorStarted     bool
-	usagePersistHook          func(context.Context, []usageEventEnvelope) bool
-	usageCacheMu              sync.Mutex
-	usageCredentialCache      map[int]map[string]credentialCacheEntry
-	usageObservedAt           map[int]usageObservedState
-
-	priceIndexMu      sync.Mutex
-	priceIndex        map[string]*objects.ModelPrice
-	priceIndexBuiltAt time.Time
 }
 
 // NewCPAService creates the CPA management service.
@@ -95,6 +88,23 @@ func NewCPAService(params CPAServiceParams) *CPAService {
 		},
 	}
 	svc.connections = newCPAConnectionProvider(params.SystemService)
+	svc.usageRepository = newCPAUsageRepository(
+		params.Ent,
+		svc.withCPAInstanceWriteLock,
+		svc.withCPAInstanceWriteRetry,
+		svc.withCPAUsageWriteRetry,
+		svc.now,
+	)
+	svc.pricingRepository = newCPAPricingRepository(
+		params.Ent,
+		func() []*Channel {
+			if svc.ChannelService == nil {
+				return nil
+			}
+			return svc.ChannelService.GetEnabledChannels()
+		},
+		svc.now,
+	)
 	svc.repository = newCPARepository(svc)
 	svc.quotaExecutor = newCPAQuotaExecutor(svc.quotaRegistry, svc.applyQuotaEstimate, svc.now)
 	return svc
@@ -130,6 +140,16 @@ type UpdateCPAInstanceInput struct {
 	DisabledPatrolIntervalMinutes *int
 }
 
+// CPAConnectionStatus describes the local management connection state.
+type CPAConnectionStatus string
+
+const (
+	CPAConnectionStatusConnected CPAConnectionStatus = "connected"
+	CPAConnectionStatusDisabled  CPAConnectionStatus = "disabled"
+	CPAConnectionStatusError     CPAConnectionStatus = "error"
+	CPAConnectionStatusUnknown   CPAConnectionStatus = "unknown"
+)
+
 // CPAInstanceView is the safe API representation of a CPA instance.
 type CPAInstanceView struct {
 	ID                            int
@@ -154,7 +174,7 @@ type CPAInstanceView struct {
 	LastErrorAt                   *time.Time
 	LastError                     *string
 	HasSecret                     bool
-	ConnectionStatus              string
+	ConnectionStatus              CPAConnectionStatus
 	CreatedAt                     time.Time
 	UpdatedAt                     time.Time
 }
@@ -363,7 +383,9 @@ func (svc *CPAService) DeleteInstance(ctx context.Context, id int) error {
 	svc.refreshProgressMu.Lock()
 	delete(svc.refreshProgress, id)
 	svc.refreshProgressMu.Unlock()
-	svc.invalidateUsageCredentialCache(id)
+	if svc.usageRepository != nil {
+		svc.usageRepository.invalidateCredentialCache(id)
+	}
 	return nil
 }
 
@@ -412,13 +434,13 @@ func (svc *CPAService) GetInstance(ctx context.Context, id int) (*CPAInstanceVie
 }
 
 func buildCPAInstanceView(instance *ent.CPAInstance) *CPAInstanceView {
-	status := "connected"
+	status := CPAConnectionStatusConnected
 	if !instance.Enabled {
-		status = "disabled"
+		status = CPAConnectionStatusDisabled
 	} else if instance.LastError != nil && strings.TrimSpace(*instance.LastError) != "" {
-		status = "error"
+		status = CPAConnectionStatusError
 	} else if instance.LastSyncSuccessAt == nil {
-		status = "unknown"
+		status = CPAConnectionStatusUnknown
 	}
 	return &CPAInstanceView{
 		ID:                            instance.ID,

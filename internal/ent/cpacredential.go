@@ -80,6 +80,12 @@ type CPACredential struct {
 	QuotaLastFailureAt *time.Time `json:"quota_last_failure_at,omitempty"`
 	// QuotaLastError holds the value of the "quota_last_error" field.
 	QuotaLastError string `json:"quota_last_error,omitempty"`
+	// RefreshLeaseToken holds the value of the "refresh_lease_token" field.
+	RefreshLeaseToken string `json:"-"`
+	// RefreshLeaseUntil holds the value of the "refresh_lease_until" field.
+	RefreshLeaseUntil *time.Time `json:"refresh_lease_until,omitempty"`
+	// RefreshRevision holds the value of the "refresh_revision" field.
+	RefreshRevision int `json:"refresh_revision,omitempty"`
 	// QuotaObserved holds the value of the "quota_observed" field.
 	QuotaObserved objects.CPAQuotaObserved `json:"-"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -117,11 +123,11 @@ func (*CPACredential) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case cpacredential.FieldDisabled, cpacredential.FieldUnavailable, cpacredential.FieldRuntimeOnly, cpacredential.FieldQuotaCooling:
 			values[i] = new(sql.NullBool)
-		case cpacredential.FieldID, cpacredential.FieldCpaInstanceID, cpacredential.FieldDisplayNameSortLength, cpacredential.FieldPriority, cpacredential.FieldProjectionVersion:
+		case cpacredential.FieldID, cpacredential.FieldCpaInstanceID, cpacredential.FieldDisplayNameSortLength, cpacredential.FieldPriority, cpacredential.FieldProjectionVersion, cpacredential.FieldRefreshRevision:
 			values[i] = new(sql.NullInt64)
-		case cpacredential.FieldExternalKey, cpacredential.FieldAuthIndex, cpacredential.FieldRemoteName, cpacredential.FieldLabel, cpacredential.FieldDisplayName, cpacredential.FieldDisplayNameSortKey, cpacredential.FieldProvider, cpacredential.FieldEmail, cpacredential.FieldStatus, cpacredential.FieldStatusMessage, cpacredential.FieldPlanType, cpacredential.FieldQuotaState, cpacredential.FieldHealthState, cpacredential.FieldQuotaLastError:
+		case cpacredential.FieldExternalKey, cpacredential.FieldAuthIndex, cpacredential.FieldRemoteName, cpacredential.FieldLabel, cpacredential.FieldDisplayName, cpacredential.FieldDisplayNameSortKey, cpacredential.FieldProvider, cpacredential.FieldEmail, cpacredential.FieldStatus, cpacredential.FieldStatusMessage, cpacredential.FieldPlanType, cpacredential.FieldQuotaState, cpacredential.FieldHealthState, cpacredential.FieldQuotaLastError, cpacredential.FieldRefreshLeaseToken:
 			values[i] = new(sql.NullString)
-		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaCooldownUntil, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt:
+		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaCooldownUntil, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt, cpacredential.FieldRefreshLeaseUntil:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -332,6 +338,25 @@ func (_m *CPACredential) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.QuotaLastError = value.String
 			}
+		case cpacredential.FieldRefreshLeaseToken:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_lease_token", values[i])
+			} else if value.Valid {
+				_m.RefreshLeaseToken = value.String
+			}
+		case cpacredential.FieldRefreshLeaseUntil:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_lease_until", values[i])
+			} else if value.Valid {
+				_m.RefreshLeaseUntil = new(time.Time)
+				*_m.RefreshLeaseUntil = value.Time
+			}
+		case cpacredential.FieldRefreshRevision:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_revision", values[i])
+			} else if value.Valid {
+				_m.RefreshRevision = int(value.Int64)
+			}
 		case cpacredential.FieldQuotaObserved:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field quota_observed", values[i])
@@ -477,6 +502,16 @@ func (_m *CPACredential) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("quota_last_error=")
 	builder.WriteString(_m.QuotaLastError)
+	builder.WriteString(", ")
+	builder.WriteString("refresh_lease_token=<sensitive>")
+	builder.WriteString(", ")
+	if v := _m.RefreshLeaseUntil; v != nil {
+		builder.WriteString("refresh_lease_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("refresh_revision=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RefreshRevision))
 	builder.WriteString(", ")
 	builder.WriteString("quota_observed=<sensitive>")
 	builder.WriteByte(')')

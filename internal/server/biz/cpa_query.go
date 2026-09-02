@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +17,16 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
+// CPACredentialFilterStatus is the closed set of API credential filters.
+type CPACredentialFilterStatus string
+
+const (
+	CPACredentialFilterEnabled  CPACredentialFilterStatus = "enabled"
+	CPACredentialFilterDisabled CPACredentialFilterStatus = "disabled"
+	CPACredentialFilterAbnormal CPACredentialFilterStatus = "abnormal"
+	CPACredentialFilterCooldown CPACredentialFilterStatus = "cooldown"
+)
+
 // QueryCPACredentialsInput contains one-instance list filters.
 type QueryCPACredentialsInput struct {
 	InstanceID   int
@@ -25,7 +34,7 @@ type QueryCPACredentialsInput struct {
 	After        *string
 	Search       *string
 	Provider     *string
-	Statuses     []string
+	Statuses     []CPACredentialFilterStatus
 	PlanTypes    []string
 	AbnormalOnly bool
 }
@@ -88,12 +97,6 @@ type CPACredentialStats struct {
 	Available int
 	Total     int
 	Abnormal  int
-}
-
-// CPAProviderCount is one dynamic provider tab count.
-type CPAProviderCount struct {
-	Provider string
-	Count    int
 }
 
 // CPAProviderOverview contains one provider's count and plan filter options.
@@ -274,13 +277,6 @@ func (svc *CPAService) Overview(ctx context.Context, instanceID int) (*CPAOvervi
 	return &CPAOverview{Stats: stats, Providers: providers}, nil
 }
 
-func (svc *CPAService) CredentialStats(ctx context.Context, instanceID int) (*CPACredentialStats, error) {
-	if _, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID); err != nil {
-		return nil, fmt.Errorf("get CPA instance for stats: %w", err)
-	}
-	return svc.credentialStatsAggregate(ctx, instanceID, svc.now())
-}
-
 func (svc *CPAService) credentialStatsAggregate(ctx context.Context, instanceID int, now time.Time) (*CPACredentialStats, error) {
 	base := func() *ent.CPACredentialQuery {
 		return svc.entFromContext(ctx).CPACredential.Query().
@@ -306,21 +302,6 @@ func (svc *CPAService) credentialStatsAggregate(ctx context.Context, instanceID 
 		return nil, fmt.Errorf("count available CPA credentials: %w", err)
 	}
 	return &CPACredentialStats{Available: available, Total: total, Abnormal: abnormal}, nil
-}
-
-func (svc *CPAService) ProviderCounts(ctx context.Context, instanceID int) ([]*CPAProviderCount, error) {
-	if _, err := svc.entFromContext(ctx).CPAInstance.Get(ctx, instanceID); err != nil {
-		return nil, fmt.Errorf("get CPA instance for provider counts: %w", err)
-	}
-	providers, err := svc.providerOverviewAggregate(ctx, instanceID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*CPAProviderCount, 0, len(providers))
-	for _, provider := range providers {
-		result = append(result, &CPAProviderCount{Provider: provider.Provider, Count: provider.Count})
-	}
-	return result, nil
 }
 
 func (svc *CPAService) providerOverviewAggregate(ctx context.Context, instanceID int) ([]*CPAProviderOverview, error) {
@@ -355,20 +336,6 @@ func (svc *CPAService) providerOverviewAggregate(ctx context.Context, instanceID
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Provider < result[j].Provider })
 	return result, nil
-}
-
-func (svc *CPAService) PlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error) {
-	providers, err := svc.providerOverviewAggregate(ctx, instanceID)
-	if err != nil {
-		return nil, err
-	}
-	provider = strings.TrimSpace(provider)
-	for _, item := range providers {
-		if item.Provider == provider {
-			return item.PlanTypes, nil
-		}
-	}
-	return []string{}, nil
 }
 
 // buildCPACredentialView projects one SQL-selected credential row onto the API.
@@ -408,7 +375,7 @@ func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACreden
 		Available:          available,
 		Abnormal:           abnormal,
 		Stale:              stale,
-		Expired:            deriveCPAExpired(credential, now),
+		Expired:            deriveCPAExpired(credential),
 		Cooling:            cooling,
 		CooldownUntil:      cooldownUntil,
 		CreatedAt:          credential.CreatedAt,
@@ -425,17 +392,18 @@ type cpaStatusFilter struct {
 	any      bool
 }
 
-func parseCPAStatusFilter(statuses []string) cpaStatusFilter {
+func parseCPAStatusFilter(statuses []CPACredentialFilterStatus) cpaStatusFilter {
+
 	filter := cpaStatusFilter{}
 	for _, status := range statuses {
-		switch strings.ToLower(strings.TrimSpace(status)) {
-		case "enabled":
+		switch CPACredentialFilterStatus(strings.ToLower(strings.TrimSpace(string(status)))) {
+		case CPACredentialFilterEnabled:
 			filter.enabled = true
-		case "disabled":
+		case CPACredentialFilterDisabled:
 			filter.disabled = true
-		case "abnormal":
+		case CPACredentialFilterAbnormal:
 			filter.abnormal = true
-		case "cooldown":
+		case CPACredentialFilterCooldown:
 			filter.cooldown = true
 		}
 	}
@@ -554,72 +522,6 @@ func cpaStatusAbnormal(status string) bool {
 	default:
 		return true
 	}
-}
-
-// cpaExpiredStatusMessages lists remote status_message values that indicate a
-// permanently unusable credential (HTTP 401/402/403/404 class failures).
-var cpaExpiredStatusMessages = map[string]struct{}{
-	"unauthorized":     {},
-	"payment_required": {},
-	"forbidden":        {},
-	"not_found":        {},
-}
-
-// deriveCPAExpired reports whether a credential should be displayed as expired.
-// It is purely derived: a renewed subscription or a recovered remote status
-// clears the flag without any persisted state.
-func deriveCPAExpired(credential *ent.CPACredential, now time.Time) bool {
-	// A successful quota refresh is live proof the credential still works;
-	// stale JWT subscription dates must not override it.
-	if credential.QuotaState == string(objects.CPAQuotaStateSuccess) {
-		return false
-	}
-	if cpaSubscriptionExpired(credential.QuotaContext.SubscriptionEnd, now) {
-		return true
-	}
-	if !strings.EqualFold(strings.TrimSpace(credential.Status), "error") {
-		return false
-	}
-	_, ok := cpaExpiredStatusMessages[strings.ToLower(strings.TrimSpace(credential.StatusMessage))]
-	return ok
-}
-
-// cpaSubscriptionExpired parses the subscription end value from JWT claims and
-// reports whether it has passed. Date-only values are granted until the end of
-// that day; numeric values are treated as unix seconds.
-func cpaSubscriptionExpired(raw string, now time.Time) bool {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return false
-	}
-	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
-		return now.After(time.Unix(seconds, 0))
-	}
-	parsed, ok := parseSubscriptionEndTime(value)
-	if !ok {
-		return false
-	}
-	return now.After(parsed)
-}
-
-// parseSubscriptionEndTime accepts common date/time layouts used by providers.
-func parseSubscriptionEndTime(value string) (time.Time, bool) {
-	layouts := []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-	}
-	for _, layout := range layouts {
-		if parsed, err := time.Parse(layout, value); err == nil {
-			// Date-only values stay valid through the entire last day.
-			if layout == "2006-01-02" {
-				parsed = parsed.Add(24*time.Hour - time.Second)
-			}
-			return parsed, true
-		}
-	}
-	return time.Time{}, false
 }
 
 func naturalStringCompare(left, right string) int {

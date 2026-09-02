@@ -17,7 +17,7 @@ import (
 )
 
 func TestDeriveCPAExpired(t *testing.T) {
-	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	t.Parallel()
 
 	tests := []struct {
 		name       string
@@ -25,7 +25,7 @@ func TestDeriveCPAExpired(t *testing.T) {
 		want       bool
 	}{
 		{
-			name: "successful quota refresh overrides stale subscription end",
+			name: "successful quota refresh ignores stale subscription end",
 			credential: &ent.CPACredential{
 				QuotaState:   string(objects.CPAQuotaStateSuccess),
 				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-06-10T07:20:05+00:00"},
@@ -33,41 +33,16 @@ func TestDeriveCPAExpired(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "failed quota ignores stale subscription end",
+			credential: &ent.CPACredential{
+				QuotaState:   string(objects.CPAQuotaStateError),
+				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-01-01"},
+			},
+			want: false,
+		},
+		{
 			name:       "empty subscription end and active status",
 			credential: &ent.CPACredential{Status: "active"},
-			want:       false,
-		},
-		{
-			name: "date-only subscription end passed",
-			credential: &ent.CPACredential{
-				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-08-20"},
-			},
-			want: true,
-		},
-		{
-			name: "date-only subscription end still active through the last day",
-			credential: &ent.CPACredential{
-				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-08-21"},
-			},
-			want: false,
-		},
-		{
-			name: "rfc3339 subscription end passed",
-			credential: &ent.CPACredential{
-				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-08-01T00:00:00Z"},
-			},
-			want: true,
-		},
-		{
-			name: "unix seconds subscription end future",
-			credential: &ent.CPACredential{
-				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2900000000"},
-			},
-			want: false,
-		},
-		{
-			name:       "invalid subscription end ignored",
-			credential: &ent.CPACredential{QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "not-a-date"}},
 			want:       false,
 		},
 		{
@@ -91,8 +66,64 @@ func TestDeriveCPAExpired(t *testing.T) {
 			want:       true,
 		},
 		{
-			name:       "error status with unrelated message",
-			credential: &ent.CPACredential{Status: "error", StatusMessage: "transient upstream error"},
+			name: "JSON authentication error from CPA",
+			credential: &ent.CPACredential{
+				Status:        "error",
+				StatusMessage: `{"error":{"type":"authentication_error","code":"invalid_token"}}`,
+			},
+			want: true,
+		},
+		{
+			name: "JSON usage limit from CPA is not expiry",
+			credential: &ent.CPACredential{
+				Status:        "error",
+				StatusMessage: `{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached"}}`,
+			},
+			want: false,
+		},
+		{
+			name: "provider unauthorized quota error",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "provider quota request returned HTTP 401",
+			},
+			want: true,
+		},
+		{
+			name: "provider invalid grant quota error",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "provider quota request returned HTTP 400 (invalid_grant; refresh token has been revoked)",
+			},
+			want: true,
+		},
+		{
+			name: "provider usage limit quota error",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "provider quota request returned HTTP 429 (usage_limit_reached)",
+			},
+			want: false,
+		},
+		{
+			name: "provider cloudflare challenge",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "provider quota request returned HTTP 403 (Cloudflare challenge required)",
+			},
+			want: false,
+		},
+		{
+			name: "CPA management unauthorized error",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "CPA management request returned HTTP 401",
+			},
+			want: false,
+		},
+		{
+			name:       "unrelated quota error",
+			credential: &ent.CPACredential{QuotaState: string(objects.CPAQuotaStateError), QuotaLastError: "quota request failed"},
 			want:       false,
 		},
 		{
@@ -104,7 +135,7 @@ func TestDeriveCPAExpired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := deriveCPAExpired(tt.credential, now); got != tt.want {
+			if got := deriveCPAExpired(tt.credential); got != tt.want {
 				t.Fatalf("deriveCPAExpired() = %v, want %v", got, tt.want)
 			}
 		})
@@ -166,9 +197,9 @@ func TestCPACredentialRecovered(t *testing.T) {
 			want:       false,
 		},
 		{
-			// A successful refresh proves the credential is alive even when the
-			// cached JWT subscription date has passed.
-			name: "stale subscription end with successful quota recovers",
+			// Subscription metadata is not an expiration signal; a successful
+			// quota refresh proves the credential is alive.
+			name: "stale subscription metadata with successful quota recovers",
 			credential: &ent.CPACredential{
 				QuotaState:   string(objects.CPAQuotaStateSuccess),
 				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-01-01"},
@@ -176,7 +207,7 @@ func TestCPACredentialRecovered(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "failed quota with passed subscription end does not recover",
+			name: "failed quota does not recover without a terminal CPA error",
 			credential: &ent.CPACredential{
 				QuotaState:   string(objects.CPAQuotaStateError),
 				QuotaContext: objects.CPAQuotaContext{SubscriptionEnd: "2026-01-01"},

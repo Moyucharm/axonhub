@@ -17,7 +17,7 @@ CPA 在 biz 包内建立四个内部边界，同时保留 `CPAService` 作为 Gr
 
 Typed outcome 将 batch 执行状态 `success / failure / skipped` 与持久化的 provider quota state 分开，并在执行、聚合和持久化入口校验状态不变量：failure 必须携带 error，skipped 必须携带原因，success 只能携带可持久化 provider state。公开 `CPARefreshResult` 和 `CPARefreshProgress` 仍由内部 outcome 聚合，GraphQL schema 与前端 operation 不变。
 
-同步 snapshot 的 Ent mutation 入口迁入 repository；`CPAService.syncCredentialSnapshot` 只保留兼容包装。只读 keyset/overview 查询、usage collector、价格与估算缓存不纳入本次 repository，避免形成新的 God object。
+同步 snapshot 的 Ent mutation 入口迁入 repository；`CPAService.syncCredentialSnapshot` 只保留兼容包装。usage event 写入、auth-index lookup、Codex observation 和 model aggregation 由独立 `cpaUsageRepository` 承担；price index TTL 与 source precedence 由独立 `cpaPricingRepository` 承担。collector worker 生命周期与只读 keyset/overview 查询仍不属于这些 repository，避免形成新的 God object。
 
 ## Concurrency and failure semantics
 
@@ -41,4 +41,4 @@ Typed outcome 将 batch 执行状态 `success / failure / skipped` 与持久化�
 
 refresh、patrol 和 manual toggle 不再各自实现 quota projection 写入或重复创建 patrol client。typed outcome 成为 batch result、progress 和 automation 的共同输入；repository 成为 quota projection 一致性的单一写入口。业务级 `httptest` 覆盖真实 management HTTP → sync → Ent → quota refresh 链路，并发测试覆盖 singleflight、实例 quota 上限和 runtime 跨实例上限。
 
-代价是 `CPAService` 必须由 production/test constructor 一次性完整组装；singleflight 仍是进程内去重，跨进程执行资格继续依赖 runtime 的数据库 optimistic claim。Repository 当前只覆盖执行写路径，并不是完整 CPA persistence abstraction。
+代价是 `CPAService` 必须由 production/test constructor 一次性完整组装；usage/pricing repository 仍是 CPA 内部具体组件，并不是全仓通用 persistence framework。credential refresh 的 singleflight 只作进程内优化，跨进程最终资格由 credential refresh lease 的数据库 CAS/revision 提供；keyset/overview 查询与 collector worker 生命周期仍保留在 service/runtime 边界。

@@ -76,6 +76,12 @@ const (
 	FieldQuotaLastFailureAt = "quota_last_failure_at"
 	// FieldQuotaLastError holds the string denoting the quota_last_error field in the database.
 	FieldQuotaLastError = "quota_last_error"
+	// FieldRefreshLeaseToken holds the string denoting the refresh_lease_token field in the database.
+	FieldRefreshLeaseToken = "refresh_lease_token"
+	// FieldRefreshLeaseUntil holds the string denoting the refresh_lease_until field in the database.
+	FieldRefreshLeaseUntil = "refresh_lease_until"
+	// FieldRefreshRevision holds the string denoting the refresh_revision field in the database.
+	FieldRefreshRevision = "refresh_revision"
 	// FieldQuotaObserved holds the string denoting the quota_observed field in the database.
 	FieldQuotaObserved = "quota_observed"
 	// EdgeCpaInstance holds the string denoting the cpa_instance edge name in mutations.
@@ -124,6 +130,9 @@ var Columns = []string{
 	FieldQuotaLastSuccessAt,
 	FieldQuotaLastFailureAt,
 	FieldQuotaLastError,
+	FieldRefreshLeaseToken,
+	FieldRefreshLeaseUntil,
+	FieldRefreshRevision,
 	FieldQuotaObserved,
 }
 
@@ -197,6 +206,10 @@ var (
 	DefaultQuotaData objects.CPAQuotaSnapshot
 	// DefaultQuotaLastError holds the default value on creation for the "quota_last_error" field.
 	DefaultQuotaLastError string
+	// DefaultRefreshLeaseToken holds the default value on creation for the "refresh_lease_token" field.
+	DefaultRefreshLeaseToken string
+	// DefaultRefreshRevision holds the default value on creation for the "refresh_revision" field.
+	DefaultRefreshRevision int
 	// DefaultQuotaObserved holds the default value on creation for the "quota_observed" field.
 	DefaultQuotaObserved objects.CPAQuotaObserved
 )
@@ -347,6 +360,21 @@ func ByQuotaLastFailureAt(opts ...sql.OrderTermOption) OrderOption {
 // ByQuotaLastError orders the results by the quota_last_error field.
 func ByQuotaLastError(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaLastError, opts...).ToFunc()
+}
+
+// ByRefreshLeaseToken orders the results by the refresh_lease_token field.
+func ByRefreshLeaseToken(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshLeaseToken, opts...).ToFunc()
+}
+
+// ByRefreshLeaseUntil orders the results by the refresh_lease_until field.
+func ByRefreshLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshLeaseUntil, opts...).ToFunc()
+}
+
+// ByRefreshRevision orders the results by the refresh_revision field.
+func ByRefreshRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshRevision, opts...).ToFunc()
 }
 
 // ByCpaInstanceField orders the results by cpa_instance field.

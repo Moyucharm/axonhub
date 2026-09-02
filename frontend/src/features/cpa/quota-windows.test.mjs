@@ -1,7 +1,7 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   cpaWindowKind,
@@ -106,7 +106,17 @@ test('cpaQuotaItemsToWindows skips items without any computable percentage', () 
   // remaining bar; only the usable sibling item survives.
   const windows = cpaQuotaItemsToWindows(
     [
-      { id: 'z', group: '', label: 'Monthly balance', description: '', usedPercent: null, remainingPercent: null, used: 0, limit: 0, unit: 'cents' },
+      {
+        id: 'z',
+        group: '',
+        label: 'Monthly balance',
+        description: '',
+        usedPercent: null,
+        remainingPercent: null,
+        used: 0,
+        limit: 0,
+        unit: 'cents',
+      },
       { id: 'ok', group: '', label: 'Weekly credits', description: '', usedPercent: 30, remainingPercent: 70 },
       { id: 'no-pct-no-vals', group: '', label: 'Mystery', description: '' },
     ],
@@ -131,7 +141,10 @@ test('summarizeQuotaGroups picks the tightest representative per pool in first-a
   assert.equal(groups.length, 2);
   assert.equal(groups[0].group, 'Gemini Models');
   assert.equal(groups[0].rep.id, 'gemini-5h');
-  assert.deepEqual(groups[0].rest.map((w) => w.id), ['gemini-weekly']);
+  assert.deepEqual(
+    groups[0].rest.map((w) => w.id),
+    ['gemini-weekly']
+  );
   assert.equal(groups[1].group, 'Claude and GPT models');
   assert.equal(groups[1].rep.id, '3p-5h');
 });
@@ -142,7 +155,10 @@ test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair
   const weekly = win('code-secondary', 'Code', 20, 'weekly', 7 * 24 * 60 * 60);
 
   const codex = summarizeCredentialQuotaGroups([fiveHour, weekly], 'codex');
-  assert.deepEqual(codex.map(({ rep }) => rep.id), ['code-primary', 'code-secondary']);
+  assert.deepEqual(
+    codex.map(({ rep }) => rep.id),
+    ['code-primary', 'code-secondary']
+  );
   assert.ok(codex.every(({ rest }) => rest.length === 0));
 
   // The same period pair remains one summarized resource pool for providers
@@ -150,7 +166,10 @@ test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair
   const antigravity = summarizeCredentialQuotaGroups([fiveHour, weekly], 'antigravity');
   assert.equal(antigravity.length, 1);
   assert.equal(antigravity[0].rep.id, 'code-secondary');
-  assert.deepEqual(antigravity[0].rest.map(({ id }) => id), ['code-primary']);
+  assert.deepEqual(
+    antigravity[0].rest.map(({ id }) => id),
+    ['code-primary']
+  );
 
   const monthly = win('code-monthly', 'Code', 5, 'monthly', 30 * 24 * 60 * 60);
   const oneHour = win('code-1h', 'Code', 25, 'hourly', 60 * 60);
@@ -166,7 +185,10 @@ test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair
   }
   const triple = summarizeCredentialQuotaGroups([fiveHour, weekly, monthly], 'codex');
   assert.equal(triple[0].rep.id, 'code-secondary');
-  assert.deepEqual(triple[0].rest.map(({ id }) => id), ['code-primary', 'code-monthly']);
+  assert.deepEqual(
+    triple[0].rest.map(({ id }) => id),
+    ['code-primary', 'code-monthly']
+  );
 });
 
 test('summarizeQuotaGroups breaks percent ties by kind priority and keeps ungrouped singletons', () => {
@@ -272,15 +294,15 @@ test('quota capsule remaining i18n keys exist in both locales', () => {
 
 test('CPA credential column shows email with filename on hover and defaults to 50 rows', () => {
   const table = read('features/cpa/components/credential-table.tsx');
-  const controller = read('features/cpa/use-cpa-controller.ts');
+  const pagination = read('features/cpa/use-cpa-pagination.ts');
   // Email-only main line with displayName fallback, filename in the hover tooltip.
   assert.match(table, /credential\.email \|\| credential\.displayName/);
   assert.match(table, /credential\.remoteName/);
   assert.match(table, /TooltipContent side='top'/);
   // Page size defaults to 50 (keeps the selectable sizes list).
-  assert.match(controller, /CPA_TABLE_PAGE_SIZES = \[10, 20, 30, 40, 50\]/);
-  assert.match(controller, /includes\(value\) \? value : 50/);
-  assert.match(controller, /return 50;/);
+  assert.match(pagination, /CPA_TABLE_PAGE_SIZES = \[10, 20, 30, 40, 50\]/);
+  assert.match(pagination, /includes\(value\) \? value : 50/);
+  assert.match(pagination, /return 50;/);
 });
 
 test('cpaQuotaItemsToWindows passes through quota value estimates', () => {

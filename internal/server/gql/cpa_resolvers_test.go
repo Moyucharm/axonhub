@@ -14,6 +14,13 @@ import (
 	"github.com/looplj/axonhub/internal/server/biz"
 )
 
+func TestCPAManagedCredentialQuotaStateResolverReturnsTypedState(t *testing.T) {
+	resolver := &cPAManagedCredentialResolver{}
+	state, err := resolver.QuotaState(t.Context(), &biz.CPACredentialView{QuotaState: string(objects.CPAQuotaStateSuccess)})
+	require.NoError(t, err)
+	require.Equal(t, objects.CPAQuotaStateSuccess, state)
+}
+
 func TestCPAOverviewResolverRequiresReadSettings(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_overview_resolver?mode=memory&_fk=0")
 	defer client.Close()

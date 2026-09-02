@@ -33,7 +33,7 @@ func TestUsageCollectorDrainsPendingBatchAfterCancellation(t *testing.T) {
 	drained := make(chan struct{})
 	var attempts atomic.Int32
 	svc := &CPAService{
-		usagePersistHook: func(_ context.Context, batch []usageEventEnvelope) bool {
+		usageRepository: &cpaUsageRepository{persistHook: func(_ context.Context, batch []usageEventEnvelope) bool {
 			if len(batch) != 1 || batch[0].instanceID != 7 || batch[0].event.AuthIndex != "auth-1" {
 				t.Errorf("unexpected batch: %#v", batch)
 				return false
@@ -48,7 +48,7 @@ func TestUsageCollectorDrainsPendingBatchAfterCancellation(t *testing.T) {
 			default:
 				return true
 			}
-		},
+		}},
 	}
 	collectorCtx, cancel := context.WithCancel(context.Background())
 	worker := &usageCollectorWorker{
@@ -168,11 +168,7 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	event := func(percent string, offset time.Duration) *cpaclient.UsageEvent {
 		return eventForSlot("secondary", percent, offset)
 	}
-	svc := &CPAService{
-		AbstractService:      &AbstractService{db: client},
-		usageCredentialCache: make(map[int]map[string]credentialCacheEntry),
-		usageObservedAt:      make(map[int]usageObservedState),
-	}
+	svc := newCPAServiceForTest(client, nil)
 	sessionA := &usageCollectorSession{id: "session-a"}
 	sessionB := &usageCollectorSession{id: "session-b"}
 	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{

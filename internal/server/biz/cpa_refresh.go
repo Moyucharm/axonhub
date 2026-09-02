@@ -228,18 +228,78 @@ func runCPARefreshWorker(
 	outcome = refresh()
 }
 
-func (svc *CPAService) refreshCredentialOutcome(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential) cpaQuotaExecutionOutcome {
-	outcome := svc.quotaExecutor.execute(ctx, client, credential)
-	if outcome.status == cpaQuotaExecutionSkipped {
-		return outcome
+func (svc *CPAService) refreshCredentialOutcome(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential) (outcome cpaQuotaExecutionOutcome) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			outcome = newCPAQuotaFailureOutcome(
+				credential.CpaInstanceID,
+				credential.ID,
+				svc.now(),
+				fmt.Errorf("CPA credential refresh panicked: %v", recovered),
+			)
+			log.Error(ctx, "CPA credential refresh panicked",
+				log.Int("cpa_instance_id", credential.CpaInstanceID),
+				log.Int("credential_id", credential.ID),
+				log.Any("panic", recovered),
+			)
+		}
+	}()
+	if !svc.quotaExecutor.supports(credential) {
+		return newCPAQuotaSkippedOutcome(credential, "quota unsupported")
 	}
-	persisted, err := svc.repository.applyQuotaOutcome(ctx, outcome)
-	if err != nil {
-		outcome.status = cpaQuotaExecutionFailure
-		outcome.err = err
-		return outcome
+	observedRevision := credential.RefreshRevision
+	for {
+		claim, err := svc.repository.claimRefreshLease(ctx, credential.ID, observedRevision, svc.now())
+		if err != nil {
+			return newCPAQuotaFailureOutcome(credential.CpaInstanceID, credential.ID, svc.now(), err)
+		}
+		if claim.completed {
+			return refreshOutcomeFromCredential(claim.credential, svc.now())
+		}
+		if claim.claimed {
+			leaseReleased := false
+			cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), cpaRefreshLeaseCleanupTimeout)
+			defer cancelCleanup()
+			defer func() {
+				if leaseReleased {
+					return
+				}
+				if releaseErr := svc.repository.releaseRefreshLease(cleanupCtx, credential.ID, claim.token); releaseErr != nil {
+					log.Warn(cleanupCtx, "release CPA credential refresh lease after refresh failure",
+						log.Int("credential_id", credential.ID),
+						log.Cause(releaseErr),
+					)
+				}
+			}()
+			outcome := svc.quotaExecutor.execute(ctx, client, claim.credential)
+			if outcome.status == cpaQuotaExecutionSkipped {
+				return outcome
+			}
+			persisted, persistErr := svc.repository.applyQuotaOutcomeWithLease(ctx, outcome, claim.token, claim.revision)
+			if persistErr == nil {
+				leaseReleased = true
+				return persisted
+			}
+			// A late owner must never overwrite a newer owner's result. Prefer the
+			// newer terminal revision when one is already visible.
+			current, reloadErr := svc.entFromContext(ctx).CPACredential.Get(ctx, credential.ID)
+			if reloadErr == nil && current.RefreshRevision > claim.revision {
+				return refreshOutcomeFromCredential(current, svc.now())
+			}
+			_ = svc.repository.releaseRefreshLease(ctx, credential.ID, claim.token)
+			return newCPAQuotaFailureOutcome(credential.CpaInstanceID, credential.ID, svc.now(), persistErr)
+		}
+		if !claim.waiting {
+			continue
+		}
+		current, waitErr := svc.repository.waitForRefreshRevision(ctx, credential.ID, observedRevision)
+		if waitErr != nil {
+			return newCPAQuotaFailureOutcome(credential.CpaInstanceID, credential.ID, svc.now(), waitErr)
+		}
+		if current.RefreshRevision > observedRevision {
+			return refreshOutcomeFromCredential(current, svc.now())
+		}
 	}
-	return persisted
 }
 
 // applyQuotaEstimate computes and attaches an independent interval estimate to

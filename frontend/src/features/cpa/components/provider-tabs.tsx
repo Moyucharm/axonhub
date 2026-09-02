@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
 import { CHANNEL_CONFIGS, type ChannelType } from '@/features/channels/data/config_channels';
-import type { CPAProviderCount } from '../types';
+import type { CPAProviderOverview } from '../types';
 
 // Ensures all values are valid ChannelType keys at compile time.
 const PROVIDER_CHANNEL_TYPES = {
@@ -16,7 +16,7 @@ const PROVIDER_CHANNEL_TYPES = {
 
 interface CPAProviderTabsProps {
   providers: string[];
-  providerCounts: CPAProviderCount[];
+  providerCounts: CPAProviderOverview[];
   totalCount: number;
   selectedProvider: string;
   onProviderChange: (provider: string) => void;
@@ -31,10 +31,7 @@ export const CPAProviderTabs = memo(function CPAProviderTabs({
 }: CPAProviderTabsProps) {
   const { t } = useTranslation();
   const scrollRef = useHorizontalScroll<HTMLDivElement>();
-  const countByProvider = useMemo(
-    () => new Map(providerCounts.map((item) => [item.provider, item.count])),
-    [providerCounts]
-  );
+  const countByProvider = useMemo(() => new Map(providerCounts.map((item) => [item.provider, item.count])), [providerCounts]);
 
   const getIcon = (provider: string) => {
     const channelType = PROVIDER_CHANNEL_TYPES[provider];
@@ -45,6 +42,7 @@ export const CPAProviderTabs = memo(function CPAProviderTabs({
     <div className='w-full shrink-0 overflow-hidden'>
       <div ref={scrollRef} className='hide-scroll flex flex-nowrap items-center gap-2 overflow-x-auto scroll-smooth'>
         <button
+          data-testid='cpa-provider-all'
           type='button'
           onClick={() => onProviderChange('all')}
           className={cn(
@@ -69,6 +67,7 @@ export const CPAProviderTabs = memo(function CPAProviderTabs({
           const selected = selectedProvider === provider;
           return (
             <button
+              data-testid={`cpa-provider-${provider}`}
               key={provider}
               type='button'
               onClick={() => onProviderChange(provider)}

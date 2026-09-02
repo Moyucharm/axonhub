@@ -190,6 +190,21 @@ func QuotaLastError(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldQuotaLastError, v))
 }
 
+// RefreshLeaseToken applies equality check predicate on the "refresh_lease_token" field. It's identical to RefreshLeaseTokenEQ.
+func RefreshLeaseToken(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseUntil applies equality check predicate on the "refresh_lease_until" field. It's identical to RefreshLeaseUntilEQ.
+func RefreshLeaseUntil(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshRevision applies equality check predicate on the "refresh_revision" field. It's identical to RefreshRevisionEQ.
+func RefreshRevision(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshRevision, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldCreatedAt, v))
@@ -1558,6 +1573,161 @@ func QuotaLastErrorEqualFold(v string) predicate.CPACredential {
 // QuotaLastErrorContainsFold applies the ContainsFold predicate on the "quota_last_error" field.
 func QuotaLastErrorContainsFold(v string) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldContainsFold(FieldQuotaLastError, v))
+}
+
+// RefreshLeaseTokenEQ applies the EQ predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenNEQ applies the NEQ predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenNEQ(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenIn applies the In predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldRefreshLeaseToken, vs...))
+}
+
+// RefreshLeaseTokenNotIn applies the NotIn predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenNotIn(vs ...string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldRefreshLeaseToken, vs...))
+}
+
+// RefreshLeaseTokenGT applies the GT predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenGT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenGTE applies the GTE predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenGTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenLT applies the LT predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenLT(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenLTE applies the LTE predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenLTE(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenContains applies the Contains predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenContains(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContains(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenHasPrefix applies the HasPrefix predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenHasPrefix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasPrefix(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenHasSuffix applies the HasSuffix predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenHasSuffix(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldHasSuffix(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenEqualFold applies the EqualFold predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenEqualFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEqualFold(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseTokenContainsFold applies the ContainsFold predicate on the "refresh_lease_token" field.
+func RefreshLeaseTokenContainsFold(v string) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldContainsFold(FieldRefreshLeaseToken, v))
+}
+
+// RefreshLeaseUntilEQ applies the EQ predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilNEQ applies the NEQ predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilNEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilIn applies the In predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldRefreshLeaseUntil, vs...))
+}
+
+// RefreshLeaseUntilNotIn applies the NotIn predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilNotIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldRefreshLeaseUntil, vs...))
+}
+
+// RefreshLeaseUntilGT applies the GT predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilGT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilGTE applies the GTE predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilGTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilLT applies the LT predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilLT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilLTE applies the LTE predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilLTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldRefreshLeaseUntil, v))
+}
+
+// RefreshLeaseUntilIsNil applies the IsNil predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilIsNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIsNull(FieldRefreshLeaseUntil))
+}
+
+// RefreshLeaseUntilNotNil applies the NotNil predicate on the "refresh_lease_until" field.
+func RefreshLeaseUntilNotNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotNull(FieldRefreshLeaseUntil))
+}
+
+// RefreshRevisionEQ applies the EQ predicate on the "refresh_revision" field.
+func RefreshRevisionEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRefreshRevision, v))
+}
+
+// RefreshRevisionNEQ applies the NEQ predicate on the "refresh_revision" field.
+func RefreshRevisionNEQ(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldRefreshRevision, v))
+}
+
+// RefreshRevisionIn applies the In predicate on the "refresh_revision" field.
+func RefreshRevisionIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldRefreshRevision, vs...))
+}
+
+// RefreshRevisionNotIn applies the NotIn predicate on the "refresh_revision" field.
+func RefreshRevisionNotIn(vs ...int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldRefreshRevision, vs...))
+}
+
+// RefreshRevisionGT applies the GT predicate on the "refresh_revision" field.
+func RefreshRevisionGT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldRefreshRevision, v))
+}
+
+// RefreshRevisionGTE applies the GTE predicate on the "refresh_revision" field.
+func RefreshRevisionGTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldRefreshRevision, v))
+}
+
+// RefreshRevisionLT applies the LT predicate on the "refresh_revision" field.
+func RefreshRevisionLT(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldRefreshRevision, v))
+}
+
+// RefreshRevisionLTE applies the LTE predicate on the "refresh_revision" field.
+func RefreshRevisionLTE(v int) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldRefreshRevision, v))
 }
 
 // QuotaObservedIsNil applies the IsNil predicate on the "quota_observed" field.

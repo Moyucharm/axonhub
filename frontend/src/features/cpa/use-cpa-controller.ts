@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useEffect, useState } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   SUPPORTED_QUOTA_PROVIDERS,
@@ -14,29 +13,10 @@ import {
   useToggleCPACredential,
 } from './data';
 import type { CPAInstance } from './types';
+import { useCPAFilters } from './use-cpa-filters';
+import { useCPAPagination } from './use-cpa-pagination';
 
-const CPA_TABLE_PAGE_SIZE_KEY = 'cpa-table-page-size';
-export const CPA_TABLE_PAGE_SIZES = [10, 20, 30, 40, 50] as const;
-
-export function clampTablePageSize(value: number): number {
-  return (CPA_TABLE_PAGE_SIZES as readonly number[]).includes(value) ? value : 50;
-}
-
-function readTablePageSize(): number {
-  try {
-    return clampTablePageSize(Number(localStorage.getItem(CPA_TABLE_PAGE_SIZE_KEY)));
-  } catch {
-    return 50;
-  }
-}
-
-function writeTablePageSize(value: number) {
-  try {
-    localStorage.setItem(CPA_TABLE_PAGE_SIZE_KEY, String(clampTablePageSize(value)));
-  } catch {
-    // Best-effort persistence; failing to store the preference is harmless.
-  }
-}
+export { clampTablePageSize, CPA_TABLE_PAGE_SIZES } from './use-cpa-pagination';
 
 export function useCPAController() {
   const { hasSystemScope } = usePermissions();
@@ -47,13 +27,7 @@ export function useCPAController() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInstance, setEditingInstance] = useState<CPAInstance>();
   const [deletingInstance, setDeletingInstance] = useState<CPAInstance>();
-  const [search, setSearch] = useState('');
-  const [provider, setProvider] = useState('all');
-  const [statuses, setStatuses] = useState<string[]>([]);
-  const [planTypes, setPlanTypes] = useState<string[]>([]);
-  const [pageSize, setPageSize] = useState(readTablePageSize);
-  const [after, setAfter] = useState<string>();
-  const [cursorHistory, setCursorHistory] = useState<Array<string | undefined>>([]);
+  const { pageSize, after, setAfter, cursorHistory, setCursorHistory, resetPagination, setPageSize } = useCPAPagination();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [togglingCredential, setTogglingCredential] = useState<{
     id: number;
@@ -61,7 +35,6 @@ export function useCPAController() {
     disable: boolean;
   }>();
   const [activeRefreshInstanceId, setActiveRefreshInstanceId] = useState<number | null>(null);
-  const debouncedSearch = useDebounce(search, 300);
 
   useEffect(() => {
     if (!selectedInstanceID && instances.length > 0) setSelectedInstanceID(instances[0].id);
@@ -73,19 +46,19 @@ export function useCPAController() {
   const selectedInstance = instances.find((instance) => instance.id === selectedInstanceID);
   const overviewQuery = useCPAOverview(selectedInstanceID);
   const providerCounts = overviewQuery.data?.providers ?? [];
-  const providers = useMemo(
-    () => providerCounts.filter((item) => item.count > 0).map((item) => item.provider).sort(compareCPAProviders),
-    [providerCounts]
-  );
-
-  useEffect(() => {
-    if (provider !== 'all' && !providers.includes(provider)) setProvider('all');
-  }, [provider, providers]);
-
-  const availablePlanTypes = useMemo(
-    () => providerCounts.find((item) => item.provider === provider)?.planTypes ?? [],
-    [providerCounts, provider]
-  );
+  const {
+    search,
+    setSearch,
+    debouncedSearch,
+    provider,
+    statuses,
+    setStatuses,
+    planTypes,
+    setPlanTypes,
+    providers,
+    availablePlanTypes,
+    changeProvider: changeProviderFilter,
+  } = useCPAFilters(providerCounts);
   const credentialsQuery = useCPACredentials(
     selectedInstanceID
       ? {
@@ -108,19 +81,13 @@ export function useCPAController() {
   const credentials = credentialsQuery.data?.edges.map((edge) => edge.node) ?? [];
   const stats = overviewQuery.data?.stats;
 
-  const resetPagination = () => {
-    setAfter(undefined);
-    setCursorHistory([]);
-  };
-
   const selectInstance = (value: string) => {
     setSelectedInstanceID(Number(value));
     resetPagination();
   };
 
   const changeProvider = (value: string) => {
-    setProvider(value);
-    setPlanTypes([]);
+    changeProviderFilter(value);
     resetPagination();
   };
 
@@ -210,28 +177,7 @@ export function useCPAController() {
     refreshSelectedScope,
     confirmDeleteInstance,
     confirmToggleCredential,
-    setPageSize: (value: number) => {
-      const next = clampTablePageSize(value);
-      setPageSize(next);
-      writeTablePageSize(next);
-      resetPagination();
-    },
+    setPageSize,
     supportedQuotaProviders: SUPPORTED_QUOTA_PROVIDERS,
   };
-}
-
-export function versionBelow(version: string, minimum: string) {
-  const parse = (value: string) =>
-    value
-      .replace(/^v/, '')
-      .split(/[+-]/)[0]
-      .split('.')
-      .map((part) => Number(part) || 0);
-  const left = parse(version);
-  const right = parse(minimum);
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    if ((left[index] ?? 0) < (right[index] ?? 0)) return true;
-    if ((left[index] ?? 0) > (right[index] ?? 0)) return false;
-  }
-  return false;
 }

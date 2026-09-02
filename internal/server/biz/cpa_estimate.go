@@ -2,7 +2,6 @@ package biz
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -10,8 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/looplj/axonhub/internal/authz"
-	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 )
@@ -80,7 +77,7 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 	cycleStart := item.ResetAt.Add(-time.Duration(*item.PeriodSeconds) * time.Second)
 
 	ctx = authz.WithSystemBypass(ctx, "cpa-quota-estimate")
-	aggregates, err := svc.usageAggregatesByModel(
+	aggregates, err := svc.usageRepository.usageAggregatesByModel(
 		ctx,
 		instanceID,
 		strings.TrimSpace(authIndex),
@@ -102,7 +99,7 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 		return nil
 	}
 
-	priceIndex := svc.buildCPAPriceIndex(ctx)
+	priceIndex := svc.pricingRepository.snapshot(ctx)
 	now := svc.now()
 	var (
 		totalCost      decimal.Decimal
@@ -173,57 +170,4 @@ func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem
 		monthly = item
 	}
 	return monthly
-}
-
-func (svc *CPAService) usageAggregatesByModel(
-	ctx context.Context,
-	instanceID int,
-	authIndex string,
-	from, to time.Time,
-	afterEventID, throughEventID int,
-) (map[string]tokenAggregate, error) {
-	var rows []struct {
-		Model               string `json:"model"`
-		InputTokens         int64  `json:"input_tokens"`
-		OutputTokens        int64  `json:"output_tokens"`
-		ReasoningTokens     int64  `json:"reasoning_tokens"`
-		CachedTokens        int64  `json:"cached_tokens"`
-		CacheReadTokens     int64  `json:"cache_read_tokens"`
-		CacheCreationTokens int64  `json:"cache_creation_tokens"`
-	}
-	err := svc.entFromContext(ctx).CpaUsageEvent.Query().
-		Where(
-			cpausageevent.CpaInstanceIDEQ(instanceID),
-			cpausageevent.AuthIndexEQ(authIndex),
-			cpausageevent.FailedEQ(false),
-			cpausageevent.RequestedAtGTE(from),
-			cpausageevent.RequestedAtLTE(to),
-			cpausageevent.IDGT(afterEventID),
-			cpausageevent.IDLTE(throughEventID),
-		).
-		GroupBy(cpausageevent.FieldModel).
-		Aggregate(
-			ent.As(ent.Sum(cpausageevent.FieldInputTokens), "input_tokens"),
-			ent.As(ent.Sum(cpausageevent.FieldOutputTokens), "output_tokens"),
-			ent.As(ent.Sum(cpausageevent.FieldReasoningTokens), "reasoning_tokens"),
-			ent.As(ent.Sum(cpausageevent.FieldCachedTokens), "cached_tokens"),
-			ent.As(ent.Sum(cpausageevent.FieldCacheReadTokens), "cache_read_tokens"),
-			ent.As(ent.Sum(cpausageevent.FieldCacheCreationTokens), "cache_creation_tokens"),
-		).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, fmt.Errorf("aggregate CPA usage events: %w", err)
-	}
-	result := make(map[string]tokenAggregate, len(rows))
-	for _, row := range rows {
-		result[row.Model] = tokenAggregate{
-			InputTokens:         row.InputTokens,
-			OutputTokens:        row.OutputTokens,
-			ReasoningTokens:     row.ReasoningTokens,
-			CachedTokens:        row.CachedTokens,
-			CacheReadTokens:     row.CacheReadTokens,
-			CacheCreationTokens: row.CacheCreationTokens,
-		}
-	}
-	return result, nil
 }

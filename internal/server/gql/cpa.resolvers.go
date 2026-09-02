@@ -9,9 +9,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/scopes"
 	"github.com/looplj/axonhub/internal/server/biz"
 )
+
+// QuotaState is the resolver for the quotaState field.
+func (r *cPAManagedCredentialResolver) QuotaState(ctx context.Context, obj *biz.CPACredentialView) (objects.CPAQuotaState, error) {
+	return objects.CPAQuotaState(obj.QuotaState), nil
+}
 
 // CreateCPAInstance is the resolver for the createCPAInstance field.
 func (r *mutationResolver) CreateCPAInstance(ctx context.Context, input biz.CreateCPAInstanceInput) (*biz.CPAInstanceView, error) {
@@ -96,30 +102,6 @@ func (r *queryResolver) CpaOverview(ctx context.Context, instanceID int) (*biz.C
 	return r.cpaService.Overview(ctx, instanceID)
 }
 
-// CpaCredentialStats is the resolver for the cpaCredentialStats field.
-func (r *queryResolver) CpaCredentialStats(ctx context.Context, instanceID int) (*biz.CPACredentialStats, error) {
-	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
-		return nil, fmt.Errorf("permission denied: requires read:settings scope")
-	}
-	return r.cpaService.CredentialStats(ctx, instanceID)
-}
-
-// CpaProviderCounts is the resolver for the cpaProviderCounts field.
-func (r *queryResolver) CpaProviderCounts(ctx context.Context, instanceID int) ([]*biz.CPAProviderCount, error) {
-	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
-		return nil, fmt.Errorf("permission denied: requires read:settings scope")
-	}
-	return r.cpaService.ProviderCounts(ctx, instanceID)
-}
-
-// CpaPlanTypes is the resolver for the cpaPlanTypes field.
-func (r *queryResolver) CpaPlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error) {
-	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
-		return nil, fmt.Errorf("permission denied: requires read:settings scope")
-	}
-	return r.cpaService.PlanTypes(ctx, instanceID, provider)
-}
-
 // CpaRefreshProgress is the resolver for the cpaRefreshProgress field.
 func (r *queryResolver) CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error) {
 	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
@@ -128,3 +110,10 @@ func (r *queryResolver) CpaRefreshProgress(ctx context.Context, instanceID int) 
 	progress, _ := r.cpaService.RefreshProgress(instanceID)
 	return progress, nil
 }
+
+// CPAManagedCredential returns CPAManagedCredentialResolver implementation.
+func (r *Resolver) CPAManagedCredential() CPAManagedCredentialResolver {
+	return &cPAManagedCredentialResolver{r}
+}
+
+type cPAManagedCredentialResolver struct{ *Resolver }

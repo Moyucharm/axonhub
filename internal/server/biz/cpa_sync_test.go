@@ -60,7 +60,7 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	connection, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
-		Statuses:   []string{},
+		Statuses:   []CPACredentialFilterStatus{},
 		PlanTypes:  []string{},
 	})
 	require.NoError(t, err)
@@ -69,16 +69,16 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	require.Equal(t, "work@example.com", connection.Edges[0].Node.Email)
 	require.Equal(t, "plus", connection.Edges[0].Node.PlanType)
 
-	stats, err := svc.CredentialStats(ctx, instance.ID)
+	overview, err := svc.Overview(ctx, instance.ID)
 	require.NoError(t, err)
-	require.Equal(t, &CPACredentialStats{Available: 1, Total: 2, Abnormal: 0}, stats)
+	require.Equal(t, &CPACredentialStats{Available: 1, Total: 2, Abnormal: 0}, overview.Stats)
 
 	search := "WORK@EXAMPLE"
 	connection, err = svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
 		Search:     &search,
-		Statuses:   []string{},
+		Statuses:   []CPACredentialFilterStatus{},
 		PlanTypes:  []string{},
 	})
 	require.NoError(t, err)
@@ -92,10 +92,10 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 		SetHealthState(string(objects.CPACredentialHealthAbnormal)).
 		SetQuotaLastError("quota request failed").
 		Exec(ctx))
-	stats, err = svc.CredentialStats(ctx, instance.ID)
+	overview, err = svc.Overview(ctx, instance.ID)
 	require.NoError(t, err)
-	require.Equal(t, 1, stats.Abnormal)
-	require.Equal(t, 1, stats.Available)
+	require.Equal(t, 1, overview.Stats.Abnormal)
+	require.Equal(t, 1, overview.Stats.Available)
 
 	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, files[:1], svc.now()))
 	count, err := client.CPACredential.Query().Count(ctx)

@@ -9,8 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/looplj/axonhub/internal/authz"
-	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/log"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -22,8 +20,6 @@ const (
 	usageQueueInitialBackoff = time.Second
 	usageQueueMaxBackoff     = time.Minute
 	usageQueuePersistTimeout = 30 * time.Second
-	credentialLookupTTL      = 10 * time.Minute
-	percentObservationMinGap = time.Minute
 )
 
 type usageCollectorTarget struct {
@@ -123,12 +119,6 @@ func (svc *CPAService) StartUsageStream(ctx context.Context) error {
 	svc.usageCollectorStarted = true
 	if svc.usageCollectors == nil {
 		svc.usageCollectors = make(map[int]*usageCollectorWorker)
-	}
-	if svc.usageCredentialCache == nil {
-		svc.usageCredentialCache = make(map[int]map[string]credentialCacheEntry)
-	}
-	if svc.usageObservedAt == nil {
-		svc.usageObservedAt = make(map[int]usageObservedState)
 	}
 	svc.usageCollectorMu.Unlock()
 	return svc.RefreshUsageStreams(ctx)
@@ -382,128 +372,4 @@ type usageEventEnvelope struct {
 type persistedUsageEvent struct {
 	envelope usageEventEnvelope
 	eventID  int
-}
-
-type credentialCacheEntry struct {
-	credentialID int
-	loadedAt     time.Time
-}
-
-type usageObservedState struct {
-	lastWrite    time.Time
-	lastPercent  float64
-	hasLastWrite bool
-}
-
-func (svc *CPAService) persistUsageBatch(ctx context.Context, batch []usageEventEnvelope) bool {
-	if svc.usagePersistHook != nil {
-		return svc.usagePersistHook(ctx, batch)
-	}
-	return svc.persistUsageEvents(ctx, batch)
-}
-
-func (svc *CPAService) persistUsageEvents(ctx context.Context, batch []usageEventEnvelope) bool {
-	if len(batch) == 0 {
-		return true
-	}
-	db := svc.entFromContext(ctx)
-	creates := make([]*ent.CpaUsageEventCreate, 0, len(batch))
-	validEnvelopes := make([]usageEventEnvelope, 0, len(batch))
-	for _, envelope := range batch {
-		event := envelope.event
-		if event == nil {
-			continue
-		}
-		requestedAt := event.Timestamp
-		if requestedAt.IsZero() {
-			requestedAt = time.Now().UTC()
-		}
-		validEnvelopes = append(validEnvelopes, envelope)
-		creates = append(creates, db.CpaUsageEvent.Create().
-			SetCpaInstanceID(envelope.instanceID).
-			SetAuthIndex(strings.TrimSpace(event.AuthIndex)).
-			SetProvider(event.Provider).
-			SetModel(strings.TrimSpace(event.Model)).
-			SetSource(event.Source).
-			SetInputTokens(event.Tokens.InputTokens).
-			SetOutputTokens(event.Tokens.OutputTokens).
-			SetReasoningTokens(event.Tokens.ReasoningTokens).
-			SetCachedTokens(event.Tokens.CachedTokens).
-			SetCacheReadTokens(event.Tokens.CacheReadTokens).
-			SetCacheCreationTokens(event.Tokens.CacheCreationTokens).
-			SetTotalTokens(event.Tokens.TotalTokens).
-			SetFailed(event.Failed).
-			SetRequestedAt(requestedAt))
-	}
-	if len(creates) == 0 {
-		return true
-	}
-	instanceID := validEnvelopes[0].instanceID
-	var saved []*ent.CpaUsageEvent
-	err := svc.withCPAInstanceWriteLock(ctx, instanceID, func() error {
-		return svc.withCPAUsageWriteRetry(ctx, func() error {
-			var saveErr error
-			saved, saveErr = db.CpaUsageEvent.CreateBulk(creates...).Save(ctx)
-			return saveErr
-		})
-	})
-	if err != nil {
-		log.Warn(ctx, "persist CPA usage events failed", log.Int("count", len(creates)), log.Cause(err))
-		return false
-	}
-	persisted := make([]persistedUsageEvent, 0, len(saved))
-	for index, node := range saved {
-		envelope := validEnvelopes[index]
-		envelope.session.recordPersisted(envelope.event.AuthIndex, node.ID)
-		persisted = append(persisted, persistedUsageEvent{envelope: envelope, eventID: node.ID})
-	}
-	svc.observeCodexUsageIntervals(ctx, persisted)
-	return true
-}
-
-func (svc *CPAService) lookupCredentialID(ctx context.Context, instanceID int, authIndex string) (int, bool) {
-	key := strings.TrimSpace(authIndex)
-	if key == "" {
-		return 0, false
-	}
-	svc.usageCacheMu.Lock()
-	index := svc.usageCredentialCache[instanceID]
-	if index != nil {
-		if entry, ok := index[key]; ok && time.Since(entry.loadedAt) < credentialLookupTTL {
-			svc.usageCacheMu.Unlock()
-			return entry.credentialID, true
-		}
-	}
-	svc.usageCacheMu.Unlock()
-
-	ctx = authz.WithSystemBypass(ctx, "cpa-usage-lookup")
-	credentials, err := svc.entFromContext(ctx).CPACredential.Query().
-		Where(
-			cpacredential.CpaInstanceIDEQ(instanceID),
-			cpacredential.AuthIndexEQ(key),
-		).
-		IDs(ctx)
-	if err != nil || len(credentials) == 0 {
-		return 0, false
-	}
-
-	svc.usageCacheMu.Lock()
-	if svc.usageCredentialCache == nil {
-		svc.usageCredentialCache = make(map[int]map[string]credentialCacheEntry)
-	}
-	if svc.usageCredentialCache[instanceID] == nil {
-		svc.usageCredentialCache[instanceID] = make(map[string]credentialCacheEntry)
-	}
-	svc.usageCredentialCache[instanceID][key] = credentialCacheEntry{
-		credentialID: credentials[0],
-		loadedAt:     time.Now(),
-	}
-	svc.usageCacheMu.Unlock()
-	return credentials[0], true
-}
-
-func (svc *CPAService) invalidateUsageCredentialCache(instanceID int) {
-	svc.usageCacheMu.Lock()
-	delete(svc.usageCredentialCache, instanceID)
-	svc.usageCacheMu.Unlock()
 }

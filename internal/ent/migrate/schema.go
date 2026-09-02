@@ -126,6 +126,9 @@ var (
 		{Name: "quota_last_success_at", Type: field.TypeTime, Nullable: true},
 		{Name: "quota_last_failure_at", Type: field.TypeTime, Nullable: true},
 		{Name: "quota_last_error", Type: field.TypeString, Default: ""},
+		{Name: "refresh_lease_token", Type: field.TypeString, Default: ""},
+		{Name: "refresh_lease_until", Type: field.TypeTime, Nullable: true},
+		{Name: "refresh_revision", Type: field.TypeInt, Default: 0},
 		{Name: "quota_observed", Type: field.TypeJSON, Nullable: true},
 		{Name: "cpa_instance_id", Type: field.TypeInt},
 	}
@@ -137,7 +140,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "cpa_credentials_cpa_instances_credentials",
-				Columns:    []*schema.Column{CpaCredentialsColumns[31]},
+				Columns:    []*schema.Column{CpaCredentialsColumns[34]},
 				RefColumns: []*schema.Column{CpaInstancesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -146,42 +149,52 @@ var (
 			{
 				Name:    "cpacredential_cpa_instance_id_external_key",
 				Unique:  true,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[3]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[3]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_provider",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[10]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[10]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_disabled",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[14]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[14]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_unavailable",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[15]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[15]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_plan_type",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[18]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[18]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_health_state",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[21]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[21]},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_quota_cooling_quota_cooldown_until",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[22], CpaCredentialsColumns[23]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[22], CpaCredentialsColumns[23]},
+			},
+			{
+				Name:    "cpa_credentials_by_provider_plan_sort",
+				Unique:  false,
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[10], CpaCredentialsColumns[18], CpaCredentialsColumns[17], CpaCredentialsColumns[8], CpaCredentialsColumns[9], CpaCredentialsColumns[0]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						CpaCredentialsColumns[17].Name: true,
+					},
+				},
 			},
 			{
 				Name:    "cpacredential_cpa_instance_id_priority_display_name_sort_key_display_name_sort_length_id",
 				Unique:  false,
-				Columns: []*schema.Column{CpaCredentialsColumns[31], CpaCredentialsColumns[17], CpaCredentialsColumns[8], CpaCredentialsColumns[9], CpaCredentialsColumns[0]},
+				Columns: []*schema.Column{CpaCredentialsColumns[34], CpaCredentialsColumns[17], CpaCredentialsColumns[8], CpaCredentialsColumns[9], CpaCredentialsColumns[0]},
 				Annotation: &entsql.IndexAnnotation{
 					DescColumns: map[string]bool{
 						CpaCredentialsColumns[17].Name: true,

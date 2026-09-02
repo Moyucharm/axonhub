@@ -1,3 +1,25 @@
+enum CPAConnectionStatus {
+  connected
+  disabled
+  error
+  unknown
+}
+
+enum CPAQuotaState {
+  pending
+  success
+  error
+  unsupported
+  insufficient_data
+}
+
+enum CPACredentialFilterStatus {
+  enabled
+  disabled
+  abnormal
+  cooldown
+}
+
 type CPAManagedInstance {
   id: Int!
   name: String!
@@ -21,7 +43,7 @@ type CPAManagedInstance {
   lastErrorAt: Time
   lastError: String
   hasSecret: Boolean!
-  connectionStatus: String!
+  connectionStatus: CPAConnectionStatus!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -62,7 +84,7 @@ type CPAManagedCredential {
   runtimeOnly: Boolean!
   priority: Int!
   planType: String!
-  quotaState: String!
+  quotaState: CPAQuotaState!
   quotaData: CPAQuotaSnapshot!
   quotaLastAttemptAt: Time
   quotaLastSuccessAt: Time
@@ -100,11 +122,6 @@ type CPACredentialStats {
   available: Int!
   total: Int!
   abnormal: Int!
-}
-
-type CPAProviderCount {
-  provider: String!
-  count: Int!
 }
 
 type CPAProviderOverview {
@@ -168,7 +185,7 @@ input QueryCPACredentialsInput {
   after: String
   search: String
   provider: String
-  statuses: [String!]!
+  statuses: [CPACredentialFilterStatus!]!
   planTypes: [String!]!
   abnormalOnly: Boolean!
 }
@@ -178,9 +195,6 @@ extend type Query {
   cpaInstance(id: Int!): CPAManagedInstance!
   queryCPACredentials(input: QueryCPACredentialsInput!): CPACredentialConnection!
   cpaOverview(instanceID: Int!): CPAOverview!
-  cpaCredentialStats(instanceID: Int!): CPACredentialStats! @deprecated(reason: "Use cpaOverview")
-  cpaProviderCounts(instanceID: Int!): [CPAProviderCount!]! @deprecated(reason: "Use cpaOverview")
-  cpaPlanTypes(instanceID: Int!, provider: String!): [String!]! @deprecated(reason: "Use cpaOverview")
   cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
 }
 

@@ -39,7 +39,7 @@ func decideCPAAutomation(credential *ent.CPACredential, now time.Time) cpaAutoma
 // enabled patrol. Remote patching and snapshot synchronization stay outside
 // this function so the policy can be tested without a CPA server.
 func cpaCredentialDisableReason(credential *ent.CPACredential, now time.Time) (string, *objects.CPAQuotaItem) {
-	if deriveCPAExpired(credential, now) {
+	if deriveCPAExpired(credential) {
 		return "expired", nil
 	}
 	_, _, exhaustedItem := cpaAutoManageQuotaCooldownDetail(credential.QuotaData, now)

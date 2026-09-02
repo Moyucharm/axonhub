@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/table-skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ServerSidePagination } from '@/components/server-side-pagination';
 import { QuotaWindowsBlock } from '@/components/quota-capsule';
-import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
+import { ServerSidePagination } from '@/components/server-side-pagination';
 import { planLabel, providerLabel } from '../labels';
+import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
@@ -73,7 +73,10 @@ export function CPACredentialTable({
 
   return (
     <>
-      <div className='shadow-soft relative min-h-0 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'>
+      <div
+        data-testid='cpa-credential-table'
+        className='shadow-soft relative min-h-0 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'
+      >
         <div className='min-w-max'>
           <Table className='border-separate border-spacing-0 rounded-2xl bg-[var(--table-background)]'>
             <TableHeader className='sticky top-0 z-20 bg-[var(--table-header)] shadow-sm'>
@@ -109,7 +112,10 @@ export function CPACredentialTable({
               ) : (
                 credentials.map((credential) => (
                   <Fragment key={credential.id}>
-                    <TableRow className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'>
+                    <TableRow
+                      data-testid={`cpa-credential-row-${credential.id}`}
+                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'
+                    >
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <Button variant='ghost' size='icon' onClick={() => onToggleExpanded(credential.id)}>
                           {expanded.has(credential.id) ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
@@ -118,13 +124,15 @@ export function CPACredentialTable({
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className='font-medium max-w-[200px] cursor-default truncate'>
+                            <div className='max-w-[200px] cursor-default truncate font-medium'>
                               {credential.email || credential.displayName || '—'}
                             </div>
                           </TooltipTrigger>
                           <TooltipContent side='top'>
                             {credential.remoteName}
-                            {credential.displayName && credential.displayName !== credential.remoteName ? ` · ${credential.displayName}` : ''}
+                            {credential.displayName && credential.displayName !== credential.remoteName
+                              ? ` · ${credential.displayName}`
+                              : ''}
                           </TooltipContent>
                         </Tooltip>
                       </TableCell>
@@ -171,7 +179,7 @@ export function CPACredentialTable({
                         {credential.quotaLastError && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default break-all text-xs'>
+                              <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default text-xs break-all'>
                                 {credential.quotaLastError}
                               </p>
                             </TooltipTrigger>
@@ -187,6 +195,7 @@ export function CPACredentialTable({
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <div className='flex items-center gap-1'>
                           <Button
+                            data-testid={`cpa-refresh-credential-${credential.id}`}
                             variant='ghost'
                             size='icon'
                             title={t('common.refresh')}
@@ -202,6 +211,7 @@ export function CPACredentialTable({
                           </Button>
                           {canWrite && (
                             <Button
+                              data-testid={`cpa-toggle-credential-${credential.id}`}
                               variant='ghost'
                               size='icon'
                               title={credential.disabled ? t('cpa.credential.enable') : t('cpa.credential.disable')}
@@ -219,9 +229,7 @@ export function CPACredentialTable({
                         <TableCell colSpan={7} className='bg-muted/30 border-0 p-4'>
                           <div className='grid gap-3'>
                             {credential.quotaData.items.length > 0 ? (
-                              <QuotaWindowsBlock
-                                windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)}
-                              />
+                              <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)} />
                             ) : (
                               <p className='text-muted-foreground text-sm'>
                                 {quotaStateText(credential, t) ?? (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
@@ -251,6 +259,7 @@ export function CPACredentialTable({
           onPageSizeChange={onPageSizeChange}
           selectedInfoLabel={t('cpa.pagination.total', { count: totalCount ?? 0 })}
           onResetCursor={onResetCursor}
+          testIdPrefix='cpa-pagination'
         />
       </div>
     </>

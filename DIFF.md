@@ -79,9 +79,9 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 
 **涉及模块**：`internal/ent/schema/channel.go`（+生成代码）、`internal/objects/channel.go`、`internal/server/biz/channel_auto_disable.go`、`channel_metrics.go`、`channel.go`、`webhook_notifier.go`、`system.go`、`internal/server/orchestrator/{candidates,candidates_condition,select_candidates,performance,tester}.go`、`internal/server/gql/*`、`frontend/src/features/channels/**`、`frontend/src/features/system/**`。
 
-### 2.4 CPA 管理（CLIProxyAPI，只读首期）
+### 2.4 CPA 管理（CLIProxyAPI）
 
-**提交**：`8e503fc0`（runtime/projection/keyset/overview checkpoint）；本轮执行边界改动尚未提交
+**基线提交**：`8e503fc0`（runtime/projection/keyset/overview checkpoint）；当前工作树继续包含执行边界、性能、GraphQL、前端拆分与刷新租约改动，尚未提交
 
 新增独立一级「CPA 管理」功能，用于注册多个 CLIProxyAPI 实例并集中查看其 auth-files 凭证与额度快照：
 
@@ -90,9 +90,10 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **只读凭证同步**：同步 CPA auth-files 的安全元数据；成功同步后硬删除已消失凭证，失败同步保留旧快照；支持 runtime-only 凭证，禁止下载 auth JSON 或持久化 access/refresh token、原始额度响应。
 - **额度请求边界**：CPA 管理模块的 Codex、Claude、Antigravity、Kimi、xAI free 额度请求全部通过所选 CPA 的 `/v0/management/api-call` 发出，AxonHub 不直连供应商额度 API；xAI paid 不执行付费健康探测并标记为不支持。该限制仅适用于 CPA 管理，不影响现有渠道额度功能。
 - **刷新、执行边界与并发**：统一 `cpa-runtime` 以数据库 optimistic claim 领取同一实例到期的 snapshot refresh、enabled patrol 与 disabled patrol，并按固定顺序串行执行；不同实例最多 4 个 runtime job。quota executor 负责同凭证 singleflight、单实例最多 4、全局最多 8 个 provider 请求，并产出 typed outcome；repository 在实例写锁内重读当前 credential 后统一写入 quota/projection，失败保留上次成功 snapshot，单项失败不终止批次。手动刷新包含 disabled credential；自动巡检分别处理 enabled/disabled candidate，5 小时窗口不触发自动禁用。
-- **查询投影与分页**：凭证持久化自然排序键、health、cooldown 和 projection version；列表过滤下推 SQL，按 `priority DESC + natural sort projection + id` 做 keyset pagination。GraphQL 使用单一 `cpaOverview` 返回 stats/provider/plan types，旧 root fields 在兼容期内保留 deprecated。
+- **查询投影与分页**：凭证持久化自然排序键、health、cooldown 和 projection version；列表过滤下推 SQL，按 `priority DESC + natural sort projection + id` 做 keyset pagination。GraphQL 使用单一 `cpaOverview` 返回 stats/provider/plan types；旧 `cpaCredentialStats`、`cpaProviderCounts`、`cpaPlanTypes` root fields 已删除。provider-plan 查询使用基于真实 SQLite query plan 选择的 covering index；规模压测只作为独立手工任务，不进入常规测试套件。
 - **自动巡检收敛**：patrol 复用一次实例管理 client，依据 fresh persisted credential 产出 `none/disable/enable` 决策；remote patch 仍以 CPA 为 disabled 事实来源，成功后立即复用同一 client 同步本地 snapshot。
 - **独立界面**：新增 `/cpa` 路由与侧栏入口，复用系统级 `read_settings` / `write_settings` 权限；页面按单实例查看，提供固定供应商分组、名称/邮箱搜索、状态/套餐筛选、统计卡片、紧凑额度摘要与可展开多窗口详情，不复刻 CPA 自身面板。
+- **缓存与刷新资格**：usage event 写入、auth-index lookup、Codex observation 和 model aggregation 由 `cpaUsageRepository` 持有；price index 的 channel/catalog/builtin 合并与 TTL 由 `cpaPricingRepository` 持有。credential refresh 使用数据库 token/expiry/revision 短租约，进程内 singleflight 只作优化，不能替代跨进程 CAS；owner 失败/取消会释放租约，joiner 只等待 revision。
 - **网络安全**：仅允许 HTTP(S)，拒绝 URL userinfo、query/fragment、非同主机重定向及 HTTPS→HTTP 降级；请求有超时和响应大小限制；实例级跳过证书校验默认关闭并在表单、状态区持续警告。
 
 **涉及模块**：`internal/ent/schema/cpa_*.go`（及生成代码）、`internal/objects/cpa.go`、`internal/server/biz/cpa*.go`、`internal/server/biz/cpa/**`、`internal/server/gql/cpa.graphql`、`internal/server/gql/cpa.resolvers.go`、`frontend/src/features/cpa/**`、`frontend/src/routes/_authenticated/cpa/index.tsx`、`frontend/src/locales/{en,zh-CN}/cpa.json`。

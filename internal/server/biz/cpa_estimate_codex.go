@@ -24,7 +24,7 @@ type codexWeeklyObservation struct {
 // window is normalized by its reported duration before advancing the interval.
 // The first observation of a collector session or upstream quota window is only
 // a baseline; it does not need to be zero usage.
-func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []persistedUsageEvent) {
+func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Context, events []persistedUsageEvent) {
 	byCredential := make(map[int][]codexWeeklyObservation)
 	for _, persisted := range events {
 		envelope := persisted.envelope
@@ -36,7 +36,7 @@ func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []
 		if !ok {
 			continue
 		}
-		credentialID, found := svc.lookupCredentialID(ctx, envelope.instanceID, event.AuthIndex)
+		credentialID, found := repository.lookupCredentialID(ctx, envelope.instanceID, event.AuthIndex)
 		if !found {
 			continue
 		}
@@ -50,7 +50,7 @@ func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []
 	for credentialID := range byCredential {
 		ids = append(ids, credentialID)
 	}
-	credentials, err := svc.entFromContext(ctx).CPACredential.Query().
+	credentials, err := repository.entFromContext(ctx).CPACredential.Query().
 		Where(cpacredential.IDIn(ids...)).
 		All(ctx)
 	if err != nil {
@@ -69,17 +69,15 @@ func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []
 			continue
 		}
 
-		svc.usageCacheMu.Lock()
-		state := svc.usageObservedAt[credential.ID]
+		state := repository.observedState(credential.ID)
 		skip := !reanchored && state.hasLastWrite &&
-			time.Since(state.lastWrite) < percentObservationMinGap &&
+			repository.now().Sub(state.lastWrite) < percentObservationMinGap &&
 			absFloat64(*observed.SecondaryUsedPercent-state.lastPercent) < 0.01
-		svc.usageCacheMu.Unlock()
 		if skip {
 			continue
 		}
-		if err := svc.withCPAInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
-			return svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
+		if err := repository.withInstanceWriteRetry(ctx, credential.CpaInstanceID, func() error {
+			return repository.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
 				SetQuotaObserved(observed).
 				Exec(ctx)
 		}); err != nil {
@@ -89,16 +87,11 @@ func (svc *CPAService) observeCodexUsageIntervals(ctx context.Context, events []
 			)
 			continue
 		}
-		svc.usageCacheMu.Lock()
-		if svc.usageObservedAt == nil {
-			svc.usageObservedAt = make(map[int]usageObservedState)
-		}
-		svc.usageObservedAt[credential.ID] = usageObservedState{
-			lastWrite:    time.Now().UTC(),
+		repository.setObservedState(credential.ID, usageObservedState{
+			lastWrite:    repository.now(),
 			lastPercent:  *observed.SecondaryUsedPercent,
 			hasLastWrite: true,
-		}
-		svc.usageCacheMu.Unlock()
+		})
 	}
 }
 

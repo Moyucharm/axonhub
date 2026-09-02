@@ -228,16 +228,16 @@ func TestCPAQuotaItemIsFiveHour(t *testing.T) {
 func TestParseCPAStatusFilterOR(t *testing.T) {
 	t.Parallel()
 
-	filter := parseCPAStatusFilter([]string{"abnormal", "cooldown"})
+	filter := parseCPAStatusFilter([]CPACredentialFilterStatus{"abnormal", "cooldown"})
 	require.True(t, filter.matches(&CPACredentialView{Abnormal: true}))
 	require.True(t, filter.matches(&CPACredentialView{Cooling: true}))
 	require.False(t, filter.matches(&CPACredentialView{Available: true}))
 
-	enabled := parseCPAStatusFilter([]string{"enabled"})
+	enabled := parseCPAStatusFilter([]CPACredentialFilterStatus{"enabled"})
 	require.True(t, enabled.matches(&CPACredentialView{Disabled: false}))
 	require.False(t, enabled.matches(&CPACredentialView{Disabled: true}))
 
-	empty := parseCPAStatusFilter([]string{})
+	empty := parseCPAStatusFilter([]CPACredentialFilterStatus{})
 	require.True(t, empty.matches(&CPACredentialView{Disabled: true, Abnormal: false}))
 }
 
@@ -320,7 +320,7 @@ func TestQueryCredentialsStatusFilterAndCooldown(t *testing.T) {
 	abnormal, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
-		Statuses:   []string{"abnormal"},
+		Statuses:   []CPACredentialFilterStatus{"abnormal"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, abnormal.TotalCount)
@@ -330,7 +330,7 @@ func TestQueryCredentialsStatusFilterAndCooldown(t *testing.T) {
 	cooldown, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
-		Statuses:   []string{"cooldown"},
+		Statuses:   []CPACredentialFilterStatus{"cooldown"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, cooldown.TotalCount)
@@ -343,7 +343,7 @@ func TestQueryCredentialsStatusFilterAndCooldown(t *testing.T) {
 	union, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
-		Statuses:   []string{"abnormal", "enabled"},
+		Statuses:   []CPACredentialFilterStatus{"abnormal", "enabled"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 3, union.TotalCount)
@@ -351,7 +351,7 @@ func TestQueryCredentialsStatusFilterAndCooldown(t *testing.T) {
 	disabled, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
 		InstanceID: instance.ID,
 		First:      20,
-		Statuses:   []string{"disabled"},
+		Statuses:   []CPACredentialFilterStatus{"disabled"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, disabled.TotalCount)

@@ -142,23 +142,30 @@ func (svc *CPAService) backfillCPACredentialProjections(ctx context.Context) err
 		if len(rows) == 0 {
 			return nil
 		}
-		for _, credential := range rows {
-			projection := projectStoredCPACredential(credential, svc.now())
-			update := svc.entFromContext(ctx).CPACredential.UpdateOneID(credential.ID).
-				SetDisplayNameSortKey(projection.displayNameSortKey).
-				SetDisplayNameSortLength(projection.displayNameSortLength).
-				SetHealthState(string(projection.healthState)).
-				SetQuotaCooling(projection.quotaCooling).
-				SetProjectionVersion(currentCPAProjectionVersion)
-			if projection.quotaCooldownUntil == nil {
-				update.ClearQuotaCooldownUntil()
-			} else {
-				update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+		batchNow := svc.now()
+		if err := svc.RunInTransaction(ctx, func(txCtx context.Context) error {
+			db := svc.entFromContext(txCtx)
+			for _, credential := range rows {
+				projection := projectStoredCPACredential(credential, batchNow)
+				update := db.CPACredential.UpdateOneID(credential.ID).
+					SetDisplayNameSortKey(projection.displayNameSortKey).
+					SetDisplayNameSortLength(projection.displayNameSortLength).
+					SetHealthState(string(projection.healthState)).
+					SetQuotaCooling(projection.quotaCooling).
+					SetProjectionVersion(currentCPAProjectionVersion)
+				if projection.quotaCooldownUntil == nil {
+					update.ClearQuotaCooldownUntil()
+				} else {
+					update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
+				}
+				if err := update.Exec(txCtx); err != nil {
+					return fmt.Errorf("backfill CPA credential %d projection: %w", credential.ID, err)
+				}
 			}
-			if err := update.Exec(ctx); err != nil {
-				return fmt.Errorf("backfill CPA credential %d projection: %w", credential.ID, err)
-			}
-			lastID = credential.ID
+			return nil
+		}); err != nil {
+			return err
 		}
+		lastID = rows[len(rows)-1].ID
 	}
 }

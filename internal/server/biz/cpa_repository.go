@@ -3,6 +3,8 @@ package biz
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
@@ -14,15 +16,21 @@ type cpaRepository struct {
 	entFromContext                 func(context.Context) *ent.Client
 	withInstanceWriteRetry         func(context.Context, int, func() error) error
 	supportsNormalizedQuota        func(cpaclient.NormalizedCredential) bool
+	now                            func() time.Time
 	invalidateUsageCredentialCache func(int)
 }
 
 func newCPARepository(svc *CPAService) *cpaRepository {
 	return &cpaRepository{
-		entFromContext:                 svc.entFromContext,
-		withInstanceWriteRetry:         svc.withCPAInstanceWriteRetry,
-		supportsNormalizedQuota:        svc.supportsNormalizedQuota,
-		invalidateUsageCredentialCache: svc.invalidateUsageCredentialCache,
+		entFromContext:          svc.entFromContext,
+		withInstanceWriteRetry:  svc.withCPAInstanceWriteRetry,
+		supportsNormalizedQuota: svc.supportsNormalizedQuota,
+		now:                     svc.now,
+		invalidateUsageCredentialCache: func(instanceID int) {
+			if svc.usageRepository != nil {
+				svc.usageRepository.invalidateCredentialCache(instanceID)
+			}
+		},
 	}
 }
 
@@ -54,6 +62,15 @@ func (repository *cpaRepository) patrolCandidates(ctx context.Context, instanceI
 }
 
 func (repository *cpaRepository) applyQuotaOutcome(ctx context.Context, outcome cpaQuotaExecutionOutcome) (cpaQuotaExecutionOutcome, error) {
+	return repository.applyQuotaOutcomeWithLease(ctx, outcome, "", -1)
+}
+
+func (repository *cpaRepository) applyQuotaOutcomeWithLease(
+	ctx context.Context,
+	outcome cpaQuotaExecutionOutcome,
+	leaseToken string,
+	leaseRevision int,
+) (cpaQuotaExecutionOutcome, error) {
 	if err := outcome.validate(); err != nil {
 		return outcome, err
 	}
@@ -82,6 +99,12 @@ func (repository *cpaRepository) applyQuotaOutcome(ctx context.Context, outcome 
 			SetHealthState(string(projection.healthState)).
 			SetQuotaCooling(projection.quotaCooling).
 			SetProjectionVersion(currentCPAProjectionVersion)
+		if strings.TrimSpace(leaseToken) != "" {
+			update = update.Where(
+				cpacredential.RefreshLeaseTokenEQ(leaseToken),
+				cpacredential.RefreshRevisionEQ(leaseRevision),
+			)
+		}
 		if projection.quotaCooldownUntil == nil {
 			update.ClearQuotaCooldownUntil()
 		} else {
@@ -103,6 +126,12 @@ func (repository *cpaRepository) applyQuotaOutcome(ctx context.Context, outcome 
 			case objects.CPAQuotaStateUnsupported, objects.CPAQuotaStateInsufficientData:
 				update.SetQuotaData(quotaData)
 			}
+		}
+		if strings.TrimSpace(leaseToken) != "" {
+			update.
+				SetRefreshRevision(leaseRevision + 1).
+				SetRefreshLeaseToken("").
+				ClearRefreshLeaseUntil()
 		}
 		persisted, err = update.Save(ctx)
 		if err != nil {

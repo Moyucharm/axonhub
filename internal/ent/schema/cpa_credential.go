@@ -57,6 +57,11 @@ func (CPACredential) Fields() []ent.Field {
 		field.Time("quota_last_success_at").Optional().Nillable(),
 		field.Time("quota_last_failure_at").Optional().Nillable(),
 		field.String("quota_last_error").Default(""),
+		// Refresh lease fields coordinate quota refreshes across processes. They
+		// are internal state and are intentionally excluded from GraphQL.
+		field.String("refresh_lease_token").Default("").Sensitive().Annotations(entgql.Skip(entgql.SkipAll)),
+		field.Time("refresh_lease_until").Optional().Nillable().Annotations(entgql.Skip(entgql.SkipAll)),
+		field.Int("refresh_revision").Default(0).Annotations(entgql.Skip(entgql.SkipAll)),
 		field.JSON("quota_observed", objects.CPAQuotaObserved{}).
 			Default(objects.CPAQuotaObserved{}).
 			Optional().
@@ -86,6 +91,9 @@ func (CPACredential) Indexes() []ent.Index {
 		index.Fields("cpa_instance_id", "plan_type"),
 		index.Fields("cpa_instance_id", "health_state"),
 		index.Fields("cpa_instance_id", "quota_cooling", "quota_cooldown_until"),
+		index.Fields("cpa_instance_id", "provider", "plan_type", "priority", "display_name_sort_key", "display_name_sort_length", "id").
+			StorageKey("cpa_credentials_by_provider_plan_sort").
+			Annotations(entsql.DescColumns("priority")),
 		index.Fields("cpa_instance_id", "priority", "display_name_sort_key", "display_name_sort_length", "id").
 			Annotations(entsql.DescColumns("priority")),
 	}

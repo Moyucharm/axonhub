@@ -112,7 +112,10 @@ func callJSON(ctx context.Context, client ManagementClient, call ProviderCall, o
 		return nil, err
 	}
 	if result.StatusCode < http.StatusOK || result.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("provider quota request returned HTTP %d", result.StatusCode)
+		return nil, &ProviderHTTPError{
+			StatusCode: result.StatusCode,
+			Body:       append([]byte(nil), result.Body...),
+		}
 	}
 	if output != nil {
 		if err := json.Unmarshal(result.Body, output); err != nil {

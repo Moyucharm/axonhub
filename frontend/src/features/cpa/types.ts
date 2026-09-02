@@ -1,3 +1,7 @@
+export type CPAConnectionStatus = 'connected' | 'disabled' | 'error' | 'unknown';
+export type CPAQuotaState = 'pending' | 'success' | 'error' | 'unsupported' | 'insufficient_data';
+export type CPACredentialFilterStatus = 'enabled' | 'disabled' | 'abnormal' | 'cooldown';
+
 export interface CPAInstance {
   id: number;
   name: string;
@@ -21,7 +25,7 @@ export interface CPAInstance {
   lastErrorAt?: string | null;
   lastError?: string | null;
   hasSecret: boolean;
-  connectionStatus: string;
+  connectionStatus: CPAConnectionStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,7 +62,7 @@ export interface CPACredential {
   runtimeOnly: boolean;
   priority: number;
   planType: string;
-  quotaState: string;
+  quotaState: CPAQuotaState;
   quotaData: { items: CPAQuotaItem[] };
   quotaLastAttemptAt?: string | null;
   quotaLastSuccessAt?: string | null;
@@ -103,12 +107,9 @@ export function compareCPAProviders(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-export interface CPAProviderCount {
+export interface CPAProviderOverview {
   provider: string;
   count: number;
-}
-
-export interface CPAProviderOverview extends CPAProviderCount {
   planTypes: string[];
 }
 
@@ -153,7 +154,7 @@ export interface CPACredentialQueryInput {
   after?: string;
   search?: string;
   provider?: string;
-  statuses: string[];
+  statuses: CPACredentialFilterStatus[];
   planTypes: string[];
   abnormalOnly: boolean;
 }

@@ -68,6 +68,7 @@ type Config struct {
 type ResolverRoot interface {
 	APIKey() APIKeyResolver
 	APIKeyProfileTemplate() APIKeyProfileTemplateResolver
+	CPAManagedCredential() CPAManagedCredentialResolver
 	Channel() ChannelResolver
 	ChannelModelPrice() ChannelModelPriceResolver
 	ChannelModelPriceVersion() ChannelModelPriceVersionResolver
@@ -444,11 +445,6 @@ type ComplexityRoot struct {
 		HasNextPage     func(childComplexity int) int
 		HasPreviousPage func(childComplexity int) int
 		StartCursor     func(childComplexity int) int
-	}
-
-	CPAProviderCount struct {
-		Count    func(childComplexity int) int
-		Provider func(childComplexity int) int
 	}
 
 	CPAProviderOverview struct {
@@ -1589,12 +1585,9 @@ type ComplexityRoot struct {
 		CostStatsByChannel              func(childComplexity int, timeWindow *string) int
 		CostStatsByModel                func(childComplexity int, timeWindow *string) int
 		CountChannelsByType             func(childComplexity int, input CountChannelsByTypeInput) int
-		CpaCredentialStats              func(childComplexity int, instanceID int) int
 		CpaInstance                     func(childComplexity int, id int) int
 		CpaInstances                    func(childComplexity int) int
 		CpaOverview                     func(childComplexity int, instanceID int) int
-		CpaPlanTypes                    func(childComplexity int, instanceID int, provider string) int
-		CpaProviderCounts               func(childComplexity int, instanceID int) int
 		CpaRefreshProgress              func(childComplexity int, instanceID int) int
 		DailyRequestStats               func(childComplexity int) int
 		DashboardOverview               func(childComplexity int) int
@@ -2366,6 +2359,9 @@ type APIKeyProfileTemplateResolver interface {
 
 	LinkedProfilesCount(ctx context.Context, obj *ent.APIKeyProfileTemplate) (int, error)
 }
+type CPAManagedCredentialResolver interface {
+	QuotaState(ctx context.Context, obj *biz.CPACredentialView) (objects.CPAQuotaState, error)
+}
 type ChannelResolver interface {
 	ID(ctx context.Context, obj *ent.Channel) (*objects.GUID, error)
 
@@ -2664,9 +2660,6 @@ type QueryResolver interface {
 	CpaInstance(ctx context.Context, id int) (*biz.CPAInstanceView, error)
 	QueryCPACredentials(ctx context.Context, input biz.QueryCPACredentialsInput) (*biz.CPACredentialConnection, error)
 	CpaOverview(ctx context.Context, instanceID int) (*biz.CPAOverview, error)
-	CpaCredentialStats(ctx context.Context, instanceID int) (*biz.CPACredentialStats, error)
-	CpaProviderCounts(ctx context.Context, instanceID int) ([]*biz.CPAProviderCount, error)
-	CpaPlanTypes(ctx context.Context, instanceID int, provider string) ([]string, error)
 	CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error)
 }
 type QuotaEnforcementSettingsResolver interface {
@@ -4162,19 +4155,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAPageInfo.StartCursor(childComplexity), true
-
-	case "CPAProviderCount.count":
-		if e.complexity.CPAProviderCount.Count == nil {
-			break
-		}
-
-		return e.complexity.CPAProviderCount.Count(childComplexity), true
-	case "CPAProviderCount.provider":
-		if e.complexity.CPAProviderCount.Provider == nil {
-			break
-		}
-
-		return e.complexity.CPAProviderCount.Provider(childComplexity), true
 
 	case "CPAProviderOverview.count":
 		if e.complexity.CPAProviderOverview.Count == nil {
@@ -9557,17 +9537,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.CountChannelsByType(childComplexity, args["input"].(CountChannelsByTypeInput)), true
-	case "Query.cpaCredentialStats":
-		if e.complexity.Query.CpaCredentialStats == nil {
-			break
-		}
-
-		args, err := ec.field_Query_cpaCredentialStats_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.CpaCredentialStats(childComplexity, args["instanceID"].(int)), true
 	case "Query.cpaInstance":
 		if e.complexity.Query.CpaInstance == nil {
 			break
@@ -9596,28 +9565,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.CpaOverview(childComplexity, args["instanceID"].(int)), true
-	case "Query.cpaPlanTypes":
-		if e.complexity.Query.CpaPlanTypes == nil {
-			break
-		}
-
-		args, err := ec.field_Query_cpaPlanTypes_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.CpaPlanTypes(childComplexity, args["instanceID"].(int), args["provider"].(string)), true
-	case "Query.cpaProviderCounts":
-		if e.complexity.Query.CpaProviderCounts == nil {
-			break
-		}
-
-		args, err := ec.field_Query_cpaProviderCounts_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.CpaProviderCounts(childComplexity, args["instanceID"].(int)), true
 	case "Query.cpaRefreshProgress":
 		if e.complexity.Query.CpaRefreshProgress == nil {
 			break
@@ -15756,17 +15703,6 @@ func (ec *executionContext) field_Query_countChannelsByType_args(ctx context.Con
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_cpaCredentialStats_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
-	if err != nil {
-		return nil, err
-	}
-	args["instanceID"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Query_cpaInstance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15779,33 +15715,6 @@ func (ec *executionContext) field_Query_cpaInstance_args(ctx context.Context, ra
 }
 
 func (ec *executionContext) field_Query_cpaOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
-	if err != nil {
-		return nil, err
-	}
-	args["instanceID"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_cpaPlanTypes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
-	if err != nil {
-		return nil, err
-	}
-	args["instanceID"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
-	if err != nil {
-		return nil, err
-	}
-	args["provider"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_cpaProviderCounts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instanceID", ec.unmarshalNInt2int)
@@ -22677,10 +22586,10 @@ func (ec *executionContext) _CPAManagedCredential_quotaState(ctx context.Context
 		field,
 		ec.fieldContext_CPAManagedCredential_quotaState,
 		func(ctx context.Context) (any, error) {
-			return obj.QuotaState, nil
+			return ec.resolvers.CPAManagedCredential().QuotaState(ctx, obj)
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNCPAQuotaState2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaState,
 		true,
 		true,
 	)
@@ -22690,10 +22599,10 @@ func (ec *executionContext) fieldContext_CPAManagedCredential_quotaState(_ conte
 	fc = &graphql.FieldContext{
 		Object:     "CPAManagedCredential",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type CPAQuotaState does not have child fields")
 		},
 	}
 	return fc, nil
@@ -23728,7 +23637,7 @@ func (ec *executionContext) _CPAManagedInstance_connectionStatus(ctx context.Con
 			return obj.ConnectionStatus, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNCPAConnectionStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAConnectionStatus,
 		true,
 		true,
 	)
@@ -23741,7 +23650,7 @@ func (ec *executionContext) fieldContext_CPAManagedInstance_connectionStatus(_ c
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type CPAConnectionStatus does not have child fields")
 		},
 	}
 	return fc, nil
@@ -23990,64 +23899,6 @@ func (ec *executionContext) fieldContext_CPAPageInfo_endCursor(_ context.Context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _CPAProviderCount_provider(ctx context.Context, field graphql.CollectedField, obj *biz.CPAProviderCount) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_CPAProviderCount_provider,
-		func(ctx context.Context) (any, error) {
-			return obj.Provider, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_CPAProviderCount_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "CPAProviderCount",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _CPAProviderCount_count(ctx context.Context, field graphql.CollectedField, obj *biz.CPAProviderCount) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_CPAProviderCount_count,
-		func(ctx context.Context) (any, error) {
-			return obj.Count, nil
-		},
-		nil,
-		ec.marshalNInt2int,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_CPAProviderCount_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "CPAProviderCount",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -54335,143 +54186,6 @@ func (ec *executionContext) fieldContext_Query_cpaOverview(ctx context.Context, 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_cpaOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_cpaCredentialStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_cpaCredentialStats,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().CpaCredentialStats(ctx, fc.Args["instanceID"].(int))
-		},
-		nil,
-		ec.marshalNCPACredentialStats2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialStats,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_cpaCredentialStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "available":
-				return ec.fieldContext_CPACredentialStats_available(ctx, field)
-			case "total":
-				return ec.fieldContext_CPACredentialStats_total(ctx, field)
-			case "abnormal":
-				return ec.fieldContext_CPACredentialStats_abnormal(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type CPACredentialStats", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_cpaCredentialStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_cpaProviderCounts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_cpaProviderCounts,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().CpaProviderCounts(ctx, fc.Args["instanceID"].(int))
-		},
-		nil,
-		ec.marshalNCPAProviderCount2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderCountᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_cpaProviderCounts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "provider":
-				return ec.fieldContext_CPAProviderCount_provider(ctx, field)
-			case "count":
-				return ec.fieldContext_CPAProviderCount_count(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type CPAProviderCount", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_cpaProviderCounts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_cpaPlanTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_cpaPlanTypes,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().CpaPlanTypes(ctx, fc.Args["instanceID"].(int), fc.Args["provider"].(string))
-		},
-		nil,
-		ec.marshalNString2ᚕstringᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_cpaPlanTypes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_cpaPlanTypes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -85795,7 +85509,7 @@ func (ec *executionContext) unmarshalInputQueryCPACredentialsInput(ctx context.C
 			it.Provider = data
 		case "statuses":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("statuses"))
-			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalNCPACredentialFilterStatus2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatusᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -100232,77 +99946,108 @@ func (ec *executionContext) _CPAManagedCredential(ctx context.Context, sel ast.S
 		case "id":
 			out.Values[i] = ec._CPAManagedCredential_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "instanceID":
 			out.Values[i] = ec._CPAManagedCredential_instanceID(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "remoteName":
 			out.Values[i] = ec._CPAManagedCredential_remoteName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._CPAManagedCredential_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "provider":
 			out.Values[i] = ec._CPAManagedCredential_provider(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._CPAManagedCredential_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "status":
 			out.Values[i] = ec._CPAManagedCredential_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "statusMessage":
 			out.Values[i] = ec._CPAManagedCredential_statusMessage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "disabled":
 			out.Values[i] = ec._CPAManagedCredential_disabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "unavailable":
 			out.Values[i] = ec._CPAManagedCredential_unavailable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "runtimeOnly":
 			out.Values[i] = ec._CPAManagedCredential_runtimeOnly(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "priority":
 			out.Values[i] = ec._CPAManagedCredential_priority(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "planType":
 			out.Values[i] = ec._CPAManagedCredential_planType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "quotaState":
-			out.Values[i] = ec._CPAManagedCredential_quotaState(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._CPAManagedCredential_quotaState(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "quotaData":
 			out.Values[i] = ec._CPAManagedCredential_quotaData(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "quotaLastAttemptAt":
 			out.Values[i] = ec._CPAManagedCredential_quotaLastAttemptAt(ctx, field, obj)
@@ -100313,44 +100058,44 @@ func (ec *executionContext) _CPAManagedCredential(ctx context.Context, sel ast.S
 		case "quotaLastError":
 			out.Values[i] = ec._CPAManagedCredential_quotaLastError(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "available":
 			out.Values[i] = ec._CPAManagedCredential_available(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "abnormal":
 			out.Values[i] = ec._CPAManagedCredential_abnormal(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "stale":
 			out.Values[i] = ec._CPAManagedCredential_stale(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "expired":
 			out.Values[i] = ec._CPAManagedCredential_expired(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "cooling":
 			out.Values[i] = ec._CPAManagedCredential_cooling(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "cooldownUntil":
 			out.Values[i] = ec._CPAManagedCredential_cooldownUntil(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._CPAManagedCredential_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._CPAManagedCredential_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -100582,50 +100327,6 @@ func (ec *executionContext) _CPAPageInfo(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = ec._CPAPageInfo_startCursor(ctx, field, obj)
 		case "endCursor":
 			out.Values[i] = ec._CPAPageInfo_endCursor(ctx, field, obj)
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var cPAProviderCountImplementors = []string{"CPAProviderCount"}
-
-func (ec *executionContext) _CPAProviderCount(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAProviderCount) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, cPAProviderCountImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("CPAProviderCount")
-		case "provider":
-			out.Values[i] = ec._CPAProviderCount_provider(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "count":
-			out.Values[i] = ec._CPAProviderCount_count(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -112160,72 +111861,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "cpaCredentialStats":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_cpaCredentialStats(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "cpaProviderCounts":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_cpaProviderCounts(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "cpaPlanTypes":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_cpaPlanTypes(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "cpaRefreshProgress":
 			field := field
 
@@ -120571,6 +120206,23 @@ func (ec *executionContext) marshalNBulkUpdateChannelOrderingResult2ᚖgithubᚗ
 	return ec._BulkUpdateChannelOrderingResult(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCPAConnectionStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAConnectionStatus(ctx context.Context, v any) (biz.CPAConnectionStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := biz.CPAConnectionStatus(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCPAConnectionStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAConnectionStatus(ctx context.Context, sel ast.SelectionSet, v biz.CPAConnectionStatus) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNCPACredentialConnection2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialConnection(ctx context.Context, sel ast.SelectionSet, v biz.CPACredentialConnection) graphql.Marshaler {
 	return ec._CPACredentialConnection(ctx, sel, &v)
 }
@@ -120639,8 +120291,80 @@ func (ec *executionContext) marshalNCPACredentialEdge2ᚖgithubᚗcomᚋlooplj�
 	return ec._CPACredentialEdge(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCPACredentialStats2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialStats(ctx context.Context, sel ast.SelectionSet, v biz.CPACredentialStats) graphql.Marshaler {
-	return ec._CPACredentialStats(ctx, sel, &v)
+func (ec *executionContext) unmarshalNCPACredentialFilterStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatus(ctx context.Context, v any) (biz.CPACredentialFilterStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := biz.CPACredentialFilterStatus(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCPACredentialFilterStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatus(ctx context.Context, sel ast.SelectionSet, v biz.CPACredentialFilterStatus) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNCPACredentialFilterStatus2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatusᚄ(ctx context.Context, v any) ([]biz.CPACredentialFilterStatus, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]biz.CPACredentialFilterStatus, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCPACredentialFilterStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatus(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNCPACredentialFilterStatus2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []biz.CPACredentialFilterStatus) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPACredentialFilterStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialFilterStatus(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNCPACredentialStats2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialStats(ctx context.Context, sel ast.SelectionSet, v *biz.CPACredentialStats) graphql.Marshaler {
@@ -120749,60 +120473,6 @@ func (ec *executionContext) marshalNCPAPageInfo2ᚖgithubᚗcomᚋloopljᚋaxonh
 	return ec._CPAPageInfo(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCPAProviderCount2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.CPAProviderCount) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNCPAProviderCount2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderCount(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNCPAProviderCount2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderCount(ctx context.Context, sel ast.SelectionSet, v *biz.CPAProviderCount) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._CPAProviderCount(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNCPAProviderOverview2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAProviderOverviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.CPAProviderOverview) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -120907,6 +120577,23 @@ func (ec *executionContext) marshalNCPAQuotaItem2ᚕgithubᚗcomᚋloopljᚋaxon
 
 func (ec *executionContext) marshalNCPAQuotaSnapshot2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaSnapshot(ctx context.Context, sel ast.SelectionSet, v objects.CPAQuotaSnapshot) graphql.Marshaler {
 	return ec._CPAQuotaSnapshot(ctx, sel, &v)
+}
+
+func (ec *executionContext) unmarshalNCPAQuotaState2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaState(ctx context.Context, v any) (objects.CPAQuotaState, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := objects.CPAQuotaState(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCPAQuotaState2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaState(ctx context.Context, sel ast.SelectionSet, v objects.CPAQuotaState) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) marshalNCPARefreshResult2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPARefreshResult(ctx context.Context, sel ast.SelectionSet, v biz.CPARefreshResult) graphql.Marshaler {

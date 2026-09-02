@@ -25,7 +25,7 @@ quota refresh 的网络请求仍使用开始时的 credential 输入，但 typed
 
 凭证查询把 search、provider、plan、enabled/disabled、abnormal、cooldown 和 abnormal-only 全部下推 SQL。稳定顺序为 `priority DESC, display_name_sort_key, display_name_sort_length, id`，cursor 保存同一组排序值，数据查询只读取 `first + 1` 行。旧 `{priority, display_name, id}` cursor 仍可转换为新排序投影。
 
-GraphQL 使用 `cpaOverview(instanceID)` 返回 stats 和每个 provider 的 count/plan types。旧 stats/provider/plan root fields 保留 deprecated 兼容入口，前端只请求新 overview，不再在 provider 切换时单独请求 plan types。
+GraphQL 使用 `cpaOverview(instanceID)` 返回 stats 和每个 provider 的 count/plan types。`cpaCredentialStats`、`cpaProviderCounts`、`cpaPlanTypes` 三个旧 root fields 已在同一重构系列的契约 checkpoint 删除；前端只请求新 overview，不再在 provider 切换时单独请求 plan types。
 
 ## Alternatives considered
 
@@ -34,7 +34,7 @@ GraphQL 使用 `cpaOverview(instanceID)` 返回 stats 和每个 provider 的 cou
 - **查询时继续从 quota JSON 派生状态：** 能保持单一 snapshot，但 abnormal/cooldown 无法进入 SQL predicate，keyset 分页仍会退化为全量内存过滤。
 - **把 cooldown 合并进单一 health enum：** quota error、disabled 与 cooldown 可以重叠，单 enum 会丢失现有状态筛选的 OR 语义；正交字段能保持兼容。
 - **将自然排序改为普通字典序：** 实现更简单，但会改变 Account 2/Account 10 等现有可观察顺序，因此保留物化自然排序键。
-- **立即删除旧 GraphQL root fields：** 当前前端已无需要，但公开 schema 可能仍有外部调用方；先 deprecated 能在不保留旧全量实现的情况下提供迁移窗口。
+- **立即删除旧 GraphQL root fields：** 主人明确选择不跨 release 保留兼容入口；当前前端已无旧字段调用，删除让 schema 与唯一 overview 契约保持一致。外部客户端必须迁移到 `cpaOverview`。
 
 ## Consequences
 

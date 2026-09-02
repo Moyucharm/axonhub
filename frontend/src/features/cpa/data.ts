@@ -2,9 +2,11 @@ export type {
   CPAInstance,
   CPAQuotaItem,
   CPACredential,
+  CPAConnectionStatus,
+  CPAQuotaState,
+  CPACredentialFilterStatus,
   CPACredentialConnection,
   CPAStats,
-  CPAProviderCount,
   CPAProviderOverview,
   CPAOverview,
   CPARefreshResult,
@@ -14,12 +16,7 @@ export type {
 } from './types';
 export { KNOWN_PROVIDER_ORDER, SUPPORTED_QUOTA_PROVIDERS, compareCPAProviders } from './types';
 
-export {
-  useCPAInstances,
-  useCPACredentials,
-  useCPAOverview,
-  useCPARefreshProgress,
-} from './api/queries';
+export { useCPAInstances, useCPACredentials, useCPAOverview, useCPARefreshProgress } from './api/queries';
 export {
   useCreateCPAInstance,
   useUpdateCPAInstance,

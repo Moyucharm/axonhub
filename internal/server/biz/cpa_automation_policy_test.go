@@ -72,6 +72,20 @@ func TestCPACredentialDisableReason(t *testing.T) {
 	require.Nil(t, item)
 
 	reason, item = cpaCredentialDisableReason(&ent.CPACredential{
+		QuotaState:     string(objects.CPAQuotaStateError),
+		QuotaLastError: "provider quota request returned HTTP 429 (usage_limit_reached)",
+	}, now)
+	require.Empty(t, reason)
+	require.Nil(t, item)
+
+	reason, item = cpaCredentialDisableReason(&ent.CPACredential{
+		QuotaState:     string(objects.CPAQuotaStateError),
+		QuotaLastError: "provider quota request returned HTTP 401",
+	}, now)
+	require.Equal(t, "expired", reason)
+	require.Nil(t, item)
+
+	reason, item = cpaCredentialDisableReason(&ent.CPACredential{
 		QuotaData: objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{ID: "weekly", UsedPercent: floatPtr(50)}}},
 	}, now)
 	require.Empty(t, reason)

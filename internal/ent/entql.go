@@ -128,6 +128,9 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpacredential.FieldQuotaLastSuccessAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastSuccessAt},
 			cpacredential.FieldQuotaLastFailureAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastFailureAt},
 			cpacredential.FieldQuotaLastError:        {Type: field.TypeString, Column: cpacredential.FieldQuotaLastError},
+			cpacredential.FieldRefreshLeaseToken:     {Type: field.TypeString, Column: cpacredential.FieldRefreshLeaseToken},
+			cpacredential.FieldRefreshLeaseUntil:     {Type: field.TypeTime, Column: cpacredential.FieldRefreshLeaseUntil},
+			cpacredential.FieldRefreshRevision:       {Type: field.TypeInt, Column: cpacredential.FieldRefreshRevision},
 			cpacredential.FieldQuotaObserved:         {Type: field.TypeJSON, Column: cpacredential.FieldQuotaObserved},
 		},
 	}
@@ -1967,6 +1970,21 @@ func (f *CPACredentialFilter) WhereQuotaLastFailureAt(p entql.TimeP) {
 // WhereQuotaLastError applies the entql string predicate on the quota_last_error field.
 func (f *CPACredentialFilter) WhereQuotaLastError(p entql.StringP) {
 	f.Where(p.Field(cpacredential.FieldQuotaLastError))
+}
+
+// WhereRefreshLeaseToken applies the entql string predicate on the refresh_lease_token field.
+func (f *CPACredentialFilter) WhereRefreshLeaseToken(p entql.StringP) {
+	f.Where(p.Field(cpacredential.FieldRefreshLeaseToken))
+}
+
+// WhereRefreshLeaseUntil applies the entql time.Time predicate on the refresh_lease_until field.
+func (f *CPACredentialFilter) WhereRefreshLeaseUntil(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldRefreshLeaseUntil))
+}
+
+// WhereRefreshRevision applies the entql int predicate on the refresh_revision field.
+func (f *CPACredentialFilter) WhereRefreshRevision(p entql.IntP) {
+	f.Where(p.Field(cpacredential.FieldRefreshRevision))
 }
 
 // WhereQuotaObserved applies the entql json.RawMessage predicate on the quota_observed field.
