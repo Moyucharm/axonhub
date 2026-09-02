@@ -16,6 +16,10 @@ const OUTPUT_PATH = path.join(
 	__dirname,
 	"../../frontend/src/features/models/data/providers.json",
 );
+const CPA_PRICE_OUTPUT_PATH = path.join(
+	__dirname,
+	"../../internal/server/biz/cpa_model_prices.json",
+);
 const MODELS_JSON_PATH = path.join(__dirname, "./models.json");
 
 const KWAIPILOT_DEVELOPER_ID = "kwaipilot";
@@ -526,6 +530,46 @@ function sortModelsByDate(data) {
 	return data;
 }
 
+function buildCPAPriceCatalog(data) {
+	const candidates = new Map();
+	const conflicts = new Set();
+	const costFields = ["input", "output", "cache_read", "cache_write"];
+
+	for (const provider of Object.values(data.providers || {})) {
+		for (const model of provider.models || []) {
+			const modelID =
+				typeof model?.id === "string" ? model.id.trim().toLowerCase() : "";
+			if (!modelID || conflicts.has(modelID)) continue;
+
+			const cost = {};
+			for (const field of costFields) {
+				const value = model?.cost?.[field];
+				if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+					cost[field] = value;
+				}
+			}
+			if (Object.keys(cost).length === 0) continue;
+
+			const serialized = JSON.stringify(cost);
+			const existing = candidates.get(modelID);
+			if (!existing) {
+				candidates.set(modelID, { cost, serialized });
+				continue;
+			}
+			if (existing.serialized !== serialized) {
+				candidates.delete(modelID);
+				conflicts.add(modelID);
+			}
+		}
+	}
+
+	return Object.fromEntries(
+		Array.from(candidates.entries())
+			.sort(([left], [right]) => left.localeCompare(right))
+			.map(([modelID, candidate]) => [modelID, candidate.cost]),
+	);
+}
+
 function mergeWithModelsJson(data, modelsJsonPath) {
 	if (!fs.existsSync(modelsJsonPath)) {
 		console.log("models.json does not exist, skipping merge");
@@ -591,6 +635,16 @@ async function main() {
 
 		console.log("Writing to:", OUTPUT_PATH);
 		fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(filtered, null, 2)}\n`);
+
+		const cpaPriceCatalog = buildCPAPriceCatalog(filtered);
+		console.log(
+			`Writing ${Object.keys(cpaPriceCatalog).length} CPA model prices to:`,
+			CPA_PRICE_OUTPUT_PATH,
+		);
+		fs.writeFileSync(
+			CPA_PRICE_OUTPUT_PATH,
+			`${JSON.stringify(cpaPriceCatalog, null, 2)}\n`,
+		);
 
 		console.log("Sync completed successfully!");
 	} catch (error) {

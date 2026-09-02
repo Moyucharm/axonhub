@@ -32,7 +32,7 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          if git diff --quiet frontend/src/features/models/data/providers.json; then
+          if git diff --quiet -- frontend/src/features/models/data/providers.json internal/server/biz/cpa_model_prices.json; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
