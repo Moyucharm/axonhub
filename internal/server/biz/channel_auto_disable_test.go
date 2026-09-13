@@ -39,7 +39,6 @@ func newTestChannelService(client *ent.Client) *ChannelService {
 		SystemService:             mockSysSvc,
 		WebhookNotifier:           NewWebhookNotifier(mockSysSvc, httpclient.NewHttpClient()),
 		channelPerfMetrics:        make(map[int]*channelMetrics),
-		channelErrorCounts:        make(map[int]map[int]int),
 		apiKeyErrorCounts:         make(map[int]map[string]map[int]int),
 		apiKeyRuleActionsInFlight: make(map[int]map[string]bool),
 		perfWindowSeconds:         600,
@@ -431,7 +430,7 @@ func TestChannelService_DisableAllAPIKeysNotifiesWebhook(t *testing.T) {
 	}
 }
 
-func TestChannelService_SuccessClearsErrorCounts(t *testing.T) {
+func TestChannelService_SuccessClearsAPIKeyErrorCounts(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()
 
@@ -443,10 +442,6 @@ func TestChannelService_SuccessClearsErrorCounts(t *testing.T) {
 
 	ch := createTestChannelWithAPIKeys(t, client, ctx, "test-channel", []string{"key1"})
 
-	// Set up some error counts
-	svc.channelErrorCounts = map[int]map[int]int{
-		ch.ID: {401: 2, 500: 1},
-	}
 	svc.apiKeyErrorCounts = map[int]map[string]map[int]int{
 		ch.ID: {"key1": {401: 2}},
 	}
@@ -462,12 +457,6 @@ func TestChannelService_SuccessClearsErrorCounts(t *testing.T) {
 
 	svc.IncrementChannelSelection(ch.ID)
 	svc.RecordPerformance(ctx, perf)
-
-	// Verify channel error counts are cleared
-	svc.channelErrorCountsLock.Lock()
-	_, channelExists := svc.channelErrorCounts[ch.ID]
-	svc.channelErrorCountsLock.Unlock()
-	require.False(t, channelExists)
 
 	// Verify API key error counts are cleared
 	svc.apiKeyErrorCountsLock.Lock()

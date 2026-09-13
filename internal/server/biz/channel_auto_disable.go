@@ -142,10 +142,6 @@ func (svc *ChannelService) recordChannelFailure(ctx context.Context, channelID i
 		return count, acted, err
 	}
 
-	svc.channelErrorCountsLock.Lock()
-	delete(svc.channelErrorCounts, channelID)
-	svc.channelErrorCountsLock.Unlock()
-
 	if err := svc.enabledChannelsCache.Load(ctx, true); err != nil {
 		log.Warn(ctx, "Failed to refresh channels after automatic action", log.Int("channel_id", channelID), log.Cause(err))
 	}
@@ -363,21 +359,31 @@ func (svc *ChannelService) isAPIKeyPool(ctx context.Context, channelID int) bool
 	return err == nil && ch.Credentials.IsAPIKeyPool()
 }
 
-// checkAndHandleAPIKeyError persists per-key failure state and disables the key
-// when the matching global threshold is reached. The global API key setting is
-// used only when no channel-scoped API key rule matched the failure.
+// checkAndHandleAPIKeyError preserves the historical acted-only helper for
+// direct callers. The performance path uses evaluateAPIKeyError so it can
+// distinguish ownership from reaching the disable threshold.
 func (svc *ChannelService) checkAndHandleAPIKeyError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) bool {
+	_, acted := svc.evaluateAPIKeyError(ctx, perf, policy)
+	return acted
+}
+
+// evaluateAPIKeyError persists per-key failure state and disables the key when
+// the matching global threshold is reached. The first result reports ownership
+// of the failure even when the threshold has not been reached yet. The global
+// API key setting is used only when no channel-scoped API key rule matched the
+// failure.
+func (svc *ChannelService) evaluateAPIKeyError(ctx context.Context, perf *PerformanceRecord, policy *RetryPolicy) (matched, acted bool) {
 	if perf == nil || perf.APIKey == "" || policy == nil {
-		return false
+		return false, false
 	}
 	ch, err := svc.entFromContext(ctx).Channel.Get(ctx, perf.ChannelID)
 	if err != nil || !ch.Credentials.IsAPIKeyPool() {
-		return false
+		return false, false
 	}
 
 	cfg := policy.AutoDisableAPIKey
 	if !cfg.Enabled {
-		return false
+		return false, false
 	}
 
 	duration := time.Duration(cfg.DisableDurationMinutes) * time.Minute
@@ -398,14 +404,14 @@ func (svc *ChannelService) checkAndHandleAPIKeyError(ctx context.Context, perf *
 				log.Int("error_code", perf.ResponseStatusCode),
 				log.Cause(err),
 			)
-			return false
+			return true, false
 		}
 		if acted {
 			svc.apiKeyErrorCountsLock.Lock()
 			delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
 			svc.apiKeyErrorCountsLock.Unlock()
 		}
-		return acted
+		return true, acted
 	}
 
 	for _, statusConfig := range cfg.Statuses {
@@ -426,17 +432,17 @@ func (svc *ChannelService) checkAndHandleAPIKeyError(ctx context.Context, perf *
 				log.Int("error_code", perf.ResponseStatusCode),
 				log.Cause(err),
 			)
-			return false
+			return true, false
 		}
 		if acted {
 			svc.apiKeyErrorCountsLock.Lock()
 			delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
 			svc.apiKeyErrorCountsLock.Unlock()
 		}
-		return acted
+		return true, acted
 	}
 
-	return false
+	return false, false
 }
 
 // EvaluateAPIKeyRulesForFailure evaluates channel-scoped API key rules for a

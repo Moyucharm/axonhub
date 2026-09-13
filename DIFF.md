@@ -70,7 +70,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 - **持久化状态**：渠道实体新增 `cooldown_until`（冷却到期时间）与 `auto_disable_state`（JSON：失败计数、策略 key、最近错误码/错误文本），均为服务端管理字段，跳过 GraphQL mutation input。
 - **策略两级回退**：渠道级策略（`channelAutoDisable`，支持 `any`/`codes`、次数、`disable`/`cooldown` 动作、冷却分钟数）命中优先，未命中回退全局策略（`AutoDisableChannel` 新增 `action` + `cooldownDurationMinutes`）。
-- **双维度独立累计**：渠道维度与 API Key 维度独立计数、独立执行；Key 规则仅对 Key Pool 渠道生效；单 Key 渠道不适用。
+- **单次失败单一责任维度**：命中渠道级 API Key 规则或全局 Key Pool 策略的失败由凭证维度处理；否则回退渠道级 disable/cooldown；所有凭证不可用导致的渠道 disabled/recovery 是汇总结果，不再重复累计渠道失败。
 - **冷却语义**：冷却保持 `status=enabled`，生产路由排除有效冷却渠道（候选选择 + resolved 阶段双重过滤），手动测试绕过冷却；到期懒恢复（无定时 DB 清理），计数从 0 重新累计。
 - **并发安全**：单渠道分片锁 + `UpdatedAtEQ` 乐观并发重试，跨实例正确性依赖乐观更新。
 - **恢复入口**：`recoverChannelCooldown` mutation + 前端行菜单「恢复冷却」，只清冷却与运行计数，不改动人工 status/errorMessage；手动状态更新、批量状态更新自动清冷却。
@@ -121,7 +121,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 - **保留自用能力**：API Key Pool 显式模式、含初次请求的 RetryCount、失败次数/最近错误持久化、Key 导入导出/批量测试/主动 AutoCheck、渠道 cooldown、Codex Simulation，以及 README 的无广告行为和自用 Docker workflow。
 - **采用官方凭证生命周期**：统一 API Key 管理入口、单凭证自动禁用与恢复、OAuth credential sentinel、临时/永久/cron 禁用、凭证全部不可用时的渠道禁用、凭证恢复时的渠道恢复，以及 `auto_disabled_at` 人工/自动状态区分。
-- **统一失败处理**：渠道级 API Key 规则先匹配，随后执行凭证级动作；自用持久化状态记录诊断信息；没有凭证级规则时才回退全局 Key 策略；渠道级 disable/cooldown 独立评估。同一失败不重复计数或重复发送 webhook。
+- **统一失败处理**：渠道级 API Key 规则先匹配；规则或命中的全局 Key Pool 策略拥有本次凭证失败，未匹配时才回退渠道级 disable/cooldown；自用持久化状态继续记录诊断信息，同一失败不重复计数或重复发送 webhook。
 - **移除旧 ProviderQuota 配置**：接受 beta9 数据迁移删除 `settings.providerQuota`，同步移除无业务读取方的 Go/GraphQL/前端字段；ProviderQuotaStatus、CPA 配额刷新与 usage stream 保留。
 - **Responses 流**：采用官方 terminal status、重复 terminal 防护、资源边界和 `llm.ErrStreamIncomplete`；保留自用显式 `doneEmitted`、兼容网关 `[DONE]` 成功终止、工具调用 `tool_calls` finish reason，并保证统一 DONE 最多一次。
 - **验证边界**：GraphQL 管理操作使用 `RequestTimeout`，四类渠道测试使用 `LLMRequestTimeout`，HTTP 层仍以 LLM 超时作为硬上限；CPA quota checker、定时刷新、并发限制及 usage stream 均保留。
@@ -133,7 +133,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **新增官方能力**：模型目录后端热更新、模型级 endpoint protocol routing、渠道模型价格导入导出、Responses WebSocket、usage cost、ZenMux（含视频）与 Command Code 渠道、OAuth/Command Code 配额展示、API Key 列表分页和请求/流转换修复。
 - **保留自用能力**：Key Pool 显式模式与服务端状态、渠道级 API Key 规则、渠道 cooldown、Codex Simulation、CPA 管理、弱网关流保守收尾、5174 开发端口及自用 Docker workflow。
 - **凭证与设置整合**：`ChannelSettings` 同时保留自用 `apiKeyPool`/`codexSimulation` 与官方 `modelProtocols`/Command Code `providerQuota`；后者是 beta10 新增的 Command Code 配额 Cookie，并非此前 beta9 删除的旧 OpenCode workspace/cookie 配置。敏感 Cookie 继续只对 `write_channels` 权限返回并在日志中脱敏。
-- **并发与状态整合**：渠道更新同时保留 API Key 运行状态防回写、Pool→single 清规则、Codex Simulation 类型迁移，以及 Command Code 身份/配额 Cookie 的乐观并发保护；手工状态更新仍清理 cooldown 和自动失败状态。
+- **并发与状态整合**：渠道更新同时保留 API Key 运行状态防回写、Pool→single 清规则、Codex Simulation 类型迁移，以及 Command Code 身份/配额 Cookie 的乐观并发保护；错误处置采用单次失败单一责任维度，凭证规则优先，渠道 cooldown 作为未匹配凭证策略时的 fallback；手工状态更新仍清理 cooldown 和自动失败状态。
 - **生成与迁移**：以合并后的 Ent/GraphQL 源 schema 重新生成代码，保留 CPA 实体、自用渠道字段、beta9 一次性迁移标记和 legacy 渠道类型归一化，同时吸收 beta10 的 schema default 过滤与索引修复。
 - **无广告硬约束**：`atlascloud`、`qiniu`、`qiniu_anthropic`、`fenno` 不进入 Ent/GraphQL/前端可选枚举，不恢复其图标和文案；仅保留旧数据库/备份兼容映射与回归测试。README 不恢复赞助横幅，官方 `docker-unstable.yml` 也不恢复。
 

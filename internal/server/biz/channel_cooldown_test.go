@@ -184,7 +184,7 @@ func TestChannelService_UpdateChannel_PoolToSingleClearsAPIKeyRules(t *testing.T
 	require.Empty(t, persisted.Policies.APIKeyAutoDisableRules)
 }
 
-func TestChannelService_RecordPerformance_ExecutesChannelAndKeyDimensionsIndependently(t *testing.T) {
+func TestChannelService_RecordPerformance_CredentialRuleOwnsFailure(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()
 
@@ -230,7 +230,8 @@ func TestChannelService_RecordPerformance_ExecutesChannelAndKeyDimensionsIndepen
 
 	persisted, err := client.Channel.Get(ctx, ch.ID)
 	require.NoError(t, err)
-	require.Equal(t, channel.StatusDisabled, persisted.Status)
+	require.Equal(t, channel.StatusEnabled, persisted.Status)
+	require.Empty(t, persisted.AutoDisableState)
 	require.Len(t, persisted.DisabledAPIKeys, 1)
 	require.Equal(t, "key1", persisted.DisabledAPIKeys[0].Key)
 }

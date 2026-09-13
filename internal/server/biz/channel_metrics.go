@@ -349,10 +349,6 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 
 	if perf.Success {
 		if !perf.SkipAutoDisable {
-			svc.channelErrorCountsLock.Lock()
-			delete(svc.channelErrorCounts, perf.ChannelID)
-			svc.channelErrorCountsLock.Unlock()
-
 			if err := svc.resetChannelFailure(ctx, perf.ChannelID); err != nil {
 				log.Warn(ctx, "Failed to reset persistent channel failure state",
 					log.Int("channel_id", perf.ChannelID),
@@ -392,23 +388,22 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 	} else if !perf.Canceled && !perf.SkipAutoDisable {
 		policy := svc.SystemService.RetryPolicyOrDefault(ctx)
 
-		// Capture the key-rule channel before channel handling can remove a
-		// disabled/cooling channel from the enabled cache. The two dimensions
-		// must still execute independently for the same production failure.
-		var keyRuleChannel *Channel
-		if perf.APIKey != "" {
-			keyRuleChannel = svc.GetEnabledChannel(perf.ChannelID)
-		}
-
-		// Channel and API key failures are independent dimensions. A keyed
-		// request contributes to both dimensions; channel-scoped key rules only
-		// decide whether the key dimension falls back to the global key policy.
-		svc.checkAndHandleChannelError(ctx, perf, policy)
-
-		if perf.APIKey != "" {
+		if perf.APIKey == "" {
+			// Requests without a credential are owned by the channel-level policy.
+			svc.checkAndHandleChannelError(ctx, perf, policy)
+		} else {
+			// Capture the key-rule channel before a credential action can remove the
+			// channel from the enabled cache. A matched credential rule owns the
+			// failure even when its threshold has not been reached yet.
+			keyRuleChannel := svc.GetEnabledChannel(perf.ChannelID)
 			matched, _ := svc.checkAndHandleChannelAPIKeyRulesWithChannel(ctx, perf, keyRuleChannel)
 			if !matched {
-				svc.checkAndHandleAPIKeyError(ctx, perf, policy)
+				matched, _ = svc.evaluateAPIKeyError(ctx, perf, policy)
+			}
+			if !matched {
+				// Single-key/OAuth channels and pool failures not covered by the
+				// global key policy fall back to the channel-level policy.
+				svc.checkAndHandleChannelError(ctx, perf, policy)
 			}
 		}
 	}

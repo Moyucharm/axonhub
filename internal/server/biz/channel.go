@@ -118,7 +118,6 @@ func NewChannelService(params ChannelServiceParams) *ChannelService {
 		WebhookNotifier:           params.WebhookNotifier,
 		httpClient:                params.HttpClient,
 		channelPerfMetrics:        make(map[int]*channelMetrics),
-		channelErrorCounts:        make(map[int]map[int]int),
 		apiKeyErrorCounts:         make(map[int]map[string]map[int]int),
 		apiKeyRuleActionsInFlight: make(map[int]map[string]bool),
 		perfCh:                    make(chan *PerformanceRecord, 1024),
@@ -193,11 +192,6 @@ type ChannelService struct {
 	// protected by channelPerfMetricsLock
 	channelPerfMetrics     map[int]*channelMetrics
 	channelPerfMetricsLock sync.RWMutex
-
-	// channelErrorCounts stores the error counts for each channel and status code
-	// channelID -> statusCode -> count
-	channelErrorCounts     map[int]map[int]int
-	channelErrorCountsLock sync.Mutex
 
 	// apiKeyErrorCounts stores the error counts for each API key and status code
 	// channelID -> apiKey -> statusCode -> count
