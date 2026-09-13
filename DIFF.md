@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
 | 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.5`（本地 tag 待合并提交确认后创建） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.5`（本地 tag 已创建） |
 
 ### 更新本文件的方法
 
