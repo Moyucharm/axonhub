@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm"
@@ -21,6 +22,7 @@ var SupportedAPIFormats = map[string]struct{}{
 	llm.APIFormatOpenAIImageEdit.String():       {},
 	llm.APIFormatOpenAIImageVariation.String():  {},
 	llm.APIFormatOpenAIVideo.String():           {},
+	llm.APIFormatZenmuxVideo.String():           {},
 	llm.APIFormatOpenAISpeech.String():          {},
 	llm.APIFormatOpenAITranscription.String():   {},
 	llm.APIFormatOpenAITranslation.String():     {},
@@ -57,8 +59,8 @@ func ValidateEndpoints(endpoints []objects.ChannelEndpoint) error {
 			return fmt.Errorf("endpoint[%d]: unsupported transport %q", i, ep.Transport)
 		}
 
-		if ep.Transport == objects.ChannelEndpointTransportWebSocket && !supportsWebSocketTransport(ep.APIFormat) {
-			return fmt.Errorf("endpoint[%d]: websocket transport only supports api_format %q or %q", i, llm.APIFormatOpenAIResponse.String(), llm.APIFormatOpenAIResponseCompact.String())
+		if endpointTransport(ep) == objects.ChannelEndpointTransportWebSocket && !supportsWebSocketTransport(ep.APIFormat) {
+			return fmt.Errorf("endpoint[%d]: websocket transport only supports api_format %q", i, llm.APIFormatOpenAIResponse.String())
 		}
 
 		if ep.Path != "" {
@@ -76,7 +78,110 @@ func ValidateEndpoints(endpoints []objects.ChannelEndpoint) error {
 }
 
 func supportsWebSocketTransport(apiFormat string) bool {
-	return apiFormat == llm.APIFormatOpenAIResponse.String() || apiFormat == llm.APIFormatOpenAIResponseCompact.String()
+	return apiFormat == llm.APIFormatOpenAIResponse.String()
+}
+
+// ValidateModelProtocols validates the channel settings' per-model protocol overrides.
+// Each entry requires a non-empty model (unique within the channel), at least one
+// api_format, and every api_format on an enabled entry must already be available
+// on the channel — i.e. present in the type's default endpoints or the
+// user-configured endpoints. A manually disabled entry for a model that still
+// exists may keep its protocol choices while inactive.
+func ValidateModelProtocols(settings *objects.ChannelSettings, channelType channel.Type, endpoints []objects.ChannelEndpoint) error {
+	if settings == nil || len(settings.ModelProtocols) == 0 {
+		return nil
+	}
+
+	available := make(map[string]struct{})
+	for _, ep := range DefaultEndpointsForChannelType(channelType) {
+		available[ep.APIFormat] = struct{}{}
+	}
+
+	for _, ep := range endpoints {
+		available[ep.APIFormat] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(settings.ModelProtocols))
+	for i, mp := range settings.ModelProtocols {
+		if mp.Model == "" {
+			return fmt.Errorf("modelProtocols[%d]: model is required", i)
+		}
+
+		if _, dup := seen[mp.Model]; dup {
+			return fmt.Errorf("modelProtocols[%d]: duplicate model %q", i, mp.Model)
+		}
+
+		seen[mp.Model] = struct{}{}
+
+		if len(mp.APIFormats) == 0 {
+			return fmt.Errorf("modelProtocols[%d] (%s): at least one api_format is required", i, mp.Model)
+		}
+
+		// Manually disabled overrides no longer need to track endpoint changes while
+		// off. Overrides for removed models are deleted by model-list normalization.
+		if !mp.IsEnabled() {
+			continue
+		}
+
+		for _, format := range mp.APIFormats {
+			if _, ok := available[format]; !ok {
+				return fmt.Errorf("modelProtocols[%d] (%s): api_format %q is not configured on this channel", i, mp.Model, format)
+			}
+		}
+	}
+
+	return nil
+}
+
+// RemoveRemovedModelProtocolOverrides deletes overrides for models that are no
+// longer exposed by the channel. Once a model disappears, its protocol override
+// disappears with it instead of remaining as an inactive stale record. The model
+// list includes direct models and derived request names (prefixes, auto-trimmed
+// names, and mappings), matching runtime model lookup.
+func RemoveRemovedModelProtocolOverrides(settings *objects.ChannelSettings, supportedModels []string) bool {
+	if settings == nil || len(settings.ModelProtocols) == 0 {
+		return false
+	}
+
+	available := modelProtocolAvailableModels(settings, supportedModels)
+	kept := make([]objects.ModelProtocol, 0, len(settings.ModelProtocols))
+	changed := false
+	for _, protocol := range settings.ModelProtocols {
+		if _, present := available[protocol.Model]; present {
+			kept = append(kept, protocol)
+			continue
+		}
+
+		changed = true
+	}
+
+	if changed {
+		settings.ModelProtocols = kept
+	}
+
+	return changed
+}
+
+func modelProtocolAvailableModels(settings *objects.ChannelSettings, supportedModels []string) map[string]struct{} {
+	probe := new(Channel)
+	probe.Channel = new(ent.Channel)
+	probe.Channel.SupportedModels = supportedModels
+	probe.Channel.Settings = settings
+	entries := probe.GetModelEntries()
+	available := make(map[string]struct{}, len(entries)+len(supportedModels))
+	for model := range entries {
+		available[model] = struct{}{}
+	}
+	// Hidden-original/mapped settings only affect exposure. Direct models remain
+	// valid override targets because runtime matching also considers actual names.
+	for _, model := range supportedModels {
+		available[model] = struct{}{}
+		if settings.LowercaseModelID {
+			available[strings.ToLower(model)] = struct{}{}
+		}
+	}
+
+	return available
 }
 
 var openAICompatibleDefaultEndpoints = []objects.ChannelEndpoint{
@@ -116,8 +221,13 @@ var openAIChatOnlyDefaultEndpoints = []objects.ChannelEndpoint{
 // built-in contract. User-configured custom endpoints remain external overrides
 // and are not modeled here.
 var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
-	channel.TypeOpenai:          openAIFullDefaultEndpoints,
+	channel.TypeOpenai: openAIFullDefaultEndpoints,
+	channel.TypeZenmux: append(
+		append([]objects.ChannelEndpoint{}, openAIFullDefaultEndpoints...),
+		objects.ChannelEndpoint{APIFormat: llm.APIFormatZenmuxVideo.String()},
+	),
 	channel.TypeOpenaiResponses: {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
+	channel.TypeZenmuxResponses: {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
 	channel.TypeCline:           openAIChatOnlyDefaultEndpoints,
 	channel.TypeCodex: {
 		{APIFormat: llm.APIFormatOpenAIResponse.String()},
@@ -125,12 +235,17 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 		{APIFormat: llm.APIFormatOpenAIImageGeneration.String()},
 		{APIFormat: llm.APIFormatOpenAIImageEdit.String()},
 	},
-	channel.TypeVercel:       openAICompatibleDefaultEndpoints,
-	channel.TypeAnthropic:    {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
-	channel.TypeAnthropicAWS: {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
-	channel.TypeAnthropicGcp: {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
-	channel.TypeGeminiOpenai: {{APIFormat: llm.APIFormatOpenAIChatCompletion.String()}},
+	channel.TypeVercel:          openAICompatibleDefaultEndpoints,
+	channel.TypeAnthropic:       {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
+	channel.TypeZenmuxAnthropic: {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
+	channel.TypeAnthropicAWS:    {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
+	channel.TypeAnthropicGcp:    {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
+	channel.TypeGeminiOpenai:    {{APIFormat: llm.APIFormatOpenAIChatCompletion.String()}},
 	channel.TypeGemini: {
+		{APIFormat: llm.APIFormatGeminiContents.String()},
+		{APIFormat: llm.APIFormatGeminiEmbedding.String()},
+	},
+	channel.TypeZenmuxGemini: {
 		{APIFormat: llm.APIFormatGeminiContents.String()},
 		{APIFormat: llm.APIFormatGeminiEmbedding.String()},
 	},
@@ -206,6 +321,26 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 		{APIFormat: llm.APIFormatOpenAITranscription.String()},
 		{APIFormat: llm.APIFormatOpenAITranslation.String()},
 	},
+	channel.TypeCommandcode:          openAIChatOnlyDefaultEndpoints,
+	channel.TypeCommandcodeAnthropic: {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
+}
+
+func validateEndpointsForChannelType(channelType channel.Type, endpoints []objects.ChannelEndpoint) error {
+	if err := ValidateEndpoints(endpoints); err != nil {
+		return err
+	}
+
+	if channelType == channel.TypeZenmux {
+		return nil
+	}
+
+	for _, endpoint := range endpoints {
+		if endpoint.APIFormat == llm.APIFormatZenmuxVideo.String() {
+			return fmt.Errorf("api_format %q is only supported by channel type %q", endpoint.APIFormat, channel.TypeZenmux)
+		}
+	}
+
+	return nil
 }
 
 func DefaultEndpointsForChannelType(t channel.Type) []objects.ChannelEndpoint {
@@ -276,6 +411,23 @@ func (c *Channel) ResolveEndpoints() []objects.ChannelEndpoint {
 	}
 
 	return mergeEndpoints(DefaultEndpointsForChannelType(c.Type), c.Endpoints)
+}
+
+// ForcedAPIFormats returns the api formats force-specified for the given request
+// model via ChannelSettings.ModelProtocols, or nil when the model has no override.
+// Results are in configured priority order.
+func (c *Channel) ForcedAPIFormats(model string) []string {
+	if c == nil || c.Channel == nil || c.Settings == nil || model == "" {
+		return nil
+	}
+
+	for _, mp := range c.Settings.ModelProtocols {
+		if mp.Model == model && mp.IsEnabled() {
+			return mp.APIFormats
+		}
+	}
+
+	return nil
 }
 
 func (c *Channel) platformTypeForGeminiEndpoint() string {

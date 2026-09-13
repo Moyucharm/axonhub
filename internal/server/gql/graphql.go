@@ -82,6 +82,7 @@ type Dependencies struct {
 	GCWorker                       *gc.Worker
 	VideoWorker                    *video_storage.Worker
 	OperationTimeouts              OperationTimeouts
+	CatalogService                 *biz.CatalogService
 }
 
 type GraphqlHandler struct {
@@ -122,6 +123,7 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 			deps.HttpClient,
 			deps.GCWorker,
 			deps.VideoWorker,
+			deps.CatalogService,
 		),
 	)
 

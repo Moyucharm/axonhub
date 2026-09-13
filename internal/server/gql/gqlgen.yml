@@ -140,6 +140,12 @@ models:
   ModelMappingInput:
     model:
       - github.com/looplj/axonhub/internal/objects.ModelMapping
+  ModelProtocol:
+    model:
+      - github.com/looplj/axonhub/internal/objects.ModelProtocol
+  ModelProtocolInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.ModelProtocol
   ReasoningEffortMapping:
     model:
       - github.com/looplj/axonhub/llm.ReasoningEffortMapping
@@ -236,6 +242,18 @@ models:
   RetryableErrorPatternInput:
     model:
       - github.com/looplj/axonhub/internal/objects.RetryableErrorPattern
+  ChannelProviderQuotaSettings:
+    model:
+      - github.com/looplj/axonhub/internal/objects.ChannelProviderQuotaSettings
+  ChannelProviderQuotaSettingsInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.ChannelProviderQuotaSettings
+  CommandCodeQuotaSettings:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CommandCodeQuotaSettings
+  CommandCodeQuotaSettingsInput:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CommandCodeQuotaSettings
   ChannelRateLimit:
     model:
       - github.com/looplj/axonhub/internal/objects.ChannelRateLimit

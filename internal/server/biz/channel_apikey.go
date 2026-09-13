@@ -79,6 +79,7 @@ func (svc *ChannelService) disableAPIKeys(
 
 	disabledCount := 0
 	channelDisabled := false
+	var disabledEvent *ChannelAutoDisabledEvent
 	changed, err := svc.mutateChannelAPIKeyState(ctx, channelID, func(ch *ent.Channel) (*channelAPIKeyStateMutation, error) {
 		activeDisabledKeys := lo.Filter(ch.DisabledAPIKeys, func(dk objects.DisabledAPIKey, _ int) bool {
 			return !dk.IsExpired()
@@ -130,6 +131,16 @@ func (svc *ChannelService) disableAPIKeys(
 			mutation.errorMessage = &errorMessage
 			mutation.autoDisabledAt = &now
 			mutation.refreshLocalCache = true
+			disabledEvent = &ChannelAutoDisabledEvent{
+				ChannelID:       ch.ID,
+				ChannelName:     ch.Name,
+				ChannelProvider: ch.Type.String(),
+				ChannelBaseURL:  ch.BaseURL,
+				ChannelStatus:   channel.StatusDisabled.String(),
+				StatusCode:      errorCode,
+				Reason:          errorMessage,
+				OccurredAt:      now,
+			}
 		}
 		return mutation, nil
 	})
@@ -147,6 +158,9 @@ func (svc *ChannelService) disableAPIKeys(
 	)
 	if channelDisabled {
 		log.Warn(ctx, "Channel disabled because all API keys are disabled", log.Int("channel_id", channelID))
+		if disabledEvent != nil {
+			svc.asyncNotifyChannelAutoDisabled(ctx, *disabledEvent)
+		}
 	}
 	return disabledCount, nil
 }

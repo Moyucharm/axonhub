@@ -23,6 +23,12 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   selectedValues?: string[];
   /** Callback for controlled mode. Must trigger a re-render in the parent to keep state in sync. */
   onSelectedValuesChange?: (values: string[]) => void;
+  searchValue?: string;
+  onSearchValueChange?: (value: string) => void;
+  isLoading?: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void | Promise<unknown>;
 }
 
 /** Renders the searchable faceted filter backed by a TanStack Table column. */
@@ -34,6 +40,12 @@ export function DataTableFacetedFilter<TData, TValue>({
   footer,
   selectedValues: controlledSelectedValues,
   onSelectedValuesChange,
+  searchValue,
+  onSearchValueChange,
+  isLoading = false,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const { t } = useTranslation();
   const isControlled = onSelectedValuesChange != null;
@@ -63,7 +75,11 @@ export function DataTableFacetedFilter<TData, TValue>({
   };
 
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) onSearchValueChange?.('');
+      }}
+    >
       <PopoverTrigger asChild>
         <Button variant='outline' size='sm' className='h-8 border-dashed'>
           <PlusCircledIcon className='h-4 w-4' />
@@ -94,47 +110,58 @@ export function DataTableFacetedFilter<TData, TValue>({
         </Button>
       </PopoverTrigger>
       <PopoverContent className='w-[200px] p-0' align='start'>
-        <Command>
-          <CommandInput placeholder={title} />
-          <CommandList>
-            <CommandEmpty>{t('common.noResultsFound')}</CommandEmpty>
-            <CommandGroup>
-              {options?.map((option) => {
-                const isSelected = selectedValues.has(option.value);
-                return (
-                  <CommandItem
-                    key={option.value}
-                    onSelect={() => {
-                      if (singleSelect) {
-                        applySelection(isSelected ? [] : [option.value]);
-                        return;
-                      }
-                      const next = new Set(selectedValues);
-                      if (isSelected) {
-                        next.delete(option.value);
-                      } else {
-                        next.add(option.value);
-                      }
-                      applySelection(Array.from(next));
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        'border-primary flex h-4 w-4 items-center justify-center rounded-sm border',
-                        isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible'
-                      )}
+        <Command shouldFilter={onSearchValueChange ? false : undefined}>
+          <CommandInput
+            placeholder={title}
+            value={onSearchValueChange ? (searchValue ?? '') : undefined}
+            onValueChange={onSearchValueChange}
+          />
+          <CommandList hasMore={hasMore} isLoadingMore={isLoadingMore} onLoadMore={onLoadMore}>
+            {!onSearchValueChange && <CommandEmpty>{t('common.noResultsFound')}</CommandEmpty>}
+            {onSearchValueChange && options.length === 0 ? (
+              <div className='py-6 text-center text-sm'>{isLoading ? t('common.loading') : t('common.noResultsFound')}</div>
+            ) : (
+              <CommandGroup>
+                {options?.map((option) => {
+                  const isSelected = selectedValues.has(option.value);
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      onSelect={() => {
+                        if (singleSelect) {
+                          applySelection(isSelected ? [] : [option.value]);
+                          return;
+                        }
+                        const next = new Set(selectedValues);
+                        if (isSelected) {
+                          next.delete(option.value);
+                        } else {
+                          next.add(option.value);
+                        }
+                        applySelection(Array.from(next));
+                      }}
                     >
-                      <CheckIcon className={cn('h-4 w-4')} />
-                    </div>
-                    {option.icon && <option.icon className='text-muted-foreground h-4 w-4' />}
-                    <span>{option.label}</span>
-                    {facets?.has(option.value) && (
-                      <span className='ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs'>{facets.get(option.value)}</span>
-                    )}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
+                      <div
+                        className={cn(
+                          'border-primary flex h-4 w-4 items-center justify-center rounded-sm border',
+                          isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50 [&_svg]:invisible'
+                        )}
+                      >
+                        <CheckIcon className={cn('h-4 w-4')} />
+                      </div>
+                      {option.icon && <option.icon className='text-muted-foreground h-4 w-4' />}
+                      <span>{option.label}</span>
+                      {facets?.has(option.value) && (
+                        <span className='ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs'>
+                          {facets.get(option.value)}
+                        </span>
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+            {isLoadingMore && <div className='py-2 text-center text-sm'>{t('common.loading')}</div>}
             {footer && (
               <>
                 <CommandSeparator />

@@ -290,6 +290,23 @@ func (svc *ChannelService) dispatchChannelAutoAction(
 	}()
 }
 
+func (svc *ChannelService) asyncNotifyChannelAutoDisabled(ctx context.Context, event ChannelAutoDisabledEvent) {
+	notifyCtx, cancel := xcontext.DetachWithTimeout(ctx, channelAutoActionNotifyTimeout)
+	go func() {
+		defer cancel()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Error(notifyCtx, "panic while notifying channel auto-disabled event",
+					log.Int("channel_id", event.ChannelID),
+					log.Any("panic", recovered),
+				)
+			}
+		}()
+
+		svc.WebhookNotifier.NotifyChannelAutoDisabled(notifyCtx, event)
+	}()
+}
+
 func summarizeChannelAutoActionReason(errorMessage string, statusCode int) string {
 	reason := strings.TrimSpace(errorMessage)
 	if firstLine, _, found := strings.Cut(reason, "\n"); found {

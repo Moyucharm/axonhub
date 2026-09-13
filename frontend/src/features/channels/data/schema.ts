@@ -4,11 +4,13 @@ import { pageInfoSchema } from '@/gql/pagination';
 export const apiFormatSchema = z.enum([
   'openai/chat_completions',
   'openai/responses',
+  'openai/responses-ws',
   'openai/image_generation',
   'openai/image_edit',
   'openai/image_variation',
   'openai/embeddings',
   'openai/video',
+  'zenmux/video',
   'openai/moderations',
   'openai/alpha_search',
   'openai/audio_speech',
@@ -33,6 +35,7 @@ export const configurableChannelEndpointApiFormats = [
   'openai/image_edit',
   'openai/image_variation',
   'openai/embeddings',
+  'zenmux/video',
   'openai/moderations',
   'openai/alpha_search',
   'openai/audio_speech',
@@ -119,6 +122,12 @@ export const channelTypeSchema = z.enum([
   'evolink',
   'evolink_anthropic',
   'groq',
+  'zenmux',
+  'zenmux_responses',
+  'zenmux_anthropic',
+  'zenmux_gemini',
+  'commandcode',
+  'commandcode_anthropic',
 ]);
 export type ChannelType = z.infer<typeof channelTypeSchema>;
 
@@ -151,16 +160,15 @@ export type APIKeyAutoDisableRule = z.infer<typeof apiKeyAutoDisableRuleSchema>;
 // Empty conditions (no status codes and no keyword patterns) mean "any error" ->
 // the rule matches every failed request, mirroring the global API key setting's
 // any-error mode. Only the duration rule stays enforced.
-export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema.refine(
-  (rule) => rule.action !== 'temporary_disable' || (rule.disableDurationMinutes ?? 0) > 0,
-  {
+export const apiKeyAutoDisableRuleFormSchema = apiKeyAutoDisableRuleSchema
+  .refine((rule) => rule.action !== 'temporary_disable' || (rule.disableDurationMinutes ?? 0) > 0, {
     message: 'Temporary disable requires a duration',
     path: ['disableDurationMinutes'],
-  }
-).refine((rule) => rule.action !== 'disable_until_cron' || (rule.disableUntilCron ?? '').trim() !== '', {
-  message: 'Scheduled recovery requires a cron expression',
-  path: ['disableUntilCron'],
-});
+  })
+  .refine((rule) => rule.action !== 'disable_until_cron' || (rule.disableUntilCron ?? '').trim() !== '', {
+    message: 'Scheduled recovery requires a cron expression',
+    path: ['disableUntilCron'],
+  });
 
 export const autoDisableActionSchema = z.enum(['disable', 'cooldown']);
 export type AutoDisableAction = z.infer<typeof autoDisableActionSchema>;
@@ -292,6 +300,33 @@ export const retryableErrorPatternSchema = z.object({
 });
 export type RetryableErrorPattern = z.infer<typeof retryableErrorPatternSchema>;
 
+// Per-model outbound protocol override: forces the api formats a model may use.
+// Every listed api_format must already be configured as a channel endpoint.
+export const modelProtocolSchema = z.object({
+  model: z.string().min(1),
+  apiFormats: z.array(z.string().min(1)).min(1),
+  // Older channels do not persist this flag; those overrides remain active.
+  enabled: z
+    .boolean()
+    .nullish()
+    .transform((value) => value ?? true),
+});
+export type ModelProtocol = z.infer<typeof modelProtocolSchema>;
+
+// Provider quota collection settings stored inside channel settings. Mirrors the
+// GraphQL `CommandCodeQuotaSettings` / `ChannelProviderQuotaSettings` types; it
+// is used for the Command Code billing-quota cookie, kept separate from API
+// credentials.
+export const commandCodeQuotaSettingsSchema = z.object({
+  authCookie: z.string().optional().nullable(),
+});
+export type CommandCodeQuotaSettings = z.infer<typeof commandCodeQuotaSettingsSchema>;
+
+export const channelProviderQuotaSettingsSchema = z.object({
+  commandCode: commandCodeQuotaSettingsSchema.optional().nullable(),
+});
+export type ChannelProviderQuotaSettings = z.infer<typeof channelProviderQuotaSettingsSchema>;
+
 // Channel Settings
 export const apiKeyPoolSettingsSchema = z.object({
   retryCount: z.number().int().min(1).optional().nullable(),
@@ -343,10 +378,7 @@ export function codexSimulationPlatformLabel(platform: CodexSimulationPlatform):
   }[platform];
 }
 
-export function inferCodexSimulationPlatform(
-  standardUserAgent?: string,
-  liteUserAgent?: string
-): CodexSimulationPlatform {
+export function inferCodexSimulationPlatform(standardUserAgent?: string, liteUserAgent?: string): CodexSimulationPlatform {
   const candidates: Array<[CodexSimulationPlatform, string]> = [
     ['windows10', 'Windows 10'],
     ['windows11', 'Windows 11'],
@@ -380,10 +412,7 @@ export const codexSimulationSettingsSchema = z.object({
   preset: codexSimulationPresetSchema.optional(),
   options: codexSimulationOptionsSchema.optional(),
   version: z.string().optional(),
-  platform: z.preprocess(
-    (value) => (value === '' || value === null ? undefined : value),
-    codexSimulationPlatformSchema.optional()
-  ),
+  platform: z.preprocess((value) => (value === '' || value === null ? undefined : value), codexSimulationPlatformSchema.optional()),
   standardUserAgent: z.string().optional(),
   liteUserAgent: z.string().optional(),
   strategy: codexSimulationStrategySchema.optional().nullable(),
@@ -456,6 +485,8 @@ export const channelSettingsSchema = z.object({
   retryableErrorPatterns: z.array(retryableErrorPatternSchema).optional().nullable(),
   apiKeyPool: apiKeyPoolSettingsSchema.optional().nullable(),
   codexSimulation: codexSimulationSettingsSchema.optional().nullable(),
+  modelProtocols: z.array(modelProtocolSchema).optional().nullable(),
+  providerQuota: channelProviderQuotaSettingsSchema.optional().nullable(),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;
@@ -486,6 +517,9 @@ export const channelCredentialsSchema = z.object({
   apiKey: z.string().optional().nullable(),
   apiKeys: z.array(z.string()).optional().nullable(),
   apiKeyStates: z.array(channelAPIKeyStateSchema).optional().nullable(),
+  // Optional provider management/console API key (e.g. ZenMux) used only for
+  // server-side quota checks; inference keeps using apiKey/apiKeys.
+  managementApiKey: z.string().optional().nullable(),
   oauth: z
     .object({
       accessToken: z.string().optional().nullable(),
@@ -508,6 +542,15 @@ export const channelCredentialsSchema = z.object({
     .nullable(),
 });
 export type ChannelCredentials = z.infer<typeof channelCredentialsSchema>;
+
+export const providerQuotaStatusSchema = z.object({
+  status: z.enum(['available', 'warning', 'exhausted', 'unknown']),
+  nextResetAt: z.string().optional().nullable(),
+  ready: z.boolean(),
+  quotaData: z.record(z.string(), z.unknown()),
+  providerType: z.string(),
+});
+export type ProviderQuotaStatus = z.infer<typeof providerQuotaStatusSchema>;
 
 // Disabled API Key
 export const disabledAPIKeySchema = z.object({
@@ -537,8 +580,9 @@ export const channelSchema = z.object({
   status: channelStatusSchema,
   policies: channelPoliciesSchema.optional().nullable(),
   credentials: channelCredentialsSchema.optional().nullable(),
+  providerQuotaStatus: providerQuotaStatusSchema.optional().nullable(),
   disabledAPIKeys: z.array(disabledAPIKeySchema).optional().nullable(),
-  supportedModels: z.array(z.string()),
+  supportedModels: z.array(z.string()).default([]),
   autoSyncSupportedModels: z.boolean().default(false),
   autoSyncModelPattern: z.string().optional().default(''),
   manualModels: z.array(z.string()).optional().default([]).nullable(),
@@ -687,9 +731,7 @@ function validateOAuthCredentials(type: string, apiKey: string | undefined, ctx:
   if (requiresJSON && !apiKey.trim().startsWith('{')) {
     ctx.addIssue({
       code: 'custom' as const,
-      message: isCopilot
-        ? 'channels.dialogs.oauth.errors.copilotCredentialsInvalid'
-        : 'channels.dialogs.oauth.errors.credentialsInvalid',
+      message: isCopilot ? 'channels.dialogs.oauth.errors.copilotCredentialsInvalid' : 'channels.dialogs.oauth.errors.credentialsInvalid',
       path: ['credentials', 'apiKey'],
     });
     return;
@@ -749,6 +791,8 @@ export const createChannelInputSchema = z
       apiKey: z.string().optional(),
       // apiKeys is used for regular API keys (multiple keys for load balancing)
       apiKeys: z.array(z.string()).optional().default([]),
+      // Optional management key used only by the backend for quota checks
+      managementApiKey: z.string().optional(),
       gcp: z
         .object({
           region: z.string().optional(),
@@ -842,6 +886,8 @@ export const updateChannelInputSchema = z
         apiKey: z.string().optional(),
         // apiKeys 用于普通 API Key（支持多 key 负载均衡），OAuth 类型不使用此字段
         apiKeys: z.array(z.string()).optional(),
+        // Optional management key used only by the backend for quota checks
+        managementApiKey: z.string().optional(),
         gcp: z
           .object({
             region: z.string().optional(),

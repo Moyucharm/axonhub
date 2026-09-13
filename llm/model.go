@@ -178,7 +178,10 @@ type Request struct {
 	// Any of "text", "audio", "image".
 	Modalities []string `json:"modalities,omitempty"`
 
-	// Controls effort on reasoning for reasoning models. It can be set to "none", "low", "medium", or "high".
+	// Controls effort on reasoning for reasoning models. Unified levels: "none",
+	// "minimal", "low", "medium", "high", "xhigh", "max" (see llm/reasoning.go).
+	// Outbound transformers map these to their native representation; unknown
+	// values pass through verbatim so unsupported levels surface upstream errors.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 
 	// Reasoning budget for reasoning models.
@@ -577,12 +580,19 @@ type ImageURL struct {
 type VideoURL struct {
 	// URL is the URL of the video.
 	URL string `json:"url"`
+
+	// MIMEType is the MIME type of the video when provided by the source protocol.
+	MIMEType string `json:"mime_type,omitempty"`
 }
 
 // DocumentURL represents a document URL (PDF, Word, etc.)
 type DocumentURL struct {
 	// URL is the URL of the document (data URL or regular URL).
 	URL string `json:"url"`
+	// FileID is the provider file identifier when the document was uploaded separately.
+	FileID string `json:"file_id,omitempty"`
+	// Filename is the document name used for inline file data.
+	Filename string `json:"filename,omitempty"`
 
 	// MIMEType is the MIME type of the document.
 	// e.g. "application/pdf", "application/msword"
@@ -597,6 +607,12 @@ type InputAudio struct {
 
 	// Base64 encoded audio data.
 	Data string `json:"data"`
+
+	// URL is the URL of remote audio data.
+	URL string `json:"url,omitempty"`
+
+	// MIMEType is the MIME type of the audio when provided by the source protocol.
+	MIMEType string `json:"mime_type,omitempty"`
 }
 
 // CompactContent represents compact content from OpenAI Responses API compaction.
@@ -816,6 +832,10 @@ type Usage struct {
 	// Output only. A detailed breakdown of the token count for each modality in the candidates.
 	// For gemini models only.
 	CompletionModalityTokenDetails []ModalityTokenCount `json:"completion_modality_token_details,omitempty"`
+
+	// Cost is the request cost calculated by AxonHub from channel model prices.
+	// Omitted when no matching price is configured or usage-cost injection is disabled.
+	Cost *float64 `json:"cost,omitempty"`
 }
 
 func (u *Usage) GetCompletionTokens() *int64 {
@@ -868,6 +888,15 @@ type PromptTokensDetails struct {
 type ResponseError struct {
 	StatusCode int         `json:"-"`
 	Detail     ErrorDetail `json:"error"`
+
+	// Cause keeps the underlying error (for example a transport failure) so callers
+	// can still match it with errors.Is / errors.As after classification.
+	Cause error `json:"-"`
+}
+
+// Unwrap exposes the underlying cause, if any.
+func (e ResponseError) Unwrap() error {
+	return e.Cause
 }
 
 func (e ResponseError) Error() string {

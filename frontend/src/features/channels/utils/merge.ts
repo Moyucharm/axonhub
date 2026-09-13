@@ -156,9 +156,7 @@ export function mergeChannelSettingsForUpdate(
     // not part of the GraphQL input, so it must never be submitted.
     apiKeyPool: (() => {
       const pool = pick('apiKeyPool', existing?.apiKeyPool ?? null);
-      return pool === null || pool === undefined
-        ? (pool as APIKeyPoolSettings | null)
-        : { ...pool, lastAutoCheckAt: undefined };
+      return pool === null || pool === undefined ? (pool as APIKeyPoolSettings | null) : { ...pool, lastAutoCheckAt: undefined };
     })(),
     // Submit a fingerprint only when the caller explicitly patches Codex simulation.
     // Other settings dialogs must not write back a potentially stale strategy snapshot.
@@ -166,6 +164,8 @@ export function mergeChannelSettingsForUpdate(
       pick('codexSimulation', existing?.codexSimulation ?? null) as CodexSimulationSettings | null,
       hasOwn('codexSimulation')
     ),
+    modelProtocols: pick('modelProtocols', existing?.modelProtocols ?? []),
+    providerQuota: pick('providerQuota', existing?.providerQuota ?? null),
   };
 }
 

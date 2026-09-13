@@ -1,18 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  IconAlertTriangle,
-  IconCopy,
-  IconKey,
-  IconLoader2,
-  IconPlayerPlay,
-  IconRefresh,
-  IconTrash,
-  IconUpload,
-} from '@tabler/icons-react';
+import { IconAlertTriangle, IconCopy, IconKey, IconLoader2, IconPlayerPlay, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -129,14 +121,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
   const apiKeyCount = currentRow.credentials?.apiKeys?.filter((key) => key.trim().length > 0).length ?? 0;
   const isPool = currentRow.credentials?.mode === 'pool' || apiKeyCount > 1;
   if (isPool) {
-    return (
-      <ChannelAPIKeyPoolPanel
-        channel={currentRow}
-        open={open}
-        onOpenChange={onOpenChange}
-        onChannelChange={onChannelChange}
-      />
-    );
+    return <ChannelAPIKeyPoolPanel channel={currentRow} open={open} onOpenChange={onOpenChange} onChannelChange={onChannelChange} />;
   }
 
   const handleClose = () => {
@@ -255,7 +240,13 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
       if (!abortRef.current) {
         setTestResults((prev) => ({
           ...prev,
-          [key]: { keyPrefix: maskAPIKey(key), success: false, latency: 0, error: t('channels.dialogs.testAPIKeys.requestFailed'), disabled: false },
+          [key]: {
+            keyPrefix: maskAPIKey(key),
+            success: false,
+            latency: 0,
+            error: t('channels.dialogs.testAPIKeys.requestFailed'),
+            disabled: false,
+          },
         }));
       }
     } finally {
@@ -290,7 +281,13 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
         if (!abortRef.current) {
           setTestResults((prev) => ({
             ...prev,
-            [key]: { keyPrefix: maskAPIKey(key), success: false, latency: 0, error: t('channels.dialogs.testAPIKeys.requestFailed'), disabled: false },
+            [key]: {
+              keyPrefix: maskAPIKey(key),
+              success: false,
+              latency: 0,
+              error: t('channels.dialogs.testAPIKeys.requestFailed'),
+              disabled: false,
+            },
           }));
         }
       }
@@ -346,7 +343,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
 
         <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto'>
           {/* 批量导入区 */}
-          <div className='rounded-md border bg-muted/40 p-3'>
+          <div className='bg-muted/40 rounded-md border p-3'>
             <div className='flex items-center justify-between gap-2'>
               <div className='flex items-center gap-2 text-sm font-medium'>
                 <IconUpload className='h-4 w-4' />
@@ -371,7 +368,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
           {/* 表格 */}
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border'>
             {/* 批量操作头 */}
-            <div className='flex items-center justify-between gap-4 rounded-t-lg border-b bg-muted/40 px-4 py-2'>
+            <div className='bg-muted/40 flex items-center justify-between gap-4 rounded-t-lg border-b px-4 py-2'>
               <div className='flex items-center gap-2'>
                 <Checkbox
                   checked={isAllSelected || (isSomeSelected && 'indeterminate')}
@@ -403,9 +400,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                   </PopoverTrigger>
                   <PopoverContent className='w-80'>
                     <div className='flex flex-col gap-3'>
-                      <p className='text-sm'>
-                        {t('channels.dialogs.keyManagement.confirmDeleteSelected', { count: selectedKeys.size })}
-                      </p>
+                      <p className='text-sm'>{t('channels.dialogs.keyManagement.confirmDeleteSelected', { count: selectedKeys.size })}</p>
                       <div className='flex justify-end gap-2'>
                         <Button size='sm' variant='outline' onClick={() => setConfirmDeleteSelected(false)}>
                           {t('common.buttons.cancel')}
@@ -440,7 +435,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                     </TableRow>
                   ) : validKeys.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className='h-32 text-center text-sm text-muted-foreground'>
+                      <TableCell colSpan={5} className='text-muted-foreground h-32 text-center text-sm'>
                         {t('channels.dialogs.keyManagement.noKeys')}
                       </TableCell>
                     </TableRow>
@@ -451,7 +446,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                       const result = getKeyResult(key);
                       const handleCopy = async () => {
                         try {
-                          await navigator.clipboard.writeText(key);
+                          await copyTextToClipboard(key);
                           toast.success(t('channels.dialogs.keyManagement.copySuccess'));
                         } catch {
                           toast.error(t('common.errors.copyFailed'));
@@ -477,15 +472,15 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                           </TableCell>
                           <TableCell className='font-medium'>
                             <div className='flex items-center gap-2'>
-                              {isTesting && <IconLoader2 className='h-3 w-3 animate-spin text-muted-foreground' />}
+                              {isTesting && <IconLoader2 className='text-muted-foreground h-3 w-3 animate-spin' />}
                               <code className='bg-muted rounded px-2 py-0.5 font-mono text-sm'>
                                 {result ? result.keyPrefix : maskAPIKey(key)}
                               </code>
                             </div>
                             {result?.error && (
-                              <div className='mt-1 flex items-start gap-1 text-xs text-destructive'>
+                              <div className='text-destructive mt-1 flex items-start gap-1 text-xs'>
                                 <IconAlertTriangle className='mt-0.5 h-3 w-3 shrink-0' />
-                                <span className='whitespace-normal break-all'>{result.error}</span>
+                                <span className='break-all whitespace-normal'>{result.error}</span>
                               </div>
                             )}
                           </TableCell>
@@ -509,7 +504,13 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                             <div className='flex items-center gap-0.5'>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button size='sm' variant='ghost' className='h-7 w-7 p-0' onClick={() => handleTestSingle(key)} disabled={isPending}>
+                                  <Button
+                                    size='sm'
+                                    variant='ghost'
+                                    className='h-7 w-7 p-0'
+                                    onClick={() => handleTestSingle(key)}
+                                    disabled={isPending}
+                                  >
                                     <IconPlayerPlay className='h-4 w-4' />
                                   </Button>
                                 </TooltipTrigger>
@@ -570,7 +571,12 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
 
                               <Popover open={confirmDeleteKey === key} onOpenChange={(o) => setConfirmDeleteKey(o ? key : null)}>
                                 <PopoverTrigger asChild>
-                                  <Button size='sm' variant='ghost' className='text-destructive h-7 w-7 p-0' disabled={isPending || isLastKey}>
+                                  <Button
+                                    size='sm'
+                                    variant='ghost'
+                                    className='text-destructive h-7 w-7 p-0'
+                                    disabled={isPending || isLastKey}
+                                  >
                                     <IconTrash className='h-4 w-4' />
                                   </Button>
                                 </PopoverTrigger>

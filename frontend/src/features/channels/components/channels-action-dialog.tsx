@@ -5,15 +5,33 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash2, Eye, EyeOff, Copy, Play, Info, Ban, Sparkles } from 'lucide-react';
+import {
+  X,
+  RefreshCw,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeft,
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff,
+  Copy,
+  Play,
+  Info,
+  Ban,
+  Sparkles,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { useHorizontalScroll } from '@/hooks/use-horizontal-scroll';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -27,12 +45,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AutoCompleteSelect } from '@/components/auto-complete-select';
 import { SelectDropdown } from '@/components/select-dropdown';
 import { useProxyPresets, useSaveProxyPreset } from '@/features/system/data/system';
-import { usePermissions } from '@/hooks/usePermissions';
 import { antigravityOAuthExchange, antigravityOAuthStart } from '../data/antigravity';
+import { normalizeBaseURLCandidates, type NormalizedCandidate } from '../data/base-url-normalize';
 import {
   useCreateChannel,
   useDuplicateChannel,
-  useUpdateChannel,
+  useUpdateChannelSettings,
   useFetchModels,
   useAllChannelNames,
   useAllChannelTags,
@@ -43,7 +61,6 @@ import {
 } from '../data/channels';
 import { claudecodeOAuthExchange, claudecodeOAuthStart } from '../data/claudecode';
 import { codexDecodeAuthJSON, codexOAuthExchange, codexOAuthStart } from '../data/codex';
-import { xaiDecodeSSO, xaiOAuthExchange, xaiOAuthStart } from '../data/xai';
 import {
   getDefaultBaseURL,
   getDefaultModels,
@@ -59,16 +76,25 @@ import {
   getApiFormatsForProvider,
   getChannelTypeForApiFormat,
 } from '../data/config_providers';
-import { Channel, ChannelType, ApiFormat, RetryableErrorPattern, createChannelInputSchema, updateChannelInputSchema } from '../data/schema';
+import { getInitialApiFormatForChannel, getModelProtocolsForApiFormat } from '../data/protocol-options';
+import {
+  Channel,
+  ChannelType,
+  ApiFormat,
+  ChannelSettings,
+  RetryableErrorPattern,
+  createChannelInputSchema,
+  updateChannelInputSchema,
+} from '../data/schema';
+import { xaiDecodeSSO, xaiOAuthExchange, xaiOAuthStart } from '../data/xai';
 import { ProxyConfig, useOAuthFlow } from '../hooks/use-oauth-flow';
-import { mergeChannelSettingsForUpdate } from '../utils/merge';
-import { normalizeBaseURLCandidates, type NormalizedCandidate } from '../data/base-url-normalize';
 import { DEFAULT_API_KEY_POOL_REQUEST_COUNT, getChannelAPIKeySummary } from '../utils/key-pool';
+import { mergeChannelSettingsForUpdate } from '../utils/merge';
 import { isValidModelPattern, matchesModelPattern } from '../utils/pattern';
+import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 import { ProxyType } from './channels-proxy-dialog';
 import { CopilotDeviceFlow } from './copilot-device-flow';
 import { ManualModelBadge } from './manual-model-badge';
-import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 
 interface Props {
   currentRow?: Channel;
@@ -82,10 +108,10 @@ const MAX_MODELS_DISPLAY = 2;
 
 const duplicateNameRegex = /^(.*) \((\d+)\)$/;
 
-type ApiFormatOption = ApiFormat | 'openai/responses:websocket';
+type ApiFormatOption = ApiFormat;
 type ResponsesTransport = 'http' | 'websocket';
 
-const OPENAI_RESPONSES_WEBSOCKET: ApiFormatOption = 'openai/responses:websocket';
+const OPENAI_RESPONSES_WEBSOCKET: ApiFormatOption = 'openai/responses-ws';
 // A single trailing # suppresses automatic version suffix appending while still
 // allowing the Responses transformer to append /responses. Do not replace these
 // defaults with ## unless the upstream URL should be used fully raw.
@@ -351,14 +377,19 @@ function BaseURLNormalizeButton({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button type='button' variant='outline' size='icon' disabled={disabled} title={t('channels.dialogs.fields.baseURL.normalize.button')} data-testid='channel-base-url-normalize'>
+        <Button
+          type='button'
+          variant='outline'
+          size='icon'
+          disabled={disabled}
+          title={t('channels.dialogs.fields.baseURL.normalize.button')}
+          data-testid='channel-base-url-normalize'
+        >
           <Sparkles className='size-4' />
         </Button>
       </PopoverTrigger>
       <PopoverContent align='end' className='w-80 p-2'>
-        <p className='text-muted-foreground px-2 pt-1 pb-2 text-xs font-medium'>
-          {t('channels.dialogs.fields.baseURL.normalize.title')}
-        </p>
+        <p className='text-muted-foreground px-2 pt-1 pb-2 text-xs font-medium'>{t('channels.dialogs.fields.baseURL.normalize.title')}</p>
         <div className='space-y-1'>
           {applicable.map((candidate: NormalizedCandidate, index: number) => (
             <button
@@ -373,7 +404,11 @@ function BaseURLNormalizeButton({
               <span className='font-mono text-xs break-all'>{candidate.url}</span>
               <span className='text-muted-foreground text-xs'>
                 {reasonLabel(candidate.reasonKey)}
-                {index === 0 && <Badge variant='secondary' className='ml-1.5 px-1 py-0 text-[10px]'>{t('channels.dialogs.fields.baseURL.normalize.recommended')}</Badge>}
+                {index === 0 && (
+                  <Badge variant='secondary' className='ml-1.5 px-1 py-0 text-[10px]'>
+                    {t('channels.dialogs.fields.baseURL.normalize.recommended')}
+                  </Badge>
+                )}
               </span>
             </button>
           ))}
@@ -414,7 +449,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const initialRow: Channel | undefined = currentRow || duplicateFromRow;
   const createChannel = useCreateChannel();
   const duplicateChannel = useDuplicateChannel();
-  const updateChannel = useUpdateChannel();
+  const updateChannelSettings = useUpdateChannelSettings();
   const fetchModels = useFetchModels();
   const syncChannelModels = useSyncChannelModels();
   const { data: allChannelNames = [], isSuccess: allChannelNamesLoaded } = useAllChannelNames({ enabled: open && isDuplicate });
@@ -444,6 +479,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const [applyPatternFilter, setApplyPatternFilter] = useState(false);
   const hasAutoSetDuplicateNameRef = useRef(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showCommandCodeAuthCookie, setShowCommandCodeAuthCookie] = useState(false);
   const [showApiKeysPanel, setShowApiKeysPanel] = useState(false);
   const [apiKeysSearch, setApiKeysSearch] = useState('');
   const [selectedKeysToRemove, setSelectedKeysToRemove] = useState<Set<string>>(new Set());
@@ -553,6 +589,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       form.setValue('credentials.apiKey', credentials);
     },
   });
+  const { reset: resetCodexOAuth } = codexOAuth;
+  const { reset: resetClaudecodeOAuth } = claudecodeOAuth;
+  const { reset: resetXaiOAuth } = xaiOAuth;
+  const { reset: resetAntigravityOAuth } = antigravityOAuth;
 
   // Provider-based selection state
   const [selectedProvider, setSelectedProvider] = useState<string>(() => {
@@ -563,9 +603,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   });
   const [selectedApiFormat, setSelectedApiFormat] = useState<ApiFormat>(() => {
     if (initialRow) {
-      return CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || 'openai/chat_completions';
+      return getInitialApiFormatForChannel(
+        initialRow.type,
+        CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
+        initialRow.settings?.modelProtocols
+      );
     }
-    return 'openai/chat_completions';
+    return OPENAI_CHAT_COMPLETIONS;
   });
   const [responsesTransport, setResponsesTransport] = useState<ResponsesTransport>(() => getResponsesTransportFromChannel(initialRow));
   const [useGeminiVertex, setUseGeminiVertex] = useState(() => {
@@ -592,7 +636,11 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
     const provider = getProviderFromChannelType(initialRow.type) || 'openai';
     setSelectedProvider(provider);
-    const apiFormat = CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS;
+    const apiFormat = getInitialApiFormatForChannel(
+      initialRow.type,
+      CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
+      initialRow.settings?.modelProtocols
+    );
     setSelectedApiFormat(apiFormat);
     setResponsesTransport(getResponsesTransportFromChannel(initialRow));
     setUseGeminiVertex(initialRow.type === 'gemini_vertex');
@@ -611,18 +659,19 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   useEffect(() => {
     if (!open) {
       hasAutoSetDuplicateNameRef.current = false;
-      codexOAuth.reset();
-      claudecodeOAuth.reset();
-      antigravityOAuth.reset();
-      xaiOAuth.reset();
+      resetCodexOAuth();
+      resetClaudecodeOAuth();
+      resetAntigravityOAuth();
+      resetXaiOAuth();
       setCodexAuthJSONText('');
       setXaiSSOToken('');
     }
-  }, [open, codexOAuth.reset, claudecodeOAuth.reset, antigravityOAuth.reset, xaiOAuth.reset]);
+  }, [open, resetCodexOAuth, resetClaudecodeOAuth, resetAntigravityOAuth, resetXaiOAuth]);
 
   useEffect(() => {
     if (!open) {
       setShowApiKey(false);
+      setShowCommandCodeAuthCookie(false);
       setShowApiKeysPanel(false);
       setApiKeysSearch('');
       setSelectedKeysToRemove(new Set());
@@ -652,8 +701,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       const container = providerListRef.current;
       if (target && container) {
         const isHorizontal =
-          (window.getComputedStyle(container).overflowX === 'auto' ||
-            window.getComputedStyle(container).overflowX === 'scroll') &&
+          (window.getComputedStyle(container).overflowX === 'auto' || window.getComputedStyle(container).overflowX === 'scroll') &&
           container.scrollWidth > container.clientWidth;
         if (isHorizontal) {
           const targetCenter = target.offsetLeft + target.clientWidth / 2;
@@ -786,6 +834,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               mode: currentRow.credentials?.mode || ((currentRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
               apiKey: currentRow.credentials?.apiKey || undefined,
               apiKeys: currentRow.credentials?.apiKeys || [],
+              managementApiKey: currentRow.credentials?.managementApiKey || undefined,
               gcp: {
                 region: currentRow.credentials?.gcp?.region || '',
                 projectID: currentRow.credentials?.gcp?.projectID || '',
@@ -812,6 +861,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                 mode: duplicateFromRow.credentials?.mode || ((duplicateFromRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
                 apiKey: duplicateFromRow.credentials?.apiKey || undefined,
                 apiKeys: duplicateFromRow.credentials?.apiKeys || [],
+                managementApiKey: duplicateFromRow.credentials?.managementApiKey || undefined,
                 gcp: {
                   region: duplicateFromRow.credentials?.gcp?.region || '',
                   projectID: duplicateFromRow.credentials?.gcp?.projectID || '',
@@ -827,6 +877,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               credentials: {
                 mode: 'single',
                 apiKeys: [],
+                managementApiKey: undefined,
                 gcp: {
                   region: '',
                   projectID: '',
@@ -860,7 +911,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const apiKeyMode = form.watch('credentials.mode') || 'single';
   const apiKeys = form.watch('credentials.apiKeys');
   const apiKeysCount = useMemo(() => (apiKeys || []).filter((k) => k.trim().length > 0).length, [apiKeys]);
-  const isSubmitting = createChannel.isPending || duplicateChannel.isPending || updateChannel.isPending;
+  const isSubmitting = createChannel.isPending || duplicateChannel.isPending || updateChannelSettings.isPending;
 
   const { data: disabledKeys = [], isFetching: isFetchingDisabledKeys } = useChannelDisabledAPIKeys(currentRow?.id || '', {
     enabled: isEdit && !!currentRow?.id && showApiKeysPanel,
@@ -902,6 +953,8 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const isClaudeCodeType = activeChannelType === 'claudecode';
   const isCopilotType = activeChannelType === 'github_copilot';
   const isXAISubscriptionType = activeChannelType === 'xai_subscription';
+  const isZenmuxType = ['zenmux', 'zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'].includes(activeChannelType);
+  const isCommandCodeType = activeChannelType === 'commandcode' || activeChannelType === 'commandcode_anthropic';
 
   // OAuth providers cannot have their provider/API format changed during edit.
   // Derived from currentRow credentials so it stays stable across re-renders
@@ -932,7 +985,11 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   );
 
   const baseURLPlaceholder = useMemo(() => {
-    const defaultURL = getDefaultBaseURLForChannelType(selectedType || derivedChannelType, selectedApiFormat, responsesTransport === 'websocket');
+    const defaultURL = getDefaultBaseURLForChannelType(
+      selectedType || derivedChannelType,
+      selectedApiFormat,
+      responsesTransport === 'websocket'
+    );
     if (defaultURL) {
       return defaultURL;
     }
@@ -1173,20 +1230,28 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     [selectedApiFormat, form, isDuplicate, isEdit, isOAuthChannel]
   );
 
+  // The Command Code quota cookie only exists on Command Code channel types.
+  // Reset the reveal state as soon as the active type leaves the two types.
+  useEffect(() => {
+    if (!isCommandCodeType) {
+      setShowCommandCodeAuthCookie(false);
+    }
+  }, [isCommandCodeType]);
+
   useEffect(() => {
     if (isEdit || isDuplicate) return;
 
     if (!isCodexType) {
-      codexOAuth.reset();
+      resetCodexOAuth();
     }
     if (selectedProvider !== 'claudecode') {
-      claudecodeOAuth.reset();
+      resetClaudecodeOAuth();
     }
     if (selectedProvider !== 'antigravity') {
-      antigravityOAuth.reset();
+      resetAntigravityOAuth();
     }
     if (selectedProvider !== 'xai_subscription') {
-      xaiOAuth.reset();
+      resetXaiOAuth();
       setXaiSSOToken('');
     }
 
@@ -1219,10 +1284,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     selectedProvider,
     authMode,
     form,
-    codexOAuth.reset,
-    claudecodeOAuth.reset,
-    antigravityOAuth.reset,
-    xaiOAuth.reset,
+    resetCodexOAuth,
+    resetClaudecodeOAuth,
+    resetAntigravityOAuth,
+    resetXaiOAuth,
     responsesTransport,
   ]);
 
@@ -1340,7 +1405,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
     try {
       if (values.credentials?.apiKeys) {
-        values.credentials.apiKeys = [...new Set(values.credentials.apiKeys.filter((k) => k.trim().length > 0))];
+        values.credentials.apiKeys = [...new Set(values.credentials.apiKeys.map((key) => key.trim()).filter((key) => key.length > 0))];
       }
 
       if (values.credentials?.mode === 'pool') {
@@ -1379,7 +1444,18 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         manualModels,
         credentials: valuesForSubmit.credentials,
       };
-      const settingsForSubmit = values.settings;
+      // The Command Code quota cookie is a browser-session credential that only
+      // belongs on Command Code channels. Never let a duplicate/type-switch
+      // flow attach it to an unrelated channel type. Clearing it explicitly
+      // sends providerQuota: null so the backend removes the stored cookie.
+      const isCommandCodeSubmit = valuesForSubmit.type === 'commandcode' || valuesForSubmit.type === 'commandcode_anthropic';
+      const commandCodeAuthCookie = isCommandCodeSubmit ? values.settings?.providerQuota?.commandCode?.authCookie?.trim() : undefined;
+      const settingsForSubmit = values.settings
+        ? {
+            ...values.settings,
+            ...(isCommandCodeSubmit && commandCodeAuthCookie ? {} : { providerQuota: null }),
+          }
+        : undefined;
 
       const shouldUseProtocolDefaultBaseURL =
         (isCodexType && (authMode === 'official' || authMode === 'auth-json')) ||
@@ -1403,23 +1479,41 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       }
 
       if (isEdit && currentRow) {
-        const nextSettings = mergeChannelSettingsForUpdate(settingsForSubmit, {
+        const existingModelProtocols = currentRow.settings?.modelProtocols;
+        const shouldUpdateModelProtocols =
+          selectedApiFormat === 'zenmux/video' ||
+          existingModelProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video')) === true;
+        const settingsPatch: Partial<ChannelSettings> = {
           passThroughUserAgent,
           passThroughBody,
           retryableStatusCodes,
           retryableErrorPatterns,
-        });
+          // Cookie edits (including clearing the saved cookie) travel through
+          // the settings patch; mergeChannelSettingsForUpdate preserves the
+          // field when the patch omits it and carries the null clear through.
+          providerQuota: settingsForSubmit?.providerQuota,
+          ...(shouldUpdateModelProtocols
+            ? { modelProtocols: getModelProtocolsForApiFormat(selectedApiFormat, supportedModels, existingModelProtocols) }
+            : {}),
+        };
 
         const updateInput = {
           ...dataWithModels,
-          settings: nextSettings,
           ...(isOAuthChannel ? { type: currentRow.type } : {}),
         } as z.infer<typeof updateChannelInputSchema>;
+        delete updateInput.settings;
+
+        const finalChannelType = updateInput.type || currentRow.type;
+        const keepsManagementApiKey = ['zenmux', 'zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'].includes(finalChannelType);
+        if (!keepsManagementApiKey && updateInput.credentials) {
+          delete updateInput.credentials.managementApiKey;
+        }
 
         const apiKey = values.credentials?.apiKey || '';
         const hasApiKey = apiKey.trim().length > 0;
         const apiKeys = values.credentials?.apiKeys || [];
         const hasApiKeys = apiKeys.length > 0 && apiKeys.some((k) => k.trim() !== '');
+        const hasManagementApiKey = (values.credentials?.managementApiKey || '').trim().length > 0;
         const hasGcpCredentials =
           values.credentials?.gcp?.region &&
           values.credentials.gcp.region.trim() !== '' &&
@@ -1429,8 +1523,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           values.credentials.gcp.jsonData.trim() !== '';
         const isPoolMode = values.credentials?.mode === 'pool';
         const persistedChannel = managedChannel ?? currentRow;
-        const wasPool =
-          persistedChannel.credentials?.mode === 'pool' || (persistedChannel.credentials?.apiKeys?.length ?? 0) > 1;
+        const wasPool = persistedChannel.credentials?.mode === 'pool' || (persistedChannel.credentials?.apiKeys?.length ?? 0) > 1;
         const switchingToPool = isPoolMode && !wasPool;
         const switchingToSingle = !isPoolMode && wasPool;
 
@@ -1445,14 +1538,16 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           // Existing pool keys are managed by dedicated mutations in the pool panel.
           // Sending the stale form snapshot would overwrite keys imported there.
           delete updateInput.credentials;
-        } else if (!hasApiKey && !hasApiKeys && !hasGcpCredentials && !switchingToSingle) {
+        } else if (!hasApiKey && !hasApiKeys && !hasManagementApiKey && !hasGcpCredentials && !switchingToSingle) {
           delete updateInput.credentials;
         }
 
-        await updateChannel.mutateAsync({
+        await updateChannelSettings.mutateAsync({
           id: currentRow.id,
           input: updateInput,
+          patch: settingsPatch,
         });
+        toast.success(t('channels.messages.updateSuccess'));
       } else {
         const proxyConfig = {
           type: proxyType as 'disabled' | 'environment' | 'url',
@@ -1469,6 +1564,12 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           passThroughBody,
           retryableStatusCodes,
           retryableErrorPatterns,
+          ...(selectedApiFormat === 'zenmux/video' ||
+          settingsForSubmit?.modelProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video'))
+            ? {
+                modelProtocols: getModelProtocolsForApiFormat(selectedApiFormat, supportedModels, settingsForSubmit?.modelProtocols),
+              }
+            : {}),
         });
 
         const createInput = {
@@ -1619,7 +1720,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       // Fall back to apiKeys array if no OAuth token
       if (!firstApiKey && apiKeys?.length) {
-        firstApiKey = apiKeys.find((key) => key.trim().length > 0) || '';
+        firstApiKey = apiKeys.find((key) => key.trim().length > 0)?.trim() || '';
       }
 
       const result = await fetchModels.mutateAsync({
@@ -1789,15 +1890,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const removeApiKeys = useCallback(
     (keysToRemove: string[]) => {
       const currentKeys = form.getValues('credentials.apiKeys') || [];
-      const nextKeys = currentKeys.filter((k) => !keysToRemove.includes(k));
-      const validNextKeys = nextKeys.filter((k) => k.trim().length > 0);
+      const keysToRemoveSet = new Set(keysToRemove.map((key) => key.trim()));
+      const validNextKeys = currentKeys.map((key) => key.trim()).filter((key) => key.length > 0 && !keysToRemoveSet.has(key));
       if (validNextKeys.length === 0) {
         toast.error(t('channels.dialogs.fields.apiKey.mustKeepOne'));
         setConfirmRemoveSelectedOpen(false);
         setConfirmRemoveKey(null);
         return;
       }
-      form.setValue('credentials.apiKeys', nextKeys, { shouldDirty: true, shouldTouch: true });
+      form.setValue('credentials.apiKeys', validNextKeys, { shouldDirty: true, shouldTouch: true });
       setSelectedKeysToRemove(new Set());
       setConfirmRemoveSelectedOpen(false);
       setConfirmRemoveKey(null);
@@ -1902,7 +2003,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             // Reset provider and API format state
             if (initialRow) {
               setSelectedProvider(getProviderFromChannelType(initialRow.type) || 'openai');
-              setSelectedApiFormat(CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS);
+              setSelectedApiFormat(
+                getInitialApiFormatForChannel(
+                  initialRow.type,
+                  CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
+                  initialRow.settings?.modelProtocols
+                )
+              );
               setResponsesTransport(getResponsesTransportFromChannel(initialRow));
               setUseGeminiVertex(initialRow.type === 'gemini_vertex');
               setUseAnthropicAws(initialRow.type === 'anthropic_aws');
@@ -1920,7 +2027,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         }}
       >
         <DialogContent
-          className={`grid-rows-[auto_minmax(0,1fr)_auto] overflow-x-hidden overflow-y-hidden transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}
+          className={`flex max-h-[calc(100dvh-2rem)] flex-col overflow-x-hidden overflow-y-hidden transition-all duration-300 ${showFetchedModelsPanel || showSupportedModelsPanel || showApiKeysPanel ? 'sm:max-w-6xl' : 'sm:max-w-4xl'}`}
         >
           <DialogHeader className='flex-shrink-0 text-left'>
             <DialogTitle>{isEdit ? t('channels.dialogs.edit.title') : t('channels.dialogs.create.title')}</DialogTitle>
@@ -1942,7 +2049,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         <FormLabel className='text-base font-semibold'>{t('channels.dialogs.fields.provider.label')}</FormLabel>
                         <div
                           ref={setProviderListRef}
-                          className={`flex-1 overflow-x-auto overflow-y-hidden pb-2 md:overflow-x-hidden md:overflow-y-auto md:pb-0 md:pr-2 ${isOAuthChannel ? 'cursor-not-allowed opacity-60' : ''}`}
+                          className={`flex-1 overflow-x-auto overflow-y-hidden pb-2 md:overflow-x-hidden md:overflow-y-auto md:pr-2 md:pb-0 ${isOAuthChannel ? 'cursor-not-allowed opacity-60' : ''}`}
                         >
                           <RadioGroup
                             value={selectedProvider}
@@ -1961,7 +2068,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                   ref={(el) => {
                                     providerRefs.current[provider.key] = el;
                                   }}
-                                  className={`flex items-center space-x-3 rounded-lg border p-3 transition-colors shrink-0 md:w-full ${
+                                  className={`flex shrink-0 items-center space-x-3 rounded-lg border p-3 transition-colors md:w-full ${
                                     isProviderDisabled
                                       ? isSelected
                                         ? 'border-primary bg-muted/80 cursor-not-allowed shadow-sm'
@@ -1976,7 +2083,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                     data-testid={`provider-${provider.key}`}
                                   />
                                   {Icon && <Icon size={20} className='flex-shrink-0' />}
-                                  <FormLabel htmlFor={`provider-${provider.key}`} className='flex-1 cursor-pointer whitespace-nowrap font-normal'>
+                                  <FormLabel
+                                    htmlFor={`provider-${provider.key}`}
+                                    className='flex-1 cursor-pointer font-normal whitespace-nowrap'
+                                  >
                                     {provider.label}
                                   </FormLabel>
                                 </div>
@@ -2189,7 +2299,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                           </div>
                         </div>
                       )}
-
                       <FormField
                         control={form.control}
                         name='name'
@@ -2393,7 +2502,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         render={({ field, fieldState }) => {
                           const fieldValue = field.value ?? '';
                           const baseURLFieldDisabled =
-                            (isCodexType && authMode !== 'third-party') || (isClaudeCodeType && authMode === 'official') || selectedProvider === 'antigravity';
+                            (isCodexType && authMode !== 'third-party') ||
+                            (isClaudeCodeType && authMode === 'official') ||
+                            selectedProvider === 'antigravity';
                           // 默认 Base URL 不显示格式化按钮，仅用户自定义 URL 时提供
                           const defaultBaseURLForType = getDefaultBaseURLForChannelType(
                             selectedType || derivedChannelType,
@@ -2403,33 +2514,33 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                           const showNormalizeButton =
                             fieldValue.trim() !== '' && fieldValue.trim().replace(/\/+$/, '') !== defaultBaseURLForType.replace(/\/+$/, '');
                           return (
-                          <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                            <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
-                              {t('channels.dialogs.fields.baseURL.label')}
-                            </FormLabel>
-                            <div className='space-y-1 md:col-span-6'>
-                              <div className='flex gap-2'>
-                                <Input
-                                  placeholder={baseURLPlaceholder}
-                                  autoComplete='new-password'
-                                  data-form-type='other'
-                                  aria-invalid={!!fieldState.error}
-                                  data-testid='channel-base-url-input'
-                                  disabled={baseURLFieldDisabled}
-                                  {...field}
-                                />
-                                {showNormalizeButton && (
-                                  <BaseURLNormalizeButton
-                                    value={fieldValue}
+                            <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                              <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                {t('channels.dialogs.fields.baseURL.label')}
+                              </FormLabel>
+                              <div className='space-y-1 md:col-span-6'>
+                                <div className='flex gap-2'>
+                                  <Input
+                                    placeholder={baseURLPlaceholder}
+                                    autoComplete='new-password'
+                                    data-form-type='other'
+                                    aria-invalid={!!fieldState.error}
+                                    data-testid='channel-base-url-input'
                                     disabled={baseURLFieldDisabled}
-                                    apiFormat={selectedApiFormat}
-                                    onSelect={(url) => form.setValue('baseURL', url, { shouldDirty: true })}
+                                    {...field}
                                   />
-                                )}
+                                  {showNormalizeButton && (
+                                    <BaseURLNormalizeButton
+                                      value={fieldValue}
+                                      disabled={baseURLFieldDisabled}
+                                      apiFormat={selectedApiFormat}
+                                      onSelect={(url) => form.setValue('baseURL', url, { shouldDirty: true })}
+                                    />
+                                  )}
+                                </div>
+                                <FormMessage />
                               </div>
-                              <FormMessage />
-                            </div>
-                          </FormItem>
+                            </FormItem>
                           );
                         }}
                       />
@@ -2438,262 +2549,350 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         selectedProvider !== 'antigravity' &&
                         selectedType !== 'anthropic_gcp' && (
                           <>
-                          <FormField
-                            control={form.control}
-                            name='credentials.mode'
-                            render={({ field }) => (
-                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>{t('channels.keyPool.mode.label')}</FormLabel>
-                                <div className='md:col-span-6'>
-                                  <Select
-                                    value={field.value || 'single'}
-                                    onValueChange={(value) => {
-                                      if (value === 'single') {
-                                        const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
-                                        if (keys.length > 1) {
-                                          // Pool has multiple keys: require an explicit choice of the key to keep.
-                                          setPendingSingleKey(keys[0]);
-                                          return;
-                                        }
-                                        field.onChange(value);
-                                        form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
-                                        return;
-                                      }
-                                      if (form.getValues('settings.apiKeyPool.retryCount') == null) {
-                                        form.setValue('settings.apiKeyPool.retryCount', DEFAULT_API_KEY_POOL_REQUEST_COUNT, { shouldDirty: true });
-                                      }
-                                      field.onChange(value);
-                                      setPendingSingleKey(null);
-                                    }}
-                                  >
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value='single'>{t('channels.keyPool.mode.single')}</SelectItem>
-                                      <SelectItem value='pool'>{t('channels.keyPool.mode.pool')}</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                          {(!isEdit || apiKeyMode !== 'pool') && (
                             <FormField
                               control={form.control}
-                              name='credentials.apiKeys'
-                            render={({ field, fieldState }) => (
-                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
-                                  {t('channels.dialogs.fields.apiKey.label')}
-                                </FormLabel>
-                                <div className='space-y-1 md:col-span-6'>
-                                  {isEdit ? (
-                                    <div className='relative'>
-                                      <Tooltip open={!showApiKey ? undefined : false}>
-                                        <TooltipTrigger asChild>
+                              name='credentials.mode'
+                              render={({ field }) => (
+                                <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                  <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                    {t('channels.keyPool.mode.label')}
+                                  </FormLabel>
+                                  <div className='md:col-span-6'>
+                                    <Select
+                                      value={field.value || 'single'}
+                                      onValueChange={(value) => {
+                                        if (value === 'single') {
+                                          const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
+                                          if (keys.length > 1) {
+                                            // Pool has multiple keys: require an explicit choice of the key to keep.
+                                            setPendingSingleKey(keys[0]);
+                                            return;
+                                          }
+                                          field.onChange(value);
+                                          form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
+                                          return;
+                                        }
+                                        if (form.getValues('settings.apiKeyPool.retryCount') == null) {
+                                          form.setValue('settings.apiKeyPool.retryCount', DEFAULT_API_KEY_POOL_REQUEST_COUNT, {
+                                            shouldDirty: true,
+                                          });
+                                        }
+                                        field.onChange(value);
+                                        setPendingSingleKey(null);
+                                      }}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value='single'>{t('channels.keyPool.mode.single')}</SelectItem>
+                                        <SelectItem value='pool'>{t('channels.keyPool.mode.pool')}</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                            {(!isEdit || apiKeyMode !== 'pool') && (
+                              <FormField
+                                control={form.control}
+                                name='credentials.apiKeys'
+                                render={({ field, fieldState }) => (
+                                  <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                    <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                      {t('channels.dialogs.fields.apiKey.label')}
+                                    </FormLabel>
+                                    <div className='space-y-1 md:col-span-6'>
+                                      {isEdit ? (
+                                        <div className='relative'>
+                                          <Tooltip open={!showApiKey ? undefined : false}>
+                                            <TooltipTrigger asChild>
+                                              <Textarea
+                                                value={
+                                                  showApiKey
+                                                    ? field.value?.join('\n') || ''
+                                                    : (field.value || [])
+                                                        .map((k) => (k.length > 8 ? k.slice(0, 4) + '****' + k.slice(-4) : '****'))
+                                                        .join('\n')
+                                                }
+                                                onChange={(e) => {
+                                                  if (!showApiKey) return;
+                                                  const keys = e.target.value.split('\n');
+                                                  field.onChange(keys);
+                                                }}
+                                                onBlur={() => {
+                                                  if (!showApiKey) return;
+                                                  field.onBlur();
+                                                }}
+                                                readOnly={!showApiKey}
+                                                placeholder={t('channels.dialogs.fields.apiKey.editPlaceholder')}
+                                                className='min-h-[80px] resize-y pr-10 font-mono text-sm md:col-span-6'
+                                                autoComplete='new-password'
+                                                data-form-type='other'
+                                                spellCheck={false}
+                                                aria-invalid={!!fieldState.error}
+                                                data-testid='channel-api-key-input'
+                                              />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>{t('channels.dialogs.fields.apiKey.revealToEditHint')}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <div className='absolute top-2 right-2 flex flex-col gap-1'>
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='sm'
+                                              className='h-7 w-7 p-0'
+                                              onClick={() => {
+                                                const next = !showApiKey;
+                                                setShowApiKey(next);
+
+                                                if (!next) {
+                                                  setShowApiKeysPanel(false);
+                                                  return;
+                                                }
+
+                                                if (next) {
+                                                  setShowApiKeysPanel(true);
+                                                  setShowFetchedModelsPanel(false);
+                                                  setShowSupportedModelsPanel(false);
+                                                }
+                                              }}
+                                            >
+                                              {showApiKey ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                                            </Button>
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='sm'
+                                              className='h-7 w-7 p-0'
+                                              onClick={async () => {
+                                                const keys = field.value || [];
+                                                if (keys.length > 0) {
+                                                  try {
+                                                    await copyTextToClipboard(keys.join('\n'));
+                                                    toast.success(t('channels.messages.credentialsCopied'));
+                                                  } catch {
+                                                    toast.error(t('common.errors.copyFailed'));
+                                                  }
+                                                }
+                                              }}
+                                            >
+                                              <Copy className='h-4 w-4' />
+                                            </Button>
+                                          </div>
+                                          <p className='text-muted-foreground mt-1 text-xs'>
+                                            {t(
+                                              apiKeyMode === 'pool'
+                                                ? 'channels.dialogs.fields.apiKey.multiLineHint'
+                                                : 'channels.keyPool.singleHint'
+                                            )}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <>
                                           <Textarea
-                                            value={
-                                              showApiKey
-                                                ? field.value?.join('\n') || ''
-                                                : (field.value || [])
-                                                    .map((k) => (k.length > 8 ? k.slice(0, 4) + '****' + k.slice(-4) : '****'))
-                                                    .join('\n')
-                                            }
+                                            value={field.value?.join('\n') || ''}
                                             onChange={(e) => {
-                                              if (!showApiKey) return;
                                               const keys = e.target.value.split('\n');
                                               field.onChange(keys);
                                             }}
-                                            onBlur={(e) => {
-                                              if (!showApiKey) return;
-                                              const keys = [
-                                                ...new Set(
-                                                  e.target.value
-                                                    .split('\n')
-                                                    .map((k) => k.trim())
-                                                    .filter((k) => k.length > 0)
-                                                ),
-                                              ];
-                                              field.onChange(keys);
-                                              field.onBlur();
-                                            }}
-                                            readOnly={!showApiKey}
-                                            placeholder={t('channels.dialogs.fields.apiKey.editPlaceholder')}
-                                            className='min-h-[80px] resize-y pr-10 font-mono text-sm md:col-span-6'
+                                            onBlur={() => field.onBlur()}
+                                            placeholder={t('channels.dialogs.fields.apiKey.placeholder')}
+                                            className='min-h-[80px] resize-y font-mono text-sm md:col-span-6'
                                             autoComplete='new-password'
                                             data-form-type='other'
                                             spellCheck={false}
                                             aria-invalid={!!fieldState.error}
                                             data-testid='channel-api-key-input'
                                           />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>{t('channels.dialogs.fields.apiKey.revealToEditHint')}</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                      <div className='absolute top-2 right-2 flex flex-col gap-1'>
-                                        <Button
-                                          type='button'
-                                          variant='ghost'
-                                          size='sm'
-                                          className='h-7 w-7 p-0'
-                                          onClick={() => {
-                                            const next = !showApiKey;
-                                            setShowApiKey(next);
-
-                                            if (!next) {
-                                              setShowApiKeysPanel(false);
-                                              return;
-                                            }
-
-                                            if (next) {
-                                              setShowApiKeysPanel(true);
-                                              setShowFetchedModelsPanel(false);
-                                              setShowSupportedModelsPanel(false);
-                                            }
-                                          }}
-                                        >
-                                          {showApiKey ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
-                                        </Button>
-                                        <Button
-                                          type='button'
-                                          variant='ghost'
-                                          size='sm'
-                                          className='h-7 w-7 p-0'
-                                          onClick={() => {
-                                            const keys = field.value || [];
-                                            if (keys.length > 0) {
-                                              navigator.clipboard.writeText(keys.join('\n'));
-                                              toast.success(t('channels.messages.credentialsCopied'));
-                                            }
-                                          }}
-                                        >
-                                          <Copy className='h-4 w-4' />
-                                        </Button>
-                                      </div>
-                                      <p className='text-muted-foreground mt-1 text-xs'>
-                                        {t(apiKeyMode === 'pool' ? 'channels.dialogs.fields.apiKey.multiLineHint' : 'channels.keyPool.singleHint')}
-                                      </p>
+                                          <p className='text-muted-foreground text-xs'>
+                                            {t(
+                                              apiKeyMode === 'pool'
+                                                ? 'channels.dialogs.fields.apiKey.multiLineHint'
+                                                : 'channels.keyPool.singleHint'
+                                            )}
+                                          </p>
+                                        </>
+                                      )}
+                                      <FormMessage />
                                     </div>
-                                  ) : (
-                                    <>
-                                      <Textarea
-                                        value={field.value?.join('\n') || ''}
-                                        onChange={(e) => {
-                                          const keys = e.target.value.split('\n');
-                                          field.onChange(keys);
-                                        }}
-                                        onBlur={(e) => {
-                                          const keys = [
-                                            ...new Set(
-                                              e.target.value
-                                                .split('\n')
-                                                .map((k) => k.trim())
-                                                .filter((k) => k.length > 0)
-                                            ),
-                                          ];
-                                          field.onChange(keys);
-                                          field.onBlur();
-                                        }}
-                                        placeholder={t('channels.dialogs.fields.apiKey.placeholder')}
-                                        className='min-h-[80px] resize-y font-mono text-sm md:col-span-6'
-                                        autoComplete='new-password'
-                                        data-form-type='other'
-                                        spellCheck={false}
-                                        aria-invalid={!!fieldState.error}
-                                        data-testid='channel-api-key-input'
-                                      />
-                                      <p className='text-muted-foreground text-xs'>{t(apiKeyMode === 'pool' ? 'channels.dialogs.fields.apiKey.multiLineHint' : 'channels.keyPool.singleHint')}</p>
-                                    </>
-                                  )}
-                                  <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                            {isEdit && apiKeyMode === 'pool' && (
+                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                  {t('channels.dialogs.fields.apiKey.label')}
+                                </FormLabel>
+                                <div className='space-y-2 md:col-span-6'>
+                                  <div className='rounded-md border p-3'>
+                                    <div className='flex items-center justify-between gap-3'>
+                                      <div className='text-sm'>
+                                        {(() => {
+                                          const summary = getChannelAPIKeySummary(managedChannel ?? currentRow);
+                                          return t('channels.keyPool.editSummary', {
+                                            enabled: summary.enabled,
+                                            total: summary.total,
+                                            disabled: summary.disabled,
+                                          });
+                                        })()}
+                                      </div>
+                                      <Button type='button' size='sm' variant='outline' onClick={() => setKeyPoolOpen(true)}>
+                                        {t('channels.keyPool.manage')}
+                                      </Button>
+                                    </div>
+                                    <p className='text-muted-foreground mt-1 text-xs'>{t('channels.keyPool.editHint')}</p>
+                                  </div>
                                 </div>
                               </FormItem>
                             )}
-                          />
-                          )}
-                          {isEdit && apiKeyMode === 'pool' && (
-                            <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                              <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>{t('channels.dialogs.fields.apiKey.label')}</FormLabel>
-                              <div className='space-y-2 md:col-span-6'>
-                                <div className='rounded-md border p-3'>
-                                  <div className='flex items-center justify-between gap-3'>
-                                    <div className='text-sm'>
-                                      {(() => {
-                                        const summary = getChannelAPIKeySummary(managedChannel ?? currentRow);
-                                        return t('channels.keyPool.editSummary', { enabled: summary.enabled, total: summary.total, disabled: summary.disabled });
-                                      })()}
-                                    </div>
-                                    <Button type='button' size='sm' variant='outline' onClick={() => setKeyPoolOpen(true)}>
-                                      {t('channels.keyPool.manage')}
-                                    </Button>
-                                  </div>
-                                  <p className='text-muted-foreground mt-1 text-xs'>{t('channels.keyPool.editHint')}</p>
+                            {apiKeyMode === 'pool' && !isEdit && (
+                              <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                  {t('channels.keyPool.requestStrategyTitle')}
+                                </FormLabel>
+                                <div className='space-y-4 rounded-lg border p-4 md:col-span-6'>
+                                  <FormField
+                                    control={form.control}
+                                    name='settings.apiKeyPool.retryCount'
+                                    render={({ field }) => (
+                                      <FormItem className='space-y-2'>
+                                        <div className='flex items-start justify-between gap-4'>
+                                          <div className='space-y-1'>
+                                            <FormLabel className='text-sm'>{t('channels.keyPool.retryCount')}</FormLabel>
+                                            <p className='text-muted-foreground text-xs leading-relaxed'>
+                                              {t('channels.keyPool.retryCountDescription')}
+                                            </p>
+                                          </div>
+                                          <div className='flex shrink-0 items-center gap-2'>
+                                            <Input
+                                              type='number'
+                                              min={1}
+                                              className='w-20'
+                                              value={field.value ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT}
+                                              onChange={(event) => field.onChange(Number(event.target.value))}
+                                            />
+                                            <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
+                                          </div>
+                                        </div>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  <Separator />
+                                  <FormField
+                                    control={form.control}
+                                    name='settings.apiKeyPool.autoCheckEnabled'
+                                    render={({ field }) => (
+                                      <FormItem className='space-y-3'>
+                                        <div className='flex items-start justify-between gap-4'>
+                                          <div className='space-y-1'>
+                                            <FormLabel className='text-sm'>{t('channels.keyPool.autoCheck')}</FormLabel>
+                                            <p className='text-muted-foreground text-xs leading-relaxed'>
+                                              {t('channels.keyPool.autoCheckDescription')}
+                                            </p>
+                                          </div>
+                                          <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
+                                        </div>
+                                        {field.value && (
+                                          <div className='flex items-center gap-2 pl-0 sm:pl-1'>
+                                            <Input
+                                              type='number'
+                                              min={1}
+                                              className='w-20'
+                                              value={form.watch('settings.apiKeyPool.autoCheckIntervalHours') ?? 24}
+                                              onChange={(event) =>
+                                                form.setValue('settings.apiKeyPool.autoCheckIntervalHours', Number(event.target.value), {
+                                                  shouldDirty: true,
+                                                })
+                                              }
+                                            />
+                                            <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
+                                          </div>
+                                        )}
+                                      </FormItem>
+                                    )}
+                                  />
                                 </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                      {isZenmuxType && (
+                        <FormField
+                          control={form.control}
+                          name='credentials.managementApiKey'
+                          render={({ field }) => (
+                            <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                              <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                {t('channels.dialogs.fields.managementApiKey.label')}
+                              </FormLabel>
+                              <div className='space-y-1 md:col-span-6'>
+                                <Input
+                                  type='password'
+                                  placeholder={t('channels.dialogs.fields.managementApiKey.placeholder')}
+                                  autoComplete='new-password'
+                                  data-form-type='other'
+                                  spellCheck={false}
+                                  {...field}
+                                  value={field.value ?? ''}
+                                />
+                                <p className='text-muted-foreground text-xs'>{t('channels.dialogs.fields.managementApiKey.hint')}</p>
                               </div>
                             </FormItem>
                           )}
-                          {apiKeyMode === 'pool' && !isEdit && (
-                            <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                        />
+                      )}
+
+                      {isCommandCodeType && (
+                        <FormField
+                          control={form.control}
+                          name='settings.providerQuota.commandCode.authCookie'
+                          render={({ field, fieldState }) => (
+                            <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                               <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
-                                {t('channels.keyPool.requestStrategyTitle')}
+                                {t('channels.dialogs.fields.commandCodeQuota.authCookie.label')}
                               </FormLabel>
-                              <div className='space-y-4 rounded-lg border p-4 md:col-span-6'>
-                                <FormField
-                                  control={form.control}
-                                  name='settings.apiKeyPool.retryCount'
-                                  render={({ field }) => (
-                                    <FormItem className='space-y-2'>
-                                      <div className='flex items-start justify-between gap-4'>
-                                        <div className='space-y-1'>
-                                          <FormLabel className='text-sm'>{t('channels.keyPool.retryCount')}</FormLabel>
-                                          <p className='text-muted-foreground text-xs leading-relaxed'>{t('channels.keyPool.retryCountDescription')}</p>
-                                        </div>
-                                        <div className='flex shrink-0 items-center gap-2'>
-                                          <Input type='number' min={1} className='w-20' value={field.value ?? DEFAULT_API_KEY_POOL_REQUEST_COUNT} onChange={(event) => field.onChange(Number(event.target.value))} />
-                                          <span className='text-muted-foreground text-xs'>{t('channels.keyPool.times')}</span>
-                                        </div>
-                                      </div>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <Separator />
-                                <FormField
-                                  control={form.control}
-                                  name='settings.apiKeyPool.autoCheckEnabled'
-                                  render={({ field }) => (
-                                    <FormItem className='space-y-3'>
-                                      <div className='flex items-start justify-between gap-4'>
-                                        <div className='space-y-1'>
-                                          <FormLabel className='text-sm'>{t('channels.keyPool.autoCheck')}</FormLabel>
-                                          <p className='text-muted-foreground text-xs leading-relaxed'>{t('channels.keyPool.autoCheckDescription')}</p>
-                                        </div>
-                                        <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
-                                      </div>
-                                      {field.value && (
-                                        <div className='flex items-center gap-2 pl-0 sm:pl-1'>
-                                          <Input
-                                            type='number'
-                                            min={1}
-                                            className='w-20'
-                                            value={form.watch('settings.apiKeyPool.autoCheckIntervalHours') ?? 24}
-                                            onChange={(event) => form.setValue('settings.apiKeyPool.autoCheckIntervalHours', Number(event.target.value), { shouldDirty: true })}
-                                          />
-                                          <span className='text-muted-foreground text-xs'>{t('channels.keyPool.hours')}</span>
-                                        </div>
-                                      )}
-                                    </FormItem>
-                                  )}
-                                />
+                              <div className='space-y-1 md:col-span-6'>
+                                <div className='relative'>
+                                  <Input
+                                    type={showCommandCodeAuthCookie ? 'text' : 'password'}
+                                    value={field.value ?? ''}
+                                    onChange={field.onChange}
+                                    onBlur={field.onBlur}
+                                    placeholder={t('channels.dialogs.fields.commandCodeQuota.authCookie.placeholder')}
+                                    autoComplete='new-password'
+                                    data-form-type='other'
+                                    spellCheck={false}
+                                    aria-invalid={!!fieldState.error}
+                                    data-testid='channel-commandcode-auth-cookie-input'
+                                    className='pr-10 font-mono text-xs'
+                                  />
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='sm'
+                                    className='absolute top-0 right-0 h-full px-3'
+                                    onClick={() => setShowCommandCodeAuthCookie((visible) => !visible)}
+                                  >
+                                    {showCommandCodeAuthCookie ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                                  </Button>
+                                </div>
+                                <FormDescription className='text-xs'>
+                                  {t('channels.dialogs.fields.commandCodeQuota.authCookie.description')}
+                                </FormDescription>
+                                <FormMessage />
                               </div>
-                            </div>
+                            </FormItem>
                           )}
-                          </>
-                        )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}
@@ -2843,7 +3042,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                         size='sm'
                                         variant='outline'
                                         onClick={handleSyncNow}
-                                        disabled={syncChannelModels.isPending || updateChannel.isPending}
+                                        disabled={syncChannelModels.isPending || updateChannelSettings.isPending}
                                       >
                                         <Play className={`mr-1 h-3 w-3 ${syncChannelModels.isPending ? 'animate-spin' : ''}`} />
                                         {syncChannelModels.isPending
@@ -3012,7 +3211,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                       </FormItem>
 
                       <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                        <div className='flex items-center gap-1.5 pt-2 md:col-span-2 md:justify-end'>
+                        <div className='flex items-center gap-1.5 pt-2 md:col-span-2 md:justify-start'>
                           <FormLabel className='font-medium'>{t('channels.dialogs.retryableStatusCodes.label')}</FormLabel>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -3040,7 +3239,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                       </FormItem>
 
                       <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                        <div className='flex items-center gap-1.5 pt-2 md:col-span-2 md:justify-end'>
+                        <div className='flex items-center gap-1.5 pt-2 md:col-span-2 md:justify-start'>
                           <FormLabel className='font-medium'>{t('channels.dialogs.retryableErrorPatterns.label')}</FormLabel>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -3271,7 +3470,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                 <ScrollArea className='min-h-0 flex-1' type='always'>
                   <div className='space-y-1 pr-3'>
                     {(() => {
-                      const validKeys = (apiKeys || []).map((k) => k.trim()).filter((k) => k.length > 0);
+                      const validKeys = [...new Set((apiKeys || []).map((key) => key.trim()).filter((key) => key.length > 0))];
                       const isLastKey = validKeys.length <= 1;
                       const enabledKeysCount = validKeys.filter((k) => savedAPIKeySet.has(k) && !disabledKeySet.has(k)).length;
                       return validKeys
@@ -3359,7 +3558,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className='inline-flex'>
-                                          <Button type='button' variant='ghost' size='sm' className='text-muted-foreground h-7 w-7 p-0' disabled>
+                                          <Button
+                                            type='button'
+                                            variant='ghost'
+                                            size='sm'
+                                            className='text-muted-foreground h-7 w-7 p-0'
+                                            disabled
+                                          >
                                             <Ban className='h-4 w-4' />
                                           </Button>
                                         </span>
@@ -3374,7 +3579,13 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                       onOpenChange={(isOpen) => setConfirmDisableKey(isOpen ? key : null)}
                                     >
                                       <PopoverTrigger asChild>
-                                        <Button type='button' variant='ghost' size='sm' className='text-orange-500 h-7 w-7 p-0' disabled={disableAPIKey.isPending || isFetchingDisabledKeys}>
+                                        <Button
+                                          type='button'
+                                          variant='ghost'
+                                          size='sm'
+                                          className='h-7 w-7 p-0 text-orange-500'
+                                          disabled={disableAPIKey.isPending || isFetchingDisabledKeys}
+                                        >
                                           <Ban className='h-4 w-4' />
                                         </Button>
                                       </PopoverTrigger>
@@ -3617,27 +3828,28 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         </DialogContent>
       </Dialog>
       {pendingSingleKey !== null && (
-        <Dialog open onOpenChange={(isOpen) => {
-          if (!isOpen) setPendingSingleKey(null);
-        }}>
+        <Dialog
+          open
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setPendingSingleKey(null);
+          }}
+        >
           <DialogContent className='sm:max-w-md'>
             <DialogHeader>
               <DialogTitle>{t('channels.keyPool.switchToSingleTitle')}</DialogTitle>
               <DialogDescription>{t('channels.keyPool.switchToSingleDescription')}</DialogDescription>
             </DialogHeader>
-            <RadioGroup
-              value={pendingSingleKey}
-              onValueChange={setPendingSingleKey}
-              className='space-y-2'
-            >
-              {(form.getValues('credentials.apiKeys') || []).filter((key) => key.trim()).map((key) => (
-                <div key={key} className='flex items-center gap-2'>
-                  <RadioGroupItem value={key} id={`keep-${key.slice(-4)}`} />
-                  <label htmlFor={`keep-${key.slice(-4)}`} className='font-mono text-xs break-all'>
-                    {key.length > 8 ? `${key.slice(0, 4)}****${key.slice(-4)}` : key}
-                  </label>
-                </div>
-              ))}
+            <RadioGroup value={pendingSingleKey} onValueChange={setPendingSingleKey} className='space-y-2'>
+              {(form.getValues('credentials.apiKeys') || [])
+                .filter((key) => key.trim())
+                .map((key) => (
+                  <div key={key} className='flex items-center gap-2'>
+                    <RadioGroupItem value={key} id={`keep-${key.slice(-4)}`} />
+                    <label htmlFor={`keep-${key.slice(-4)}`} className='font-mono text-xs break-all'>
+                      {key.length > 8 ? `${key.slice(0, 4)}****${key.slice(-4)}` : key}
+                    </label>
+                  </div>
+                ))}
             </RadioGroup>
             <DialogFooter>
               <Button type='button' variant='outline' onClick={() => setPendingSingleKey(null)}>

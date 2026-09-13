@@ -149,6 +149,38 @@ input APIKeyPoolSettingsInput {
   autoCheckTimeoutSeconds: Int
 }
 
+type ModelProtocol {
+  model: String!
+  apiFormats: [String!]!
+  enabled: Boolean
+}
+
+input ModelProtocolInput {
+  model: String!
+  apiFormats: [String!]!
+  enabled: Boolean
+}
+
+# ProviderQuota carries credentials used only for provider quota polling
+# (e.g. the Command Code account session cookie). These are sensitive: the
+# output resolver only returns them to operators with write_channels, and the
+# values are never part of ordinary channel reads.
+type CommandCodeQuotaSettings {
+  authCookie: String
+}
+
+input CommandCodeQuotaSettingsInput {
+  authCookie: String
+}
+
+type ChannelProviderQuotaSettings {
+  commandCode: CommandCodeQuotaSettings
+}
+
+input ChannelProviderQuotaSettingsInput {
+  commandCode: CommandCodeQuotaSettingsInput
+}
+
 type ChannelSettings {
   extraModelPrefix: String
   modelMappings: [ModelMapping!]
@@ -167,6 +199,8 @@ type ChannelSettings {
   retryableErrorPatterns: [RetryableErrorPattern!]
   apiKeyPool: APIKeyPoolSettings
   codexSimulation: CodexSimulationSettings
+  modelProtocols: [ModelProtocol!]
+  providerQuota: ChannelProviderQuotaSettings @goField(forceResolver: true)
 }
 
 enum CodexSimulationPreset {
@@ -335,6 +369,8 @@ input ChannelSettingsInput {
   retryableErrorPatterns: [RetryableErrorPatternInput!]
   apiKeyPool: APIKeyPoolSettingsInput
   codexSimulation: CodexSimulationSettingsInput
+  modelProtocols: [ModelProtocolInput!]
+  providerQuota: ChannelProviderQuotaSettingsInput
 }
 
 input ChannelRateLimitInput {
@@ -406,6 +442,7 @@ input ChannelCredentialsInput {
   apiKeys: [String!]
   gcp: GCPCredentialInput
   oauth: OAuthCredentialsInput
+  managementApiKey: String
 }
 
 input OAuthCredentialsInput {

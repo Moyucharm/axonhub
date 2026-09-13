@@ -76,6 +76,7 @@ func NewEntClient(cfg Config) *ent.Client {
 			migrate.WithDropIndex(true),
 			migrate.WithDropColumn(true),
 			schema.WithHooks(schemahook.V0_3_0),
+			filterEquivalentDefaultChanges(),
 		)
 		if err != nil {
 			panic(err)

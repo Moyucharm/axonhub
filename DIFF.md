@@ -8,12 +8,12 @@
 
 | 项目 | 值 |
 |---|---|
-| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/unstable-20260827`） |
+| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/beta10-20260913`） |
 | 官方仓库 | `https://github.com/looplj/axonhub.git` |
-| 对比基准 | 官方最新发行版 `v1.0.0-beta7`（`b4d1fd04`，2026-08-11） |
-| 当前基线提交（分叉点） | `b9af5ae2`（2026-08-04，官方 unstable，约定生效前遗留）feat(channels): add Groq channel (#2144) |
-| 本次跟进的官方 unstable | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；主人明确批准跟进例外） |
-| 本分支版本号 | `v1.0.0-beta8+azusa.v0.4`（已创建 tag 并触发发布构建，见 3.10 节） |
+| 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
+| 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
+| 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.5`（本地 tag 待合并提交确认后创建） |
 
 ### 更新本文件的方法
 
@@ -24,16 +24,16 @@ git fetch https://github.com/looplj/axonhub.git \
   'refs/heads/unstable:refs/remotes/upstream-tmp/unstable'
 
 # 查看本地独有提交（自用增量，相对官方最新发行版）
-git log --oneline upstream/v1.0.0-beta7..自用
+git log --oneline upstream/v1.0.0-beta10..自用
 
 # 查看官方发行版独有提交（未合并内容）
-git log --oneline 自用..upstream/v1.0.0-beta7
+git log --oneline 自用..upstream/v1.0.0-beta10
 
 # 查看官方 unstable 未发行代码（仅参考，按约定忽略）
-git log --oneline upstream/v1.0.0-beta7..upstream-tmp/unstable
+git log --oneline upstream/v1.0.0-beta10..upstream-tmp/unstable
 
 # 查看文件级差异
-git diff upstream/v1.0.0-beta7 自用 --stat
+git diff upstream/v1.0.0-beta10 自用 --stat
 ```
 
 ## 2. 自用功能增量 — 大功能
@@ -126,6 +126,17 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **Responses 流**：采用官方 terminal status、重复 terminal 防护、资源边界和 `llm.ErrStreamIncomplete`；保留自用显式 `doneEmitted`、兼容网关 `[DONE]` 成功终止、工具调用 `tool_calls` finish reason，并保证统一 DONE 最多一次。
 - **验证边界**：GraphQL 管理操作使用 `RequestTimeout`，四类渠道测试使用 `LLMRequestTimeout`，HTTP 层仍以 LLM 超时作为硬上限；CPA quota checker、定时刷新、并发限制及 usage stream 均保留。
 
+### 2.7 2026-09-13 对齐官方 v1.0.0-beta10
+
+**来源**：官方发行 tag `v1.0.0-beta10@939b2bc0`；隔离集成分支 `merge/beta10-20260913`。当前自用代码已经包含旧 `a037c0bf` 前的上游内容，因此本次实际吸收 `a037c0bf..v1.0.0-beta10` 的 62 个正式发行提交，不跟进 `beta10..unstable`。
+
+- **新增官方能力**：模型目录后端热更新、模型级 endpoint protocol routing、渠道模型价格导入导出、Responses WebSocket、usage cost、ZenMux（含视频）与 Command Code 渠道、OAuth/Command Code 配额展示、API Key 列表分页和请求/流转换修复。
+- **保留自用能力**：Key Pool 显式模式与服务端状态、渠道级 API Key 规则、渠道 cooldown、Codex Simulation、CPA 管理、弱网关流保守收尾、5174 开发端口及自用 Docker workflow。
+- **凭证与设置整合**：`ChannelSettings` 同时保留自用 `apiKeyPool`/`codexSimulation` 与官方 `modelProtocols`/Command Code `providerQuota`；后者是 beta10 新增的 Command Code 配额 Cookie，并非此前 beta9 删除的旧 OpenCode workspace/cookie 配置。敏感 Cookie 继续只对 `write_channels` 权限返回并在日志中脱敏。
+- **并发与状态整合**：渠道更新同时保留 API Key 运行状态防回写、Pool→single 清规则、Codex Simulation 类型迁移，以及 Command Code 身份/配额 Cookie 的乐观并发保护；手工状态更新仍清理 cooldown 和自动失败状态。
+- **生成与迁移**：以合并后的 Ent/GraphQL 源 schema 重新生成代码，保留 CPA 实体、自用渠道字段、beta9 一次性迁移标记和 legacy 渠道类型归一化，同时吸收 beta10 的 schema default 过滤与索引修复。
+- **无广告硬约束**：`atlascloud`、`qiniu`、`qiniu_anthropic`、`fenno` 不进入 Ent/GraphQL/前端可选枚举，不恢复其图标和文案；仅保留旧数据库/备份兼容映射与回归测试。README 不恢复赞助横幅，官方 `docker-unstable.yml` 也不恢复。
+
 ## 3. 自用修改 — 小修改
 
 ### 3.1 Key Pool RetryCount 语义调整（`91de02a2`）
@@ -212,18 +223,25 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - CPA 汇总与 Popover 的额度列改为按内容宽度布局；小屏幕 Popover 允许横向滚动，长窗口名称不会压缩额度条。
 - 新增结构回归断言，覆盖单窗口、估算值、多窗口和 CPA 汇总路径；本次不涉及后端或 GraphQL 契约。
 
-## 4. 官方差异 — 相对官方最新发行版 v1.0.0-beta7 的本次跟进内容与升级参考
+## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
-本次合并前 `自用` HEAD 为 `a731dac1`；官方最新发行版仍是 `v1.0.0-beta7`（`b4d1fd04`），而 `upstream-tmp/unstable` 为 `a037c0bf`，相对 beta7 包含 **62 个未发行提交**。本次跟进属于主人明确批准的 unstable 例外。本次合并涉及的主要功能：
+本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。
 
-- **渠道**：上游 #2188 曾引入 qiniu/fenno 渠道类型；本分支已在 3.8 节清理其可选入口并保留协议迁移。另包含 unified API key management dialog（#2156）、per-credential auto disable with scheduled recovery（#2180）、渠道级 `downgradeMidConversationSystem` 开关（#2124）。
-- **请求链路**：SSE keep alive（#2157）、请求日志表重设计（#2162）、请求日志记录 reasoning_effort（#2158）、请求体「对话阅览」模式（#2182）、request cache rate 展示（#2193）、SQLite TEXT 时间戳兼容与 backup 时区修复（#2189）、失败流/stream 系列修复（#2171/#2178/#2185/#2187/#2192/#2057）。
-- **前端体验**：模型价格对话框虚拟化（#2163）、analytics 筛选 UX 对齐（#2154）。
-- 其余为 fix/chore（#2155/#2172/#2176/#2177/#2190/#2191/#2194；完整清单见附录 B）。
+主要官方变化：
 
-### ✅ 合并后的冲突决策记录
+- **渠道与目录**：新增后端 catalog 热更新、模型级 protocol routing、渠道价格 JSON 导入导出、ZenMux/Command Code 渠道及配额、OAuth 配额展示。
+- **请求与转换**：新增下游 Responses WebSocket、跨格式请求契约补全、usage cost、流中断分类、deadline 上报、OpenAI/Anthropic/Gemini 多项兼容修复。
+- **数据与安全**：修复 SQLite 默认值误重建、请求索引命名、OIDC snake_case claims、用户删除时归档个人 API Key，并升级相关依赖。
+- **前端体验**：API Key 选择器分页、100 行分页、HTTP 非安全上下文复制兼容、对话框移动端高度修复、渠道轮询错误降噪及图片 Playground。
 
-本次合并已解决官方 **#2180「per-credential auto disable with scheduled recovery」** 与自用 Key Pool/渠道冷却的重叠：官方凭证生命周期、OAuth sentinel、定时恢复和 `auto_disabled_at` 作为基础，自用持久化失败诊断、Key Pool、渠道 cooldown 与 Codex Simulation 保留；同一次失败只由统一入口计数和通知。官方 **#2156「unified API key management dialog」** 已作为统一管理入口，自用 Pool、导入导出、批量测试和配置移植到其中；旧弹窗不再恢复。官方 **#2188** 的 qiniu/fenno 类型曾并入渠道 enum，但本分支已按 3.8 节清理可选类型，并保留旧值到通用协议类型的迁移；enum 冲突整体采纳上游时曾把自用已移除的 `atlascloud` 一并带回，详见 3.4/3.5 节，现已再次移除。旧渠道级 `settings.providerQuota` 配置按 beta9 安全迁移删除（仅渠道级字段；全局 `provider_quota` 配置与 ProviderQuotaStatus/CPA 功能不受影响，详见 3.6 节），且迁移经一次性完成标记防止重复执行（详见 3.5 节）。另注意 beta7 引入的 schema 字段（`channels.auto_disabled_at`、`request_executions.reasoning_effort`）与自用字段（`cooldown_until`、`auto_disable_state`）均已保留；ent AutoMigrate 的 `WithDropColumn(true)` 仍要求升级前备份。
+### ✅ beta10 冲突决策记录
+
+1. **渠道枚举逐值合并**：采用 `zenmux*` 与 `commandcode*`；拒绝重新加入 `atlascloud`、`qiniu*`、`fenno`。生成后的 Ent/GraphQL 枚举不含广告类型，旧值只存在于启动迁移、备份恢复及回归测试。
+2. **渠道设置并集**：自用 `apiKeyPool`、`codexSimulation` 与官方 `modelProtocols`、Command Code quota 设置共存；统一 API Key 管理对话框继续作为入口。
+3. **更新并发边界**：同一次渠道更新同时保护服务端 API Key 状态、ZenMux management key、Command Code quota Cookie、模型协议和 Codex Simulation 类型切换，不允许局部设置覆盖其他设置。
+4. **自动处置链路**：继续使用自用持久化 failure state 与统一 action 入口，避免回退到上游旧内存计数实现；官方新增 webhook/恢复行为通过现有通知与缓存刷新边界吸收。
+5. **迁移安全**：保留 beta9 完成标记、CPA schema、自用 `cooldown_until`/`auto_disable_state`，并吸收 beta10 schema default 过滤；Ent 仍启用 drop-column，生产升级前必须备份数据库。
+6. **发布与工作流**：版本提升为 `v1.0.0-beta10+azusa.v0.5`；保留自用 Docker workflow，不恢复官方 unstable/Docker Hub 发布路径。README 继续无赞助横幅。
 
 ## 5. 版本号约定与基准规则
 
@@ -239,7 +257,7 @@ git diff upstream/v1.0.0-beta7 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
-- **当前状态**：`2026-09-02` 发布 `v1.0.0-beta8+azusa.v0.4`（含 Qiniu/Fenno 清理、CPA 额度估算重启连续性修复与额度显示胶囊布局优化，见 3.8～3.10 节）。由于官方正式发行版仍是 beta7，本次发布不改变发行基线；后续官方发布新的 release tag 后，再按本约定对齐基准并更新版本号。
+- **当前状态**：`2026-09-13` 已在隔离分支完成 `v1.0.0-beta10` 代码整合，版本更新为 `v1.0.0-beta10+azusa.v0.5`；本地 tag 在正式 merge commit 获确认后创建。`beta10..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 
@@ -343,4 +361,73 @@ ef8809ff docs(i18n): clarify where store-chunks persists stream chunks (#2306)
 6f729f7c fix: accept boolean experimental flag in provider model schema (#2305)
 66b896dd chore: add apikey fun sponsor
 a037c0bf chore: add apikey fun banner
+```
+
+## 附录 C：本次正式发行对齐提交（`a037c0bf..v1.0.0-beta10`，62 个）
+
+> 这些提交已进入官方 `v1.0.0-beta8`～`v1.0.0-beta10` tag。本分支按 2.7/第 4 节的冲突决策吸收；广告渠道与官方 unstable 发布 workflow 未恢复。
+
+```
+833853eb fix(gemini): preserve concrete MIME types for remote media (#2205)
+4483c2e4 feat: hot-reload model catalog from upstream via backend (#2263)
+de44f460 fix(channels): validate bulk ordering weight input (#2335)
+7e07e245 fix(frontend): support clipboard copy on insecure HTTP origins (#2334)
+a13d1ef3 feat(frontend): add 100-row pagination option (#2333)
+4daf5665 fix: skip spurious default-value changes that trigger SQLite rebuilds (#2331)
+189580c5 chore: sync model developers data (#2325)
+2bfea194 fix(ui): add viewport height floor to DialogContent (#2328)
+48e8b714 feat(channels): support export/import channel model prices as JSON (#2322)
+c9ea3207 fix(frontend): trim price inputs before saving channel model prices (#2321)
+b62d3bcd feat: auto set prompt cache key from trace id (#2339)
+3f54f80b fix: request performance metric accurate (#2341)
+94e0d7c7 feat: support add image in playground (#2340)
+d856b588 fix: decode snake_case OIDC claims (#2320)
+a0b37424 fix: classify upstream stream interruptions and keep latency metrics on failed executions (#2317)
+94456c39 fix(frontend): paginate API key selectors and filters (#2346)
+dbeed3e6 ci: validate bundled providers.json against its schema (#2315)
+5ac75028 feat: return AxonHub cost on usage.cost across API formats (#2300)
+16f08fed feat(api): support downstream Responses WebSocket (#2255)
+f1d2c8c0 feat: add mine api keys tab, close #2271 (#2349)
+67203f83 fix: requests db index name length & rules (#2351)
+dfbe2259 feat: unify reasoning effort across protocols and add model endpoint routing (#2330)
+f4bbbded fix: dialog double scrollbar introduced in 2bfea194 (#2355)
+2f9dd1a9 feat: show codex reset details, close #2301 (#2360)
+9b75cbb9 fix(frontend): repair height-constrained scroll layout in mobile dialogs (#2354)
+147e6791 fix(codex): strip user field from outbound requests (#2352)
+1908ca28 fix: preserve transformed Responses stream events (#2365)
+fe268759 fix: dockerfile compitable, close #2367 (#2368)
+c2cf9818 fix(anthropic): reject invalid tool input on clean EOF (#2363)
+782b9521 feat: add opencode session header, close #2361 (#2369)
+0210b151 fix(openai): tolerate object-shaped usage cost (#2373)
+db7fe191 Pass the caller's context through the v0.3.0 and v0.4.0 migrations (#2348)
+e2b726eb fix(openai): preserve request contracts across transports (#2374)
+0e4ac151 fix(openai): prevent zero-status errors from returning HTTP 200 (#2372)
+d46fbcf4 fix(images): accept application/json in passthrough mode for /images/edits (#2336) (#2370)
+7444f537 fix(anthropic): preserve client cache_control breakpoints to keep prompt cache hits (#2342)
+4c4556be fix(trace): stop persisting traces for embedding requests (#2378)
+657db7f6 fix(frontend): silence transient channel polling errors (#2382)
+7e706c0d fix(frontend): handle empty channel error messages (#2375)
+e47fed9d fix(api): report server stream deadlines to SSE clients (#2362)
+6742293a feat: add ZenMux channels and quota-aware UI (#2381)
+466007e0 fix: window deploy scripts, close #2376 (#2386)
+a0850956 fix(openai): complete cross-format request conversion (#2377)
+2ed0bc0d fix(frontend): localize model developer selector (#2385)
+68cb1b02 docs: move deployment to axonhub-skills (#2388)
+0d85ba60 fix: include hy4 models in Tencent catalog (#2387)
+fd4158ef fix(openai): merge multiple system messages for strict upstreams (#2384)
+541f4452 feat: archive personal api keys when delete user, close #2272 (#2391)
+3f4f37b2 feat: fire webhook when api key disabled, close #2380 (#2393)
+b2d86fe3 feat: remove cc billing system message for non official channel, close #1932 (#2394)
+d3132241 feat: add Command Code channel support (#2392)
+6da749a4 fix: propagate OpenCode sessions to custom endpoints (#2389)
+db239e0b feat: show OAuth channel quotas (#2366)
+834eea2b fix(zai): support GLM-5.2+ reasoning_effort and GLM-5.3 always-on thinking (#2314)
+58d7076e feat(codex): support gpt-6-astra (#2399)
+96714b42 fix: render image-generation traces without GraphQL errors (#2297)
+6c4cbaf1 ci: enable manual unstable Docker image publishing
+49bfa63d chore(deps): bump google.golang.org/grpc in /integration_test/gemini (#2404)
+cc5b2022 fix(requests): keep API key filter visible without results (#2405)
+3ec59d14 chore: sync model developers data (#2412)
+f3e89019 feat: add ZenMux native video generation (#2410)
+939b2bc0 fix(frontend): preserve channel form focus and onboarding dismissal (#2411)
 ```
