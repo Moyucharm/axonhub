@@ -85,10 +85,15 @@ var codexWaitTool = map[string]any{
 	},
 }
 
+// responsesLiteModelPrefixes lists model prefixes that use the Responses Lite upstream shape.
+// 与 codex-disguise 一致：gpt-5.6- 与 gpt-6- 前缀模型走 Lite 变换。
+var responsesLiteModelPrefixes = []string{"gpt-5.6-", "gpt-6-"}
+
 // isResponsesLiteModel reports whether the model uses the Responses Lite upstream shape.
-// 与 codex-disguise 一致：仅 gpt-5.6- 前缀模型走 Lite 变换。
 func isResponsesLiteModel(model string) bool {
-	return strings.HasPrefix(model, "gpt-5.6-")
+	return slices.ContainsFunc(responsesLiteModelPrefixes, func(prefix string) bool {
+		return strings.HasPrefix(model, prefix)
+	})
 }
 
 // newPrefixedID builds a deterministic-style prefixed id: "<prefix>_<32 hex>".
@@ -491,7 +496,7 @@ func ensureResponsesInclude(payload map[string]any) {
 	}
 }
 
-// applyLiteShape forces the Responses Lite request shape for gpt-5.6-* models,
+// applyLiteShape forces the Responses Lite request shape for Lite models (gpt-5.6-*/gpt-6-*),
 // matching codex-disguise.
 func applyLiteShape(payload map[string]any) {
 	delete(payload, "tools")

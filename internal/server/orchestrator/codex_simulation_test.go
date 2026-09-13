@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -207,6 +208,54 @@ func TestCodexSimulationNormalLite(t *testing.T) {
 	require.NotEmpty(t, parsed.Get("client_metadata.thread_id").String())
 	require.NotEmpty(t, parsed.Get("client_metadata.turn_id").String())
 	require.NotEmpty(t, parsed.Get("client_metadata.x-codex-turn-metadata").String())
+}
+
+// gpt-6-astra 与 gpt-5.6-* 同为 Responses Lite 形态（上游已下架 gpt-5.6-*）。
+func TestCodexSimulationNormalLiteGpt6Astra(t *testing.T) {
+	outbound := newSimulationOutbound(t, &objects.ChannelSettings{
+		CodexSimulation: simulationSettings(objects.CodexSimulationPresetNormal),
+	})
+
+	body, headers := runSimulationBody(t, outbound, `{"model":"gpt-6-astra","input":"hi","max_output_tokens":4096}`)
+
+	// 请求头：Lite 变体。
+	require.Equal(t, "codex_exec/0.144.2 (Windows 10; x86_64) tmux/3.5a (codex_exec; 0.144.2)", headers.Get("User-Agent"))
+	require.Equal(t, "codex_exec", headers.Get("originator"))
+	require.Equal(t, "", headers.Get("version"))
+	require.Equal(t, "remote_compaction_v2", headers.Get("x-codex-beta-features"))
+	require.Equal(t, "true", headers.Get("x-openai-internal-codex-responses-lite"))
+
+	parsed := gjson.Parse(body)
+	require.Equal(t, "additional_tools", parsed.Get("input.0.type").String())
+	require.False(t, parsed.Get("max_output_tokens").Exists())
+	require.True(t, parsed.Get("stream").Bool())
+	require.False(t, parsed.Get("store").Bool())
+	require.Equal(t, "auto", parsed.Get("tool_choice").String())
+	require.False(t, parsed.Get("parallel_tool_calls").Bool())
+	require.Equal(t, "medium", parsed.Get("text.verbosity").String())
+	require.Equal(t, "medium", parsed.Get("reasoning.effort").String())
+	require.Equal(t, "all_turns", parsed.Get("reasoning.context").String())
+	require.True(t, len(parsed.Get("prompt_cache_key").String()) == 36)
+	require.NotNil(t, outbound.state.LlmRequest.Stream)
+	require.True(t, *outbound.state.LlmRequest.Stream)
+	require.NotEmpty(t, parsed.Get("client_metadata.thread_id").String())
+	require.NotEmpty(t, parsed.Get("client_metadata.turn_id").String())
+}
+
+// 非 gpt-5.6-/gpt-6- 前缀的模型不受 Lite 门控误伤。
+func TestCodexSimulationNonLitePrefixesUntouched(t *testing.T) {
+	outbound := newSimulationOutbound(t, &objects.ChannelSettings{
+		CodexSimulation: simulationSettings(objects.CodexSimulationPresetNormal),
+	})
+
+	for _, model := range []string{"gpt-5.5", "claude-opus-4-6", "gpt-6x-test"} {
+		body, headers := runSimulationBody(t, outbound, fmt.Sprintf(`{"model":"%s","input":"hi","max_output_tokens":64}`, model))
+		parsed := gjson.Parse(body)
+		require.Equal(t, "codex_cli_rs", headers.Get("originator"), model)
+		require.Empty(t, headers.Get("x-openai-internal-codex-responses-lite"), model)
+		require.True(t, parsed.Get("max_output_tokens").Exists(), model)
+		require.False(t, parsed.Get("prompt_cache_key").Exists(), model)
+	}
 }
 
 // 加强级别：普通级别 + wait 工具；已存在 wait 时不重复注入。
