@@ -159,9 +159,7 @@ func advanceCodexWeeklyObservation(
 		observed.SecondaryUsedPercent == nil ||
 		observed.SecondaryLatestEventID == nil ||
 		observed.SecondaryResetAt == nil ||
-		!sameQuotaReset(*observed.SecondaryResetAt, next.resetAt) ||
-		next.usedPercent < *observed.SecondaryUsedPercent ||
-		next.eventID <= *observed.SecondaryLatestEventID
+		!sameQuotaReset(*observed.SecondaryResetAt, next.resetAt)
 	if reanchor {
 		baselinePercent := next.usedPercent
 		baselineEventID := next.eventID
@@ -178,11 +176,27 @@ func advanceCodexWeeklyObservation(
 		return observed, true
 	}
 
-	latestPercent := next.usedPercent
+	// Event IDs are the durable interval boundary. A replayed or out-of-order
+	// usage event must not look like a new quota window and clear a valid
+	// estimate.
+	if next.eventID <= *observed.SecondaryLatestEventID {
+		return observed, false
+	}
+
 	latestEventID := next.eventID
-	observed.SecondaryUsedPercent = &latestPercent
 	observed.SecondaryLatestEventID = &latestEventID
 	observed.ObservedAt = &next.observedAt
+	// The 7d reset timestamp is the authoritative window boundary. A lower
+	// percentage with the same reset is a non-monotonic provider sample (for
+	// example a 5h refresh side effect or rolling-window correction), not a new
+	// local interval. Retain the high-water percentage so the existing estimate
+	// remains usable until the 7d window actually changes.
+	if next.usedPercent < *observed.SecondaryUsedPercent {
+		return observed, false
+	}
+
+	latestPercent := next.usedPercent
+	observed.SecondaryUsedPercent = &latestPercent
 	return observed, false
 }
 

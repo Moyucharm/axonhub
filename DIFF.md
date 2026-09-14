@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
 | 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.5`（本地 tag 已创建） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6`（待创建 tag 并发布镜像） |
 
 ### 更新本文件的方法
 
@@ -210,8 +210,8 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 - `CPAInstance` 新增内部 `usage_collector_id`，同一数据库中的同一 CPA 实例跨服务重启和 worker 重建复用稳定 identity；旧实例启动时幂等回填，并尽可能采用已有唯一的旧 observation identity。
 - collector 启动从 `cpa_usage_events` 按 `auth_index` 恢复最新 event ID，月度 refresh 不再因内存 checkpoint 从 0 开始而重建错误 baseline。
-- `Secondary*` 与 `EstimateCollectorSessionID` 的历史 JSON key 保持不变，但语义改为稳定的本地 collector identity；真实 reset、百分比回退、连接来源变化或 usage stream ownership 切换仍会重新建基线。
-- 同窗口、同 reset、同 identity 且没有新区间结果时保留最后一次有效估算；跨周期或跨 ownership 边界不保留旧金额，不放宽 3% 本地区间与定价覆盖率保护。
+- `Secondary*` 与 `EstimateCollectorSessionID` 的历史 JSON key 保持不变，但语义改为稳定的本地 collector identity；7d `reset_at`、连接来源变化或 usage stream ownership 切换会重新建基线，同一 7d reset 下的百分比回退与重复/乱序事件按非单调样本处理，不污染 7d interval。
+- 同窗口、同 reset、同 identity 且没有新区间结果时保留最后一次有效估算；5h primary 窗口的刷新/归零不影响 7d 金额估算。跨周期或跨 ownership 边界不保留旧金额，不放宽 3% 本地区间与定价覆盖率保护。
 - 不改 GraphQL 契约，不把完整 quota response headers 写入 usage event；当前已被旧实现覆盖的历史估算只能从覆盖前备份恢复。
 
 对应决策记录：[CPA 额度估算跨服务重启保持连续](.agent/notes/implemented/bug-fix/2026-09-02-cpa-estimate-survives-restart.md)。本次仅修复行为与持久化兼容，不单独修改版本号、tag 或发布基线。
@@ -222,6 +222,12 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - `QuotaCapsule`、多窗口 `+N` 触发器、CPA 紧凑汇总胶囊与溢出 Popover 统一使用不收缩的额度条布局。
 - CPA 汇总与 Popover 的额度列改为按内容宽度布局；小屏幕 Popover 允许横向滚动，长窗口名称不会压缩额度条。
 - 新增结构回归断言，覆盖单窗口、估算值、多窗口和 CPA 汇总路径；本次不涉及后端或 GraphQL 契约。
+
+### 3.11 渠道处置单一归属与 Codex 5h/7d 估算隔离（`v1.0.0-beta10+azusa.v0.6`）
+
+- **统一渠道与 API Key 自动处置责任边界**（commit `b711d28f`）：单次失败严格单一归属，有凭据且命中渠道/全局 API Key 规则时归属凭据生命周期，未命中才回退至渠道级策略，清除旧有的双重判定与冗余计数。
+- **隔离 Codex 5h 重置与 7d CPA 额度估算**：7d observation 状态机收紧 re-anchor 条件，仅在 collector 变更、7d `reset_at` 改变或首建基线时重新锚定；同一 7d reset 下的百分比回退与重复/乱序事件按非单调样本处理并保留 high-water 基线，防止 5h primary 窗口归零导致 7d 金额估算被误清空。
+- 对应架构决策记录：[统一渠道失败单一责任归属](.agent/notes/implemented/simplification/2026-09-13-exclusive-channel-failure-owner.md)、[隔离 Codex 5h 重置与 7d CPA 额度估算](.agent/notes/implemented/bug-fix/2026-09-13-cpa-estimate-window-isolation.md)。发布版本递增为 `v1.0.0-beta10+azusa.v0.6`。
 
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
@@ -257,7 +263,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
-- **当前状态**：`2026-09-13` 已在隔离分支完成 `v1.0.0-beta10` 代码整合，版本更新为 `v1.0.0-beta10+azusa.v0.5`；本地 tag 在正式 merge commit 获确认后创建。`beta10..unstable` 未发行提交不在本次范围内。
+- **当前状态**：`2026-09-13` 已在隔离分支完成 `v1.0.0-beta10` 代码整合，并完成渠道失败单一责任归属与 Codex 5h/7d CPA 估算隔离优化，版本递增为 `v1.0.0-beta10+azusa.v0.6`。`beta10..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 

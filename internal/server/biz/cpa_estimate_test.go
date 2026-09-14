@@ -460,7 +460,7 @@ func TestCarryForwardCodexQuotaEstimateKeepsCompatibleLastValue(t *testing.T) {
 	require.Nil(t, monthlyCurrent.EstimatedLimitUSD)
 }
 
-func TestApplyQuotaEstimateDoesNotEraseCompatibleEstimate(t *testing.T) {
+func TestApplyQuotaEstimateKeepsWeeklyEstimateWhenFiveHourResets(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_estimate_preserve?mode=memory&_fk=1")
 	defer client.Close()
 	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
@@ -480,6 +480,9 @@ func TestApplyQuotaEstimateDoesNotEraseCompatibleEstimate(t *testing.T) {
 	}
 	previousLimit := 100.0
 	previousCost := 40.0
+	fiveHourPeriod := 5 * 60 * 60
+	previousFiveHourReset := resetAt.Add(-time.Hour)
+	previousFiveHourUsed := 80.0
 	instance := client.CPAInstance.Create().
 		SetName("preserve estimate").
 		SetBaseURL("http://127.0.0.1:8317").
@@ -497,18 +500,26 @@ func TestApplyQuotaEstimateDoesNotEraseCompatibleEstimate(t *testing.T) {
 		SetProvider("codex").
 		SetQuotaState(string(objects.CPAQuotaStateSuccess)).
 		SetQuotaObserved(observed).
-		SetQuotaData(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
-			ID:                          "weekly",
-			ResetAt:                     &resetAt,
-			PeriodSeconds:               &period,
-			EstimateCollectorSessionID:  "collector-a",
-			EstimateBaselineUsedPercent: &baselinePercent,
-			EstimateBaselineEventID:     &baselineEventID,
-			EstimateLatestEventID:       &latestEventID,
-			EstimatedLimitUSD:           &previousLimit,
-			EstimatedCostUSD:            &previousCost,
-			EstimateSource:              "precise-header-delta",
-		}}}).
+		SetQuotaData(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+			{
+				ID:            "code-primary",
+				UsedPercent:   &previousFiveHourUsed,
+				ResetAt:       &previousFiveHourReset,
+				PeriodSeconds: &fiveHourPeriod,
+			},
+			{
+				ID:                          "code-secondary",
+				ResetAt:                     &resetAt,
+				PeriodSeconds:               &period,
+				EstimateCollectorSessionID:  "collector-a",
+				EstimateBaselineUsedPercent: &baselinePercent,
+				EstimateBaselineEventID:     &baselineEventID,
+				EstimateLatestEventID:       &latestEventID,
+				EstimatedLimitUSD:           &previousLimit,
+				EstimatedCostUSD:            &previousCost,
+				EstimateSource:              "precise-header-delta",
+			},
+		}}).
 		SaveX(ctx)
 
 	svc := newCPAServiceForTest(client, time.Now)
@@ -520,16 +531,27 @@ func TestApplyQuotaEstimateDoesNotEraseCompatibleEstimate(t *testing.T) {
 		},
 	}
 	loaded := client.CPACredential.GetX(ctx, credential.ID)
-	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
-		ID:            "weekly",
-		UsedPercent:   &latestPercent,
-		ResetAt:       &resetAt,
-		PeriodSeconds: &period,
-	}}}
+	currentFiveHourReset := previousFiveHourReset.Add(5 * time.Hour)
+	currentFiveHourUsed := 0.0
+	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{
+			ID:            "code-primary",
+			UsedPercent:   &currentFiveHourUsed,
+			ResetAt:       &currentFiveHourReset,
+			PeriodSeconds: &fiveHourPeriod,
+		},
+		{
+			ID:            "code-secondary",
+			UsedPercent:   &latestPercent,
+			ResetAt:       &resetAt,
+			PeriodSeconds: &period,
+		},
+	}}
 	svc.applyQuotaEstimate(ctx, loaded, &snapshot)
-	require.Equal(t, previousLimit, *snapshot.Items[0].EstimatedLimitUSD)
-	require.Equal(t, previousCost, *snapshot.Items[0].EstimatedCostUSD)
-	require.Equal(t, "precise-header-delta", snapshot.Items[0].EstimateSource)
+	weekly := &snapshot.Items[1]
+	require.Equal(t, previousLimit, *weekly.EstimatedLimitUSD)
+	require.Equal(t, previousCost, *weekly.EstimatedCostUSD)
+	require.Equal(t, "precise-header-delta", weekly.EstimateSource)
 }
 
 func TestComputeCPAAggregateCostUnpricedModel(t *testing.T) {

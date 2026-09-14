@@ -227,14 +227,16 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	require.InDelta(t, 61.7, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
 	require.Equal(t, *loaded.QuotaObserved.SecondaryBaselineEventID, *loaded.QuotaObserved.SecondaryLatestEventID)
 
-	// A reset card can preserve reset_at but lower the percentage; do not wait
-	// for an exact 0% observation before reanchoring.
+	// A same-reset lower percentage is a non-monotonic sample, not proof that
+	// the 7d window reset. Keep the local high-water baseline so a 5h reset
+	// cannot clear the 7d estimate.
 	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
 		{instanceID: instance.ID, session: sessionB, event: event("4.8", 3*time.Minute)},
 	}))
 	loaded, err = client.CPACredential.Get(ctx, credential.ID)
 	require.NoError(t, err)
-	require.InDelta(t, 4.8, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 61.7, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 61.7, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
 }
 
 func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
@@ -270,7 +272,7 @@ func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
 	require.Equal(t, 30, eventID)
 }
 
-func TestAdvanceCodexWeeklyObservationReanchorsWithoutZeroUsage(t *testing.T) {
+func TestAdvanceCodexWeeklyObservationMaintainsWindowBoundaries(t *testing.T) {
 	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
 	observed, reanchored := advanceCodexWeeklyObservation(objects.CPAQuotaObserved{}, codexWeeklyObservation{
 		collectorSessionID: "session-a",
@@ -319,7 +321,8 @@ func TestAdvanceCodexWeeklyObservationReanchorsWithoutZeroUsage(t *testing.T) {
 	require.True(t, reanchored)
 	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
 
-	// A grant/reset card may preserve reset_at but lower used percentage.
+	// A same-reset lower percentage is a non-monotonic sample, not a new
+	// interval. Keep the high-water observation while advancing the checkpoint.
 	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-b",
 		eventID:            22,
@@ -327,8 +330,22 @@ func TestAdvanceCodexWeeklyObservationReanchorsWithoutZeroUsage(t *testing.T) {
 		resetAt:            activityReset,
 		observedAt:         resetAt.Add(-5 * time.Minute),
 	})
-	require.True(t, reanchored)
-	require.InDelta(t, 3.1, *observed.SecondaryBaselineUsedPercent, 1e-9)
+	require.False(t, reanchored)
+	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 7.2, *observed.SecondaryUsedPercent, 1e-9)
+	require.Equal(t, 22, *observed.SecondaryLatestEventID)
+
+	// Duplicate or out-of-order events must not re-anchor the interval either.
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
+		collectorSessionID: "session-b",
+		eventID:            21,
+		usedPercent:        90.0,
+		resetAt:            activityReset,
+		observedAt:         resetAt.Add(-4 * time.Minute),
+	})
+	require.False(t, reanchored)
+	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
+	require.Equal(t, 22, *observed.SecondaryLatestEventID)
 }
 
 func TestUsageCollectorCheckpointRestoresPersistedEventID(t *testing.T) {
