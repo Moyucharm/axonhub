@@ -32,6 +32,8 @@ export type ProtocolConfigs = {
   readonly channelConfigs: Readonly<Record<string, ChannelConfig>>;
 };
 
+const OPEN_CODE_ZEN_API_FORMATS: readonly ApiFormat[] = ['openai/chat_completions', 'openai/responses', 'anthropic/messages'];
+
 export function getApiFormatsForProvider(provider: string, configs: ProtocolConfigs): ApiFormat[] {
   const providerConfig = configs.providerConfigs[provider];
   if (!providerConfig) return [];
@@ -50,6 +52,12 @@ export function getApiFormatsForProvider(provider: string, configs: ProtocolConf
     formats.push('zenmux/video');
   }
 
+  if (providerConfig.channelTypes.includes('opencode_zen')) {
+    for (const format of OPEN_CODE_ZEN_API_FORMATS) {
+      if (!formats.includes(format)) formats.push(format);
+    }
+  }
+
   return formats;
 }
 
@@ -60,7 +68,7 @@ export function getApiFormatsForProvider(provider: string, configs: ProtocolConf
  */
 export function getConfigurableApiFormatsForChannelType(channelType: ChannelType, configurableFormats: readonly string[]): string[] {
   if (channelType === 'opencode_zen') {
-    return configurableFormats.filter((format) => format === 'openai/chat_completions');
+    return configurableFormats.filter((format) => OPEN_CODE_ZEN_API_FORMATS.includes(format as ApiFormat));
   }
   if (channelType === 'zenmux') {
     return [...configurableFormats];
@@ -77,6 +85,10 @@ export function getChannelTypeForApiFormat(provider: string, apiFormat: ApiForma
   // channel type.
   if (apiFormat === 'zenmux/video') {
     return providerConfig.channelTypes.includes('zenmux') ? 'zenmux' : undefined;
+  }
+
+  if (OPEN_CODE_ZEN_API_FORMATS.includes(apiFormat) && providerConfig.channelTypes.includes('opencode_zen')) {
+    return 'opencode_zen';
   }
 
   for (const channelType of providerConfig.channelTypes) {
@@ -115,6 +127,25 @@ export function getModelProtocolsForApiFormat(
   });
 }
 
+export function getModelProtocolsForChannelApiFormat(
+  channelType: ChannelType,
+  apiFormat: ApiFormat,
+  models: readonly string[],
+  existingProtocols: readonly ModelProtocol[] | null | undefined = []
+): ModelProtocol[] {
+  if (channelType !== 'opencode_zen') {
+    return getModelProtocolsForApiFormat(apiFormat, models, existingProtocols);
+  }
+
+  const selectedModels = new Set(models);
+  const untouchedProtocols = (existingProtocols ?? []).filter((protocol) => !selectedModels.has(protocol.model));
+  if (apiFormat === 'openai/chat_completions') {
+    return untouchedProtocols;
+  }
+
+  return [...untouchedProtocols, ...models.map((model) => ({ model, apiFormats: [apiFormat], enabled: true }))];
+}
+
 export function getInitialApiFormatForChannel(
   channelType: ChannelType,
   defaultApiFormat: ApiFormat,
@@ -125,6 +156,18 @@ export function getInitialApiFormatForChannel(
     modelProtocols?.some((protocol) => protocol.enabled !== false && protocol.apiFormats.includes('zenmux/video'))
   ) {
     return 'zenmux/video';
+  }
+
+  if (channelType === 'opencode_zen') {
+    const selectedFormats = new Set(
+      (modelProtocols ?? [])
+        .filter((protocol) => protocol.enabled !== false)
+        .flatMap((protocol) => protocol.apiFormats)
+        .filter((format): format is ApiFormat => OPEN_CODE_ZEN_API_FORMATS.includes(format as ApiFormat))
+    );
+    if (selectedFormats.size === 1) {
+      for (const selectedFormat of selectedFormats) return selectedFormat;
+    }
   }
 
   return defaultApiFormat;

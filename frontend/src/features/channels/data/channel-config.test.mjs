@@ -78,7 +78,7 @@ test('Cline has localized channel and provider labels', () => {
   }
 });
 
-test('OpenCode Zen free supports an optional user API key', () => {
+test('OpenCode Zen supports an optional user API key and dynamic models', () => {
   const schema = read('features/channels/data/schema.ts');
   const channelsConfig = read('features/channels/data/config_channels.ts');
   const providersConfig = read('features/channels/data/config_providers.ts');
@@ -99,7 +99,7 @@ test('OpenCode Zen free supports an optional user API key', () => {
   );
   assert.match(
     channelsConfig,
-    /opencode_zen:\s*{[\s\S]*?baseURL:\s*'https:\/\/opencode\.ai\/zen\/v1'[\s\S]*?defaultModels:\s*\['mimo-v2\.5-free',\s*'nemotron-3\.5-lightning-free',\s*'nemotron-3-ultra-free',\s*'ling-3\.0-flash-fin-free'\][\s\S]*?apiFormat:\s*OPENAI_CHAT_COMPLETIONS/
+    /opencode_zen:\s*{[\s\S]*?baseURL:\s*'https:\/\/opencode\.ai\/zen\/v1'[\s\S]*?defaultModels:\s*\[\][\s\S]*?apiFormat:\s*OPENAI_CHAT_COMPLETIONS/
   );
   assert.match(channelsConfig, /CHANNEL_TYPE_TO_PROVIDER[\s\S]*opencode_zen:\s*'opencode_zen'/);
   assert.match(providersConfig, /opencode_zen:\s*{[\s\S]*channelTypes:\s*\[\s*'opencode_zen'\s*\]/);
@@ -120,23 +120,28 @@ test('OpenCode Zen free supports an optional user API key', () => {
   assert.match(bulkDialog, /typeResult\.data !== 'opencode_zen'[\s\S]*apiKeyRequired/);
   assert.match(
     protocolOptions,
-    /channelType === 'opencode_zen'[\s\S]*format === 'openai\/chat_completions'/,
-    'OpenCode Zen custom endpoints should only expose Chat Completions'
+    /OPEN_CODE_ZEN_API_FORMATS[\s\S]*'openai\/chat_completions'[\s\S]*'openai\/responses'[\s\S]*'anthropic\/messages'/,
+    'OpenCode Zen should expose its three native protocols'
+  );
+  assert.match(
+    dialog,
+    /isOpenCodeZenSubmit[\s\S]*getModelProtocolsForChannelApiFormat/,
+    'OpenCode Zen API format selection should be persisted as model protocol settings'
   );
 
   const en = parseLocale('en');
   const zh = parseLocale('zh-CN');
-  assert.equal(en['channels.types.opencode_zen'], 'OpenCode Zen Free');
-  assert.equal(en['channels.providers.opencode_zen'], 'OpenCode Zen Free');
-  assert.equal(zh['channels.types.opencode_zen'], 'OpenCode Zen 免费版');
-  assert.equal(zh['channels.providers.opencode_zen'], 'OpenCode Zen 免费版');
+  assert.equal(en['channels.types.opencode_zen'], 'OpenCode Zen');
+  assert.equal(en['channels.providers.opencode_zen'], 'OpenCode Zen');
+  assert.equal(zh['channels.types.opencode_zen'], 'OpenCode Zen');
+  assert.equal(zh['channels.providers.opencode_zen'], 'OpenCode Zen');
   assert.equal(
     en['channels.dialogs.fields.apiKey.openCodeZenHint'],
-    'Optional. Leave blank to use the public credential; when provided, this API key is sent to OpenCode Zen.'
+    'Optional. Leave blank to use Bearer public. Contributor-free models only accept requests that retain the OpenCode-compatible request structure.'
   );
   assert.equal(
     zh['channels.dialogs.fields.apiKey.openCodeZenHint'],
-    '可选。留空时使用公共凭据；填写后将把此 API Key 发送给 OpenCode Zen。'
+    '可选。留空时使用 Bearer public。Contributor Free 模型仅接受保留 OpenCode 兼容请求结构的调用。'
   );
   assert.match(en['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
   assert.match(zh['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);

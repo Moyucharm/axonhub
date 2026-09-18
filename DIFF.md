@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
 | 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6`（待创建 tag 并发布镜像） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.1`（待创建 tag 并发布镜像） |
 
 ### 更新本文件的方法
 
@@ -228,6 +228,13 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **统一渠道与 API Key 自动处置责任边界**（commit `b711d28f`）：单次失败严格单一归属，有凭据且命中渠道/全局 API Key 规则时归属凭据生命周期，未命中才回退至渠道级策略，清除旧有的双重判定与冗余计数。
 - **隔离 Codex 5h 重置与 7d CPA 额度估算**：7d observation 状态机收紧 re-anchor 条件，仅在 collector 变更、7d `reset_at` 改变或首建基线时重新锚定；同一 7d reset 下的百分比回退与重复/乱序事件按非单调样本处理并保留 high-water 基线，防止 5h primary 窗口归零导致 7d 金额估算被误清空。
 - 对应架构决策记录：[统一渠道失败单一责任归属](.agent/notes/implemented/simplification/2026-09-13-exclusive-channel-failure-owner.md)、[隔离 Codex 5h 重置与 7d CPA 额度估算](.agent/notes/implemented/bug-fix/2026-09-13-cpa-estimate-window-isolation.md)。发布版本递增为 `v1.0.0-beta10+azusa.v0.6`。
+
+### 3.12 支持 OpenCode Zen 渠道（`v1.0.0-beta10+azusa.v0.6.1`）
+
+- 新增原生 `opencode_zen` 渠道类型，支持通过单一渠道使用 OpenAI Chat Completions、OpenAI Responses 与 Anthropic Messages 三种协议。
+- 后端实现免费层指纹与请求体协调（流式强制升级、`bash`/`read` 工具补齐、自定义工具保留），支持 `Bearer public` 运行时回退与单个用户自定义 API Key。
+- 前端支持三种协议切换、动态模型获取与高级设置中模型协议映射维护。
+- 对应架构决策记录：[OpenCode Zen 渠道](.agents/notes/implemented/feature/2026-09-18-opencode-zen-channel.md)。版本号递增为 `v1.0.0-beta10+azusa.v0.6.1`。
 
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 

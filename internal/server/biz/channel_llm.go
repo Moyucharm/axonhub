@@ -192,6 +192,14 @@ func getOptionalAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
 	return nil
 }
 
+func getOpenCodeZenAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
+	if provider := getOptionalAPIKeyProvider(ch); provider != nil {
+		return provider
+	}
+
+	return auth.NewStaticKeyProvider(opencodezen.PublicAPIKey)
+}
+
 // BuildOutboundByAPIFormat returns the outbound transformer for a resolved endpoint API format.
 // If the channel does not support the format, returns an error.
 func BuildOutboundByAPIFormat(ch *Channel, apiFormat string) (transformer.Outbound, error) {
@@ -243,7 +251,7 @@ func (svc *ChannelService) buildChannelWithOutbounds(c *ent.Channel, apiKeyOverr
 			continue
 		}
 
-		if c.Type != channel.TypeXai || ep.APIFormat == ch.Outbound.APIFormat().String() {
+		if (c.Type != channel.TypeXai && c.Type != channel.TypeOpencodeZen) || ep.APIFormat == ch.Outbound.APIFormat().String() {
 			outbounds[ep.APIFormat] = ch.Outbound
 			continue
 		}
@@ -395,8 +403,13 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 	ch *Channel,
 	ep objects.ChannelEndpoint,
 ) (transformer.Outbound, error) {
-	if c.Type == channel.TypeOpencodeZen && ep.APIFormat != llm.APIFormatOpenAIChatCompletion.String() {
-		return nil, fmt.Errorf("channel type %q only supports api_format %q", c.Type, llm.APIFormatOpenAIChatCompletion.String())
+	if c.Type == channel.TypeOpencodeZen {
+		if !isOpenCodeZenAPIFormat(ep.APIFormat) {
+			return nil, fmt.Errorf("channel type %q does not support api_format %q", c.Type, ep.APIFormat)
+		}
+		if endpointTransport(ep) == objects.ChannelEndpointTransportWebSocket {
+			return nil, fmt.Errorf("channel type %q does not support websocket transport", c.Type)
+		}
 	}
 
 	apiKeyProvider := func() auth.APIKeyProvider {
@@ -430,7 +443,7 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 			return opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
 				BaseURL:        baseURL,
 				EndpointPath:   ep.Path,
-				APIKeyProvider: getOptionalAPIKeyProvider(ch),
+				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
 			})
 		}
 
@@ -462,6 +475,14 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 	case llm.APIFormatOpenAIResponse.String(),
 		llm.APIFormatOpenAIResponseCompact.String():
 		transport := endpointTransport(ep)
+		if c.Type == channel.TypeOpencodeZen {
+			return opencodezen.NewResponsesOutboundTransformerWithConfig(&opencodezen.ResponsesConfig{
+				BaseURL:        baseURL,
+				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
+				EndpointPath:   ep.Path,
+				Transport:      transport,
+			})
+		}
 		if c.Type == channel.TypeCodex && ep.APIFormat == llm.APIFormatOpenAIResponse.String() {
 			return svc.buildCodexOutbound(c, ch, baseURL, transport, "", ch.HTTPClient)
 		}
@@ -517,6 +538,15 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 			APIKeyProvider: apiKeyProvider(),
 		})
 	case llm.APIFormatAnthropicMessage.String():
+		if c.Type == channel.TypeOpencodeZen {
+			return anthropic.NewOutboundTransformerWithConfig(&anthropic.Config{
+				Type:           anthropic.PlatformDirect,
+				BaseURL:        baseURL,
+				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
+				EndpointPath:   ep.Path,
+			})
+		}
+
 		// Command Code only accepts Authorization: Bearer, for both the
 		// Anthropic-format channel type and the chat-completions channel type
 		// opting into a custom Anthropic endpoint; ordinary Anthropic direct
@@ -1177,7 +1207,7 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 	case channel.TypeOpencodeZen:
 		transformer, err := opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
 			BaseURL:        c.BaseURL,
-			APIKeyProvider: getOptionalAPIKeyProvider(ch),
+			APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create outbound transformer: %w", err)

@@ -76,7 +76,7 @@ import {
   getApiFormatsForProvider,
   getChannelTypeForApiFormat,
 } from '../data/config_providers';
-import { getInitialApiFormatForChannel, getModelProtocolsForApiFormat } from '../data/protocol-options';
+import { getInitialApiFormatForChannel, getModelProtocolsForChannelApiFormat } from '../data/protocol-options';
 import {
   Channel,
   ChannelType,
@@ -1497,9 +1497,21 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       if (isEdit && currentRow) {
         const existingModelProtocols = currentRow.settings?.modelProtocols;
+        const effectiveExistingProtocols = settingsForSubmit?.modelProtocols ?? existingModelProtocols;
+        const initialApiFormat = getInitialApiFormatForChannel(
+          currentRow.type,
+          CHANNEL_CONFIGS[currentRow.type]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
+          effectiveExistingProtocols
+        );
+        const supportedModelsChanged =
+          currentRow.supportedModels?.length !== supportedModels.length ||
+          currentRow.supportedModels?.some((m, idx) => m !== supportedModels[idx]);
         const shouldUpdateModelProtocols =
           selectedApiFormat === 'zenmux/video' ||
-          existingModelProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video')) === true;
+          effectiveExistingProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video')) === true ||
+          (isOpenCodeZenSubmit &&
+            (selectedApiFormat !== initialApiFormat ||
+              (selectedApiFormat !== OPENAI_CHAT_COMPLETIONS && supportedModelsChanged)));
         const settingsPatch: Partial<ChannelSettings> = {
           passThroughUserAgent,
           passThroughBody,
@@ -1510,7 +1522,14 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           // field when the patch omits it and carries the null clear through.
           providerQuota: settingsForSubmit?.providerQuota,
           ...(shouldUpdateModelProtocols
-            ? { modelProtocols: getModelProtocolsForApiFormat(selectedApiFormat, supportedModels, existingModelProtocols) }
+            ? {
+                modelProtocols: getModelProtocolsForChannelApiFormat(
+                  currentRow.type,
+                  selectedApiFormat,
+                  supportedModels,
+                  effectiveExistingProtocols
+                ),
+              }
             : {}),
         };
 
@@ -1582,9 +1601,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           retryableStatusCodes,
           retryableErrorPatterns,
           ...(selectedApiFormat === 'zenmux/video' ||
-          settingsForSubmit?.modelProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video'))
+          settingsForSubmit?.modelProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video')) ||
+          isOpenCodeZenSubmit
             ? {
-                modelProtocols: getModelProtocolsForApiFormat(selectedApiFormat, supportedModels, settingsForSubmit?.modelProtocols),
+                modelProtocols: getModelProtocolsForChannelApiFormat(
+                  derivedChannelType,
+                  selectedApiFormat,
+                  supportedModels,
+                  settingsForSubmit?.modelProtocols
+                ),
               }
             : {}),
         });

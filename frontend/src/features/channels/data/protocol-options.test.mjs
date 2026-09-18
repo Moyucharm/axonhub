@@ -7,11 +7,13 @@ import {
   getConfigurableApiFormatsForChannelType,
   getInitialApiFormatForChannel,
   getModelProtocolsForApiFormat,
+  getModelProtocolsForChannelApiFormat,
 } from './protocol-options.ts';
 
 const providerConfigs = {
   zenmux: { channelTypes: ['zenmux', 'zenmux_responses'] },
   openai: { channelTypes: ['openai', 'openai_responses'] },
+  opencode_zen: { channelTypes: ['opencode_zen'] },
 };
 
 const channelConfigs = {
@@ -21,6 +23,7 @@ const channelConfigs = {
   zenmux_gemini: { apiFormat: 'gemini/contents' },
   openai: { apiFormat: 'openai/chat_completions' },
   openai_responses: { apiFormat: 'openai/responses' },
+  opencode_zen: { apiFormat: 'openai/chat_completions' },
 };
 
 const configs = { providerConfigs, channelConfigs };
@@ -37,11 +40,60 @@ test('exposes the native video default endpoint to model protocol editing', () =
   assert.deepEqual(getAvailableProtocolFormats([{ apiFormat: 'zenmux/video' }], []), ['zenmux/video']);
 });
 
-test('only exposes Chat Completions as a configurable OpenCode Zen endpoint', () => {
+test('exposes the three native OpenCode Zen endpoint formats', () => {
+  const formats = ['openai/chat_completions', 'openai/responses', 'anthropic/messages'];
+  assert.deepEqual(getApiFormatsForProvider('opencode_zen', configs), formats);
+  assert.deepEqual(getConfigurableApiFormatsForChannelType('opencode_zen', formats), formats);
+  for (const format of formats) {
+    assert.equal(getChannelTypeForApiFormat('opencode_zen', format, configs), 'opencode_zen');
+  }
+});
+
+test('persists the selected OpenCode Zen protocol for supported models', () => {
+  assert.deepEqual(getModelProtocolsForChannelApiFormat('opencode_zen', 'openai/responses', ['gpt-5.4', 'qwen3-coder']), [
+    { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
+    { model: 'qwen3-coder', apiFormats: ['openai/responses'], enabled: true },
+  ]);
   assert.deepEqual(
-    getConfigurableApiFormatsForChannelType('opencode_zen', ['openai/chat_completions', 'openai/responses', 'anthropic/messages']),
-    ['openai/chat_completions']
+    getModelProtocolsForChannelApiFormat(
+      'opencode_zen',
+      'anthropic/messages',
+      ['claude-sonnet-4-5'],
+      [{ model: 'claude-sonnet-4-5', apiFormats: ['openai/responses'], enabled: true }]
+    ),
+    [{ model: 'claude-sonnet-4-5', apiFormats: ['anthropic/messages'], enabled: true }]
   );
+  assert.deepEqual(
+    getModelProtocolsForChannelApiFormat(
+      'opencode_zen',
+      'openai/chat_completions',
+      ['gpt-5.4'],
+      [{ model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true }]
+    ),
+    []
+  );
+});
+
+test('restores the persisted OpenCode Zen protocol in the editor', () => {
+  assert.equal(
+    getInitialApiFormatForChannel('opencode_zen', 'openai/chat_completions', [
+      { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
+    ]),
+    'openai/responses'
+  );
+});
+
+test('persists protocols for newly added models while preserving untouched models', () => {
+  const existing = [
+    { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
+    { model: 'other-model', apiFormats: ['anthropic/messages'], enabled: true },
+  ];
+  const result = getModelProtocolsForChannelApiFormat('opencode_zen', 'openai/responses', ['gpt-5.4', 'new-model'], existing);
+  assert.deepEqual(result, [
+    { model: 'other-model', apiFormats: ['anthropic/messages'], enabled: true },
+    { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
+    { model: 'new-model', apiFormats: ['openai/responses'], enabled: true },
+  ]);
 });
 
 test('does not expose ZenMux native video to unrelated providers', () => {

@@ -210,8 +210,6 @@ func (f *ModelFetcher) getDefaultModelsByType(ctx context.Context, typ channel.T
 		return lo.Map(claudecode.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
 	case channel.TypeXaiSubscription:
 		return lo.Map(subscription.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
-	case channel.TypeOpencodeZen:
-		return lo.Map(opencodezen.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
 	case channel.TypeGithubCopilot:
 		return f.fetchCopilotModels(ctx)
 	case channel.TypeGeminiVertex:
@@ -432,6 +430,10 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 	}
 
 	channelType := channel.Type(input.ChannelType)
+
+	if apiKey == "" && channelType == channel.TypeOpencodeZen {
+		apiKey = opencodezen.PublicAPIKey
+	}
 
 	if apiKey == "" {
 		if isOfficialOnlyType(channelType) {

@@ -311,7 +311,11 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	channel.TypeNanogpt:          openAIFullDefaultEndpoints,
 	channel.TypeNanogptResponses: {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
 	channel.TypeOpencodeGo:       openAIChatOnlyDefaultEndpoints,
-	channel.TypeOpencodeZen:      openAIChatOnlyDefaultEndpoints,
+	channel.TypeOpencodeZen: {
+		{APIFormat: llm.APIFormatOpenAIChatCompletion.String()},
+		{APIFormat: llm.APIFormatOpenAIResponse.String()},
+		{APIFormat: llm.APIFormatAnthropicMessage.String()},
+	},
 	channel.TypeOllama:           {{APIFormat: llm.APIFormatOllamaChat.String()}},
 	channel.TypeOllamaAnthropic:  {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
 	channel.TypeEvolink:          openAICompatibleDefaultEndpoints,
@@ -326,6 +330,17 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	channel.TypeCommandcodeAnthropic: {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
 }
 
+func isOpenCodeZenAPIFormat(apiFormat string) bool {
+	switch apiFormat {
+	case llm.APIFormatOpenAIChatCompletion.String(),
+		llm.APIFormatOpenAIResponse.String(),
+		llm.APIFormatAnthropicMessage.String():
+		return true
+	default:
+		return false
+	}
+}
+
 func validateEndpointsForChannelType(channelType channel.Type, endpoints []objects.ChannelEndpoint) error {
 	if err := ValidateEndpoints(endpoints); err != nil {
 		return err
@@ -333,8 +348,11 @@ func validateEndpointsForChannelType(channelType channel.Type, endpoints []objec
 
 	if channelType == channel.TypeOpencodeZen {
 		for _, endpoint := range endpoints {
-			if endpoint.APIFormat != llm.APIFormatOpenAIChatCompletion.String() {
-				return fmt.Errorf("channel type %q only supports api_format %q", channelType, llm.APIFormatOpenAIChatCompletion.String())
+			if !isOpenCodeZenAPIFormat(endpoint.APIFormat) {
+				return fmt.Errorf("channel type %q does not support api_format %q", channelType, endpoint.APIFormat)
+			}
+			if endpointTransport(endpoint) == objects.ChannelEndpointTransportWebSocket {
+				return fmt.Errorf("channel type %q does not support websocket transport", channelType)
 			}
 		}
 	}

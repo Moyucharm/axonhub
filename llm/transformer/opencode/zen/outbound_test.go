@@ -55,9 +55,13 @@ func toolNames(t *testing.T, body map[string]any) []string {
 	for _, rawTool := range tools {
 		tool, ok := rawTool.(map[string]any)
 		require.True(t, ok)
-		function, ok := tool["function"].(map[string]any)
-		require.True(t, ok)
-		name, ok := function["name"].(string)
+		if function, ok := tool["function"].(map[string]any); ok {
+			name, ok := function["name"].(string)
+			require.True(t, ok)
+			names = append(names, name)
+			continue
+		}
+		name, ok := tool["name"].(string)
 		require.True(t, ok)
 		names = append(names, name)
 	}
@@ -214,13 +218,6 @@ func TestOutboundRejectsPassThroughBody(t *testing.T) {
 	require.Implements(t, (*transformer.TransportRequestFinalizer)(nil), outbound)
 }
 
-func TestDefaultModelsReturnsDefensiveCopy(t *testing.T) {
-	models := DefaultModels()
-	require.Len(t, models, 4)
-	models[0] = "changed"
-	assert.Equal(t, DefaultModel, DefaultModels()[0])
-}
-
 func TestNewOutboundTransformerValidation(t *testing.T) {
 	_, err := NewOutboundTransformerWithConfig(nil)
 	require.ErrorContains(t, err, "config is nil")
@@ -237,4 +234,33 @@ func TestFinalizeTransportRequestKeepsOriginalOnInvalidJSON(t *testing.T) {
 	}
 
 	assert.Same(t, request, outbound.FinalizeTransportRequest(request))
+}
+
+func TestApplyIdentityFingerprintSynchronizesEmptyAPIKey(t *testing.T) {
+	outbound := newTestOutbound(t)
+	request := &httpclient.Request{
+		Headers: http.Header{},
+		Body:    []byte(`{"model":"mimo-v2.5-free","messages":[{"role":"user","content":"hello"}]}`),
+		Auth:    &httpclient.AuthConfig{APIKey: "   "},
+	}
+
+	finalized := outbound.FinalizeTransportRequest(request)
+	require.NotNil(t, finalized.Auth)
+	assert.Equal(t, httpclient.AuthTypeBearer, finalized.Auth.Type)
+	assert.Equal(t, PublicAPIKey, finalized.Auth.APIKey)
+	assert.Equal(t, "Bearer public", finalized.Headers.Get("Authorization"))
+}
+
+func TestFinalizeTransportRequestClonesTransformerMetadata(t *testing.T) {
+	outbound := newTestOutbound(t)
+	httpRequest, err := outbound.TransformRequest(context.Background(), newChatRequest())
+	require.NoError(t, err)
+
+	finalized := outbound.FinalizeTransportRequest(httpRequest)
+	require.NotSame(t, httpRequest, finalized)
+	require.NotNil(t, httpRequest.TransformerMetadata)
+	require.NotNil(t, finalized.TransformerMetadata)
+
+	finalized.TransformerMetadata["new_key"] = "test"
+	assert.NotContains(t, httpRequest.TransformerMetadata, "new_key")
 }

@@ -2,9 +2,9 @@ package zen
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 
@@ -81,20 +81,9 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, request *llm
 		return nil, err
 	}
 
-	if httpRequest.TransformerMetadata == nil {
-		httpRequest.TransformerMetadata = make(map[string]any)
-	}
-
-	sessionID, err := generateOpenCodeID("ses")
-	if err != nil {
+	if err := ensureIdentityMetadata(httpRequest); err != nil {
 		return nil, err
 	}
-	requestID, err := generateOpenCodeID("msg")
-	if err != nil {
-		return nil, err
-	}
-	httpRequest.TransformerMetadata[sessionMetadataKey] = sessionID
-	httpRequest.TransformerMetadata[requestMetadataKey] = requestID
 
 	if err := applyFingerprint(httpRequest); err != nil {
 		return nil, err
@@ -122,6 +111,9 @@ func (t *OutboundTransformer) FinalizeTransportRequest(request *httpclient.Reque
 	if cloned.Headers == nil {
 		cloned.Headers = make(http.Header)
 	}
+	if request.TransformerMetadata != nil {
+		cloned.TransformerMetadata = maps.Clone(request.TransformerMetadata)
+	}
 
 	if err := applyFingerprint(&cloned); err != nil {
 		return request
@@ -142,6 +134,40 @@ func applyFingerprint(request *httpclient.Request) error {
 	request.Body = body
 	request.JSONBody = append([]byte(nil), body...)
 
+	return applyIdentityFingerprint(request)
+}
+
+func ensureIdentityMetadata(request *httpclient.Request) error {
+	if request.TransformerMetadata == nil {
+		request.TransformerMetadata = make(map[string]any)
+	}
+
+	if sessionID, _ := request.TransformerMetadata[sessionMetadataKey].(string); sessionID == "" {
+		generated, err := generateOpenCodeID("ses")
+		if err != nil {
+			return err
+		}
+		request.TransformerMetadata[sessionMetadataKey] = generated
+	}
+	if requestID, _ := request.TransformerMetadata[requestMetadataKey].(string); requestID == "" {
+		generated, err := generateOpenCodeID("msg")
+		if err != nil {
+			return err
+		}
+		request.TransformerMetadata[requestMetadataKey] = generated
+	}
+
+	return nil
+}
+
+func applyIdentityFingerprint(request *httpclient.Request) error {
+	if request.Headers == nil {
+		request.Headers = make(http.Header)
+	}
+	if err := ensureIdentityMetadata(request); err != nil {
+		return err
+	}
+
 	apiKey := PublicAPIKey
 	if request.Auth != nil {
 		if configuredKey := strings.TrimSpace(request.Auth.APIKey); configuredKey != "" {
@@ -158,21 +184,8 @@ func applyFingerprint(request *httpclient.Request) error {
 	request.Headers.Set("User-Agent", OfficialUA)
 	request.Headers.Set(clientHeader, "cli")
 	request.Headers.Set(projectHeader, "global")
-
 	sessionID, _ := request.TransformerMetadata[sessionMetadataKey].(string)
 	requestID, _ := request.TransformerMetadata[requestMetadataKey].(string)
-	if sessionID == "" {
-		sessionID, err = generateOpenCodeID("ses")
-		if err != nil {
-			return err
-		}
-	}
-	if requestID == "" {
-		requestID, err = generateOpenCodeID("msg")
-		if err != nil {
-			return err
-		}
-	}
 	request.Headers.Set(sessionHeader, sessionID)
 	request.Headers.Set(requestHeader, requestID)
 
@@ -199,37 +212,12 @@ func reconcileRequestBody(body []byte) ([]byte, error) {
 		return sjson.SetBytes(next, "tool_choice", "none")
 	}
 
-	hasBash := false
-	hasRead := false
-	rawTools := make([]json.RawMessage, 0, len(tools)+2)
-	for _, tool := range tools {
-		rawTools = append(rawTools, json.RawMessage(tool.Raw))
-		switch tool.Get("function.name").String() {
-		case "bash":
-			hasBash = true
-		case "read":
-			hasRead = true
-		}
-	}
-
-	if hasBash && hasRead {
-		return next, nil
-	}
-
-	var stubs []json.RawMessage
-	if err := json.Unmarshal([]byte(stubToolsJSON), &stubs); err != nil {
-		return nil, fmt.Errorf("decode OpenCode Zen stub tools: %w", err)
-	}
-	if !hasBash {
-		rawTools = append(rawTools, stubs[0])
-	}
-	if !hasRead {
-		rawTools = append(rawTools, stubs[1])
-	}
-
-	toolsJSON, err := json.Marshal(rawTools)
+	toolsJSON, appended, err := appendMissingStubTools(tools, "function.name", preparsedChatStubs)
 	if err != nil {
 		return nil, err
+	}
+	if !appended {
+		return next, nil
 	}
 
 	return sjson.SetRawBytes(next, "tools", toolsJSON)

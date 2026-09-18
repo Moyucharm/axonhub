@@ -687,7 +687,7 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
   opencode_zen: {
     channelType: 'opencode_zen',
     baseURL: 'https://opencode.ai/zen/v1',
-    defaultModels: ['mimo-v2.5-free', 'nemotron-3.5-lightning-free', 'nemotron-3-ultra-free', 'ling-3.0-flash-fin-free'],
+    defaultModels: [],
     apiFormat: OPENAI_CHAT_COMPLETIONS,
     color: 'bg-violet-100 text-violet-800 border-violet-200',
     icon: OpenCode,
