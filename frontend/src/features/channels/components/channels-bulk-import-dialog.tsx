@@ -92,7 +92,7 @@ export function ChannelsBulkImportDialog({ isOpen, onClose }: ChannelsBulkImport
         return;
       }
 
-      if (!apiKey || apiKey.trim() === '') {
+      if (typeResult.data !== 'opencode_zen' && (!apiKey || apiKey.trim() === '')) {
         errors.push(t('channels.dialogs.bulkImport.apiKeyRequired', { line: index + 1 }));
         return;
       }
@@ -109,7 +109,7 @@ export function ChannelsBulkImportDialog({ isOpen, onClose }: ChannelsBulkImport
         type: typeResult.data,
         name: channelName,
         baseURL: baseURL.trim(),
-        apiKey: apiKey.trim(),
+        apiKey: apiKey?.trim() || '',
         supportedModels,
         defaultTestModel: defaultTestModel || supportedModels[0] || '',
       };

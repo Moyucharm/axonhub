@@ -117,6 +117,7 @@ export const channelTypeSchema = z.enum([
   'fireworks',
   'opencode_go',
   'opencode_go_anthropic',
+  'opencode_zen',
   'ollama',
   'ollama_anthropic',
   'evolink',
@@ -822,7 +823,13 @@ export const createChannelInputSchema = z
     }
 
     // Validate that at least one credential type is provided
-    if (!hasApiKey && !hasApiKeys && data.type !== 'anthropic_aws' && data.type !== 'anthropic_gcp') {
+    if (
+      !hasApiKey &&
+      !hasApiKeys &&
+      data.type !== 'anthropic_aws' &&
+      data.type !== 'anthropic_gcp' &&
+      data.type !== 'opencode_zen'
+    ) {
       ctx.addIssue({
         code: 'custom' as const,
         message: 'At least one API Key is required',
@@ -991,14 +998,24 @@ export const channelConnectionSchema = z.object({
 export type ChannelConnection = z.infer<typeof channelConnectionSchema>;
 
 // Bulk Import Schemas
-export const bulkImportChannelItemSchema = z.object({
-  type: channelTypeSchema,
-  name: z.string().min(1, 'Name is required'),
-  baseURL: z.string().url('Please enter a valid URL').min(1, 'Base URL is required'),
-  apiKey: z.string().min(1, 'API Key is required'),
-  supportedModels: z.array(z.string()).min(1, 'At least one supported model is required'),
-  defaultTestModel: z.string().min(1, 'Please select a default test model'),
-});
+export const bulkImportChannelItemSchema = z
+  .object({
+    type: channelTypeSchema,
+    name: z.string().min(1, 'Name is required'),
+    baseURL: z.string().url('Please enter a valid URL').min(1, 'Base URL is required'),
+    apiKey: z.string(),
+    supportedModels: z.array(z.string()).min(1, 'At least one supported model is required'),
+    defaultTestModel: z.string().min(1, 'Please select a default test model'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type !== 'opencode_zen' && data.apiKey.trim() === '') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'API Key is required',
+        path: ['apiKey'],
+      });
+    }
+  });
 export type BulkImportChannelItem = z.infer<typeof bulkImportChannelItemSchema>;
 
 export const bulkImportChannelsInputSchema = z.object({

@@ -42,6 +42,7 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/openai/copilot"
 	"github.com/looplj/axonhub/llm/transformer/openai/responses"
 	"github.com/looplj/axonhub/llm/transformer/opencode"
+	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 	"github.com/looplj/axonhub/llm/transformer/openrouter"
 	"github.com/looplj/axonhub/llm/transformer/xai"
 	xaisubscription "github.com/looplj/axonhub/llm/transformer/xai/subscription"
@@ -178,6 +179,17 @@ func getAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
 	}
 
 	panic(fmt.Errorf("no enabled api key configured for channel %s", ch.Name))
+}
+
+// getOptionalAPIKeyProvider returns the channel provider when an override or
+// enabled key exists. Credential-optional transformers can apply their own
+// public or anonymous fallback when this returns nil.
+func getOptionalAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
+	if ch.apiKeyOverride != "" || len(ch.cachedEnabledAPIKeys) > 0 {
+		return getAPIKeyProvider(ch)
+	}
+
+	return nil
 }
 
 // BuildOutboundByAPIFormat returns the outbound transformer for a resolved endpoint API format.
@@ -383,6 +395,10 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 	ch *Channel,
 	ep objects.ChannelEndpoint,
 ) (transformer.Outbound, error) {
+	if c.Type == channel.TypeOpencodeZen && ep.APIFormat != llm.APIFormatOpenAIChatCompletion.String() {
+		return nil, fmt.Errorf("channel type %q only supports api_format %q", c.Type, llm.APIFormatOpenAIChatCompletion.String())
+	}
+
 	apiKeyProvider := func() auth.APIKeyProvider {
 		return getAPIKeyProvider(ch)
 	}
@@ -408,6 +424,13 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 				BaseURL:        baseURL,
 				EndpointPath:   ep.Path,
 				APIKeyProvider: apiKeyProvider(),
+			})
+		}
+		if c.Type == channel.TypeOpencodeZen {
+			return opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
+				BaseURL:        baseURL,
+				EndpointPath:   ep.Path,
+				APIKeyProvider: getOptionalAPIKeyProvider(ch),
 			})
 		}
 
@@ -649,6 +672,9 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 		// Ollama is often run locally without an API key. An apiKeyOverride
 		// (channel key test flow) may also supply a key when none are stored,
 		// so skip the stored-key check here.
+	case channel.TypeOpencodeZen:
+		// OpenCode Zen accepts an optional user key and otherwise falls back to
+		// the public credential inside its transformer.
 	case channel.TypeCommandcode, channel.TypeCommandcodeAnthropic:
 		// Command Code inference always authenticates with a Bearer API key;
 		// the quota collection cookie is never an inference credential.
@@ -1140,6 +1166,18 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 		transformer, err := opencode.NewOutboundTransformerWithConfig(&opencode.Config{
 			BaseURL:        c.BaseURL,
 			APIKeyProvider: getAPIKeyProvider(ch),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create outbound transformer: %w", err)
+		}
+
+		ch.Outbound = transformer
+
+		return ch, nil
+	case channel.TypeOpencodeZen:
+		transformer, err := opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
+			BaseURL:        c.BaseURL,
+			APIKeyProvider: getOptionalAPIKeyProvider(ch),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create outbound transformer: %w", err)

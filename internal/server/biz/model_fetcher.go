@@ -24,6 +24,7 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/gemini/vertex"
 	"github.com/looplj/axonhub/llm/transformer/openai/codex"
 	"github.com/looplj/axonhub/llm/transformer/openai/copilot"
+	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 	"github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
 
@@ -209,6 +210,8 @@ func (f *ModelFetcher) getDefaultModelsByType(ctx context.Context, typ channel.T
 		return lo.Map(claudecode.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
 	case channel.TypeXaiSubscription:
 		return lo.Map(subscription.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
+	case channel.TypeOpencodeZen:
+		return lo.Map(opencodezen.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
 	case channel.TypeGithubCopilot:
 		return f.fetchCopilotModels(ctx)
 	case channel.TypeGeminiVertex:

@@ -311,6 +311,7 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	channel.TypeNanogpt:          openAIFullDefaultEndpoints,
 	channel.TypeNanogptResponses: {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
 	channel.TypeOpencodeGo:       openAIChatOnlyDefaultEndpoints,
+	channel.TypeOpencodeZen:      openAIChatOnlyDefaultEndpoints,
 	channel.TypeOllama:           {{APIFormat: llm.APIFormatOllamaChat.String()}},
 	channel.TypeOllamaAnthropic:  {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
 	channel.TypeEvolink:          openAICompatibleDefaultEndpoints,
@@ -328,6 +329,14 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 func validateEndpointsForChannelType(channelType channel.Type, endpoints []objects.ChannelEndpoint) error {
 	if err := ValidateEndpoints(endpoints); err != nil {
 		return err
+	}
+
+	if channelType == channel.TypeOpencodeZen {
+		for _, endpoint := range endpoints {
+			if endpoint.APIFormat != llm.APIFormatOpenAIChatCompletion.String() {
+				return fmt.Errorf("channel type %q only supports api_format %q", channelType, llm.APIFormatOpenAIChatCompletion.String())
+			}
+		}
 	}
 
 	if channelType == channel.TypeZenmux {

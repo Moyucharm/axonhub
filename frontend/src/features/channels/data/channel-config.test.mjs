@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import test from 'node:test';
 
 const dataDir = import.meta.dirname;
 const srcRoot = join(dataDir, '..', '..', '..');
@@ -21,8 +21,16 @@ test('Cline is available as a channel type in frontend schemas and configs', () 
 
   assert.match(schema, /channelTypeSchema[\s\S]*'cline'/, 'channelTypeSchema should accept cline');
   assert.match(channelsConfig, /cline:\s*{[\s\S]*channelType:\s*'cline'/, 'CHANNEL_CONFIGS should define cline');
-  assert.match(channelsConfig, /cline:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.cline\.bot\/api\/v1'/, 'Cline should use the documented API base URL');
-  assert.match(channelsConfig, /cline:\s*{[\s\S]*apiFormat:\s*OPENAI_CHAT_COMPLETIONS/, 'Cline should use OpenAI Chat Completions in the UI');
+  assert.match(
+    channelsConfig,
+    /cline:\s*{[\s\S]*baseURL:\s*'https:\/\/api\.cline\.bot\/api\/v1'/,
+    'Cline should use the documented API base URL'
+  );
+  assert.match(
+    channelsConfig,
+    /cline:\s*{[\s\S]*apiFormat:\s*OPENAI_CHAT_COMPLETIONS/,
+    'Cline should use OpenAI Chat Completions in the UI'
+  );
   assert.match(channelsConfig, /CHANNEL_TYPE_TO_PROVIDER[\s\S]*cline:\s*'cline'/, 'Cline should map to the Cline provider');
   assert.match(providersConfig, /cline:\s*{[\s\S]*channelTypes:\s*\[\s*'cline'\s*\]/, 'PROVIDER_CONFIGS should expose a Cline provider');
 });
@@ -61,7 +69,6 @@ test('Qiniu and Fenno ad channel types are removed', () => {
   assert.ok(!schema.includes("'atlascloud'"), 'atlascloud channel type must stay removed');
 });
 
-
 test('Cline has localized channel and provider labels', () => {
   for (const locale of ['en', 'zh-CN']) {
     const messages = parseLocale(locale);
@@ -69,6 +76,70 @@ test('Cline has localized channel and provider labels', () => {
     assert.equal(messages['channels.types.cline'], 'Cline');
     assert.equal(messages['channels.providers.cline'], 'Cline');
   }
+});
+
+test('OpenCode Zen free supports an optional user API key', () => {
+  const schema = read('features/channels/data/schema.ts');
+  const channelsConfig = read('features/channels/data/config_channels.ts');
+  const providersConfig = read('features/channels/data/config_providers.ts');
+  const dialog = read('features/channels/components/channels-action-dialog.tsx');
+  const bulkDialog = read('features/channels/components/channels-bulk-import-dialog.tsx');
+  const protocolOptions = read('features/channels/data/protocol-options.ts');
+
+  assert.match(schema, /channelTypeSchema[\s\S]*'opencode_zen'/);
+  assert.match(
+    schema,
+    /data\.type !== 'opencode_zen'[\s\S]*At least one API Key is required/,
+    'create validation should exempt only OpenCode Zen from API key requirements'
+  );
+  assert.match(
+    schema,
+    /bulkImportChannelItemSchema[\s\S]*data\.type !== 'opencode_zen'[\s\S]*API Key is required/,
+    'bulk import validation should exempt OpenCode Zen from API key requirements'
+  );
+  assert.match(
+    channelsConfig,
+    /opencode_zen:\s*{[\s\S]*?baseURL:\s*'https:\/\/opencode\.ai\/zen\/v1'[\s\S]*?defaultModels:\s*\['mimo-v2\.5-free',\s*'nemotron-3\.5-lightning-free',\s*'nemotron-3-ultra-free',\s*'ling-3\.0-flash-fin-free'\][\s\S]*?apiFormat:\s*OPENAI_CHAT_COMPLETIONS/
+  );
+  assert.match(channelsConfig, /CHANNEL_TYPE_TO_PROVIDER[\s\S]*opencode_zen:\s*'opencode_zen'/);
+  assert.match(providersConfig, /opencode_zen:\s*{[\s\S]*channelTypes:\s*\[\s*'opencode_zen'\s*\]/);
+  assert.match(dialog, /const isOpenCodeZenType = activeChannelType === 'opencode_zen'/);
+  assert.match(
+    dialog,
+    /\(isOpenCodeZenType \|\| !isEdit \|\| apiKeyMode !== 'pool'\)[\s\S]*name='credentials\.apiKeys'/,
+    'the channel form should show the optional API key input for OpenCode Zen'
+  );
+  assert.match(dialog, /!isOpenCodeZenType\s*&&\s*\([\s\S]*name='credentials\.mode'/, 'OpenCode Zen should hide key pool mode controls');
+  assert.match(dialog, /isOpenCodeZenSubmit[\s\S]*values\.credentials\.mode = 'single'[\s\S]*\.slice\(0, 1\)/);
+  assert.match(dialog, /channels\.dialogs\.fields\.apiKey\.openCodeZenHint/);
+  assert.match(
+    dialog,
+    /isXAISubscriptionType \|\| isOpenCodeZenType[\s\S]*return !!baseURL/,
+    'static model fetching should not require an API key'
+  );
+  assert.match(bulkDialog, /typeResult\.data !== 'opencode_zen'[\s\S]*apiKeyRequired/);
+  assert.match(
+    protocolOptions,
+    /channelType === 'opencode_zen'[\s\S]*format === 'openai\/chat_completions'/,
+    'OpenCode Zen custom endpoints should only expose Chat Completions'
+  );
+
+  const en = parseLocale('en');
+  const zh = parseLocale('zh-CN');
+  assert.equal(en['channels.types.opencode_zen'], 'OpenCode Zen Free');
+  assert.equal(en['channels.providers.opencode_zen'], 'OpenCode Zen Free');
+  assert.equal(zh['channels.types.opencode_zen'], 'OpenCode Zen 免费版');
+  assert.equal(zh['channels.providers.opencode_zen'], 'OpenCode Zen 免费版');
+  assert.equal(
+    en['channels.dialogs.fields.apiKey.openCodeZenHint'],
+    'Optional. Leave blank to use the public credential; when provided, this API key is sent to OpenCode Zen.'
+  );
+  assert.equal(
+    zh['channels.dialogs.fields.apiKey.openCodeZenHint'],
+    '可选。留空时使用公共凭据；填写后将把此 API Key 发送给 OpenCode Zen。'
+  );
+  assert.match(en['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
+  assert.match(zh['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
 });
 
 test('xAI subscription is exposed as an OAuth Responses channel', () => {
@@ -230,7 +301,9 @@ test('Command Code has localized channel, provider, cookie field, and quota labe
     assert.equal(channels['channels.types.commandcode'], 'Command Code');
     assert.equal(channels['channels.providers.commandcode'], 'Command Code');
     assert.ok(channels['channels.types.commandcode_anthropic']);
-    assert.ok(channels['channels.dialogs.fields.commandCodeQuota.authCookie.placeholder'].includes('__Secure-commandcode_prod_.session_token'));
+    assert.ok(
+      channels['channels.dialogs.fields.commandCodeQuota.authCookie.placeholder'].includes('__Secure-commandcode_prod_.session_token')
+    );
     assert.ok(channels['channels.dialogs.fields.commandCodeQuota.authCookie.description']);
     assert.ok(system['quota.label.commandcode.top_up']);
     assert.ok(system['quota.label.commandcode.no_windows']);

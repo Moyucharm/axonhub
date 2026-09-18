@@ -255,6 +255,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     channelTypes: ['opencode_go', 'opencode_go_anthropic'],
   },
+  opencode_zen: {
+    provider: 'opencode_zen',
+    icon: OpenCode,
+    color: 'bg-violet-100 text-violet-800 border-violet-200',
+    channelTypes: ['opencode_zen'],
+  },
   ollama: {
     provider: 'ollama',
     icon: Ollama,

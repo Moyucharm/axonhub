@@ -4,6 +4,7 @@ import {
   getApiFormatsForProvider,
   getAvailableProtocolFormats,
   getChannelTypeForApiFormat,
+  getConfigurableApiFormatsForChannelType,
   getInitialApiFormatForChannel,
   getModelProtocolsForApiFormat,
 } from './protocol-options.ts';
@@ -36,13 +37,23 @@ test('exposes the native video default endpoint to model protocol editing', () =
   assert.deepEqual(getAvailableProtocolFormats([{ apiFormat: 'zenmux/video' }], []), ['zenmux/video']);
 });
 
+test('only exposes Chat Completions as a configurable OpenCode Zen endpoint', () => {
+  assert.deepEqual(
+    getConfigurableApiFormatsForChannelType('opencode_zen', ['openai/chat_completions', 'openai/responses', 'anthropic/messages']),
+    ['openai/chat_completions']
+  );
+});
+
 test('does not expose ZenMux native video to unrelated providers', () => {
   assert.deepEqual(getApiFormatsForProvider('openai', configs), ['openai/chat_completions', 'openai/responses']);
   assert.equal(getChannelTypeForApiFormat('openai', 'zenmux/video', configs), undefined);
 });
 
 test('does not expose ZenMux native video to a provider lacking the ZenMux channel type', () => {
-  const openaiOnly = { providerConfigs: { zenmux: { channelTypes: ['zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'] } }, channelConfigs };
+  const openaiOnly = {
+    providerConfigs: { zenmux: { channelTypes: ['zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'] } },
+    channelConfigs,
+  };
   assert.deepEqual(getApiFormatsForProvider('zenmux', openaiOnly), ['openai/responses', 'anthropic/messages', 'gemini/contents']);
   assert.equal(getChannelTypeForApiFormat('zenmux', 'zenmux/video', openaiOnly), undefined);
 });

@@ -1320,6 +1320,7 @@ enum ChannelType @goModel(model: "github.com/looplj/axonhub/internal/ent/channel
   nanogpt_responses
   opencode_go
   opencode_go_anthropic
+  opencode_zen
   ollama
   ollama_anthropic
   evolink

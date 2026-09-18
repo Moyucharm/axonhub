@@ -684,6 +684,14 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     icon: OpenCode,
   },
+  opencode_zen: {
+    channelType: 'opencode_zen',
+    baseURL: 'https://opencode.ai/zen/v1',
+    defaultModels: ['mimo-v2.5-free', 'nemotron-3.5-lightning-free', 'nemotron-3-ultra-free', 'ling-3.0-flash-fin-free'],
+    apiFormat: OPENAI_CHAT_COMPLETIONS,
+    color: 'bg-violet-100 text-violet-800 border-violet-200',
+    icon: OpenCode,
+  },
   ollama: {
     channelType: 'ollama',
     baseURL: 'https://ollama.com',
@@ -855,6 +863,7 @@ export type Provider =
   | 'nanogpt'
   | 'fireworks'
   | 'opencode_go'
+  | 'opencode_zen'
   | 'ollama'
   | 'evolink'
   | 'groq'
@@ -921,6 +930,7 @@ export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   fireworks: 'fireworks',
   opencode_go: 'opencode_go',
   opencode_go_anthropic: 'opencode_go',
+  opencode_zen: 'opencode_zen',
   ollama: 'ollama',
   ollama_anthropic: 'ollama',
   evolink: 'evolink',

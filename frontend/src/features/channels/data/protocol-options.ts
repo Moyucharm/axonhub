@@ -58,10 +58,10 @@ export function getApiFormatsForProvider(provider: string, configs: ProtocolConf
  * Native video is a ZenMux channel type, so it must not be offered on other
  * channel types. Other custom endpoint formats remain available everywhere.
  */
-export function getConfigurableApiFormatsForChannelType(
-  channelType: ChannelType,
-  configurableFormats: readonly string[]
-): string[] {
+export function getConfigurableApiFormatsForChannelType(channelType: ChannelType, configurableFormats: readonly string[]): string[] {
+  if (channelType === 'opencode_zen') {
+    return configurableFormats.filter((format) => format === 'openai/chat_completions');
+  }
   if (channelType === 'zenmux') {
     return [...configurableFormats];
   }

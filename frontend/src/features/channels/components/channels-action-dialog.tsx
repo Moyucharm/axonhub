@@ -833,7 +833,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
               // OAuth 类型 (codex/claudecode/antigravity) 的凭据存储在 apiKey 字段，不放入 apiKeys
               mode: currentRow.credentials?.mode || ((currentRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
               apiKey: currentRow.credentials?.apiKey || undefined,
-              apiKeys: currentRow.credentials?.apiKeys || [],
+              apiKeys:
+                currentRow.type === 'opencode_zen' && !(currentRow.credentials?.apiKeys?.length ?? 0) && currentRow.credentials?.apiKey
+                  ? [currentRow.credentials.apiKey]
+                  : currentRow.credentials?.apiKeys || [],
               managementApiKey: currentRow.credentials?.managementApiKey || undefined,
               gcp: {
                 region: currentRow.credentials?.gcp?.region || '',
@@ -860,7 +863,12 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                 // OAuth 类型 (codex/claudecode/antigravity) 的凭据存储在 apiKey 字段，不放入 apiKeys
                 mode: duplicateFromRow.credentials?.mode || ((duplicateFromRow.credentials?.apiKeys?.length ?? 0) > 1 ? 'pool' : 'single'),
                 apiKey: duplicateFromRow.credentials?.apiKey || undefined,
-                apiKeys: duplicateFromRow.credentials?.apiKeys || [],
+                apiKeys:
+                  duplicateFromRow.type === 'opencode_zen' &&
+                  !(duplicateFromRow.credentials?.apiKeys?.length ?? 0) &&
+                  duplicateFromRow.credentials?.apiKey
+                    ? [duplicateFromRow.credentials.apiKey]
+                    : duplicateFromRow.credentials?.apiKeys || [],
                 managementApiKey: duplicateFromRow.credentials?.managementApiKey || undefined,
                 gcp: {
                   region: duplicateFromRow.credentials?.gcp?.region || '',
@@ -953,6 +961,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const isClaudeCodeType = activeChannelType === 'claudecode';
   const isCopilotType = activeChannelType === 'github_copilot';
   const isXAISubscriptionType = activeChannelType === 'xai_subscription';
+  const isOpenCodeZenType = activeChannelType === 'opencode_zen';
   const isZenmuxType = ['zenmux', 'zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'].includes(activeChannelType);
   const isCommandCodeType = activeChannelType === 'commandcode' || activeChannelType === 'commandcode_anthropic';
 
@@ -1404,8 +1413,16 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     }
 
     try {
+      const effectiveSubmitType = isEdit ? values.type || currentRow?.type : derivedChannelType;
+      const isOpenCodeZenSubmit = effectiveSubmitType === 'opencode_zen';
+
       if (values.credentials?.apiKeys) {
         values.credentials.apiKeys = [...new Set(values.credentials.apiKeys.map((key) => key.trim()).filter((key) => key.length > 0))];
+      }
+      if (isOpenCodeZenSubmit && values.credentials) {
+        values.credentials.mode = 'single';
+        values.credentials.apiKey = undefined;
+        values.credentials.apiKeys = values.credentials.apiKeys?.slice(0, 1) ?? [];
       }
 
       if (values.credentials?.mode === 'pool') {
@@ -1538,7 +1555,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           // Existing pool keys are managed by dedicated mutations in the pool panel.
           // Sending the stale form snapshot would overwrite keys imported there.
           delete updateInput.credentials;
-        } else if (!hasApiKey && !hasApiKeys && !hasManagementApiKey && !hasGcpCredentials && !switchingToSingle) {
+        } else if (!hasApiKey && !hasApiKeys && !hasManagementApiKey && !hasGcpCredentials && !switchingToSingle && !isOpenCodeZenSubmit) {
           delete updateInput.credentials;
         }
 
@@ -1775,7 +1792,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     const apiKeys = form.watch('credentials.apiKeys');
     const hasApiKey = apiKeys?.some((key) => key.trim().length > 0);
 
-    if (isCodexType || isAntigravityType || isClineType || isXAISubscriptionType) {
+    if (isCodexType || isAntigravityType || isClineType || isXAISubscriptionType || isOpenCodeZenType) {
       return !!baseURL;
     }
 
@@ -2549,53 +2566,55 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         selectedProvider !== 'antigravity' &&
                         selectedType !== 'anthropic_gcp' && (
                           <>
-                            <FormField
-                              control={form.control}
-                              name='credentials.mode'
-                              render={({ field }) => (
-                                <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
-                                  <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
-                                    {t('channels.keyPool.mode.label')}
-                                  </FormLabel>
-                                  <div className='md:col-span-6'>
-                                    <Select
-                                      value={field.value || 'single'}
-                                      onValueChange={(value) => {
-                                        if (value === 'single') {
-                                          const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
-                                          if (keys.length > 1) {
-                                            // Pool has multiple keys: require an explicit choice of the key to keep.
-                                            setPendingSingleKey(keys[0]);
+                            {!isOpenCodeZenType && (
+                              <FormField
+                                control={form.control}
+                                name='credentials.mode'
+                                render={({ field }) => (
+                                  <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                    <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                      {t('channels.keyPool.mode.label')}
+                                    </FormLabel>
+                                    <div className='md:col-span-6'>
+                                      <Select
+                                        value={field.value || 'single'}
+                                        onValueChange={(value) => {
+                                          if (value === 'single') {
+                                            const keys = (form.getValues('credentials.apiKeys') || []).filter((key) => key.trim());
+                                            if (keys.length > 1) {
+                                              // Pool has multiple keys: require an explicit choice of the key to keep.
+                                              setPendingSingleKey(keys[0]);
+                                              return;
+                                            }
+                                            field.onChange(value);
+                                            form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
                                             return;
                                           }
+                                          if (form.getValues('settings.apiKeyPool.retryCount') == null) {
+                                            form.setValue('settings.apiKeyPool.retryCount', DEFAULT_API_KEY_POOL_REQUEST_COUNT, {
+                                              shouldDirty: true,
+                                            });
+                                          }
                                           field.onChange(value);
-                                          form.setValue('credentials.apiKeys', keys.slice(0, 1), { shouldDirty: true });
-                                          return;
-                                        }
-                                        if (form.getValues('settings.apiKeyPool.retryCount') == null) {
-                                          form.setValue('settings.apiKeyPool.retryCount', DEFAULT_API_KEY_POOL_REQUEST_COUNT, {
-                                            shouldDirty: true,
-                                          });
-                                        }
-                                        field.onChange(value);
-                                        setPendingSingleKey(null);
-                                      }}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent>
-                                        <SelectItem value='single'>{t('channels.keyPool.mode.single')}</SelectItem>
-                                        <SelectItem value='pool'>{t('channels.keyPool.mode.pool')}</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </FormItem>
-                              )}
-                            />
-                            {(!isEdit || apiKeyMode !== 'pool') && (
+                                          setPendingSingleKey(null);
+                                        }}
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                          <SelectItem value='single'>{t('channels.keyPool.mode.single')}</SelectItem>
+                                          <SelectItem value='pool'>{t('channels.keyPool.mode.pool')}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                            {(isOpenCodeZenType || !isEdit || apiKeyMode !== 'pool') && (
                               <FormField
                                 control={form.control}
                                 name='credentials.apiKeys'
@@ -2655,7 +2674,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                                   return;
                                                 }
 
-                                                if (next) {
+                                                if (next && !isOpenCodeZenType) {
                                                   setShowApiKeysPanel(true);
                                                   setShowFetchedModelsPanel(false);
                                                   setShowSupportedModelsPanel(false);
@@ -2686,9 +2705,11 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                           </div>
                                           <p className='text-muted-foreground mt-1 text-xs'>
                                             {t(
-                                              apiKeyMode === 'pool'
-                                                ? 'channels.dialogs.fields.apiKey.multiLineHint'
-                                                : 'channels.keyPool.singleHint'
+                                              isOpenCodeZenType
+                                                ? 'channels.dialogs.fields.apiKey.openCodeZenHint'
+                                                : apiKeyMode === 'pool'
+                                                  ? 'channels.dialogs.fields.apiKey.multiLineHint'
+                                                  : 'channels.keyPool.singleHint'
                                             )}
                                           </p>
                                         </div>
@@ -2711,9 +2732,11 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                           />
                                           <p className='text-muted-foreground text-xs'>
                                             {t(
-                                              apiKeyMode === 'pool'
-                                                ? 'channels.dialogs.fields.apiKey.multiLineHint'
-                                                : 'channels.keyPool.singleHint'
+                                              isOpenCodeZenType
+                                                ? 'channels.dialogs.fields.apiKey.openCodeZenHint'
+                                                : apiKeyMode === 'pool'
+                                                  ? 'channels.dialogs.fields.apiKey.multiLineHint'
+                                                  : 'channels.keyPool.singleHint'
                                             )}
                                           </p>
                                         </>
@@ -2724,7 +2747,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                 )}
                               />
                             )}
-                            {isEdit && apiKeyMode === 'pool' && (
+                            {!isOpenCodeZenType && isEdit && apiKeyMode === 'pool' && (
                               <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                                 <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
                                   {t('channels.dialogs.fields.apiKey.label')}
@@ -2751,7 +2774,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                 </div>
                               </FormItem>
                             )}
-                            {apiKeyMode === 'pool' && !isEdit && (
+                            {!isOpenCodeZenType && apiKeyMode === 'pool' && !isEdit && (
                               <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                                 <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
                                   {t('channels.keyPool.requestStrategyTitle')}

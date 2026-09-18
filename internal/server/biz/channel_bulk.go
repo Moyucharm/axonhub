@@ -289,11 +289,16 @@ func (svc *ChannelService) BulkImportChannels(ctx context.Context, items []*Bulk
 			continue
 		}
 
-		if item.APIKey == nil || *item.APIKey == "" {
+		if (item.APIKey == nil || *item.APIKey == "") && channelType != channel.TypeOpencodeZen {
 			errors = append(errors, fmt.Sprintf("Row %d (%s): API Key is required", i+1, item.Name))
 			failed++
 
 			continue
+		}
+
+		apiKey := ""
+		if item.APIKey != nil {
+			apiKey = *item.APIKey
 		}
 
 		var ch *ent.Channel
@@ -302,7 +307,7 @@ func (svc *ChannelService) BulkImportChannels(ctx context.Context, items []*Bulk
 				SetType(channelType).
 				SetName(item.Name).
 				SetBaseURL(*item.BaseURL).
-				SetCredentials(objects.ChannelCredentials{APIKey: *item.APIKey}).
+				SetCredentials(objects.ChannelCredentials{APIKey: apiKey}).
 				SetSupportedModels(item.SupportedModels).
 				SetDefaultTestModel(item.DefaultTestModel).
 				Save(ctx)
