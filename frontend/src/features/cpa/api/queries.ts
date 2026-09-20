@@ -39,6 +39,7 @@ export function useCPACredentials(input?: CPACredentialQueryInput) {
   return useQuery({
     queryKey: ['cpa', 'credentials', input],
     enabled: Boolean(input?.instanceID),
+    refetchInterval: 10_000,
     queryFn: async () => {
       try {
         const data = await graphqlRequest<{ queryCPACredentials: CPACredentialConnection }>(CREDENTIALS_QUERY, { input });
@@ -57,6 +58,7 @@ export function useCPAOverview(instanceID?: number) {
   return useQuery({
     queryKey: ['cpa', 'overview', instanceID],
     enabled: Boolean(instanceID),
+    refetchInterval: 10_000,
     queryFn: async () => {
       try {
         const data = await graphqlRequest<{ cpaOverview: CPAOverview }>(OVERVIEW_QUERY, { instanceID });

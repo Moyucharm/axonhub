@@ -107,7 +107,7 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 	normalizedByKey := make(map[string]cpaclient.NormalizedCredential, len(files))
 	targetAuthIndexes := make(map[string]string, len(files))
 	for _, file := range files {
-		if file.RuntimeOnly && strings.TrimSpace(file.AuthIndex) == "" {
+		if !cpaAuthFilePresentInSnapshot(file) {
 			continue
 		}
 		normalized, normalizeErr := cpaclient.NormalizeAuthFile(file)
@@ -279,6 +279,19 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 		repository.invalidateUsageCredentialCache(instance.ID)
 	}
 	return nil
+}
+
+func cpaAuthFilePresentInSnapshot(file cpaclient.AuthFile) bool {
+	if file.RuntimeOnly && strings.TrimSpace(file.AuthIndex) == "" {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(file.StatusMessage), "removed via management api") {
+		return false
+	}
+	if !file.RuntimeOnly && strings.EqualFold(strings.TrimSpace(file.Source), "memory") {
+		return false
+	}
+	return true
 }
 
 type authIndexRemap struct {

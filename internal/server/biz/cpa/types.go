@@ -26,6 +26,7 @@ type AuthFile struct {
 	Disabled                bool            `json:"disabled"`
 	Unavailable             bool            `json:"unavailable"`
 	RuntimeOnly             bool            `json:"runtime_only"`
+	Source                  string          `json:"source"`
 	Email                   string          `json:"email"`
 	ProjectID               string          `json:"project_id"`
 	AccountType             string          `json:"account_type"`

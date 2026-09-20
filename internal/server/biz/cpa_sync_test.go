@@ -103,6 +103,167 @@ func TestCPASyncQueryAndSnapshotDeletion(t *testing.T) {
 	require.Equal(t, 1, count)
 }
 
+func TestCPASyncTreatsGhostAuthFilesAsAbsent(t *testing.T) {
+	diskFile := func(name, authIndex string) cpaclient.AuthFile {
+		return cpaclient.AuthFile{
+			AuthIndex: authIndex,
+			Name:      name,
+			Type:      "codex",
+			Status:    "active",
+			Source:    "file",
+		}
+	}
+	var decoded cpaclient.AuthFile
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"z-codex.json","type":"codex","source":"memory","runtime_only":false}`), &decoded))
+	require.Equal(t, "memory", decoded.Source)
+	require.False(t, decoded.RuntimeOnly)
+
+	tests := []struct {
+		name            string
+		dsn             string
+		initial         []cpaclient.AuthFile
+		second          []cpaclient.AuthFile
+		wantRemoteNames []string
+		wantRuntimeOnly map[string]bool
+	}{
+		{
+			name:    "memory source without runtime-only is deleted",
+			dsn:     "file:cpa_sync_ghost_memory?mode=memory&_fk=1",
+			initial: []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			second: []cpaclient.AuthFile{{
+				AuthIndex:   "codex-1",
+				Name:        "z-codex.json",
+				Type:        "codex",
+				Status:      "active",
+				RuntimeOnly: false,
+				Source:      "memory",
+			}},
+		},
+		{
+			name:    "runtime-only memory with auth index is upserted",
+			dsn:     "file:cpa_sync_ghost_runtime?mode=memory&_fk=1",
+			initial: []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			second: []cpaclient.AuthFile{{
+				AuthIndex:   "codex-1",
+				Name:        "z-codex.json",
+				Type:        "codex",
+				Status:      "active",
+				RuntimeOnly: true,
+				Source:      "memory",
+			}},
+			wantRemoteNames: []string{"z-codex.json"},
+			wantRuntimeOnly: map[string]bool{"z-codex.json": true},
+		},
+		{
+			name:    "removed via management api is deleted",
+			dsn:     "file:cpa_sync_ghost_removed?mode=memory&_fk=1",
+			initial: []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			second: []cpaclient.AuthFile{{
+				AuthIndex:     "codex-1",
+				Name:          "z-codex.json",
+				Type:          "codex",
+				Status:        "active",
+				Source:        "file",
+				StatusMessage: "removed via management api",
+			}},
+		},
+		{
+			name:            "file source stays present",
+			dsn:             "file:cpa_sync_ghost_file?mode=memory&_fk=1",
+			initial:         []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			second:          []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			wantRemoteNames: []string{"z-codex.json"},
+		},
+		{
+			name:    "empty source stays present",
+			dsn:     "file:cpa_sync_ghost_empty_source?mode=memory&_fk=1",
+			initial: []cpaclient.AuthFile{diskFile("z-codex.json", "codex-1")},
+			second: []cpaclient.AuthFile{{
+				AuthIndex: "codex-1",
+				Name:      "z-codex.json",
+				Type:      "codex",
+				Status:    "active",
+			}},
+			wantRemoteNames: []string{"z-codex.json"},
+		},
+		{
+			name: "mixed live file and memory ghost",
+			dsn:  "file:cpa_sync_ghost_mixed?mode=memory&_fk=1",
+			initial: []cpaclient.AuthFile{
+				diskFile("keep.json", "codex-keep"),
+				diskFile("ghost.json", "codex-ghost"),
+			},
+			second: []cpaclient.AuthFile{
+				diskFile("keep.json", "codex-keep"),
+				{
+					AuthIndex:   "codex-ghost",
+					Name:        "ghost.json",
+					Type:        "codex",
+					Status:      "active",
+					RuntimeOnly: false,
+					Source:      "memory",
+				},
+			},
+			wantRemoteNames: []string{"keep.json"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := enttest.NewEntClient(t, "sqlite3", tt.dsn)
+			defer client.Close()
+			ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+			svc := newCPAServiceForTest(client, func() time.Time {
+				return time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+			})
+			instance, err := client.CPAInstance.Create().
+				SetName("Ghost CPA").
+				SetBaseURL("http://127.0.0.1:8317").
+				SetEncryptedSecret("encrypted").
+				Save(ctx)
+			require.NoError(t, err)
+
+			require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, tt.initial, svc.now()))
+			initialRows, err := client.CPACredential.Query().All(ctx)
+			require.NoError(t, err)
+			require.Len(t, initialRows, len(tt.initial))
+			initialIDs := make(map[string]int, len(initialRows))
+			for _, row := range initialRows {
+				initialIDs[row.RemoteName] = row.ID
+			}
+
+			require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, tt.second, svc.now()))
+			rows, err := client.CPACredential.Query().All(ctx)
+			require.NoError(t, err)
+			gotNames := make([]string, 0, len(rows))
+			for _, row := range rows {
+				gotNames = append(gotNames, row.RemoteName)
+				if want, ok := tt.wantRuntimeOnly[row.RemoteName]; ok {
+					require.Equal(t, want, row.RuntimeOnly, row.RemoteName)
+				}
+				if initialID, ok := initialIDs[row.RemoteName]; ok {
+					require.Equal(t, initialID, row.ID, "kept identity %q must upsert in place", row.RemoteName)
+				}
+			}
+			require.ElementsMatch(t, tt.wantRemoteNames, gotNames)
+
+			connection, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{
+				InstanceID: instance.ID,
+				First:      20,
+				Statuses:   []CPACredentialFilterStatus{},
+				PlanTypes:  []string{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, len(tt.wantRemoteNames), connection.TotalCount)
+			queriedNames := make([]string, 0, len(connection.Edges))
+			for _, edge := range connection.Edges {
+				queriedNames = append(queriedNames, edge.Node.RemoteName)
+			}
+			require.ElementsMatch(t, tt.wantRemoteNames, queriedNames)
+		})
+	}
+}
+
 func TestCPASyncRemapsSwappedAuthIndexesWithoutMergingHistory(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_swap?mode=memory&_fk=1")
 	defer client.Close()

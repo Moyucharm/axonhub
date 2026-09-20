@@ -110,11 +110,13 @@ export function useRefreshCPAInstance() {
       }
     },
     onSuccess: (result) => {
+      if (result.failed > 0) toast.warning(t('cpa.messages.refreshPartial', { count: result.failed }));
+      else toast.success(t('cpa.messages.refreshSuccess', { count: result.succeeded }));
+    },
+    onSettled: () => {
       invalidate.instances();
       invalidate.overview();
       invalidate.credentials();
-      if (result.failed > 0) toast.warning(t('cpa.messages.refreshPartial', { count: result.failed }));
-      else toast.success(t('cpa.messages.refreshSuccess', { count: result.succeeded }));
     },
   });
 }
