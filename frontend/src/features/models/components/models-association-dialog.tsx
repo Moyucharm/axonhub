@@ -43,6 +43,7 @@ const requestFormatConditionOptions = [
   'openai/video',
   'openai/moderations',
   'openai/alpha_search',
+  'typesafe/systemone',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',

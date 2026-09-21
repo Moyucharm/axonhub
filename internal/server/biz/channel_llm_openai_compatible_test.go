@@ -172,6 +172,43 @@ func TestCodexOAuthWebSocketEndpointBuildsWithoutAPIKey(t *testing.T) {
 	require.NotNil(t, custom.CustomizeExecutor(nil))
 }
 
+func TestTypeSafeSystemOneEndpointUsesCustomBaseURLAndPath(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := authz.WithTestBypass(context.Background())
+	entChannel := client.Channel.Create().
+		SetName("TypeSafe System One Endpoint").
+		SetType(channel.TypeOpenai).
+		SetBaseURL("https://api.openai.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKey: "typesafe-key"}).
+		SetSupportedModels([]string{"jev-latest"}).
+		SetDefaultTestModel("jev-latest").
+		SetEndpoints([]objects.ChannelEndpoint{{
+			APIFormat: llm.APIFormatTypeSafeSystemOne.String(),
+			BaseURL:   "https://api.typesafe.ai/v1",
+			Path:      "/systemone",
+		}}).
+		SaveX(ctx)
+
+	channelSvc := NewChannelServiceForTest(client)
+	built, err := channelSvc.buildChannelWithOutbounds(entChannel)
+	require.NoError(t, err)
+
+	outbound, err := BuildOutboundByAPIFormat(built, llm.APIFormatTypeSafeSystemOne.String())
+	require.NoError(t, err)
+	request, err := outbound.TransformRequest(ctx, &llm.Request{
+		Model:       "jev-1.13.0",
+		RequestType: llm.RequestTypeSystemOne,
+		APIFormat:   llm.APIFormatTypeSafeSystemOne,
+		SystemOne:   &llm.SystemOneRequest{Body: []byte(`{"model":"jev-latest","state":"x","questions":{"ok":{"type":"noul","instructions":"OK?"}}}`)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "https://api.typesafe.ai/v1/systemone", request.URL)
+	require.Equal(t, "typesafe-key", request.Auth.APIKey)
+	require.JSONEq(t, `{"model":"jev-1.13.0","state":"x","questions":{"ok":{"type":"noul","instructions":"OK?"}}}`, string(request.Body))
+}
+
 func TestCodexAlphaSearchEndpointPreservesCustomPath(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
 	defer client.Close()

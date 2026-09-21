@@ -38,6 +38,15 @@ func TestHasResponseContent(t *testing.T) {
 		}))
 	})
 
+	t.Run("system one response", func(t *testing.T) {
+		require.True(t, hasResponseContent(&llm.Response{
+			SystemOne: &llm.SystemOneResponse{Body: []byte(`{"ok":true}`)},
+		}))
+		require.False(t, hasResponseContent(&llm.Response{
+			SystemOne: &llm.SystemOneResponse{Body: nil},
+		}))
+	})
+
 	t.Run("message text content", func(t *testing.T) {
 		require.True(t, hasResponseContent(&llm.Response{
 			Choices: []llm.Choice{{

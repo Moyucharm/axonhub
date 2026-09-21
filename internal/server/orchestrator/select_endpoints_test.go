@@ -89,15 +89,24 @@ func TestSelectAPIFormat_Compact(t *testing.T) {
 	}))
 }
 
-func TestSelectAPIFormat_AlphaSearchRequiresExplicitEndpoint(t *testing.T) {
+func TestSelectAPIFormat_DedicatedProtocolsRequireExplicitEndpoint(t *testing.T) {
 	endpoints := []objects.ChannelEndpoint{
 		{APIFormat: llm.APIFormatOpenAIChatCompletion.String()},
 	}
 
-	require.Empty(t, SelectAPIFormat(endpoints, &llm.Request{
-		RequestType: llm.RequestTypeAlphaSearch,
-		APIFormat:   llm.APIFormatOpenAIAlphaSearch,
-	}))
+	tests := []struct {
+		requestType llm.RequestType
+		apiFormat   llm.APIFormat
+	}{
+		{requestType: llm.RequestTypeAlphaSearch, apiFormat: llm.APIFormatOpenAIAlphaSearch},
+		{requestType: llm.RequestTypeSystemOne, apiFormat: llm.APIFormatTypeSafeSystemOne},
+	}
+	for _, tt := range tests {
+		require.Empty(t, SelectAPIFormat(endpoints, &llm.Request{
+			RequestType: tt.requestType,
+			APIFormat:   tt.apiFormat,
+		}))
+	}
 }
 
 func TestFilterEndpointsByAPIFormats(t *testing.T) {

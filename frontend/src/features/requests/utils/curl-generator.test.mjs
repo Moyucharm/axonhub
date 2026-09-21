@@ -15,6 +15,10 @@ test('uses the Seedance task endpoint for generated cURL', () => {
   assert.equal(getApiPath('seedance/video'), '/api/v3/contents/generations/tasks');
 });
 
+test('uses the TypeSafe System One endpoint for generated cURL', () => {
+  assert.equal(getApiPath('typesafe/systemone'), '/v1/systemone');
+});
+
 test('shell-escapes model-derived URLs in generated cURL', () => {
   assert.equal(
     escapeShellValue("https://example.com/models/a'b:generateContent"),

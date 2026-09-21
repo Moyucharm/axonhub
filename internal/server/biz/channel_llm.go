@@ -44,6 +44,7 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/opencode"
 	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 	"github.com/looplj/axonhub/llm/transformer/openrouter"
+	typesafetransformer "github.com/looplj/axonhub/llm/transformer/typesafe"
 	"github.com/looplj/axonhub/llm/transformer/xai"
 	xaisubscription "github.com/looplj/axonhub/llm/transformer/xai/subscription"
 	"github.com/looplj/axonhub/llm/transformer/zai"
@@ -583,6 +584,12 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 		})
 	case llm.APIFormatJinaRerank.String(), llm.APIFormatJinaEmbedding.String():
 		return jina.NewOutboundTransformerWithConfig(&jina.Config{
+			BaseURL:        baseURL,
+			APIKeyProvider: apiKeyProvider(),
+			EndpointPath:   ep.Path,
+		})
+	case llm.APIFormatTypeSafeSystemOne.String():
+		return typesafetransformer.NewOutboundTransformerWithConfig(&typesafetransformer.Config{
 			BaseURL:        baseURL,
 			APIKeyProvider: apiKeyProvider(),
 			EndpointPath:   ep.Path,

@@ -30,6 +30,7 @@ type Handlers struct {
 	Auth           *api.AuthHandlers
 	Invitation     *api.InvitationHandlers
 	Jina           *api.JinaHandlers
+	TypeSafe       *api.TypeSafeHandlers
 	Codex          *api.CodexHandlers
 	XAI            *api.XAIHandlers
 	ClaudeCode     *api.ClaudeCodeHandlers
@@ -197,6 +198,7 @@ func SetupRoutes(server *Server, handlers Handlers, client *ent.Client, services
 		openaiGroup.POST("/embeddings", handlers.OpenAI.CreateEmbedding)
 		openaiGroup.POST("/moderations", handlers.OpenAI.CreateModeration)
 		openaiGroup.POST("/alpha/search", handlers.OpenAI.CreateAlphaSearch)
+		openaiGroup.POST("/systemone", handlers.TypeSafe.SystemOne)
 		openaiGroup.POST("/images/generations", handlers.OpenAI.CreateImage)
 		openaiGroup.POST("/images/edits", handlers.OpenAI.CreateImageEdit)
 		openaiGroup.POST("/videos", handlers.OpenAI.CreateVideo)

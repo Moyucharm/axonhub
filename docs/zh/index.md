@@ -41,6 +41,7 @@
 | [OpenAI API](api-reference/openai-api.md) | OpenAI 兼容 API 接口文档 |
 | [Anthropic API](api-reference/anthropic-api.md) | Anthropic 兼容 API 接口文档 |
 | [Gemini API](api-reference/gemini-api.md) | Gemini 兼容 API 接口文档 |
+| [TypeSafe System One API](api-reference/typesafe-api.md) | Jev 原生结构化评估端点 |
 | [图像生成 API](api-reference/image-generation.md) | 图像生成接口文档 |
 | [嵌入 API](api-reference/embedding-api.md) | 向量嵌入接口文档 |
 | [重排序 API](api-reference/rerank-api.md) | 重排序接口文档 |

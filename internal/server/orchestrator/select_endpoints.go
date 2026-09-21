@@ -36,12 +36,16 @@ func SelectAPIFormat(endpoints []objects.ChannelEndpoint, req *llm.Request) stri
 			}
 		}
 
-		if req.RequestType == llm.RequestTypeAlphaSearch {
+		if requestTypeRequiresExplicitEndpoint(req.RequestType) {
 			return ""
 		}
 	}
 
 	return endpoints[0].APIFormat
+}
+
+func requestTypeRequiresExplicitEndpoint(requestType llm.RequestType) bool {
+	return requestType == llm.RequestTypeAlphaSearch || requestType == llm.RequestTypeSystemOne
 }
 
 // FilterEndpointsByAPIFormats restricts endpoints to the given api formats. The

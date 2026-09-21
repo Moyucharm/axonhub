@@ -1552,6 +1552,7 @@ func TestIsNonMessageEndpoint(t *testing.T) {
 	}{
 		{path: "/v1/embeddings", want: true},
 		{path: "/jina/v1/embeddings", want: true},
+		{path: "/v1/systemone", want: true},
 		{path: "/gemini/v1beta/models/text-embedding-004:embedContent", want: true},
 		{path: "/gemini/v1beta/models/text-embedding-004:batchEmbedContents", want: true},
 		{path: "/v1/chat/completions", want: false},

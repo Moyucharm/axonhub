@@ -269,6 +269,9 @@ type Request struct {
 	// AlphaSearch is the raw Codex/CPA /v1/alpha/search request payload.
 	AlphaSearch *AlphaSearchRequest `json:"alpha_search_request,omitempty"`
 
+	// SystemOne is the raw TypeSafe /v1/systemone request payload.
+	SystemOne *SystemOneRequest `json:"system_one_request,omitempty"`
+
 	// RawRequest is the raw request from the client.
 	RawRequest *httpclient.Request `json:"raw_request,omitempty"`
 
@@ -743,6 +746,9 @@ type Response struct {
 
 	// AlphaSearch is the raw Codex/CPA /v1/alpha/search response payload.
 	AlphaSearch *AlphaSearchResponse `json:"alpha_search_response,omitempty"`
+
+	// SystemOne is the raw TypeSafe /v1/systemone response payload.
+	SystemOne *SystemOneResponse `json:"system_one_response,omitempty"`
 
 	// RequestType is the outbound request type from the llm service.
 	// e.g. the request from the chat/completions endpoint is in the chat type.

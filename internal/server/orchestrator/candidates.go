@@ -144,7 +144,7 @@ func (s *DefaultSelector) selectChannelCadidates(ctx context.Context, req *llm.R
 
 		endpoints := applyForcedAPIFormats(ctx, ch, []biz.ChannelModelEntry{entry}, req.Model, ch.ResolveEndpoints())
 		apiFormat := SelectAPIFormat(endpoints, req)
-		if req.RequestType == llm.RequestTypeAlphaSearch && apiFormat == "" {
+		if requestTypeRequiresExplicitEndpoint(req.RequestType) && apiFormat == "" {
 			continue
 		}
 

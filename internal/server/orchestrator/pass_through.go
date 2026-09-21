@@ -247,6 +247,7 @@ func passThroughBodyNeedsModelPatch(apiFormat llm.APIFormat) bool {
 		llm.APIFormatOpenAIEmbedding,
 		llm.APIFormatOpenAIModeration,
 		llm.APIFormatOpenAIAlphaSearch,
+		llm.APIFormatTypeSafeSystemOne,
 		llm.APIFormatOpenAIImageGeneration,
 		llm.APIFormatOpenAIVideo,
 		llm.APIFormatJinaEmbedding,

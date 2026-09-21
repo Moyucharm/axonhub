@@ -96,6 +96,13 @@ test('persists protocols for newly added models while preserving untouched model
   ]);
 });
 
+test('keeps TypeSafe System One available as a custom endpoint format', () => {
+  assert.deepEqual(
+    getConfigurableApiFormatsForChannelType('openai', ['openai/chat_completions', 'typesafe/systemone', 'zenmux/video']),
+    ['openai/chat_completions', 'typesafe/systemone']
+  );
+});
+
 test('does not expose ZenMux native video to unrelated providers', () => {
   assert.deepEqual(getApiFormatsForProvider('openai', configs), ['openai/chat_completions', 'openai/responses']);
   assert.equal(getChannelTypeForApiFormat('openai', 'zenmux/video', configs), undefined);

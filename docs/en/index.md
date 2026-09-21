@@ -42,6 +42,7 @@ Welcome to the AxonHub documentation center! This index will help you quickly fi
 | [OpenAI API](api-reference/openai-api.md) | OpenAI-compatible API interface documentation |
 | [Anthropic API](api-reference/anthropic-api.md) | Anthropic-compatible API interface documentation |
 | [Gemini API](api-reference/gemini-api.md) | Gemini-compatible API interface documentation |
+| [TypeSafe System One API](api-reference/typesafe-api.md) | Native Jev structured evaluation endpoint |
 | [Image Generation API](api-reference/image-generation.md) | Image generation interface documentation |
 | [Embedding API](api-reference/embedding-api.md) | Vector embedding interface documentation |
 | [Rerank API](api-reference/rerank-api.md) | Reranking interface documentation |

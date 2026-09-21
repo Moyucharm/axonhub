@@ -21,6 +21,8 @@ const (
 	RequestTypeModeration RequestType = "moderation"
 	// RequestTypeAlphaSearch is the Codex/CPA alpha search request type, maps to /v1/alpha/search.
 	RequestTypeAlphaSearch RequestType = "alpha_search"
+	// RequestTypeSystemOne is the TypeSafe System One evaluation request type, maps to /v1/systemone.
+	RequestTypeSystemOne RequestType = "system_one"
 )
 
 func (r RequestType) String() string {
@@ -49,6 +51,7 @@ const (
 	APIFormatOpenAITranslation   APIFormat = "openai/audio_translations"
 	APIFormatOpenAIModeration    APIFormat = "openai/moderations"
 	APIFormatOpenAIAlphaSearch   APIFormat = "openai/alpha_search"
+	APIFormatTypeSafeSystemOne   APIFormat = "typesafe/systemone"
 	APIFormatGeminiContents      APIFormat = "gemini/contents"
 	APIFormatAnthropicMessage    APIFormat = "anthropic/messages"
 	APIFormatAiSDKText           APIFormat = "aisdk/text"

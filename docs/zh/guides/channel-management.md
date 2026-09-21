@@ -243,6 +243,7 @@ https://custom-gateway.example.com/api##
 
 - 每个 endpoint 由 `api_format`、可选 `base_url`（留空继承渠道 Base URL）和可选 `path`（替换该协议的默认路径，配置后跳过版本号追加）组成。
 - 各渠道类型自带默认端点（如智谱提供 `openai/chat_completions`、`zhipu_anthropic` 提供 `anthropic/messages`），自定义端点可补充其他格式或覆盖同名格式。
+- Jev 使用非聊天协议 `typesafe/systemone`。请显式添加该格式，Base URL 使用 `https://api.typesafe.ai/v1`，path 可选 `/systemone`；System One 请求不会回退到 chat 端点。
 
 ### 模型协议覆盖（ModelProtocols）
 

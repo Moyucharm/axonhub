@@ -243,6 +243,7 @@ Manage endpoints in the channel **Endpoints** dialog:
 
 - Each endpoint consists of `api_format`, an optional `base_url` (inherits the channel Base URL when empty), and an optional `path` (replaces the protocol's default path; version appending is skipped when set).
 - Each channel type ships with built-in default endpoints (e.g. zhipu provides `openai/chat_completions`, `zhipu_anthropic` provides `anthropic/messages`); custom endpoints can add other formats or override same-named ones.
+- Jev uses the non-chat `typesafe/systemone` format. Add it explicitly with Base URL `https://api.typesafe.ai/v1` and optional path `/systemone`; System One requests never fall back to chat endpoints.
 
 ### Model Protocol Overrides (ModelProtocols)
 
