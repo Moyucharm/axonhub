@@ -25,6 +25,10 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
   for (const field of ['credentials', 'apiKeyPool', 'bodyOverrideOperations', 'headerOverrideOperations', 'rateLimit']) {
     assert.match(updateMutation, new RegExp(`\\b${field}\\b`), `updateChannel must return ${field} for snapshot replacement`);
   }
+
+  const listBaseSelection = data.match(/const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `([\s\S]*?)`;/)?.[1] ?? '';
+  assert.match(listBaseSelection, /credentials[\s\S]*mode[\s\S]*apiKeys/, 'channel list query base selection must include credentials for key pool status display');
+  assert.match(listBaseSelection, /cooldownUntil/, 'channel list query base selection must include cooldownUntil for cooldown badge display');
 });
 
 test('key pool UI exposes mode selection and standalone management', () => {

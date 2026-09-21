@@ -1298,6 +1298,14 @@ const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
           status
           defaultTestModel
           errorMessage
+          cooldownUntil
+          cooldownErrorCode
+          cooldownErrorMessage
+          credentials {
+            mode
+            apiKey
+            apiKeys
+          }
           disabledAPIKeys {
             key
             disabledAt
