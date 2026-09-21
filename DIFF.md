@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
 | 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.1`（待创建 tag 并发布镜像） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.2`（待创建 tag 并发布镜像） |
 
 ### 更新本文件的方法
 
@@ -236,6 +236,25 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - 前端支持三种协议切换、动态模型获取与高级设置中模型协议映射维护。
 - 对应架构决策记录：[OpenCode Zen 渠道](.agents/notes/implemented/feature/2026-09-18-opencode-zen-channel.md)。版本号递增为 `v1.0.0-beta10+azusa.v0.6.1`。
 
+### 3.13 CPA 快照同步的幽灵 auth-file 清理（`a37dd2bb`）
+
+- 内存态快照与已被管理端移除的 CPA auth-file 视为不存在，本地凭据执行硬删除，不再留下无法使用的占位文件。
+- 实例缓存随 settle 刷新，`/cpa` 主动轮询 credentials 与 overview，窗口重新聚焦前不再显示陈旧行。
+
+### 3.14 TypeSafe System One（Jev）端点（`1ca05f9f`）
+
+- 新增 `typesafe/systemone` 渠道格式与公开端点 `POST /v1/systemone`，把 TypeSafe System One 原生评估协议（`state` + 类型化 `questions` → 结构化判定与概率）作为一等请求类型接入路由、transformer、pass-through、trace 与用量统计。
+- `state`、`questions`、答案与未知扩展字段保持不透明透传，仅按模型映射改写顶层 `model`；上游以渠道 API Key 走 Bearer 认证，TypeSafe 的 input/output token 计入统一用量模型。
+- System One 必须命中显式配置的端点，绝不回退到 chat / responses / messages；协议为非流式，流式请求被拒绝；该端点按非消息形处理，不创建对话 trace。
+- 前端 API 格式选项、cURL 生成以及中英文 API 参考文档同步；System One 响应体视为有效内容，避免空响应判定重试有效评估。
+- 对应架构决策记录：[TypeSafe System One 端点](.agents/notes/implemented/feature/2026-09-21-typesafe-system-one-endpoint.md)。
+
+### 3.15 请求执行详情、强制流式与渠道列表修复
+
+- **请求执行详情选择与 payload 空状态**（`162af5f2`）：执行列表改用服务端 `last: 20` + `CREATED_AT ASC` 获取最新记录并保持时间正序；当前执行以全局 execution ID 而非数组下标保存，刷新时保留仍存在的选择；`totalCount` 显示真实总数并在截断时提示可见范围。`execution-display` 统一处理 payload 是否已记录与 falsy JSON 序列化，`false`、`0`、数组不再被误判为空响应（空对象继续兼容外部存储 GC 标记），请求体/请求头/响应体接入中英文空状态。对应决策记录：[请求执行详情选择与 payload 空状态](.agents/notes/implemented/bug-fix/2026-09-21-request-execution-detail.md)。
+- **上游强制流式在请求对象被替换后丢失**（`c96eed4d`）：`PersistentOutboundTransformer.TransformRequest` 在包裹 transformer 返回后把生效的 `Stream`/`StreamOptions` 镜像回 pipeline 持有的请求对象，修复 OpenCode Zen 强制上游流式（配合渠道 transform options 的副本替换）被 pipeline 判为非流式、进而把上游 SSE 当 JSON 解析的问题。对应决策记录：[上游强制流式在请求对象被替换后丢失](.agents/notes/implemented/bug-fix/2026-09-21-forced-upstream-stream-request-replacement.md)。
+- **渠道列表凭据与冷却字段**（`5a949f07`）：渠道列表基础查询补齐 `credentials` 与 `cooldownUntil`/`cooldownErrorCode`/`cooldownErrorMessage`，使列表视图的 Key Pool 状态与冷却徽标有数据。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
 本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。
@@ -269,8 +288,8 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **基准版本**：始终为上游仓库**最新发行版（release tag）**的版本号，以发行版代码为主。
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
-- **递增规则**：每次自用功能更新增强号 `+0.1`（v0.1 → v0.2 → …），并同步更新 `internal/build/VERSION` 与 git tag。
-- **当前状态**：`2026-09-13` 已在隔离分支完成 `v1.0.0-beta10` 代码整合，并完成渠道失败单一责任归属与 Codex 5h/7d CPA 估算隔离优化，版本递增为 `v1.0.0-beta10+azusa.v0.6`。`beta10..unstable` 未发行提交不在本次范围内。
+- **递增规则**：自用功能更新递增增强号并同步更新 `internal/build/VERSION` 与 git tag。增强号为 `azusa.v<主>.<次>.<修订>`：常规自用发布递增修订位（第三位，如 `v0.6.1` → `v0.6.2`），功能集合整体升级时递增次位（如 `v0.6` → `v0.7`）。
+- **当前状态**：`2026-09-21` 发布 `v1.0.0-beta10+azusa.v0.6.2`。相对 `v0.6.1`（OpenCode Zen 渠道）新增 TypeSafe System One（Jev）端点、CPA 幽灵 auth-file 清理，以及请求执行详情、强制流式可见性与渠道列表字段修复（见 3.13～3.15）。`beta10..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 
