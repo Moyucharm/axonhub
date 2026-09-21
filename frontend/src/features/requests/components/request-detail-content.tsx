@@ -6,7 +6,7 @@ import { Copy, Clock, Key, Database, FileText, Layers, Download, Terminal } from
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { copyTextToClipboard } from '@/lib/clipboard';
-import { extractNumberID } from '@/lib/utils';
+import { extractNumberID, cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import { ResponseFlow } from './response-flow';
 import { parseResponse } from '../utils/response-parser';
 import { parseRequestConversation } from '../utils/request-conversation';
 import { generateRequestCurl, generateExecutionCurl } from '../utils/curl-generator';
+import { formatJsonValue, hasRecordedJsonValue, selectExecution } from '../utils/execution-display';
 import { getVideoLastFrameURL, isVideoRequestFormat } from '../utils/video-display';
 
 interface RequestDetailContentProps {
@@ -49,6 +50,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
   const [audioLoadFailed, setAudioLoadFailed] = useState(false);
   const [responseView, setResponseView] = useState<'preview' | 'json'>('preview');
   const [requestBodyView, setRequestBodyView] = useState<'conversation' | 'json'>('conversation');
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   const { data: settings } = useGeneralSettings();
   const { data: requestData, isLoading } = useRequest(requestId, { projectId, disableAutoRefresh: isPreviewStreaming });
@@ -73,11 +75,15 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
   } = useRequestExecutions(
     requestId,
     {
-      first: 10,
-      orderBy: { field: 'CREATED_AT', direction: 'DESC' },
+      last: 20,
+      orderBy: { field: 'CREATED_AT', direction: 'ASC' },
     },
     { projectId }
   );
+
+  useEffect(() => {
+    setSelectedExecutionId(null);
+  }, [requestId, projectId]);
   const { data: usageLogs } = useUsageLogs(
     {
       first: 1,
@@ -295,14 +301,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
     }
   }, []);
 
-  const formatJson = (data: any) => {
-    if (!data) return '';
-    try {
-      return JSON.stringify(data, null, 2);
-    } catch {
-      return String(data);
-    }
-  };
+  const formatJson = (data: any) => formatJsonValue(data);
 
   const showRequestCurlPreview = useCallback((headers: any, body: any, apiFormat?: string) => {
     const curl = generateRequestCurl(headers, body, apiFormat as any);
@@ -769,26 +768,133 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                   </div>
                 </div>
               ) : executions && executions.edges.length > 0 ? (
-                <div className='space-y-6'>
-                  {executions.edges.map((edge: any, index: number) => {
-                    const execution = edge.node;
-                    return (
-                      <Card key={execution.id} className='bg-muted/20 border-0 shadow-sm'>
+                (() => {
+                  const visibleExecutions = executions.edges.map((edge: any) => edge.node);
+                  const selected = selectExecution(visibleExecutions, selectedExecutionId);
+                  if (!selected) return null;
+
+                  const { execution: selectedExecution, index: selectedExecutionIndex } = selected;
+                  const executionCount = executions.totalCount;
+                  const visibleExecutionCount = visibleExecutions.length;
+
+                  return (
+                    <div className='space-y-6'>
+                      {/* 多次执行时显示顶部步骤条 */}
+                      {visibleExecutionCount > 1 && (
+                        <div className='space-y-2'>
+                          <div className='flex flex-wrap items-center justify-between gap-2'>
+                            <span className='text-muted-foreground text-xs font-medium'>
+                              {t('requests.detail.tabs.executions')} ({executionCount})
+                            </span>
+                            {executionCount > visibleExecutionCount && (
+                              <span className='text-muted-foreground text-xs'>
+                                {t('requests.dialogs.requestDetail.showingLatestExecutions', {
+                                  visible: visibleExecutionCount,
+                                  total: executionCount,
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <div className='bg-muted/20 grid grid-cols-1 gap-2 rounded-lg border p-2 sm:grid-cols-2 lg:grid-cols-3'>
+                            {executions.edges.map((edge: any, index: number) => {
+                              const item = edge.node;
+                              const isSelected = item.id === selectedExecution.id;
+                              const latency =
+                                item.status === 'completed' || item.status === 'failed'
+                                  ? calculateLatency(item.createdAt, item.updatedAt)
+                                  : null;
+
+                              return (
+                                <button
+                                  key={item.id}
+                                  type='button'
+                                  onClick={() => setSelectedExecutionId(item.id)}
+                                  className={cn(
+                                    'flex w-full min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left text-xs transition-all',
+                                    isSelected
+                                      ? 'border-primary bg-background text-foreground shadow-sm ring-1 ring-primary font-medium'
+                                      : 'border-transparent bg-background/50 text-muted-foreground hover:bg-background hover:text-foreground'
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold leading-none select-none',
+                                      isSelected ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+                                    )}
+                                  >
+                                    {index + 1}
+                                  </span>
+                                  <span className='font-mono font-medium max-w-[90px] shrink-0 truncate'>
+                                    {item.channel?.name || t('requests.columns.unknown')}
+                                  </span>
+                                  <Badge className={cn(getStatusColor(item.status), 'px-1.5 py-0 text-[10px] shrink-0')} variant='secondary'>
+                                    {t(`requests.status.${item.status}`)}
+                                  </Badge>
+                                  {latency != null && (
+                                    <span className='text-muted-foreground font-mono text-[11px] shrink-0'>
+                                      {formatLatency(latency)}
+                                    </span>
+                                  )}
+                                  {item.status === 'failed' && item.responseStatusCode && (
+                                    <Badge variant='destructive' className='px-1.5 py-0 text-[10px] shrink-0'>
+                                      HTTP {item.responseStatusCode}
+                                    </Badge>
+                                  )}
+                                  {item.errorMessage && (
+                                    <span
+                                      className='text-destructive min-w-0 flex-1 truncate text-[11px]'
+                                      title={item.errorMessage}
+                                    >
+                                      {item.errorMessage}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 选中的执行卡片 */}
+                      <Card key={selectedExecution.id} className='bg-muted/20 border-0 shadow-sm'>
                         <CardHeader className='pb-4'>
-                          <div className='flex items-center justify-between'>
-                            <h5 className='flex items-center gap-2 text-base font-semibold'>
-                              <div className='bg-primary/10 text-primary flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold'>
-                                {index + 1}
+                          <div className='flex flex-wrap items-center justify-between gap-3'>
+                            <div className='flex items-center gap-2'>
+                              <div className='bg-primary/10 text-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold leading-none select-none'>
+                                {selectedExecutionIndex + 1}
                               </div>
-                              {t('requests.dialogs.requestDetail.execution', { index: index + 1 })}
-                            </h5>
-                            <Badge className={getStatusColor(execution.status)} variant='secondary'>
-                              {t(`requests.status.${execution.status}`)}
-                            </Badge>
-                            {execution.passThroughApplied && (
-                              <Badge className='border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300'>
-                                {t('requests.passThrough.applied')}
+                              <h5 className='text-base font-semibold'>
+                                {t('requests.dialogs.requestDetail.execution', { index: selectedExecutionIndex + 1 })}
+                              </h5>
+                              <Badge className={getStatusColor(selectedExecution.status)} variant='secondary'>
+                                {t(`requests.status.${selectedExecution.status}`)}
                               </Badge>
+                              {selectedExecution.passThroughApplied && (
+                                <Badge className='border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300'>
+                                  {t('requests.passThrough.applied')}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {(hasRecordedJsonValue(selectedExecution.requestHeaders) ||
+                              hasRecordedJsonValue(selectedExecution.requestBody)) && (
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() =>
+                                  showExecutionCurlPreview(
+                                    selectedExecution.requestHeaders,
+                                    selectedExecution.requestBody,
+                                    selectedExecution.channel,
+                                    selectedExecution.format,
+                                    selectedExecution.requestURL
+                                  )
+                                }
+                                className='hover:bg-primary hover:text-primary-foreground'
+                              >
+                                <Terminal className='mr-2 h-4 w-4' />
+                                {t('requests.actions.copyCurl')}
+                              </Button>
                             )}
                           </div>
                         </CardHeader>
@@ -799,8 +905,8 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                 <Database className='text-primary h-4 w-4' />
                                 {t('requests.columns.channel')}
                               </span>
-                              <p className='text-muted-foreground font-mono text-sm'>
-                                {execution.channel?.name || t('requests.columns.unknown')}
+                              <p className='text-muted-foreground font-mono text-sm truncate'>
+                                {selectedExecution.channel?.name || t('requests.columns.unknown')}
                               </p>
                             </div>
                             <div className='bg-background space-y-2 rounded-lg border p-3'>
@@ -809,7 +915,9 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                 {t('requests.dialogs.requestDetail.fields.startTime')}
                               </span>
                               <p className='text-muted-foreground font-mono text-sm'>
-                                {execution.createdAt ? format(new Date(execution.createdAt), 'yyyy-MM-dd HH:mm:ss', { locale }) : t('requests.columns.unknown')}
+                                {selectedExecution.createdAt
+                                  ? format(new Date(selectedExecution.createdAt), 'yyyy-MM-dd HH:mm:ss', { locale })
+                                  : t('requests.columns.unknown')}
                               </p>
                             </div>
                             <div className='bg-background space-y-2 rounded-lg border p-3'>
@@ -818,9 +926,9 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                 {t('requests.dialogs.requestDetail.fields.endTime')}
                               </span>
                               <p className='text-muted-foreground font-mono text-sm'>
-                                {execution.status === 'completed' || execution.status === 'failed'
-                                  ? execution.updatedAt
-                                    ? format(new Date(execution.updatedAt), 'yyyy-MM-dd HH:mm:ss', { locale })
+                                {selectedExecution.status === 'completed' || selectedExecution.status === 'failed'
+                                  ? selectedExecution.updatedAt
+                                    ? format(new Date(selectedExecution.updatedAt), 'yyyy-MM-dd HH:mm:ss', { locale })
                                     : t('requests.columns.unknown')
                                   : '-'}
                               </p>
@@ -831,7 +939,9 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                 {t('requests.columns.latency')}
                               </span>
                               <p className='text-muted-foreground font-mono text-sm'>
-                                {execution.status === 'completed' || execution.status === 'failed' ? formatLatency(calculateLatency(execution.createdAt, execution.updatedAt)) : '-'}
+                                {selectedExecution.status === 'completed' || selectedExecution.status === 'failed'
+                                  ? formatLatency(calculateLatency(selectedExecution.createdAt, selectedExecution.updatedAt))
+                                  : '-'}
                               </p>
                             </div>
                             <div className='bg-background space-y-2 rounded-lg border p-3'>
@@ -840,34 +950,35 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                 {t('requests.columns.firstTokenLatency')}
                               </span>
                               <p className='text-muted-foreground font-mono text-sm'>
-                                {(execution.status === 'completed' || execution.status === 'failed') && execution.metricsFirstTokenLatencyMs != null ? formatLatency(execution.metricsFirstTokenLatencyMs) : '-'}
+                                {(selectedExecution.status === 'completed' || selectedExecution.status === 'failed') &&
+                                selectedExecution.metricsFirstTokenLatencyMs != null
+                                  ? formatLatency(selectedExecution.metricsFirstTokenLatencyMs)
+                                  : '-'}
                               </p>
                             </div>
                           </div>
 
-                          {(execution.errorMessage || (execution.status === 'failed' && execution.responseStatusCode)) && (
+                          {(selectedExecution.errorMessage ||
+                            (selectedExecution.status === 'failed' && selectedExecution.responseStatusCode)) && (
                             <div className='bg-destructive/5 border-destructive/20 space-y-3 rounded-lg border p-4'>
                               <div className='flex items-center justify-between'>
                                 <span className='text-destructive flex items-center gap-2 text-sm font-semibold'>
                                   <FileText className='h-4 w-4' />
                                   {t('common.messages.errorMessage')}
                                 </span>
-                                {execution.status === 'failed' && execution.responseStatusCode && <Badge variant='destructive'>HTTP {execution.responseStatusCode}</Badge>}
+                                {selectedExecution.status === 'failed' && selectedExecution.responseStatusCode && (
+                                  <Badge variant='destructive'>HTTP {selectedExecution.responseStatusCode}</Badge>
+                                )}
                               </div>
-                              {execution.errorMessage && <p className='text-destructive bg-destructive/10 rounded border p-3 text-sm'>{execution.errorMessage}</p>}
+                              {selectedExecution.errorMessage && (
+                                <p className='text-destructive bg-destructive/10 whitespace-pre-wrap break-words rounded border p-3 text-sm'>
+                                  {selectedExecution.errorMessage}
+                                </p>
+                              )}
                             </div>
                           )}
 
-                          {(execution.requestHeaders || execution.requestBody) && (
-                            <div className='flex justify-end'>
-                              <Button variant='outline' size='sm' onClick={() => showExecutionCurlPreview(execution.requestHeaders, execution.requestBody, execution.channel, execution.format, execution.requestURL)} className='hover:bg-primary hover:text-primary-foreground'>
-                                <Terminal className='mr-2 h-4 w-4' />
-                                {t('requests.actions.copyCurl')}
-                              </Button>
-                            </div>
-                          )}
-
-                          {execution.requestHeaders && (
+                          {hasRecordedJsonValue(selectedExecution.requestHeaders) && (
                             <div className='space-y-3'>
                               <div className='flex items-center justify-between'>
                                 <span className='flex items-center gap-2 text-sm font-semibold'>
@@ -875,23 +986,44 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                   {t('requests.columns.requestHeaders')}
                                 </span>
                                 <div className='flex gap-2'>
-                                  <Button variant='outline' size='sm' onClick={() => copyToClipboard(formatJson(execution.requestHeaders))} className='hover:bg-primary hover:text-primary-foreground'>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() => copyToClipboard(formatJson(selectedExecution.requestHeaders))}
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
                                     <Copy className='mr-2 h-4 w-4' />
                                     {t('requests.dialogs.jsonViewer.copy')}
                                   </Button>
-                                  <Button variant='outline' size='sm' onClick={() => downloadFile(formatJson(execution.requestHeaders), `execution-${execution.id}-request-headers.json`)} className='hover:bg-primary hover:text-primary-foreground'>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() =>
+                                      downloadFile(
+                                        formatJson(selectedExecution.requestHeaders),
+                                        `execution-${selectedExecution.id}-request-headers.json`
+                                      )
+                                    }
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
                                     <Download className='mr-2 h-4 w-4' />
                                     {t('requests.dialogs.jsonViewer.download')}
                                   </Button>
                                 </div>
                               </div>
-                              <div className='bg-background h-64 w-full overflow-auto rounded-lg border p-3'>
-                                <JsonViewer data={execution.requestHeaders} rootName='' defaultExpanded={false} hideArrayIndices={true} className='text-xs' />
+                              <div className='bg-background max-h-[300px] w-full overflow-auto rounded-lg border p-3'>
+                                <JsonViewer
+                                  data={selectedExecution.requestHeaders}
+                                  rootName=''
+                                  defaultExpanded={false}
+                                  hideArrayIndices={true}
+                                  className='text-xs'
+                                />
                               </div>
                             </div>
                           )}
 
-                          {execution.requestBody && (
+                          {hasRecordedJsonValue(selectedExecution.requestBody) && (
                             <div className='space-y-3'>
                               <div className='flex items-center justify-between'>
                                 <span className='flex items-center gap-2 text-sm font-semibold'>
@@ -899,54 +1031,152 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                                   {t('requests.columns.requestBody')}
                                 </span>
                                 <div className='flex gap-2'>
-                                  <Button variant='outline' size='sm' onClick={() => copyToClipboard(formatJson(execution.requestBody))} className='hover:bg-primary hover:text-primary-foreground'>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() => copyToClipboard(formatJson(selectedExecution.requestBody))}
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
                                     <Copy className='mr-2 h-4 w-4' />
                                     {t('requests.dialogs.jsonViewer.copy')}
                                   </Button>
-                                  <Button variant='outline' size='sm' onClick={() => downloadFile(formatJson(execution.requestBody), `execution-${execution.id}-request-body.json`)} className='hover:bg-primary hover:text-primary-foreground'>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() =>
+                                      downloadFile(
+                                        formatJson(selectedExecution.requestBody),
+                                        `execution-${selectedExecution.id}-request-body.json`
+                                      )
+                                    }
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
                                     <Download className='mr-2 h-4 w-4' />
                                     {t('requests.dialogs.jsonViewer.download')}
                                   </Button>
                                 </div>
                               </div>
-                              <div className='bg-background h-80 w-full overflow-auto rounded-lg border p-3'>
-                                <JsonViewer data={execution.requestBody} rootName='' defaultExpanded={false} hideArrayIndices={true} className='text-xs' />
+                              <div className='bg-background max-h-[360px] w-full overflow-auto rounded-lg border p-3'>
+                                <JsonViewer
+                                  data={selectedExecution.requestBody}
+                                  rootName=''
+                                  defaultExpanded={false}
+                                  hideArrayIndices={true}
+                                  className='text-xs'
+                                />
                               </div>
                             </div>
                           )}
 
-                          {execution.responseBody && (
-                            <div className='space-y-3'>
-                              <div className='flex items-center justify-between'>
-                                <span className='flex items-center gap-2 text-sm font-semibold'>
-                                  <FileText className='text-primary h-4 w-4' />
-                                  {t('requests.columns.responseBody')}
-                                </span>
-                                <div className='flex gap-2'>
-                                  <Button variant='outline' size='sm' onClick={() => copyToClipboard(formatJson(execution.responseBody))} className='hover:bg-primary hover:text-primary-foreground'>
-                                    <Copy className='mr-2 h-4 w-4' />
-                                    {t('requests.dialogs.jsonViewer.copy')}
-                                  </Button>
-                                  <Button variant='outline' size='sm' onClick={() => downloadFile(formatJson(execution.responseBody), `execution-${execution.id}-response-body.json`)} className='hover:bg-primary hover:text-primary-foreground'>
-                                    <Download className='mr-2 h-4 w-4' />
-                                    {t('requests.dialogs.jsonViewer.download')}
-                                  </Button>
-                                  <Button variant='outline' size='sm' onClick={() => showExecutionChunksModal(execution.responseChunks || [])} disabled={!execution.responseChunks || execution.responseChunks.length === 0} className='hover:bg-primary hover:text-primary-foreground'>
-                                    <Layers className='mr-2 h-4 w-4' />
-                                    {t('requests.columns.responseChunks')}
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className='bg-background h-80 w-full overflow-auto rounded-lg border p-3'>
-                                <JsonViewer data={execution.responseBody} rootName='' defaultExpanded={false} hideArrayIndices={true} className='text-xs' />
-                              </div>
+                          {!hasRecordedJsonValue(selectedExecution.requestHeaders) && (
+                            <div className='bg-background text-muted-foreground space-y-2 rounded-lg border p-3 text-sm'>
+                              <span className='flex items-center gap-2 font-semibold'>
+                                <FileText className='text-primary h-4 w-4' />
+                                {t('requests.columns.requestHeaders')}
+                              </span>
+                              <p className='text-xs italic'>{t('requests.dialogs.requestDetail.noRequestHeadersRecorded')}</p>
                             </div>
                           )}
+
+                          {!hasRecordedJsonValue(selectedExecution.requestBody) && (
+                            <div className='bg-background text-muted-foreground space-y-2 rounded-lg border p-3 text-sm'>
+                              <span className='flex items-center gap-2 font-semibold'>
+                                <FileText className='text-primary h-4 w-4' />
+                                {t('requests.columns.requestBody')}
+                              </span>
+                              <p className='text-xs italic'>{t('requests.dialogs.requestDetail.noRequestBodyRecorded')}</p>
+                            </div>
+                          )}
+
+                          {/* 响应体处理：判断是否真正含有内容 */}
+                          {(() => {
+                            const hasExecutionResponseBody = hasRecordedJsonValue(selectedExecution.responseBody);
+                            const hasExecutionChunks = !!(
+                              selectedExecution.responseChunks && selectedExecution.responseChunks.length > 0
+                            );
+
+                            if (!hasExecutionResponseBody && !hasExecutionChunks) {
+                              return (
+                                <div className='space-y-3'>
+                                  <div className='flex items-center justify-between'>
+                                    <span className='flex items-center gap-2 text-sm font-semibold'>
+                                      <FileText className='text-primary h-4 w-4' />
+                                      {t('requests.columns.responseBody')}
+                                    </span>
+                                  </div>
+                                  <div className='bg-background text-muted-foreground rounded-lg border p-3 text-xs italic'>
+                                    {t('requests.dialogs.requestDetail.noResponseBodyRecorded')}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className='space-y-3'>
+                                <div className='flex items-center justify-between'>
+                                  <span className='flex items-center gap-2 text-sm font-semibold'>
+                                    <FileText className='text-primary h-4 w-4' />
+                                    {t('requests.columns.responseBody')}
+                                  </span>
+                                  <div className='flex gap-2'>
+                                    {hasExecutionResponseBody && (
+                                      <>
+                                        <Button
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={() => copyToClipboard(formatJson(selectedExecution.responseBody))}
+                                          className='hover:bg-primary hover:text-primary-foreground'
+                                        >
+                                          <Copy className='mr-2 h-4 w-4' />
+                                          {t('requests.dialogs.jsonViewer.copy')}
+                                        </Button>
+                                        <Button
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={() =>
+                                            downloadFile(
+                                              formatJson(selectedExecution.responseBody),
+                                              `execution-${selectedExecution.id}-response-body.json`
+                                            )
+                                          }
+                                          className='hover:bg-primary hover:text-primary-foreground'
+                                        >
+                                          <Download className='mr-2 h-4 w-4' />
+                                          {t('requests.dialogs.jsonViewer.download')}
+                                        </Button>
+                                      </>
+                                    )}
+                                    <Button
+                                      variant='outline'
+                                      size='sm'
+                                      onClick={() => showExecutionChunksModal(selectedExecution.responseChunks || [])}
+                                      disabled={!hasExecutionChunks}
+                                      className='hover:bg-primary hover:text-primary-foreground'
+                                    >
+                                      <Layers className='mr-2 h-4 w-4' />
+                                      {t('requests.columns.responseChunks')}
+                                    </Button>
+                                  </div>
+                                </div>
+                                {hasExecutionResponseBody && (
+                                  <div className='bg-background max-h-[360px] w-full overflow-auto rounded-lg border p-3'>
+                                    <JsonViewer
+                                      data={selectedExecution.responseBody}
+                                      rootName=''
+                                      defaultExpanded={false}
+                                      hideArrayIndices={true}
+                                      className='text-xs'
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </CardContent>
                       </Card>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className='py-16 text-center'>
                   <div className='space-y-4'>

@@ -242,12 +242,14 @@ function buildRequestExecutionsQuery(permissions: { canViewChannels: boolean }) 
       $requestID: ID!
       $first: Int
       $after: Cursor
+      $last: Int
+      $before: Cursor
       $orderBy: RequestExecutionOrder
       $where: RequestExecutionWhereInput
     ) {
       node(id: $requestID) {
         ... on Request {
-          executions(first: $first, after: $after, orderBy: $orderBy, where: $where) {
+          executions(first: $first, after: $after, last: $last, before: $before, orderBy: $orderBy, where: $where) {
             edges {
               node {
                 id
@@ -453,6 +455,8 @@ export function useRequestExecutions(
   variables?: {
     first?: number;
     after?: string;
+    last?: number;
+    before?: string;
     orderBy?: { field: 'CREATED_AT'; direction: 'ASC' | 'DESC' };
     where?: Record<string, any>;
   },

@@ -1119,7 +1119,7 @@ export const createColumns = (t: ReturnType<typeof useTranslation>['t'], canWrit
             ),
             cell: ActionCell,
             meta: {
-              className: 'text-center',
+              className: 'sticky right-0 min-w-40 bg-inherit text-center shadow-[-1px_0_0_0_var(--border)]',
             },
             enableSorting: false,
             enableHiding: false,
