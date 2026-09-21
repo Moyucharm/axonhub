@@ -26,6 +26,7 @@ import (
 	anthropictransformer "github.com/looplj/axonhub/llm/transformer/anthropic"
 	geminitransformer "github.com/looplj/axonhub/llm/transformer/gemini"
 	"github.com/looplj/axonhub/llm/transformer/openai"
+	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 )
 
 func TestChatCompletionOrchestrator_Process_NonStreaming_PreservesGeminiGroundingAnnotations(t *testing.T) {
@@ -528,6 +529,89 @@ func TestChatCompletionOrchestrator_Process_NonStreamingRequireStreamCandidate_D
 	assert.Equal(t, true, reqBody["stream"])
 	assert.Equal(t, "gpt-4", reqBody["model"])
 	assert.NotContains(t, string(executor.lastRequest.Body), `"stream":false`)
+}
+
+// TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvivesRequestReplacement
+// covers an outbound transformer that upgrades the upstream request to streaming on its own
+// (OpenCode Zen) while a channel transform option replaced the unified request mid-chain:
+// the pipeline must still aggregate the upstream SSE stream for a non-streaming client.
+func TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvivesRequestReplacement(t *testing.T) {
+	ctx := context.Background()
+	ctx = authz.WithTestBypass(ctx)
+
+	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx = ent.NewContext(ctx, client)
+
+	project := createTestProject(t, ctx, client)
+
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpencodeZen).
+		SetName("Zen Forced Stream Channel").
+		SetBaseURL(opencodezen.DefaultBaseURL).
+		SetCredentials(objects.ChannelCredentials{}).
+		SetSupportedModels([]string{"mimo-v2.5-free"}).
+		SetDefaultTestModel("mimo-v2.5-free").
+		SetSettings(&objects.ChannelSettings{
+			TransformOptions: objects.TransformOptions{ForceArrayInstructions: true},
+		}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	streamEvents := []*httpclient.StreamEvent{
+		{
+			Data: []byte(`{"id":"chatcmpl-zen","object":"chat.completion.chunk","created":1677652288,"model":"mimo-v2.5-free","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"}}]}`),
+		},
+		{
+			Data: []byte(`{"id":"chatcmpl-zen","object":"chat.completion.chunk","created":1677652288,"model":"mimo-v2.5-free","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`),
+		},
+	}
+
+	executor := &mockExecutor{
+		// The Zen upstream only answers with SSE, so a non-streaming provider call
+		// returns the raw event stream body.
+		response: &httpclient.Response{
+			StatusCode: http.StatusOK,
+			Headers:    http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       []byte("data: {\"id\":\"chatcmpl-zen\"}\n\ndata: [DONE]\n\n"),
+		},
+		streamEvents: streamEvents,
+	}
+
+	outbound, err := opencodezen.NewOutboundTransformer(ch.BaseURL)
+	require.NoError(t, err)
+
+	bizChannel := &biz.Channel{Channel: ch, Outbound: outbound}
+	channelSelector := &staticChannelSelector{candidates: channelsToTestCandidates([]*biz.Channel{bizChannel}, "mimo-v2.5-free")}
+
+	orchestrator := newTestOrchestrator(t, channelSelector, client, executor)
+
+	httpRequest := buildTestRequest("mimo-v2.5-free", "Hello!", false)
+	ctx = contexts.WithProjectID(ctx, project.ID)
+
+	result, err := orchestrator.Process(ctx, httpRequest)
+	require.NoError(t, err)
+	require.NotNil(t, result.ChatCompletion)
+	assert.Nil(t, result.ChatCompletionStream)
+	require.NotNil(t, executor.lastRequest)
+
+	var reqBody map[string]any
+	require.NoError(t, json.Unmarshal(executor.lastRequest.Body, &reqBody))
+	assert.Equal(t, true, reqBody["stream"])
+
+	var respBody struct {
+		Object  string `json:"object"`
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	require.NoError(t, json.Unmarshal(result.ChatCompletion.Body, &respBody))
+	assert.Equal(t, "chat.completion", respBody.Object)
+	require.Len(t, respBody.Choices, 1)
+	assert.Equal(t, "Hello", respBody.Choices[0].Message.Content)
 }
 
 // TestChatCompletionOrchestrator_Process_WithModelMapping tests model mapping from API key.

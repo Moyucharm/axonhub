@@ -457,7 +457,13 @@ func (p *PersistentOutboundTransformer) TransformError(ctx context.Context, rawE
 	return p.wrapped.TransformError(ctx, rawErr)
 }
 
-func (p *PersistentOutboundTransformer) TransformRequest(ctx context.Context, llmRequest *llm.Request) (*httpclient.Request, error) {
+func (p *PersistentOutboundTransformer) TransformRequest(ctx context.Context, request *llm.Request) (*httpclient.Request, error) {
+	// The pipeline owns `request` and reads its stream mode after this call to decide
+	// whether a non-streaming client is served by auto-aggregating the upstream stream.
+	// Local replacements below must therefore never hide an upgrade made by the
+	// wrapped transformer.
+	llmRequest := request
+
 	// Candidates should already be selected by inbound transformer
 	if len(p.state.ChannelModelsCandidates) == 0 {
 		return nil, errors.New("no candidates available: candidates should be selected by inbound transformer")
@@ -523,6 +529,13 @@ func (p *PersistentOutboundTransformer) TransformRequest(ctx context.Context, ll
 	if err != nil {
 		return nil, err
 	}
+
+	// Outbound transformers may upgrade the upstream request to streaming (e.g. OpenCode
+	// Zen, whose upstream only answers with SSE). Channel transform options may have
+	// replaced the unified request with a copy above, so mirror the effective stream
+	// contract back onto the request the pipeline owns.
+	request.Stream = llmRequest.Stream
+	request.StreamOptions = llmRequest.StreamOptions
 
 	if httpRequest.APIFormat != "" {
 		outboundFormat = llm.APIFormat(httpRequest.APIFormat)
