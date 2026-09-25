@@ -139,9 +139,6 @@ export function getModelProtocolsForChannelApiFormat(
 
   const selectedModels = new Set(models);
   const untouchedProtocols = (existingProtocols ?? []).filter((protocol) => !selectedModels.has(protocol.model));
-  if (apiFormat === 'openai/chat_completions') {
-    return untouchedProtocols;
-  }
 
   return [...untouchedProtocols, ...models.map((model) => ({ model, apiFormats: [apiFormat], enabled: true }))];
 }

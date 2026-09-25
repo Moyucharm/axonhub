@@ -254,6 +254,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **请求执行详情选择与 payload 空状态**（`162af5f2`）：执行列表改用服务端 `last: 20` + `CREATED_AT ASC` 获取最新记录并保持时间正序；当前执行以全局 execution ID 而非数组下标保存，刷新时保留仍存在的选择；`totalCount` 显示真实总数并在截断时提示可见范围。`execution-display` 统一处理 payload 是否已记录与 falsy JSON 序列化，`false`、`0`、数组不再被误判为空响应（空对象继续兼容外部存储 GC 标记），请求体/请求头/响应体接入中英文空状态。对应决策记录：[请求执行详情选择与 payload 空状态](.agents/notes/implemented/bug-fix/2026-09-21-request-execution-detail.md)。
 - **上游强制流式在请求对象被替换后丢失**（`c96eed4d`）：`PersistentOutboundTransformer.TransformRequest` 在包裹 transformer 返回后把生效的 `Stream`/`StreamOptions` 镜像回 pipeline 持有的请求对象，修复 OpenCode Zen 强制上游流式（配合渠道 transform options 的副本替换）被 pipeline 判为非流式、进而把上游 SSE 当 JSON 解析的问题。对应决策记录：[上游强制流式在请求对象被替换后丢失](.agents/notes/implemented/bug-fix/2026-09-21-forced-upstream-stream-request-replacement.md)。
 - **渠道列表凭据与冷却字段**（`5a949f07`）：渠道列表基础查询补齐 `credentials` 与 `cooldownUntil`/`cooldownErrorCode`/`cooldownErrorMessage`，使列表视图的 Key Pool 状态与冷却徽标有数据。
+- **OpenCode Zen 渠道 Chat 格式选择**：创建或编辑渠道时，前端为当前支持的模型显式保存所选的 Chat、Responses 或 Messages 格式；原先选择 Chat 会清除协议设置，使 Responses/Messages 客户端按入站格式直连错误的上游端点。已有 Chat 渠道需重新保存一次以写入明确的协议设置；不按模型名称写死出站格式。
 
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 

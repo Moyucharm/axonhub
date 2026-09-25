@@ -70,17 +70,22 @@ test('persists the selected OpenCode Zen protocol for supported models', () => {
       ['gpt-5.4'],
       [{ model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true }]
     ),
-    []
+    [{ model: 'gpt-5.4', apiFormats: ['openai/chat_completions'], enabled: true }]
   );
+  assert.deepEqual(getModelProtocolsForChannelApiFormat('opencode_zen', 'openai/chat_completions', ['space-bunny-free']), [
+    { model: 'space-bunny-free', apiFormats: ['openai/chat_completions'], enabled: true },
+  ]);
 });
 
 test('restores the persisted OpenCode Zen protocol in the editor', () => {
-  assert.equal(
-    getInitialApiFormatForChannel('opencode_zen', 'openai/chat_completions', [
-      { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
-    ]),
-    'openai/responses'
-  );
+  for (const apiFormat of ['openai/chat_completions', 'openai/responses', 'anthropic/messages']) {
+    assert.equal(
+      getInitialApiFormatForChannel('opencode_zen', 'openai/chat_completions', [
+        { model: 'gpt-5.4', apiFormats: [apiFormat], enabled: true },
+      ]),
+      apiFormat
+    );
+  }
 });
 
 test('persists protocols for newly added models while preserving untouched models', () => {

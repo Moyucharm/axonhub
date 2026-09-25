@@ -257,6 +257,8 @@ https://custom-gateway.example.com/api##
 - 启用的覆盖只能引用渠道已具备的 `api_format`（默认端点或自定义端点），保存时校验；模型被移出渠道支持列表时自动清理对应覆盖。
 - 端点与协议覆盖在同一次保存中原子提交。
 
+OpenCode Zen 渠道创建/编辑页的 **API 格式** 选择会为该渠道当前支持的每个模型保存单一出站协议（Chat Completions、Responses 或 Messages），与客户端的入站协议无关；不需要逐个模型配置。此前保存为 Chat Completions 的渠道可能没有对应的协议记录，请在升级后打开渠道编辑页重新保存一次，使该选择明确生效。
+
 **示例**（GLM Coding Plan 渠道，三个端点 + 覆盖）：
 
 | endpoint | api_format | base_url |

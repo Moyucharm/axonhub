@@ -1511,7 +1511,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           effectiveExistingProtocols?.some((protocol) => protocol.apiFormats.includes('zenmux/video')) === true ||
           (isOpenCodeZenSubmit &&
             (selectedApiFormat !== initialApiFormat ||
-              (selectedApiFormat !== OPENAI_CHAT_COMPLETIONS && supportedModelsChanged)));
+              supportedModelsChanged ||
+              (selectedApiFormat === OPENAI_CHAT_COMPLETIONS &&
+                supportedModels.length > 0 &&
+                !effectiveExistingProtocols?.some((protocol) => supportedModels.includes(protocol.model)))));
         const settingsPatch: Partial<ChannelSettings> = {
           passThroughUserAgent,
           passThroughBody,

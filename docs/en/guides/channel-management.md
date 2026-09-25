@@ -257,6 +257,8 @@ Force the available outbound protocols for a single model in the **Model Protoco
 - Enabled overrides may only reference `api_format`s the channel already provides (default or custom endpoints), validated on save; overrides are cleaned up automatically when a model is removed from the channel's supported list.
 - Endpoints and protocol overrides are committed atomically in a single save.
 
+For OpenCode Zen, the channel create/edit **API format** selector saves one outbound protocol (Chat Completions, Responses, or Messages) for every model currently supported by that channel, regardless of the client's inbound protocol. Per-model setup is not required. Channels previously saved as Chat Completions may lack these protocol entries; open and save the channel once after upgrading to make that selection effective.
+
 **Example** (GLM Coding Plan channel, three endpoints + override):
 
 | endpoint | api_format | base_url |

@@ -317,6 +317,40 @@ func TestPopulateAPIFormat_AppliesModelProtocols(t *testing.T) {
 	})
 }
 
+func TestPopulateAPIFormat_OpenCodeZenChannelSelection(t *testing.T) {
+	tests := []struct {
+		name       string
+		inbound    llm.APIFormat
+		configured llm.APIFormat
+		request    string
+		actual     string
+	}{
+		{"responses client to chat channel", llm.APIFormatOpenAIResponse, llm.APIFormatOpenAIChatCompletion, "space-bunny-free", "space-bunny-free"},
+		{"messages client to chat channel", llm.APIFormatAnthropicMessage, llm.APIFormatOpenAIChatCompletion, "mimo-v2.6-flash-free", "mimo-v2.6-flash-free"},
+		{"chat client to responses channel with model mapping", llm.APIFormatOpenAIChatCompletion, llm.APIFormatOpenAIResponse, "muse-alias", "muse-spark-1.3-contributor-free"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := &biz.Channel{Channel: &ent.Channel{
+				Type: channel.TypeOpencodeZen,
+				Settings: &objects.ChannelSettings{ModelProtocols: []objects.ModelProtocol{{
+					Model: tt.actual, APIFormats: []string{tt.configured.String()},
+				}}},
+			}}
+			candidates := []*ChannelModelsCandidate{{
+				Channel: ch,
+				Models:  []biz.ChannelModelEntry{{RequestModel: tt.request, ActualModel: tt.actual}},
+			}}
+			req := &llm.Request{Model: tt.request, RequestType: llm.RequestTypeChat, APIFormat: tt.inbound}
+
+			selected := populateAPIFormat(t.Context(), candidates, req)
+			require.Len(t, selected, 1)
+			require.Equal(t, tt.configured.String(), selected[0].APIFormat)
+		})
+	}
+}
+
 func TestPopulateAPIFormat_SelectsProtocolPerRetryModel(t *testing.T) {
 	ch := &biz.Channel{Channel: &ent.Channel{
 		ID:   1,
