@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,8 @@ import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
+
+const MotionExpandedRow = motion.create(TableRow);
 
 interface CPACredentialTableProps {
   credentials: CPACredential[];
@@ -224,21 +227,40 @@ export function CPACredentialTable({
                         </div>
                       </TableCell>
                     </TableRow>
-                    {expanded.has(credential.id) && (
-                      <TableRow className='border-0'>
-                        <TableCell colSpan={7} className='bg-muted/30 border-0 p-4'>
-                          <div className='grid gap-3'>
-                            {credential.quotaData.items.length > 0 ? (
-                              <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)} />
-                            ) : (
-                              <p className='text-muted-foreground text-sm'>
-                                {quotaStateText(credential, t) ?? (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {expanded.has(credential.id) && (
+                        <MotionExpandedRow
+                          key={`${credential.id}-expanded`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className='border-0'
+                        >
+                          <TableCell colSpan={7} className='border-0 p-0'>
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2, ease: 'easeInOut' }}
+                              className='overflow-hidden'
+                            >
+                              {/* Band and padding live on an inner element: the animated
+                                  wrapper must stay padding-free or the collapsed row keeps
+                                  the padding as an empty strip. */}
+                              <div className='bg-muted/30 hover:bg-muted/50 p-6'>
+                                {credential.quotaData.items.length > 0 ? (
+                                  <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)} />
+                                ) : (
+                                  <p className='text-muted-foreground text-sm'>
+                                    {quotaStateText(credential, t) ?? (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
+                                  </p>
+                                )}
+                              </div>
+                            </motion.div>
+                          </TableCell>
+                        </MotionExpandedRow>
+                      )}
+                    </AnimatePresence>
                   </Fragment>
                 ))
               )}

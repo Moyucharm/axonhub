@@ -266,28 +266,61 @@ test('estimate capsule sits beside the quota bar without shrinking it', () => {
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
 
   // The estimate is a sibling after the bordered quota bar, not another item
-  // inside the bar's flex row where it would consume the track width.
+  // inside the bar's flex row where it would consume the track width. The md
+  // bar takes the width left beside the badge, so bar + badge never overflow.
   assert.match(capsule, /<div className=\{cn\('flex w-max min-w-full/);
-  assert.match(capsule, /size === 'sm' \? 'h-7 w-52' : 'h-8 w-full'/);
+  assert.match(capsule, /size === 'sm' \? 'h-7 w-52' : 'h-8 flex-1'/);
   assert.match(capsule, /<CapsuleBar window=\{window\} size=\{size\} \/>\s*<\/div>\s*<EstimateBadge window=\{window\} size=\{size\} \/>/);
-
-  // The +N trigger follows the same external-estimate layout.
-  assert.match(capsule, /group flex w-max min-w-full/);
-  assert.match(capsule, /<EstimateBadge window=\{primary\} \/>/);
   assert.match(summary, /w-max min-w-52/);
 });
 
-test('quota capsule renders remaining semantics with gradient and chip tones', () => {
+test('expanded quota block lists every window as a width-capped detail block', () => {
+  const capsule = read('components/quota-capsule.tsx');
+  // Auto-filled columns capped at 20rem: a colSpan table row lays blocks side
+  // by side instead of stretching one bar across the whole row, on the same
+  // 24px gutter the other expanded rows use.
+  assert.match(capsule, /grid-cols-\[repeat\(auto-fill,minmax\(16rem,20rem\)\)\] gap-6/);
+  assert.match(capsule, /windows\.map\(\(window\) => \(\s*<QuotaWindowCard key=\{window\.id\} window=\{window\} \/>/);
+  // Every window gets its own block with inline details and the estimate badge,
+  // instead of one primary bar plus a +N popover.
+  assert.match(capsule, /data-testid='quota-window-card'/);
+  // Table cells force whitespace-nowrap; blocks must re-enable wrapping so long
+  // detail lines stay inside their block. Blocks stay flat — no surface, border
+  // or radius — like the channel/model expanded rows on the same band.
+  assert.match(capsule, /data-testid='quota-window-card' className='space-y-2 whitespace-normal'/);
+  assert.doesNotMatch(capsule, /data-testid='quota-window-card' className='[^']*(rounded|border|bg-)/);
+  assert.match(capsule, /window\.tooltipExtras\.map/);
+  assert.match(capsule, /<EstimateBadge window=\{window\} \/>/);
+  assert.doesNotMatch(capsule, /quota-capsule-more/);
+});
+
+test('expanded quota row animates like the channel expanded row', () => {
+  const table = read('features/cpa/components/credential-table.tsx');
+  assert.match(table, /<AnimatePresence initial=\{false\}>/);
+  assert.match(table, /initial=\{\{ height: 0, opacity: 0 \}\}/);
+  assert.match(table, /animate=\{\{ height: 'auto', opacity: 1 \}\}/);
+  assert.match(table, /exit=\{\{ height: 0, opacity: 0 \}\}/);
+  assert.match(table, /duration: 0\.2, ease: 'easeInOut'/);
+  // Band and padding sit on an inner element: the animated wrapper must stay
+  // padding-free or a collapsed row keeps the padding as an empty gray strip.
+  assert.match(table, /overflow-hidden'\s*>\s*\{\/\*\s*Band and padding/);
+  assert.match(table, /<div className='bg-muted\/30 hover:bg-muted\/50 p-6'>/);
+});
+
+test('quota capsule renders remaining semantics with stepped severity tones', () => {
   const capsule = read('components/quota-capsule.tsx');
   // Remaining bar: track width comes from 100 - used, tooltip shows both.
   assert.match(capsule, /const remaining = 100 - clampedUsed/);
   assert.match(capsule, /quota\.capsule\.remaining/);
   assert.match(capsule, /quota\.label\.percent_used/);
-  // Polished styling: gradient fill, per-kind chip tones, severity-tinted %.
-  assert.match(capsule, /function severityGradient/);
-  assert.match(capsule, /linear-gradient\(180deg/);
+  // Stepped green/amber/red tones instead of an interpolated hue ramp: the fill
+  // and the percentage share one accent, so no window renders chartreuse.
+  assert.match(capsule, /function remainingTone/);
+  assert.match(capsule, /remaining >= 50/);
+  assert.match(capsule, /remaining >= 20/);
+  assert.match(capsule, /TONE_CLASSES\[remainingTone\(used\)\]/);
   assert.match(capsule, /CHIP_TONES/);
-  assert.match(capsule, /severityColor\(used\)/);
+  assert.doesNotMatch(capsule, /severityGradient|severityColor\(/);
   // Data layer keeps used-percent semantics for primary-window picking.
   const cpaWindows = read('features/cpa/quota-windows.ts');
   assert.match(cpaWindows, /const percent = Math\.max\(0, Math\.min\(100, usedPct\)\)/);

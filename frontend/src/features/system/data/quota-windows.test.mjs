@@ -83,7 +83,7 @@ test('quota capsule renders with testids and keeps header percentage semantics',
   const badges = read('components/quota-badges.tsx');
   const capsule = read('components/quota-capsule.tsx');
   assert.match(capsule, /data-testid=['"]quota-capsule['"]/);
-  assert.match(capsule, /data-testid=['"]quota-capsule-more['"]/);
+  assert.match(capsule, /data-testid=['"]quota-window-card['"]/);
   // The header battery still uses the tightest-window percentage.
   assert.match(badges, /function getChannelPercentage/);
 });

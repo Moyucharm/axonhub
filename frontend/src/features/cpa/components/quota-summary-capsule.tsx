@@ -74,7 +74,7 @@ export function QuotaSummaryCapsule({
               <button
                 type='button'
                 aria-label={t('quota.capsule.more')}
-                className='text-muted-foreground hover:bg-muted/60 hover:text-foreground bg-muted/40 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors'
+                className='bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-colors'
               >
                 +{hidden.length}
               </button>
