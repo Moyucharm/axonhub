@@ -628,6 +628,12 @@ export function useRequestsColumns(options?: UseRequestsColumnsOptions): ColumnD
           <TooltipContent>{t('requests.actions.viewDetails')}</TooltipContent>
         </Tooltip>
       ),
+      // Frozen to the right edge like the channel/CPA action columns. The row
+      // itself is transparent here, so the surface and z-index come from the
+      // table (see requests-table.tsx); only the pinning lives on the column.
+      meta: {
+        className: 'sticky right-0 z-10 shadow-[-1px_0_0_0_var(--border)]',
+      },
       enableHiding: false,
     },
   ];

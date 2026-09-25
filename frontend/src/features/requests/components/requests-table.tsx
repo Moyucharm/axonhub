@@ -347,7 +347,7 @@ export function RequestsTable({
                       <TableHead
                         key={header.id}
                         colSpan={header.colSpan}
-                        className={`${header.column.columnDef.meta?.className ?? ''} text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase`}
+                        className={`${header.column.columnDef.meta?.className ?? ''} ${header.column.id === 'details' ? 'z-30 bg-[var(--table-header)]' : ''} text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase`}
                       >
                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                       </TableHead>
@@ -381,7 +381,7 @@ export function RequestsTable({
                       {row.getVisibleCells().map((cell) => (
                         <TableCell
                           key={cell.id}
-                          className={`${cell.column.columnDef.meta?.className ?? ''} border-b border-[var(--table-border)] py-3 group-last/row:border-0`}
+                          className={`${cell.column.columnDef.meta?.className ?? ''} ${cell.column.id === 'details' ? 'bg-[var(--table-background)] hover:bg-[color-mix(in_srgb,var(--muted)_50%,var(--table-background))]' : ''} border-b border-[var(--table-border)] py-3 group-last/row:border-0`}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
