@@ -82,25 +82,29 @@ export function CPACredentialTable({
       >
         <div className='min-w-max'>
           <Table className='border-separate border-spacing-0 rounded-2xl bg-[var(--table-background)]'>
+            {/* Column widths: the fixed-content columns are pinned to what their
+                content needs, so the leftover width lands in the quota column
+                and is absorbed by its bars instead of showing up as dead space
+                after the email and next to the refreshed-at column. */}
             <TableHeader className='sticky top-0 z-20 bg-[var(--table-header)] shadow-sm'>
               <TableRow className='group/row border-0'>
                 <TableHead className='text-muted-foreground w-10 border-0 text-xs font-semibold tracking-wider uppercase' />
-                <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[240px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.credential')}
                 </TableHead>
-                <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[150px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.provider')}
                 </TableHead>
-                <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[120px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.status')}
                 </TableHead>
                 <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.quota')}
                 </TableHead>
-                <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[170px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.refreshedAt')}
                 </TableHead>
-                <TableHead className='text-muted-foreground w-24 border-0 text-xs font-semibold tracking-wider uppercase' />
+                <TableHead className='text-muted-foreground sticky right-0 z-30 w-24 border-0 bg-[var(--table-header)] text-xs font-semibold tracking-wider uppercase shadow-[-1px_0_0_0_var(--border)]' />
               </TableRow>
             </TableHeader>
             <TableBody className='!bg-[var(--table-background)]'>
@@ -117,7 +121,7 @@ export function CPACredentialTable({
                   <Fragment key={credential.id}>
                     <TableRow
                       data-testid={`cpa-credential-row-${credential.id}`}
-                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'
+                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)] hover:!transform-none'
                     >
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <Button variant='ghost' size='icon' onClick={() => onToggleExpanded(credential.id)}>
@@ -195,12 +199,13 @@ export function CPACredentialTable({
                       <TableCell className='text-muted-foreground border-0 bg-inherit px-4 py-3 text-sm'>
                         {formatTime(credential.quotaLastSuccessAt ?? credential.quotaLastAttemptAt)}
                       </TableCell>
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <div className='flex items-center gap-1'>
+                      <TableCell className='sticky right-0 z-10 border-0 bg-inherit px-4 py-3 shadow-[-1px_0_0_0_var(--border)]'>
+                        <div className='flex items-center justify-center gap-1'>
                           <Button
                             data-testid={`cpa-refresh-credential-${credential.id}`}
-                            variant='ghost'
-                            size='icon'
+                            variant='outline'
+                            size='sm'
+                            className='h-8 w-8 p-0'
                             title={t('common.refresh')}
                             disabled={
                               !canWrite ||
@@ -215,8 +220,9 @@ export function CPACredentialTable({
                           {canWrite && (
                             <Button
                               data-testid={`cpa-toggle-credential-${credential.id}`}
-                              variant='ghost'
-                              size='icon'
+                              variant='outline'
+                              size='sm'
+                              className='h-8 w-8 p-0'
                               title={credential.disabled ? t('cpa.credential.enable') : t('cpa.credential.disable')}
                               disabled={togglePending}
                               onClick={() => onRequestToggle(credential)}
@@ -236,7 +242,7 @@ export function CPACredentialTable({
                           exit={{ opacity: 0 }}
                           className='border-0'
                         >
-                          <TableCell colSpan={7} className='border-0 p-0'>
+                          <TableCell colSpan={6} className='border-0 p-0'>
                             <motion.div
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: 'auto', opacity: 1 }}
@@ -245,7 +251,7 @@ export function CPACredentialTable({
                               className='overflow-hidden'
                             >
                               {/* Band and padding live on an inner element: the animated
-                                  wrapper must stay padding-free or the collapsed row keeps
+                                  wrapper must stay padding-free or a collapsed row keeps
                                   the padding as an empty strip. */}
                               <div className='bg-muted/30 hover:bg-muted/50 p-6'>
                                 {credential.quotaData.items.length > 0 ? (
@@ -258,6 +264,11 @@ export function CPACredentialTable({
                               </div>
                             </motion.div>
                           </TableCell>
+                          {/* Frozen strip for the expanded row: without it the actions
+                              column stops at the panel and its divider breaks. Opaque
+                              band tone (mixed, not translucent) so scrolling content
+                              stays hidden behind it. */}
+                          <TableCell className='sticky right-0 z-10 border-0 bg-[color-mix(in_srgb,var(--muted)_30%,var(--card))] p-0 shadow-[-1px_0_0_0_var(--border)] hover:bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]' />
                         </MotionExpandedRow>
                       )}
                     </AnimatePresence>

@@ -237,13 +237,14 @@ test('CPA page renders quota capsules via QuotaWindowsBlock and QuotaSummaryCaps
   assert.match(capsule, /type CapsuleSize = 'md' \| 'sm'/);
 });
 
-test('quota summary keeps the bar width beside the inline +N overflow button', () => {
+test('quota summary fills the cell and keeps +N beside the bars', () => {
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
-  // Label column shrinks to the widest group name of the cell (no dead space
-  // for short names); the quota column keeps its full width and +N sits after
-  // the last bar instead of its own row.
-  assert.match(summary, /grid-cols-\[auto_max-content_auto\]/);
-  assert.match(summary, /w-max min-w-60/);
+  // Fixed 4rem label column + a 1fr capsule column that takes the cell's
+  // leftover width: every bar in the column shares one left edge, and the
+  // leftover width is absorbed by the bars instead of leaving dead space next
+  // to the refreshed-at column. +N sits after the last bar, not on its own row.
+  assert.match(summary, /grid w-full grid-cols-\[4rem_minmax\(0,1fr\)_auto\]/);
+  assert.doesNotMatch(summary, /w-max min-w-(52|60)/);
   assert.match(summary, /isLast && hidden\.length > 0/);
   // Placeholder spans keep grid auto-placement aligned when cells are empty.
   assert.match(summary, /<span key=\{`more-\$\{rep\.id\}`} \/>/);
@@ -254,7 +255,8 @@ test('overflow popover reuses the external capsule and wraps full window names',
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
   assert.match(capsule, /w-\[min\(28rem,calc\(100vw-2rem\)\)\]/);
   assert.match(capsule, /grid-cols-\[minmax\(0,1fr\)_max-content\]/);
-  assert.match(capsule, /w-max min-w-52/);
+  // The popover hands the capsule a fixed 13rem rail to fill.
+  assert.match(capsule, /<span className='w-52'>/);
   assert.match(capsule, /min-w-0 .*break-words/);
   assert.match(capsule, /<QuotaCapsule window=\{window\} size=\{size\} \/>/);
   assert.doesNotMatch(capsule, /w-36 shrink-0 truncate text-right/);
@@ -266,12 +268,14 @@ test('estimate capsule sits beside the quota bar without shrinking it', () => {
   const summary = read('features/cpa/components/quota-summary-capsule.tsx');
 
   // The estimate is a sibling after the bordered quota bar, not another item
-  // inside the bar's flex row where it would consume the track width. The md
-  // bar takes the width left beside the badge, so bar + badge never overflow.
-  assert.match(capsule, /<div className=\{cn\('flex w-max min-w-full/);
-  assert.match(capsule, /size === 'sm' \? 'h-7 w-52' : 'h-8 flex-1'/);
+  // inside the bar's flex row where it would consume the track width. The sm
+  // bar fills its host (the quota cell's 1fr column, or the popover's 13rem
+  // rail) and the md bar takes the width left beside the badge, so bar + badge
+  // never overflow.
+  assert.match(capsule, /size === 'sm' \? 'w-full' : 'w-max min-w-full'/);
+  assert.match(capsule, /size === 'sm' \? 'h-7 min-w-0 flex-1' : 'h-8 flex-1'/);
   assert.match(capsule, /<CapsuleBar window=\{window\} size=\{size\} \/>\s*<\/div>\s*<EstimateBadge window=\{window\} size=\{size\} \/>/);
-  assert.match(summary, /w-max min-w-52/);
+  assert.match(summary, /grid w-full grid-cols-\[4rem_minmax\(0,1fr\)_auto\]/);
 });
 
 test('expanded quota block lists every window as a width-capped detail block', () => {

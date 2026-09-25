@@ -142,16 +142,18 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
 }
 
 // Standalone capsule (with hover tooltip). The CPA table uses the compact 'sm'
-// variant. The 'md' bar fills whatever width is left beside the estimate badge
-// (a full-width bar plus the badge would overflow its container).
+// variant, which fills whatever width its host gives it (the quota cell hands
+// it the leftover cell width, the popover rows hand it a fixed 13rem); the 'md'
+// bar fills the width left beside the estimate badge (a full-width bar plus the
+// badge would overflow its container).
 export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
   return (
     <CapsuleTooltip window={window}>
-      <div className={cn('flex w-max min-w-full items-center gap-1.5', size === 'sm' ? 'min-w-52' : undefined)}>
+      <div className={cn('flex min-w-0 items-center gap-1.5', size === 'sm' ? 'w-full' : 'w-max min-w-full')}>
         <div
           className={cn(
-            'bg-muted/50 hover:bg-muted/70 flex shrink-0 items-center gap-1.5 rounded-full px-2 transition-colors',
-            size === 'sm' ? 'h-7 w-52' : 'h-8 flex-1'
+            'bg-muted/50 hover:bg-muted/70 flex items-center gap-1.5 overflow-hidden rounded-full px-2 transition-colors',
+            size === 'sm' ? 'h-7 min-w-0 flex-1' : 'h-8 flex-1'
           )}
         >
           <CapsuleBar window={window} size={size} />
@@ -199,7 +201,7 @@ function QuotaCapsuleRow({ window, size }: { window: QuotaWindowItem; size: Caps
   return (
     <div className='grid grid-cols-[minmax(0,1fr)_max-content] items-center gap-2'>
       <span className='min-w-0 text-left text-xs font-medium break-words'>{windowFullName(window, t)}</span>
-      <span className='w-max min-w-52'>
+      <span className='w-52'>
         <QuotaCapsule window={window} size={size} />
       </span>
     </div>

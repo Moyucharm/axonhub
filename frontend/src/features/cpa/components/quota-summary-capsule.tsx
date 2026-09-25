@@ -11,10 +11,12 @@ import type { CPAQuotaItem } from '../types';
 //   - <=2 pools      -> one bar per pool, all visible
 //   - >2 pools       -> first two bars inline, everything else behind a +N
 //                       overflow button placed after the last bar.
-// Grid columns [auto_max-content_auto]: the label column shrinks to the widest
-// actual group name of THIS cell (no reserved dead space for short names like
-// "Code"), the quota capsule keeps its full width, and the trailing auto column
-// hosts the inline +N overflow button.
+// Grid columns [4rem_minmax(0,1fr)_auto]: the label column is a fixed 4rem so
+// every capsule plate in the column shares one left edge (and the single
+// ungrouped case reserves the same slot), the middle column takes whatever
+// width the cell has left so the bars absorb it instead of leaving a gap next
+// to the refreshed-at column, and the trailing auto column hosts the inline +N
+// overflow button at the cell's right edge.
 const MAX_INLINE_GROUPS = 2;
 
 export function QuotaSummaryCapsule({
@@ -37,17 +39,20 @@ export function QuotaSummaryCapsule({
   // shown pools plus all windows of truncated pools.
   const hidden = [...inline.flatMap(({ rest }) => rest), ...groups.slice(MAX_INLINE_GROUPS).flatMap(({ rep, rest }) => [rep, ...rest])];
 
-  // Single ungrouped window keeps the bare capsule, matching the old layout.
+  // Single ungrouped window: same grid with an empty label slot, so its bar
+  // lines up with the labelled rows above and below.
   if (inline.length === 1 && !inline[0].group && hidden.length === 0) {
     return (
-      <span className='flex w-max min-w-52'>
+      <div className='grid w-full grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-1.5'>
+        <span />
         <QuotaCapsule window={inline[0].rep} size='sm' />
-      </span>
+        <span />
+      </div>
     );
   }
 
   return (
-    <div className='grid w-max min-w-60 grid-cols-[auto_max-content_auto] items-center gap-x-1.5 gap-y-1'>
+    <div className='grid w-full grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1'>
       {inline.map(({ group, rep }, index) => {
         const label = shortGroupLabel(group, t);
         const isLast = index === inline.length - 1;
@@ -56,17 +61,13 @@ export function QuotaSummaryCapsule({
           // row = [group label][capsule][+N on the last row only]. A null
           // child would NOT occupy a grid cell and would shift later items.
           label ? (
-            <span
-              key={`${rep.id}-label`}
-              className='text-muted-foreground max-w-20 truncate text-center text-[10px] font-semibold'
-              title={group}
-            >
+            <span key={`${rep.id}-label`} className='text-muted-foreground truncate text-[10px] font-semibold' title={group}>
               {label}
             </span>
           ) : (
             <span key={`${rep.id}-label`} />
           ),
-          <span key={`${rep.id}-capsule`} className='w-max min-w-52'>
+          <span key={`${rep.id}-capsule`}>
             <QuotaCapsule window={rep} size='sm' />
           </span>,
           isLast && hidden.length > 0 ? (
