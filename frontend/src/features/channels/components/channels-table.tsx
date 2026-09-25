@@ -304,7 +304,7 @@ export function ChannelsTable({
                       <MotionTableRow
                         key={row.id}
                         data-state={row.getIsSelected() && 'selected'}
-                        className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)] hover:!transform-none'
+                        className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'
                       >
                         {row.getVisibleCells().map((cell) => (
                           <TableCell

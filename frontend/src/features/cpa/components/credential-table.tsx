@@ -121,7 +121,7 @@ export function CPACredentialTable({
                   <Fragment key={credential.id}>
                     <TableRow
                       data-testid={`cpa-credential-row-${credential.id}`}
-                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)] hover:!transform-none'
+                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'
                     >
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <Button variant='ghost' size='icon' onClick={() => onToggleExpanded(credential.id)}>

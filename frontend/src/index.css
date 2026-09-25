@@ -539,7 +539,9 @@
 }
 .table-row-hover:hover {
   background-color: var(--accent) !important;
-  transform: scale(1.005);
+  /* 这里不放 transform: scale()：被变换的行会撑大滚动容器的可滚动溢出区，
+     于是悬停最后一行时容器底部会冒出一条滚动条压住光标位置，:hover 掉线、
+     缩放撤销、滚动条消失，形成背景闪烁循环。抬升感由下面的阴影承担。 */
   box-shadow: var(--shadow-sm);
   border-color: var(--primary);
   z-index: 10;
