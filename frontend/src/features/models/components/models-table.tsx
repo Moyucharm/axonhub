@@ -327,9 +327,12 @@ export function ModelsTable({
                                       animate={{ height: 'auto', opacity: 1 }}
                                       exit={{ height: 0, opacity: 0 }}
                                       transition={{ duration: 0.2, ease: 'easeInOut' }}
-                                      className='bg-muted/30 p-6 hover:bg-muted/50'
+                                      className='overflow-hidden'
                                     >
-                                      <div className='space-y-6'>
+                                      {/* Band and padding live on an inner element: the
+                                          animated wrapper must stay padding-free or a
+                                          collapsed row keeps the padding as a strip. */}
+                                      <div className='bg-muted/30 p-6 hover:bg-muted/50 space-y-6'>
                                     {/* Top Section: Basic Info (left) + Capabilities (right) */}
                                     <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
                                       {/* Basic Info */}
