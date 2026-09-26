@@ -37,7 +37,7 @@ import { CommandCodeIcon } from '../components/commandcode-icon';
 import { EvolinkIcon } from '../components/evolink-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
 import { BURNCLOUD_DEFAULT_MODELS } from './burncloud-models';
-import { getInitialApiFormatForChannel } from './protocol-options';
+import { getEffectiveApiFormatForChannel } from './protocol-options';
 import { ApiFormat, ChannelType, ModelProtocol } from './schema';
 
 export const OPENAI_CHAT_COMPLETIONS: ApiFormat = 'openai/chat_completions';
@@ -964,15 +964,8 @@ export function getChannelColor(channel: {
   endpoints?: readonly { apiFormat?: string | null }[] | null;
 }): string {
   if (channel.type === 'opencode_zen') {
-    const defaultApiFormat = CHANNEL_CONFIGS.opencode_zen?.apiFormat || OPENAI_CHAT_COMPLETIONS;
-    let apiFormat = getInitialApiFormatForChannel(channel.type, defaultApiFormat, channel.settings?.modelProtocols);
-    if (apiFormat === defaultApiFormat && channel.endpoints?.length) {
-      const endpointFormat = channel.endpoints.find((ep) => ep.apiFormat && ep.apiFormat in OPEN_CODE_ZEN_ENDPOINT_COLORS)?.apiFormat;
-      if (endpointFormat) {
-        apiFormat = endpointFormat as ApiFormat;
-      }
-    }
-    return OPEN_CODE_ZEN_ENDPOINT_COLORS[apiFormat] || CHANNEL_CONFIGS.opencode_zen?.color || '';
+    const apiFormat = getChannelEffectiveApiFormat(channel);
+    return (apiFormat && OPEN_CODE_ZEN_ENDPOINT_COLORS[apiFormat]) || CHANNEL_CONFIGS.opencode_zen?.color || '';
   }
 
   return CHANNEL_CONFIGS[channel.type]?.color || '';
@@ -985,15 +978,5 @@ export function getChannelEffectiveApiFormat(channel: {
 }): ApiFormat | undefined {
   const defaultApiFormat = CHANNEL_CONFIGS[channel.type]?.apiFormat;
   if (!defaultApiFormat) return undefined;
-  if (channel.type === 'opencode_zen') {
-    let apiFormat = getInitialApiFormatForChannel(channel.type, defaultApiFormat, channel.settings?.modelProtocols);
-    if (apiFormat === defaultApiFormat && channel.endpoints?.length) {
-      const endpointFormat = channel.endpoints.find((ep) => ep.apiFormat && ep.apiFormat in OPEN_CODE_ZEN_ENDPOINT_COLORS)?.apiFormat;
-      if (endpointFormat) {
-        apiFormat = endpointFormat as ApiFormat;
-      }
-    }
-    return apiFormat;
-  }
-  return defaultApiFormat;
+  return getEffectiveApiFormatForChannel(channel.type, defaultApiFormat, channel.settings?.modelProtocols, channel.endpoints);
 }

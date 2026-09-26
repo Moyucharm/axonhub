@@ -76,7 +76,8 @@ import {
   getApiFormatsForProvider,
   getChannelTypeForApiFormat,
 } from '../data/config_providers';
-import { getInitialApiFormatForChannel, getModelProtocolsForChannelApiFormat } from '../data/protocol-options';
+import { getChannelEffectiveApiFormat } from '../data/config_channels';
+import { getModelProtocolsForChannelApiFormat } from '../data/protocol-options';
 import {
   Channel,
   ChannelType,
@@ -603,11 +604,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   });
   const [selectedApiFormat, setSelectedApiFormat] = useState<ApiFormat>(() => {
     if (initialRow) {
-      return getInitialApiFormatForChannel(
-        initialRow.type,
-        CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
-        initialRow.settings?.modelProtocols
-      );
+      return getChannelEffectiveApiFormat(initialRow) ?? OPENAI_CHAT_COMPLETIONS;
     }
     return OPENAI_CHAT_COMPLETIONS;
   });
@@ -636,12 +633,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
     const provider = getProviderFromChannelType(initialRow.type) || 'openai';
     setSelectedProvider(provider);
-    const apiFormat = getInitialApiFormatForChannel(
-      initialRow.type,
-      CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
-      initialRow.settings?.modelProtocols
-    );
-    setSelectedApiFormat(apiFormat);
+    setSelectedApiFormat(getChannelEffectiveApiFormat(initialRow) ?? OPENAI_CHAT_COMPLETIONS);
     setResponsesTransport(getResponsesTransportFromChannel(initialRow));
     setUseGeminiVertex(initialRow.type === 'gemini_vertex');
     setUseAnthropicAws(initialRow.type === 'anthropic_aws');
@@ -1498,11 +1490,12 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       if (isEdit && currentRow) {
         const existingModelProtocols = currentRow.settings?.modelProtocols;
         const effectiveExistingProtocols = settingsForSubmit?.modelProtocols ?? existingModelProtocols;
-        const initialApiFormat = getInitialApiFormatForChannel(
-          currentRow.type,
-          CHANNEL_CONFIGS[currentRow.type]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
-          effectiveExistingProtocols
-        );
+        const initialApiFormat =
+          getChannelEffectiveApiFormat({
+            type: currentRow.type,
+            settings: { modelProtocols: effectiveExistingProtocols },
+            endpoints: currentRow.endpoints,
+          }) ?? OPENAI_CHAT_COMPLETIONS;
         const supportedModelsChanged =
           currentRow.supportedModels?.length !== supportedModels.length ||
           currentRow.supportedModels?.some((m, idx) => m !== supportedModels[idx]);
@@ -2048,13 +2041,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             // Reset provider and API format state
             if (initialRow) {
               setSelectedProvider(getProviderFromChannelType(initialRow.type) || 'openai');
-              setSelectedApiFormat(
-                getInitialApiFormatForChannel(
-                  initialRow.type,
-                  CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS,
-                  initialRow.settings?.modelProtocols
-                )
-              );
+              setSelectedApiFormat(getChannelEffectiveApiFormat(initialRow) ?? OPENAI_CHAT_COMPLETIONS);
               setResponsesTransport(getResponsesTransportFromChannel(initialRow));
               setUseGeminiVertex(initialRow.type === 'gemini_vertex');
               setUseAnthropicAws(initialRow.type === 'anthropic_aws');

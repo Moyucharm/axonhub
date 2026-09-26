@@ -86,6 +86,7 @@ func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) [
 			RemainingPercent: remaining,
 			ResetAt:          parseTimeValue(firstValue(period, "end"), time.Now().UTC()),
 			PeriodSeconds:    &periodSeconds,
+			EstimateEligible: true,
 		})
 	}
 	for index, productRaw := range asSlice(firstValue(config, "productUsage", "product_usage")) {

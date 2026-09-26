@@ -118,18 +118,34 @@ func (svc *CPAService) filterClaimedResetCredits(ctx context.Context, views ...*
 			continue
 		}
 		accountID := view.credential.QuotaContext.CodexAccountID
-		visible := view.QuotaData.ResetCredits[:0]
-		for _, credit := range view.QuotaData.ResetCredits {
+		credits := view.QuotaData.ResetCredits
+		for i, credit := range credits {
 			if !claimed[codexCreditKey(accountID, credit.ID)] {
-				visible = append(visible, credit)
+				continue
 			}
+			visible := make([]objects.CPAQuotaResetCredit, 0, len(credits)-1)
+			visible = append(visible, credits[:i]...)
+			for _, remaining := range credits[i+1:] {
+				if !claimed[codexCreditKey(accountID, remaining.ID)] {
+					visible = append(visible, remaining)
+				}
+			}
+			view.QuotaData.ResetCredits = visible
+			break
 		}
-		view.QuotaData.ResetCredits = visible
 	}
 	return nil
 }
 
 func (svc *CPAService) consumeCodexResetCredit(ctx context.Context, client cpaclient.ManagementClient, credential *ent.CPACredential, creditID string) error {
+	release, err := svc.quotaExecutor.acquireProviderCall(ctx, credential.CpaInstanceID)
+	if err != nil {
+		return fmt.Errorf("Codex reset provider call unavailable: %w", err)
+	}
+	defer release()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	key := codexCreditKey(credential.QuotaContext.CodexAccountID, creditID)
 	attempt, err := svc.entFromContext(ctx).CPACodexResetAttempt.Create().
 		SetCreditKey(key).SetCredentialID(credential.ID).Save(ctx)
@@ -139,11 +155,6 @@ func (svc *CPAService) consumeCodexResetCredit(ctx context.Context, client cpacl
 	if err != nil {
 		return fmt.Errorf("claim Codex reset credit: %w", err)
 	}
-	release, err := svc.quotaExecutor.acquireProviderCall(ctx, credential.CpaInstanceID)
-	if err != nil {
-		return fmt.Errorf("Codex reset claim retained; provider call unavailable: %w", err)
-	}
-	defer release()
 	consumeErr := cpaclient.ConsumeCodexResetCredit(ctx, client, credential.AuthIndex, credential.QuotaContext.CodexAccountID, creditID, uuid.NewString())
 	state := cpacodexresetattempt.StateRedeemed
 	if consumeErr != nil {

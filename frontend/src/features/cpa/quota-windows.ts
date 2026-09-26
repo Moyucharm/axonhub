@@ -1,7 +1,7 @@
 // CPA quota window adapter: maps backend-normalized CPA quota items onto the
 // shared capsule window model (lib/quota-types.ts) so the CPA page can reuse
-// QuotaCapsule / QuotaWindowsBlock verbatim, plus pool grouping helpers for
-// the summary cell (summarizeQuotaGroups / shortGroupLabel).
+// QuotaCapsule / QuotaWindowsBlock verbatim, ordered shortest period first for
+// the summary cell (shortGroupLabel supplies its pool chips).
 //
 // This module must stay loadable under bare `node --test`, so it imports from
 // ./data only via `import type` (stripped by Node's type stripping) and uses a
@@ -10,7 +10,7 @@
 import type { TFunction } from 'i18next';
 import type { CPAQuotaItem } from './types';
 import type { QuotaWindowItem, QuotaWindowKind } from '../../lib/quota-types.ts';
-import { QUOTA_PERIOD_SHORT_LABELS, QUOTA_KIND_PRIORITY, formatQuotaUSD } from '../../lib/quota-types.ts';
+import { QUOTA_PERIOD_SHORT_LABELS, formatQuotaUSD } from '../../lib/quota-types.ts';
 
 export { formatQuotaUSD };
 
@@ -42,8 +42,9 @@ export function cpaWindowKind(item: CpaWindowLike): QuotaWindowKind {
   return 'other';
 }
 
-// Projects CPA quota items onto the shared capsule window model. Summary-cell
-// primary selection is handled by summarizeQuotaGroups below.
+// Projects CPA quota items onto the shared capsule window model, sorted
+// shortest period first (ties broken alphabetically) so the summary cell's
+// inline budget always holds the shortest windows.
 //
 // Items without any computable percentage (both usedPercent and
 // remainingPercent are null — e.g. a "Monthly balance" of 0/0 cents) carry no
@@ -89,15 +90,6 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
   return windows.sort(compareQuotaWindows);
 }
 
-// One summarized resource pool: the representative (tightest) window plus the
-// remaining windows of the same group in original order.
-export interface QuotaGroupSummary {
-  /** Raw backend group name; undefined for ungrouped singleton windows. */
-  group?: string;
-  rep: QuotaWindowItem;
-  rest: QuotaWindowItem[];
-}
-
 export function getQuotaWindowDuration(window: QuotaWindowItem): number {
   if (typeof window.periodSeconds === 'number' && Number.isFinite(window.periodSeconds) && window.periodSeconds > 0) {
     return window.periodSeconds;
@@ -131,46 +123,6 @@ export function compareQuotaWindows(a: QuotaWindowItem, b: QuotaWindowItem): num
   if (comp !== 0) return comp;
 
   return a.id.localeCompare(b.id);
-}
-
-function summarizeQuotaBuckets(
-  windows: QuotaWindowItem[],
-  bucketKey: (window: QuotaWindowItem) => string
-): QuotaGroupSummary[] {
-  const buckets = new Map<string, { group?: string; members: QuotaWindowItem[] }>();
-  for (const window of windows) {
-    const key = bucketKey(window);
-    const bucket = buckets.get(key);
-    if (bucket) bucket.members.push(window);
-    else buckets.set(key, { group: window.group, members: [window] });
-  }
-  return Array.from(buckets.values(), ({ group, members }) => {
-    const sorted = [...members].sort(compareQuotaWindows);
-    const rep = sorted[0];
-    const rest = sorted.slice(1);
-    return { group, rep, rest };
-  });
-}
-
-// Groups projected windows by their backend pool name and picks each pool's
-// representative (shortest duration) window.
-export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSummary[] {
-  return summarizeQuotaBuckets(windows, (window) => window.group ?? `\u0000${window.id}`);
-}
-
-// All quota windows ordered by duration (shortest first) and alphabet.
-// Each window surfaces as an inline slot (up to 2), with any surplus windows
-// routed into the +x overflow popover.
-export function summarizeCredentialQuotaGroups(
-  windows: QuotaWindowItem[],
-  _provider?: string
-): QuotaGroupSummary[] {
-  const sorted = [...windows].sort(compareQuotaWindows);
-  return sorted.map((window) => ({
-    group: window.group,
-    rep: window,
-    rest: [],
-  }));
 }
 
 // Short chip labels for known backend pools. Brand names are locale-neutral,

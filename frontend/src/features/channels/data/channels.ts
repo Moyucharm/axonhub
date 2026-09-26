@@ -1320,6 +1320,9 @@ const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
               enabled
             }
           }
+          endpoints {
+            apiFormat
+          }
 `;
 
 const CHANNEL_QUERY_SUPPORTED_MODELS_SELECTION = `

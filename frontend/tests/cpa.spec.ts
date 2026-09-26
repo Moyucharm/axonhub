@@ -73,6 +73,9 @@ test.describe('CPA critical paths', () => {
   let codexAccountID = 'e2e-codex-account'
   // Counts how many reset-credit list calls the mock should fail to emulate a flaky tunnel.
   let resetListFailures = 0
+  // Counts how many quota reads the mock should fail so a refresh can end in
+  // quotaState error while the cached cards stay in the database.
+  let usageFailures = 0
   const credentials: MockCredential[] = Array.from({ length: 55 }, (_, index) => ({
     auth_index: `e2e-auth-${index + 1}`,
     name: `e2e-codex-${index + 1}.json`,
@@ -108,7 +111,13 @@ test.describe('CPA critical paths', () => {
             plan_type: 'plus',
             rate_limit: { primary_window: { used_percent: 25, limit_window_seconds: 18_000, reset_after_seconds: 600 } },
           }
-          if (body?.url === 'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits') {
+          if (body?.url === 'https://chatgpt.com/backend-api/wham/usage') {
+            if (usageFailures > 0) {
+              usageFailures -= 1
+              response.end(JSON.stringify({ status_code: 502, header: { 'Content-Type': ['application/json'] }, body: '{}' }))
+              return
+            }
+          } else if (body?.url === 'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits') {
             if (resetListFailures > 0) {
               resetListFailures -= 1
               response.end(JSON.stringify({ status_code: 502, header: { 'Content-Type': ['application/json'] }, body: '{}' }))
@@ -297,6 +306,7 @@ test.describe('CPA critical paths', () => {
     creditIDs = ['late', 'soon', 'middle']
     consumedCredits = []
     resetListFailures = 0
+    usageFailures = 0
     codexAccountID = `e2e-codex-account-${Date.now()}`
     credentials[0].id_token = { chatgpt_account_id: codexAccountID }
     const instanceName = `CPA reset ${Date.now()}`
@@ -317,6 +327,7 @@ test.describe('CPA critical paths', () => {
     const credentialID = Number((await row.getAttribute('data-testid'))?.replace('cpa-credential-row-', ''))
     const cardRefresh = () => page.getByTestId(`cpa-refresh-credential-${credentialID}`).click()
     const credits = page.getByTestId(`cpa-reset-credits-${credentialID}`)
+    const bubble = page.getByTestId(`cpa-reset-bubble-${credentialID}`)
     // Reset cards arrive with the quota refresh, and one transient read failure
     // is absorbed by the generic provider-read retry.
     resetListFailures = 1
@@ -324,18 +335,36 @@ test.describe('CPA critical paths', () => {
     await expect(page.getByTestId(`cpa-refresh-credential-${credentialID}`)).toBeEnabled({ timeout: 20_000 })
     await row.getByRole('button').first().click()
     await expect(credits).toContainText(/3 reset credits remaining|剩余 3 次/)
+    await expect(bubble).toContainText('3')
     // Three failures exhaust the retry budget: the refresh reports the card read
     // as failed instead of showing "no cards".
     resetListFailures = 3
     await cardRefresh()
     await expect(page.getByTestId(`cpa-reset-failed-${credentialID}`)).toBeVisible({ timeout: 20_000 })
     await expect(credits).toHaveCount(0)
+    // The row bubble shares the panel's precondition: a failed card read hides
+    // both instead of offering the cached cards.
+    await expect(bubble).toHaveCount(0)
+    await expect(page.getByTestId(`cpa-reset-credential-${credentialID}`)).toHaveCount(0)
     await cardRefresh()
     await expect(credits).toContainText(/3 reset credits remaining|剩余 3 次/, { timeout: 20_000 })
     await expect(credits).toContainText(/Soon/)
     await expect(credits).toContainText(/Late/)
     await expect(credits).toContainText(/Middle/)
     await expect(credits).toContainText(/Earliest expiration|最早过期/)
+    await expect(bubble).toContainText('3')
+    // A wholly failed quota refresh keeps the cached cards in the database but
+    // still hides every offer of them.
+    usageFailures = 3
+    await cardRefresh()
+    await expect(row.getByText(/Refresh failed|刷新失败/)).toBeVisible({ timeout: 20_000 })
+    await expect(credits).toHaveCount(0)
+    await expect(bubble).toHaveCount(0)
+    await expect(page.getByTestId(`cpa-reset-credential-${credentialID}`)).toHaveCount(0)
+    expect(consumedCredits).toEqual([])
+    await cardRefresh()
+    await expect(credits).toContainText(/3 reset credits remaining|剩余 3 次/, { timeout: 20_000 })
+    await expect(bubble).toContainText('3')
     await page.getByTestId(`cpa-reset-credential-${credentialID}`).click()
     await expect(page.getByTestId('cpa-reset-confirmation')).toContainText('cpa-e2e-01@example.com')
     await page.getByTestId('cpa-reset-confirmation').getByRole('button', { name: /Cancel|取消/ }).click()

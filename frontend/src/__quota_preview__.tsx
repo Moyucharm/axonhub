@@ -8,7 +8,7 @@ import { ThemeProvider } from './context/theme-context';
 import './index.css';
 import './lib/i18n';
 import { CPACredentialTable } from './features/cpa/components/credential-table';
-import type { CPACredential, CPAQuotaItem, CPAQuotaResetCredit } from './features/cpa/types';
+import type { CPACredential, CPAQuotaItem, CPAQuotaResetCredit, CPAQuotaState } from './features/cpa/types';
 
 const at = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString();
 
@@ -25,7 +25,8 @@ function credential(
   email: string,
   planType: string,
   items: CPAQuotaItem[],
-  resetCredits: CPAQuotaResetCredit[] = []
+  resetCredits: CPAQuotaResetCredit[] = [],
+  state: { quotaState?: CPAQuotaState; resetCreditsFailed?: boolean } = {}
 ): CPACredential {
   return {
     id,
@@ -41,8 +42,8 @@ function credential(
     runtimeOnly: false,
     priority: 0,
     planType,
-    quotaState: 'success',
-    quotaData: { items, resetCredits, resetCreditsFailed: false },
+    quotaState: state.quotaState ?? 'success',
+    quotaData: { items, resetCredits, resetCreditsFailed: state.resetCreditsFailed ?? false },
     quotaLastAttemptAt: at(-0.1),
     quotaLastSuccessAt: at(-0.1),
     quotaLastFailureAt: null,
@@ -59,7 +60,7 @@ function credential(
 }
 
 const credentials: CPACredential[] = [
-  credential(1, 'codex', 'azusacc@proton.me', 'team', [
+  credential(1, 'codex', 'cpa-preview@example.com', 'team', [
     item({ id: 'code-primary', group: 'Code', label: '5 hour', usedPercent: 0, remainingPercent: 100, periodSeconds: 18000, resetAt: at(4.7) }),
     item({
       id: 'code-secondary',
@@ -97,11 +98,22 @@ const credentials: CPACredential[] = [
       description: 'Weekly coding allowance shared by every Kimi product surface, including the CLI, IDE plugins and the web console.',
     }),
   ]),
+  credential(
+    4,
+    'codex',
+    'cpa-preview-failed@example.com',
+    'plus',
+    [item({ id: 'code-primary', group: 'Code', label: '5 hour', usedPercent: 100, remainingPercent: 0, periodSeconds: 18000, resetAt: at(1) })],
+    [
+      { id: 'rc-stale', title: 'Full reset (Weekly + 5 hr)', resetType: 'codex_rate_limits', grantedAt: at(-20), expiresAt: at(20) },
+    ],
+    { quotaState: 'error', resetCreditsFailed: true }
+  ),
 ];
 
 function Preview() {
   const noop = () => {};
-  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([1, 2, 3]));
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([1, 2, 3, 4]));
   return (
     <div className='bg-background flex h-screen flex-col gap-4 p-6'>
       <CPACredentialTable

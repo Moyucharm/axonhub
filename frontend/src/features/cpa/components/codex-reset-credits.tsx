@@ -35,6 +35,13 @@ export function resetCreditIsUsable(expiresAt: string | null | undefined) {
   return Number.isNaN(date.getTime()) || date.getTime() > Date.now();
 }
 
+// A reset card is only actionable while the quota snapshot that carried it
+// still reflects a successful read; a failed or stale refresh must never offer
+// a card that the panel itself refuses to render.
+export function resetCreditsAreCurrent(credential: Pick<CPACredential, 'quotaState' | 'quotaData'>): boolean {
+  return credential.quotaState === 'success' && !credential.quotaData.resetCreditsFailed;
+}
+
 export function CodexResetCredits({
   credential,
   canWrite,
@@ -45,9 +52,8 @@ export function CodexResetCredits({
 }: CodexResetCreditsProps) {
   const { t } = useTranslation();
   const { resetCredits, resetCreditsFailed } = credential.quotaData;
-  const refreshed = credential.quotaState === 'success';
 
-  if (!refreshed || resetCreditsFailed) {
+  if (!resetCreditsAreCurrent(credential)) {
     // A failed refresh can only offer stale data, so never render an actionable
     // list or an enabled reset button from it.
     if (resetCredits.length === 0 && !resetCreditsFailed) return null;

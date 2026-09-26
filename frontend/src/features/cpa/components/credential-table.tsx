@@ -14,7 +14,7 @@ import { planLabel, providerLabel } from '../labels';
 import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
-import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming } from './codex-reset-credits';
+import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming, resetCreditsAreCurrent } from './codex-reset-credits';
 import type { CPACodexResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
 
@@ -56,7 +56,7 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   if (stateText) return <span>{stateText}</span>;
   if (credential.quotaState === 'error') return <span>{t('cpa.quota.error')}</span>;
   if (credential.quotaData.items.length === 0) return <span>—</span>;
-  return <QuotaSummaryCapsule items={credential.quotaData.items} provider={credential.provider} fallback={<span>—</span>} />;
+  return <QuotaSummaryCapsule items={credential.quotaData.items} fallback={<span>—</span>} />;
 }
 
 function CredentialResetBubble({
@@ -78,7 +78,9 @@ function CredentialResetBubble({
   const resetCredits = credential.quotaData?.resetCredits ?? [];
   const usableCredits = resetCredits.filter((credit) => resetCreditIsUsable(credit.expiresAt));
 
-  if (usableCredits.length === 0) return null;
+  // The row bubble must follow the expanded panel: a failed or stale quota read
+  // hides the card instead of offering an action the panel refuses to show.
+  if (!resetCreditsAreCurrent(credential) || usableCredits.length === 0) return null;
 
   const firstCredit = usableCredits[0];
   const canUse = canWrite && instanceEnabled && !resetPending;

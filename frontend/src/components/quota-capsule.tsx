@@ -27,8 +27,7 @@ const EstimateBadge = memo(function EstimateBadge({ window, size = 'md' }: { win
 // follows remaining sufficiency (green = plenty, red = about to run out).
 // size 'md' is the full-height capsule; 'sm' is the compact table variant used
 // by the CPA credential list. `window.percent` stays the USED percentage
-// internally (pickPrimaryQuotaWindow and tests depend on it); the remaining
-// semantics are applied at render time only.
+// internally; the remaining semantics are applied at render time only.
 
 type CapsuleSize = 'md' | 'sm';
 
@@ -117,9 +116,6 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
   const { t } = useTranslation();
   const used = Math.min(Math.max(window.percent || 0, 0), 100);
   const remaining = Math.round(100 - used);
-  const hasEstimateInExtras = window.tooltipExtras?.some(
-    (line) => window.estimatedLimitUSD != null && line.includes(formatQuotaUSD(window.estimatedLimitUSD))
-  );
 
   return (
     <Tooltip>
@@ -132,14 +128,6 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
           {window.durationPercent !== undefined && (
             <div>
               {t('quota.label.time_elapsed')}: {Math.round(window.durationPercent)}%
-            </div>
-          )}
-          {window.estimatedLimitUSD != null && !hasEstimateInExtras && (
-            <div>
-              {t('cpa.quota.estimateDetail', {
-                limit: formatQuotaUSD(window.estimatedLimitUSD),
-                cost: window.estimatedCostUSD != null ? formatQuotaUSD(window.estimatedCostUSD) : '—',
-              })}
             </div>
           )}
           {window.tooltipExtras?.map((line) => (

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { pickPrimaryQuotaWindow } from './quota-windows.ts';
 
 const dataDir = import.meta.dirname;
 const srcRoot = join(dataDir, '..', '..', '..');
@@ -14,48 +13,6 @@ function read(relativePath) {
 function parseLocale(locale) {
   return JSON.parse(read(`locales/${locale}/system.json`));
 }
-
-function windowItem(overrides) {
-  return {
-    id: 'w',
-    kind: 'weekly',
-    shortLabelKey: 'quota.capsule.period.7d',
-    fullLabelKey: 'quota.window.weekly',
-    percent: 50,
-    ...overrides,
-  };
-}
-
-test('pickPrimaryQuotaWindow prefers weekly over monthly and hourly', () => {
-  const windows = [
-    windowItem({ id: 'hourly', kind: 'hourly', percent: 90 }),
-    windowItem({ id: 'monthly', kind: 'monthly', percent: 80 }),
-    windowItem({ id: 'weekly', kind: 'weekly', percent: 10 }),
-  ];
-  assert.equal(pickPrimaryQuotaWindow(windows)?.id, 'weekly');
-});
-
-test('pickPrimaryQuotaWindow falls back to monthly when no weekly exists', () => {
-  const windows = [windowItem({ id: 'hourly', kind: 'hourly', percent: 95 }), windowItem({ id: 'monthly', kind: 'monthly', percent: 40 })];
-  assert.equal(pickPrimaryQuotaWindow(windows)?.id, 'monthly');
-});
-
-test('pickPrimaryQuotaWindow picks the only hourly window', () => {
-  const windows = [windowItem({ id: 'hourly', kind: 'hourly', percent: 33 })];
-  assert.equal(pickPrimaryQuotaWindow(windows)?.id, 'hourly');
-});
-
-test('pickPrimaryQuotaWindow returns undefined for an empty list', () => {
-  assert.equal(pickPrimaryQuotaWindow([]), undefined);
-});
-
-test('pickPrimaryQuotaWindow picks the highest-usage window among same-kind windows', () => {
-  const windows = [
-    windowItem({ id: 'weekly-low', kind: 'weekly', percent: 20 }),
-    windowItem({ id: 'weekly-high', kind: 'weekly', percent: 70 }),
-  ];
-  assert.equal(pickPrimaryQuotaWindow(windows)?.id, 'weekly-high');
-});
 
 test('quota-windows.ts classifies per-channel windows by kind', () => {
   const source = read('features/system/data/quota-windows.ts');

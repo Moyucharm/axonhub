@@ -1,6 +1,7 @@
 package biz
 
 import (
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -21,26 +22,41 @@ type tokenAggregate struct {
 	CacheCreationTokens int64
 }
 
-func (a *tokenAggregate) totalTokens() int64 {
-	return a.InputTokens + a.OutputTokens
-}
-
-// cpaUsageForModel converts an aggregate into llm.Usage following OpenAI
-// semantics: prompt tokens include cached tokens; completion tokens include
-// reasoning tokens.
-func cpaUsageForModel(aggregate tokenAggregate) *llm.Usage {
-	cached := aggregate.CachedTokens + aggregate.CacheReadTokens
-	if cached > aggregate.InputTokens {
-		cached = aggregate.InputTokens
+// cpaUsageForModel converts an aggregate into the llm.Usage that
+// ComputeUsageCost prices. Claude's CPA payload reports a raw input count that
+// excludes the cache tokens, so its prompt total is rebuilt from the read and
+// write cache; every other provider keeps input-includes-cache semantics.
+func cpaUsageForModel(provider string, aggregate tokenAggregate) *llm.Usage {
+	promptTokens := aggregate.InputTokens
+	cachedTokens := aggregate.CachedTokens
+	writeCachedTokens := aggregate.CacheCreationTokens
+	if strings.EqualFold(strings.TrimSpace(provider), "claude") {
+		// The payload repeats the read cache in CachedTokens; the dedicated
+		// counters are the billed values.
+		cachedTokens = aggregate.CacheReadTokens
+		promptTokens += cachedTokens + writeCachedTokens
+	} else if aggregate.CacheReadTokens > cachedTokens {
+		cachedTokens = aggregate.CacheReadTokens
+	}
+	// Clamp malformed provider details so the plain input price never goes
+	// negative: the write cache is capped first, then the read remainder.
+	if writeCachedTokens > promptTokens {
+		writeCachedTokens = promptTokens
+	}
+	if cachedTokens > promptTokens-writeCachedTokens {
+		cachedTokens = promptTokens - writeCachedTokens
 	}
 	usage := &llm.Usage{
-		PromptTokens:     aggregate.InputTokens,
+		PromptTokens:     promptTokens,
 		CompletionTokens: aggregate.OutputTokens,
 	}
 	if usage.CompletionTokens == 0 {
 		usage.CompletionTokens = aggregate.ReasoningTokens
 	}
-	usage.PromptTokensDetails = &llm.PromptTokensDetails{CachedTokens: cached}
+	usage.PromptTokensDetails = &llm.PromptTokensDetails{
+		CachedTokens:      cachedTokens,
+		WriteCachedTokens: writeCachedTokens,
+	}
 	if aggregate.ReasoningTokens > 0 {
 		usage.CompletionTokensDetails = &llm.CompletionTokensDetails{
 			ReasoningTokens: aggregate.ReasoningTokens,
@@ -52,12 +68,12 @@ func cpaUsageForModel(aggregate tokenAggregate) *llm.Usage {
 
 // computeCPAAggregateCost prices one model's aggregated tokens with the given
 // price index. priced is false when the model has no configured price.
-func computeCPAAggregateCost(index map[string]*objects.ModelPrice, model string, aggregate tokenAggregate, now time.Time) (decimal.Decimal, bool) {
+func computeCPAAggregateCost(index map[string]*objects.ModelPrice, model string, usage *llm.Usage, now time.Time) (decimal.Decimal, bool) {
 	price, ok := index[normalizeCPAModelPriceKey(model)]
 	if !ok || price == nil || len(price.Items) == 0 {
 		return decimal.Zero, false
 	}
-	items, total := ComputeUsageCost(cpaUsageForModel(aggregate), *price, now)
+	items, total := ComputeUsageCost(usage, *price, now)
 	if len(items) == 0 && total.IsZero() {
 		return decimal.Zero, false
 	}

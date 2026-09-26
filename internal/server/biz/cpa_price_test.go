@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/looplj/axonhub/internal/authz"
@@ -11,6 +12,49 @@ import (
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
 )
+
+func TestCPAUsageForModelMapsCacheTokensPerProvider(t *testing.T) {
+	t.Parallel()
+	claude := cpaUsageForModel("claude", tokenAggregate{InputTokens: 100, OutputTokens: 10, CachedTokens: 30, CacheReadTokens: 30, CacheCreationTokens: 20})
+	require.Equal(t, int64(150), claude.PromptTokens)
+	require.Equal(t, int64(30), claude.PromptTokensDetails.CachedTokens)
+	require.Equal(t, int64(20), claude.PromptTokensDetails.WriteCachedTokens)
+
+	// OpenAI-style payloads already include the read cache in the prompt count.
+	openai := cpaUsageForModel("openai", tokenAggregate{InputTokens: 150, OutputTokens: 10, CachedTokens: 30, CacheReadTokens: 30})
+	require.Equal(t, int64(150), openai.PromptTokens)
+	require.Equal(t, int64(30), openai.PromptTokensDetails.CachedTokens)
+	require.Zero(t, openai.PromptTokensDetails.WriteCachedTokens)
+
+	clamped := cpaUsageForModel("openai", tokenAggregate{InputTokens: 10, CacheCreationTokens: 30})
+	require.Equal(t, int64(10), clamped.PromptTokensDetails.WriteCachedTokens)
+	require.Zero(t, clamped.PromptTokensDetails.CachedTokens)
+}
+
+func TestComputeCPAAggregateCostPricesCacheTokensSeparately(t *testing.T) {
+	t.Parallel()
+	perMillion := func(value int64) *decimal.Decimal { price := decimal.NewFromInt(value); return &price }
+	index := map[string]*objects.ModelPrice{"claude-sonnet": {Items: []objects.ModelPriceItem{
+		{ItemCode: objects.PriceItemCodeUsage, Pricing: objects.Pricing{Mode: objects.PricingModeUsagePerUnit, UsagePerUnit: perMillion(1_000_000)}},
+		{ItemCode: objects.PriceItemCodePromptCachedToken, Pricing: objects.Pricing{Mode: objects.PricingModeUsagePerUnit, UsagePerUnit: perMillion(2_000_000)}},
+		{ItemCode: objects.PriceItemCodeWriteCachedTokens, Pricing: objects.Pricing{Mode: objects.PricingModeUsagePerUnit, UsagePerUnit: perMillion(3_000_000)}},
+		{ItemCode: objects.PriceItemCodeCompletion, Pricing: objects.Pricing{Mode: objects.PricingModeUsagePerUnit, UsagePerUnit: perMillion(4_000_000)}},
+	}}}
+
+	// Claude: 100 plain input + 30 read + 20 write + 10 output.
+	claudeCost, priced := computeCPAAggregateCost(index, "claude-sonnet", cpaUsageForModel("claude", tokenAggregate{
+		InputTokens: 100, OutputTokens: 10, CachedTokens: 30, CacheReadTokens: 30, CacheCreationTokens: 20,
+	}), time.Now())
+	require.True(t, priced)
+	require.Equal(t, "260", claudeCost.String())
+
+	// The read cache is priced once even though both read fields carry it.
+	openaiCost, priced := computeCPAAggregateCost(index, "claude-sonnet", cpaUsageForModel("openai", tokenAggregate{
+		InputTokens: 150, OutputTokens: 10, CachedTokens: 30, CacheReadTokens: 30,
+	}), time.Now())
+	require.True(t, priced)
+	require.Equal(t, "220", openaiCost.String())
+}
 
 func TestBuildCPAPriceIndexKeepsStaleCacheWhenCatalogQueryFails(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_price_failure?mode=memory&_fk=1")

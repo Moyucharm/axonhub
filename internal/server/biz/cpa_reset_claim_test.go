@@ -70,3 +70,29 @@ func TestCPACodexClaimAcrossInstancesAndServices(t *testing.T) {
 	}
 	require.Equal(t, int32(1), posts.Load())
 }
+
+func TestCPACodexResetCancelledWhileWaitingForPermitKeepsCreditAvailable(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_reset_permit?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	svc := newCPAServiceForTest(client, time.Now)
+	instance := client.CPAInstance.Create().SetName("permit").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").SaveX(ctx)
+	credential := client.CPACredential.Create().SetCpaInstanceID(instance.ID).SetExternalKey("codex").SetRemoteName("codex.json").SetDisplayName("Codex").SetProvider("codex").SetAuthIndex("auth").SetQuotaContext(objects.CPAQuotaContext{CodexAccountID: "account-a"}).SaveX(ctx)
+	limiter := svc.quotaExecutor.instanceLimiter(instance.ID)
+	require.NoError(t, limiter.Acquire(ctx, maxCPAInstanceConcurrency))
+	posts := 0
+	management := &cpaTestManagementClient{callProvider: func(_ context.Context, call cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+		posts++
+		require.Equal(t, http.MethodPost, call.Method)
+		return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"code":"reset","credit":{"id":"first","status":"redeemed"}}`)}, nil
+	}}
+	waitCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	require.Error(t, svc.consumeCodexResetCredit(waitCtx, management, credential, "first"))
+	require.Zero(t, posts)
+	require.Zero(t, client.CPACodexResetAttempt.Query().CountX(ctx))
+	limiter.Release(maxCPAInstanceConcurrency)
+	require.NoError(t, svc.consumeCodexResetCredit(ctx, management, credential, "first"))
+	require.Equal(t, 1, posts)
+	require.Equal(t, "redeemed", string(client.CPACodexResetAttempt.Query().OnlyX(ctx).State))
+}

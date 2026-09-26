@@ -139,8 +139,8 @@ func TestApplyQuotaEstimateEstimatesFiveHourAndWeeklyWindows(t *testing.T) {
 	fiveHours, weekly := cpaFiveHourPeriodSeconds, cpaWeeklyPeriodSeconds
 	primaryUsed, secondaryUsed := 15.0, 24.0
 	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
-		{ID: "codex-primary", Group: "Code", Label: "5 hour", UsedPercent: &primaryUsed, ResetAt: &resetAt, PeriodSeconds: &fiveHours},
-		{ID: "codex-secondary", Group: "Code", Label: "7 day", UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly},
+		{ID: "codex-primary", Group: "Code", Label: "5 hour", UsedPercent: &primaryUsed, ResetAt: &resetAt, PeriodSeconds: &fiveHours, EstimateEligible: true},
+		{ID: "codex-secondary", Group: "Code", Label: "7 day", UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly, EstimateEligible: true},
 	}}
 	svc.applyQuotaEstimate(ctx, loaded, &snapshot)
 	for index, want := range []float64{100, 125} {
@@ -165,7 +165,7 @@ func TestApplyQuotaEstimateEstimatesFiveHourAndWeeklyWindows(t *testing.T) {
 	require.Empty(t, legacyRow.QuotaObserved.Windows)
 	legacySnapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
 		ID: "codex-secondary", Group: "Code", Label: "7 day",
-		UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly,
+		UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly, EstimateEligible: true,
 	}}}
 	svc.applyQuotaEstimate(ctx, legacyRow, &legacySnapshot)
 	require.NotNil(t, legacySnapshot.Items[0].EstimatedLimitUSD)
@@ -188,8 +188,8 @@ func TestApplyQuotaEstimateEstimatesFiveHourAndWeeklyWindows(t *testing.T) {
 	loaded = client.CPACredential.GetX(ctx, credential.ID)
 	newFiveHourUsed := 1.0
 	resetSnapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
-		{ID: "codex-primary", Group: "Code", Label: "5 hour", UsedPercent: &newFiveHourUsed, ResetAt: &nextFiveHourReset, PeriodSeconds: &fiveHours},
-		{ID: "codex-secondary", Group: "Code", Label: "7 day", UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly},
+		{ID: "codex-primary", Group: "Code", Label: "5 hour", UsedPercent: &newFiveHourUsed, ResetAt: &nextFiveHourReset, PeriodSeconds: &fiveHours, EstimateEligible: true},
+		{ID: "codex-secondary", Group: "Code", Label: "7 day", UsedPercent: &secondaryUsed, ResetAt: &resetAt, PeriodSeconds: &weekly, EstimateEligible: true},
 	}}
 	svc.applyQuotaEstimate(ctx, loaded, &resetSnapshot)
 	require.Nil(t, resetSnapshot.Items[0].EstimatedLimitUSD)
@@ -233,8 +233,8 @@ func TestApplyQuotaEstimateEstimatesClaudeWindows(t *testing.T) {
 		require.Empty(t, loaded.QuotaObserved.ObservedWindows())
 		fiveHourUsed, weeklyUsed := percents[0], percents[1]
 		snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
-			{ID: "five-hour", Label: "5 hour", UsedPercent: &fiveHourUsed, ResetAt: &fiveHourReset, PeriodSeconds: &fiveHours},
-			{ID: "seven-day", Label: "7 day", UsedPercent: &weeklyUsed, ResetAt: &weeklyReset, PeriodSeconds: &weekly},
+			{ID: "five-hour", Label: "5 hour", UsedPercent: &fiveHourUsed, ResetAt: &fiveHourReset, PeriodSeconds: &fiveHours, EstimateEligible: true},
+			{ID: "seven-day", Label: "7 day", UsedPercent: &weeklyUsed, ResetAt: &weeklyReset, PeriodSeconds: &weekly, EstimateEligible: true},
 		}}
 		svc.applyQuotaEstimate(ctx, loaded, &snapshot)
 		if index == 0 {

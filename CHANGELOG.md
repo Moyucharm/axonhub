@@ -3,7 +3,14 @@
 ### Added
 
 - Added per-channel API key rules with status/keyword matching, configurable error thresholds, temporary auto-recovery, and permanent disable/delete actions.
-- Added per-window CPA quota value estimates for Codex 5-hour and 7-day usage headers and refresh-based Claude, Kimi, Antigravity, and xAI windows, limited to credential-wide windows (model-scoped sub-limits such as Claude Opus/Sonnet stay display-only), with legacy observation compatibility.
+- Added per-window CPA quota value estimates for credential-wide spending windows: Codex 5-hour and 7-day usage headers, Claude `five_hour`/`seven_day` totals, and the xAI aggregate credits window. Model pools, per-app sub-limits, product windows, and request-count allowances (Antigravity pools, Kimi requests, xAI products/monthly balance) stay percentage-only because the aggregated cost is not their denominator.
+
+### Fixed
+
+- CPA Codex reset credits are no longer marked as attempted when the local provider concurrency permit fails before any upstream call; a cancelled or unavailable permit leaves the card available for a later attempt.
+- A failed CPA quota refresh no longer offers cached Reset credits: the row bubble follows the expanded panel and hides the action until a successful read.
+- CPA quota estimates now price cache reads and cache writes with their own rates instead of dropping the write counter and double counting the read counter, and Claude windows use the wire's raw input plus both cache counters.
+- CPA quota estimates no longer inherit another window's interval when two ungrouped windows share a period and reset, and OpenCode Zen protocol badges/colors and the channel edit echo now follow the explicit per-model protocol before falling back to the endpoint list.
 
 v0.4.0
 

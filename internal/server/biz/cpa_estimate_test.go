@@ -30,72 +30,50 @@ func estimateTestSnapshot(usedPercent float64) objects.CPAQuotaSnapshot {
 			RemainingPercent: func() *float64 { r := 100 - used; return &r }(),
 			ResetAt:          &resetAt,
 			PeriodSeconds:    &period,
+			EstimateEligible: true,
 		}},
 	}
 }
 
-func TestEstimateWindowItem(t *testing.T) {
+func TestEstimateWindowItems(t *testing.T) {
 	t.Parallel()
-	// Weekly window present: it wins.
-	snapshot := estimateTestSnapshot(10)
-	item := estimateWindowItem(snapshot)
-	require.NotNil(t, item)
-	require.Equal(t, 7*24*60*60, *item.PeriodSeconds)
-
 	hourly := 18_000
 	hourlyReset := time.Date(2026, 8, 21, 18, 5, 35, 0, time.UTC)
 	weeklyReset := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
 	weekly := cpaWeeklyPeriodSeconds
-
-	// Codex 5h and 7d windows are independently estimable.
-	snapshot.Items = []objects.CPAQuotaItem{
-		{PeriodSeconds: &hourly, ResetAt: &hourlyReset},
-		{PeriodSeconds: &weekly, ResetAt: &weeklyReset},
-	}
-	require.Len(t, estimateWindowItems(snapshot), 2)
-	item = estimateWindowItem(snapshot)
-	require.NotNil(t, item)
-	require.Equal(t, cpaWeeklyPeriodSeconds, *item.PeriodSeconds)
-
-	// Weekly and monthly windows coexist with the 5h window; the legacy
-	// single-window helper continues to prefer 7d.
 	monthly := 30 * 24 * 60 * 60
 	monthlyReset := time.Date(2026, 9, 21, 5, 0, 0, 0, time.UTC)
-	snapshot.Items = []objects.CPAQuotaItem{
-		{PeriodSeconds: &hourly, ResetAt: &hourlyReset},
-		{PeriodSeconds: &weekly, ResetAt: &weeklyReset},
-		{PeriodSeconds: &monthly, ResetAt: &monthlyReset},
-	}
-	item = estimateWindowItem(snapshot)
-	require.NotNil(t, item)
-	require.Equal(t, cpaWeeklyPeriodSeconds, *item.PeriodSeconds)
+
+	// Only full-credential windows marked eligible by the adapter are estimable.
+	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{PeriodSeconds: &hourly, ResetAt: &hourlyReset, EstimateEligible: true},
+		{PeriodSeconds: &weekly, ResetAt: &weeklyReset, EstimateEligible: true},
+		{PeriodSeconds: &monthly, ResetAt: &monthlyReset, EstimateEligible: true},
+	}}
 	estimable := estimateWindowItems(snapshot)
 	require.Len(t, estimable, 3)
 	require.Equal(t, []int{hourly, weekly, monthly}, []int{*estimable[0].PeriodSeconds, *estimable[1].PeriodSeconds, *estimable[2].PeriodSeconds})
 
-	// Codex 5h and 30d windows are both estimable.
+	// Sub-limits that only carry a period stay display-only, and a missing reset
+	// or percentage keeps a window out of the estimate as well.
 	snapshot.Items = []objects.CPAQuotaItem{
-		{PeriodSeconds: &hourly, ResetAt: &hourlyReset},
-		{PeriodSeconds: &monthly, ResetAt: &monthlyReset},
+		{ID: "code-primary", PeriodSeconds: &hourly, ResetAt: &hourlyReset, EstimateEligible: true},
+		{ID: "review-primary", PeriodSeconds: &hourly, ResetAt: &hourlyReset},
+		{ID: "code-secondary", PeriodSeconds: &weekly},
+		{ID: "product-1", PeriodSeconds: &monthly, ResetAt: &monthlyReset},
 	}
-	require.Len(t, estimateWindowItems(snapshot), 2)
-	item = estimateWindowItem(snapshot)
-	require.NotNil(t, item)
-	require.Equal(t, monthly, *item.PeriodSeconds)
-
-	// A standalone 5h window is estimable.
-	snapshot.Items = []objects.CPAQuotaItem{{PeriodSeconds: &hourly, ResetAt: &hourlyReset}}
-	require.Equal(t, hourly, *estimateWindowItem(snapshot).PeriodSeconds)
-	require.Len(t, estimateWindowItems(snapshot), 1)
+	estimable = estimateWindowItems(snapshot)
+	require.Len(t, estimable, 1)
+	require.Equal(t, "code-primary", estimable[0].ID)
 
 	// Empty snapshot yields nothing.
-	require.Nil(t, estimateWindowItem(objects.CPAQuotaSnapshot{}))
+	require.Empty(t, estimateWindowItems(objects.CPAQuotaSnapshot{}))
 }
 
 func TestCodexEstimateIntervalsRequireLocalPercentageDelta(t *testing.T) {
 	t.Parallel()
 	snapshot := estimateTestSnapshot(50)
-	weekly := estimateWindowItem(snapshot)
+	weekly := &snapshot.Items[0]
 	baselinePercent := 20.0
 	latestPercent := 50.0
 	baselineEventID := 10
@@ -250,7 +228,7 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, aggregates, "gpt-5.2", "aggregates: %#v", aggregates)
 			require.Equal(t, tc.intervalCost, aggregates["gpt-5.2"].InputTokens, "aggregates: %#v", aggregates)
-			cost, priced := computeCPAAggregateCost(svc.pricingRepository.snapshot(ctx), "gpt-5.2", aggregates["gpt-5.2"], time.Now())
+			cost, priced := computeCPAAggregateCost(svc.pricingRepository.snapshot(ctx), "gpt-5.2", cpaUsageForModel("codex", aggregates["gpt-5.2"]), time.Now())
 			require.True(t, priced)
 			require.False(t, cost.IsZero())
 
@@ -268,7 +246,7 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 				observed = objects.CPAQuotaObserved{}
 				expectedSource = "refresh-delta"
 			}
-			estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed, "codex")
+			estimate := svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &snapshot.Items[0], observed, "codex")
 			require.NotNil(t, estimate)
 			require.InDelta(t, 100, estimate.LimitUSD, 1e-9)
 			require.InDelta(t, float64(tc.intervalCost), estimate.CostUSD, 1e-9)
@@ -532,10 +510,12 @@ func TestApplyQuotaEstimateKeepsWeeklyEstimateWhenFiveHourResets(t *testing.T) {
 				UsedPercent:   &previousFiveHourUsed,
 				ResetAt:       &previousFiveHourReset,
 				PeriodSeconds: &fiveHourPeriod,
+				EstimateEligible: true,
 			},
 			{
 				ID:                          "code-secondary",
 				ResetAt:                     &resetAt,
+				EstimateEligible: true,
 				PeriodSeconds:               &period,
 				EstimateCollectorSessionID:  "collector-a",
 				EstimateBaselineUsedPercent: &baselinePercent,
@@ -563,12 +543,14 @@ func TestApplyQuotaEstimateKeepsWeeklyEstimateWhenFiveHourResets(t *testing.T) {
 		{
 			ID:            "code-primary",
 			UsedPercent:   &currentFiveHourUsed,
+			EstimateEligible: true,
 			ResetAt:       &currentFiveHourReset,
 			PeriodSeconds: &fiveHourPeriod,
 		},
 		{
 			ID:            "code-secondary",
 			UsedPercent:   &latestPercent,
+			EstimateEligible: true,
 			ResetAt:       &resetAt,
 			PeriodSeconds: &period,
 		},
@@ -582,7 +564,7 @@ func TestApplyQuotaEstimateKeepsWeeklyEstimateWhenFiveHourResets(t *testing.T) {
 
 func TestComputeCPAAggregateCostUnpricedModel(t *testing.T) {
 	t.Parallel()
-	total, priced := computeCPAAggregateCost(map[string]*objects.ModelPrice{}, "gpt-5.2", tokenAggregate{InputTokens: 100}, time.Now())
+	total, priced := computeCPAAggregateCost(map[string]*objects.ModelPrice{}, "gpt-5.2", cpaUsageForModel("codex", tokenAggregate{InputTokens: 100}), time.Now())
 	require.False(t, priced)
 	require.True(t, total.IsZero())
 }
@@ -603,11 +585,12 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	require.NoError(t, err)
 
 	// No events at all → nil even with sufficient percentage.
-	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", estimateTestSnapshot(50), objects.CPAQuotaObserved{}, "codex"))
+	empty := estimateTestSnapshot(50)
+	require.Nil(t, svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &empty.Items[0], objects.CPAQuotaObserved{}, "codex"))
 
 	// Below 3% threshold → nil regardless of events.
 	snapshot := estimateTestSnapshot(2.5)
-	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex"))
+	require.Nil(t, svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &snapshot.Items[0], objects.CPAQuotaObserved{}, "codex"))
 
 	// Seed usage events within the current cycle for a model without configured
 	// price (unpriced) and one with a price configured through a channel.
@@ -624,7 +607,7 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	require.NoError(t, err)
 
 	snapshot = estimateTestSnapshot(4)
-	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex")
+	estimate := svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &snapshot.Items[0], objects.CPAQuotaObserved{}, "codex")
 	require.Nil(t, estimate, "all tokens unpriced should not yield an estimate")
 
 	// Events outside the current cycle are excluded.
@@ -640,7 +623,7 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	estimate = svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex")
+	estimate = svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &snapshot.Items[0], objects.CPAQuotaObserved{}, "codex")
 	// Still nil because gpt-5.2 has no channel price in this test setup and the
 	// unpriced model dominates; this asserts the aggregation window works via
 	// the unpriced path rather than producing an estimate from stale data.
@@ -693,7 +676,7 @@ func TestEstimateCredentialQuotaUsesBuiltinModelPrice(t *testing.T) {
 		SecondaryResetAt:             &resetAt,
 	}
 
-	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed, "codex")
+	estimate := svc.estimateCredentialQuotaForItem(ctx, instance.ID, "idx", &snapshot.Items[0], observed, "codex")
 	require.NotNil(t, estimate)
 	require.InDelta(t, 5, estimate.CostUSD, 1e-9)
 	require.InDelta(t, 100, estimate.LimitUSD, 1e-9)
@@ -1135,6 +1118,7 @@ func TestCodexEstimateKeepsIntervalWhenCollectorIsUnavailable(t *testing.T) {
 		UsedPercent:                 &previousUsed,
 		ResetAt:                     &resetAt,
 		PeriodSeconds:               &weeklyPeriod,
+		EstimateEligible: true,
 		EstimateCollectorSessionID:  "collector-a",
 		EstimateBaselineUsedPercent: &baselinePercent,
 		EstimateBaselineEventID:     &baselineEventID,
@@ -1150,6 +1134,7 @@ func TestCodexEstimateKeepsIntervalWhenCollectorIsUnavailable(t *testing.T) {
 		UsedPercent:                 &previousUsed,
 		ResetAt:                     &resetAt,
 		PeriodSeconds:               &monthlyPeriod,
+		EstimateEligible: true,
 		EstimateCollectorSessionID:  "collector-a",
 		EstimateBaselineUsedPercent: &baselinePercent,
 		EstimateBaselineEventID:     &baselineEventID,
@@ -1307,6 +1292,7 @@ func TestCodexEstimatePersistsUntilWindowReset(t *testing.T) {
 			Label:         "7 day",
 			UsedPercent:   usedPercent,
 			ResetAt:       &windowReset,
+			EstimateEligible: true,
 			PeriodSeconds: &period,
 		}}}
 		svc.applyQuotaEstimate(ctx, loaded, &snapshot)
@@ -1402,6 +1388,47 @@ func TestCodexEstimatePersistsUntilWindowReset(t *testing.T) {
 	require.InDelta(t, 10000, *item.EstimatedLimitUSD, 1e-9)
 	require.InDelta(t, 300, *item.EstimatedCostUSD, 1e-9)
 	require.Equal(t, nextBaselineEventID, *item.EstimateBaselineEventID)
+}
+
+func TestCPAEstimateEligibilityAndLegacyView(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_estimate_eligible?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	resetAt := time.Now().UTC().Add(24 * time.Hour)
+	period := cpaWeeklyPeriodSeconds
+	used, limit, cost := 20.0, 100.0, 10.0
+	instance := client.CPAInstance.Create().SetName("eligible").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").SaveX(ctx)
+	previous := []objects.CPAQuotaItem{
+		{ID: "weekly-credits", Label: "Credits", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period, EstimateEligible: true, EstimatedLimitUSD: &limit, EstimatedCostUSD: &cost, EstimateSource: "refresh-delta"},
+		{ID: "weekly-product-1", Label: "Product", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period, EstimatedLimitUSD: &limit, EstimatedCostUSD: &cost, EstimateSource: "refresh-delta"},
+	}
+	credential := client.CPACredential.Create().SetCpaInstanceID(instance.ID).SetExternalKey("xai").SetRemoteName("xai.json").SetDisplayName("xAI").SetProvider("xai").SetAuthIndex("auth").SetQuotaData(objects.CPAQuotaSnapshot{Items: previous, ResetCredits: []objects.CPAQuotaResetCredit{{ID: "first"}, {ID: "second"}}}).SaveX(ctx)
+	svc := newCPAServiceForTest(client, time.Now)
+	loaded := client.CPACredential.GetX(ctx, credential.ID)
+	view := buildCPACredentialView(instance, loaded, time.Now())
+	require.Nil(t, view.QuotaData.Items[1].EstimatedLimitUSD)
+	require.Nil(t, view.QuotaData.Items[1].EstimatedCostUSD)
+	require.Empty(t, view.QuotaData.Items[1].EstimateSource)
+	require.Equal(t, limit, *view.QuotaData.Items[0].EstimatedLimitUSD)
+	require.Equal(t, limit, *loaded.QuotaData.Items[1].EstimatedLimitUSD)
+	view.QuotaData.Items[1].Label = "changed"
+	require.Equal(t, "Product", loaded.QuotaData.Items[1].Label)
+	snapshot := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+		{ID: "weekly-credits", Label: "Credits", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period, EstimateEligible: true},
+		{ID: "weekly-product-1", Label: "Product", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period},
+		{ID: "weekly-balance", Label: "Balance", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period},
+		{ID: "review", Label: "Review", UsedPercent: &used, ResetAt: &resetAt, PeriodSeconds: &period},
+	}}
+	svc.applyQuotaEstimate(ctx, loaded, &snapshot)
+	for _, item := range snapshot.Items[1:] {
+		require.Nil(t, item.EstimatedLimitUSD, item.ID)
+		require.Nil(t, item.EstimatedCostUSD, item.ID)
+	}
+	require.True(t, snapshot.Items[0].EstimateEligible)
+	client.CPACodexResetAttempt.Create().SetCreditKey(codexCreditKey("", "first")).SetCredentialID(credential.ID).SaveX(ctx)
+	require.NoError(t, svc.filterClaimedResetCredits(ctx, view))
+	require.Equal(t, "second", view.QuotaData.ResetCredits[0].ID)
+	require.Equal(t, "first", loaded.QuotaData.ResetCredits[0].ID)
 }
 
 func TestPreviousQuotaItemFollowsWindowAcrossSlots(t *testing.T) {
@@ -1517,6 +1544,16 @@ func TestPreviousQuotaItemFollowsWindowAcrossSlots(t *testing.T) {
 		UsedPercent:   &used,
 		ResetAt:       &resetAt,
 		PeriodSeconds: &weeklyPeriod,
+	}))
+	credits := objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{
+		ID: "monthly-credits", ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod,
+		EstimatedLimitUSD: &weeklyLimit,
+	}}}
+	require.Nil(t, previousQuotaItem(credits, &objects.CPAQuotaItem{
+		ID: "monthly-balance", ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod,
+	}))
+	require.Equal(t, &credits.Items[0], previousQuotaItem(credits, &objects.CPAQuotaItem{
+		ID: "monthly-credits", ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod,
 	}))
 	require.Nil(t, previousQuotaItem(snapshot, nil))
 }

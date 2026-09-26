@@ -5,7 +5,7 @@ import {
   getAvailableProtocolFormats,
   getChannelTypeForApiFormat,
   getConfigurableApiFormatsForChannelType,
-  getInitialApiFormatForChannel,
+  getEffectiveApiFormatForChannel,
   getModelProtocolsForApiFormat,
   getModelProtocolsForChannelApiFormat,
 } from './protocol-options.ts';
@@ -80,12 +80,66 @@ test('persists the selected OpenCode Zen protocol for supported models', () => {
 test('restores the persisted OpenCode Zen protocol in the editor', () => {
   for (const apiFormat of ['openai/chat_completions', 'openai/responses', 'anthropic/messages']) {
     assert.equal(
-      getInitialApiFormatForChannel('opencode_zen', 'openai/chat_completions', [
-        { model: 'gpt-5.4', apiFormats: [apiFormat], enabled: true },
-      ]),
+      getEffectiveApiFormatForChannel(
+        'opencode_zen',
+        'openai/chat_completions',
+        [{ model: 'gpt-5.4', apiFormats: [apiFormat], enabled: true }],
+        undefined
+      ),
       apiFormat
     );
   }
+
+  // Endpoints decide only when no model pins a protocol.
+  assert.equal(
+    getEffectiveApiFormatForChannel('opencode_zen', 'openai/chat_completions', [], [{ apiFormat: 'anthropic/messages' }]),
+    'anthropic/messages'
+  );
+  // An explicit Chat selection outranks an Anthropic endpoint.
+  assert.equal(
+    getEffectiveApiFormatForChannel(
+      'opencode_zen',
+      'openai/chat_completions',
+      [{ model: 'gpt-5.4', apiFormats: ['openai/chat_completions'], enabled: true }],
+      [{ apiFormat: 'anthropic/messages' }]
+    ),
+    'openai/chat_completions'
+  );
+  // An explicit Responses selection outranks a Chat endpoint.
+  assert.equal(
+    getEffectiveApiFormatForChannel(
+      'opencode_zen',
+      'openai/chat_completions',
+      [{ model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true }],
+      [{ apiFormat: 'openai/chat_completions' }]
+    ),
+    'openai/responses'
+  );
+  // Conflicting overrides keep the channel default, and an empty endpoint list
+  // falls back to it as well.
+  assert.equal(
+    getEffectiveApiFormatForChannel(
+      'opencode_zen',
+      'openai/chat_completions',
+      [
+        { model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: true },
+        { model: 'claude-sonnet-4-5', apiFormats: ['anthropic/messages'], enabled: true },
+      ],
+      [{ apiFormat: 'anthropic/messages' }]
+    ),
+    'openai/chat_completions'
+  );
+  assert.equal(getEffectiveApiFormatForChannel('opencode_zen', 'openai/chat_completions', [], []), 'openai/chat_completions');
+  // A disabled override is not an explicit selection.
+  assert.equal(
+    getEffectiveApiFormatForChannel(
+      'opencode_zen',
+      'openai/chat_completions',
+      [{ model: 'gpt-5.4', apiFormats: ['openai/responses'], enabled: false }],
+      [{ apiFormat: 'anthropic/messages' }]
+    ),
+    'anthropic/messages'
+  );
 });
 
 test('persists protocols for newly added models while preserving untouched models', () => {
@@ -169,7 +223,12 @@ test('selecting ZenMux native video never replaces non-video overrides', () => {
 
 test('restores ZenMux native video from persisted model protocols', () => {
   assert.equal(
-    getInitialApiFormatForChannel('zenmux', 'openai/chat_completions', [{ model: 'sora-2', apiFormats: ['zenmux/video'], enabled: true }]),
+    getEffectiveApiFormatForChannel(
+      'zenmux',
+      'openai/chat_completions',
+      [{ model: 'sora-2', apiFormats: ['zenmux/video'], enabled: true }],
+      undefined
+    ),
     'zenmux/video'
   );
 });
@@ -177,9 +236,12 @@ test('restores ZenMux native video from persisted model protocols', () => {
 test('keeps non-video protocols unchanged', () => {
   assert.deepEqual(getModelProtocolsForApiFormat('openai/chat_completions', ['gpt-5']), []);
   assert.equal(
-    getInitialApiFormatForChannel('zenmux_responses', 'openai/responses', [
-      { model: 'sora-2', apiFormats: ['zenmux/video'], enabled: true },
-    ]),
+    getEffectiveApiFormatForChannel(
+      'zenmux_responses',
+      'openai/responses',
+      [{ model: 'sora-2', apiFormats: ['zenmux/video'], enabled: true }],
+      undefined
+    ),
     'openai/responses'
   );
 });

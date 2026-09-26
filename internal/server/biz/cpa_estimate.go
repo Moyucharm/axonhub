@@ -50,13 +50,6 @@ type CPAQuotaEstimate struct {
 	Source string
 }
 
-// EstimateCredentialQuota estimates the credential's quota total from local
-// interval cost divided by the percentage change, multiplied by 100.
-func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID int, authIndex string, snapshot objects.CPAQuotaSnapshot, observed objects.CPAQuotaObserved, provider string) *CPAQuotaEstimate {
-	item := estimateWindowItem(snapshot)
-	return svc.estimateCredentialQuotaForItem(ctx, instanceID, authIndex, item, observed, provider)
-}
-
 func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, instanceID int, authIndex string, item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, provider string) *CPAQuotaEstimate {
 	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
 		return nil
@@ -112,17 +105,18 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 		unpricedTokens int64
 	)
 	for model, aggregate := range aggregates {
-		cost, priced := computeCPAAggregateCost(priceIndex, model, aggregate, now)
+		usage := cpaUsageForModel(provider, aggregate)
+		cost, priced := computeCPAAggregateCost(priceIndex, model, usage, now)
 		if !priced {
-			unpricedTokens += aggregate.totalTokens()
+			unpricedTokens += usage.TotalTokens
 			log.Debug(ctx, "CPA quota estimate model has no price",
 				log.String("model", model),
-				log.Int64("tokens", aggregate.totalTokens()),
+				log.Int64("tokens", usage.TotalTokens),
 			)
 			continue
 		}
 		totalCost = totalCost.Add(cost)
-		pricedTokens += aggregate.totalTokens()
+		pricedTokens += usage.TotalTokens
 	}
 	allTokens := pricedTokens + unpricedTokens
 	if allTokens <= 0 || pricedTokens <= 0 {
@@ -153,22 +147,9 @@ func estimateWindowItems(snapshot objects.CPAQuotaSnapshot) []*objects.CPAQuotaI
 	items := make([]*objects.CPAQuotaItem, 0, len(snapshot.Items))
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
-		if item.PeriodSeconds != nil && item.ResetAt != nil && cpaEstimableQuotaPeriod(*item.PeriodSeconds) {
+		if item.EstimateEligible && item.PeriodSeconds != nil && item.ResetAt != nil && cpaEstimableQuotaPeriod(*item.PeriodSeconds) {
 			items = append(items, item)
 		}
 	}
 	return items
-}
-
-// estimateWindowItem preserves the legacy single-estimate preference: weekly
-// first, otherwise the last estimable window.
-func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem {
-	var candidate *objects.CPAQuotaItem
-	for _, item := range estimateWindowItems(snapshot) {
-		if *item.PeriodSeconds == cpaWeeklyPeriodSeconds {
-			return item
-		}
-		candidate = item
-	}
-	return candidate
 }

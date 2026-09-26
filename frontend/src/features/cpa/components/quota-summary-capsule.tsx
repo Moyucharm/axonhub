@@ -1,43 +1,31 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
-import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups } from '@/features/cpa/quota-windows';
+import { cpaQuotaItemsToWindows, shortGroupLabel } from '@/features/cpa/quota-windows';
 import type { CPAQuotaItem } from '../types';
 
-// Compact quota cell for the CPA credential table. Windows are normally
-// grouped by backend pool (antigravity: Gemini vs Claude/GPT), while a pool
-// holding an exact 5h + 7d pair keeps both windows visible; split pools are
-// ordered pool-first, so each pool keeps one bar in the two-bar inline budget.
+// Compact quota cell for the CPA credential table. The adapter already orders
+// windows shortest period first, so the two-bar inline budget always shows the
+// tightest windows (Codex 5h before 7d, Antigravity 5h pools before 7d pools)
+// and everything past the budget goes into the +N overflow popover.
 // Rows are stacked:
-//   - 1 window/pool  -> single plain capsule (no pool chip)
-//   - <=2 pools      -> one bar per pool, all visible
-//   - >2 pools       -> first two bars inline, everything else behind a +N
+//   - 1 window       -> single plain capsule (no pool chip)
+//   - <=2 windows    -> one bar per window, all visible
+//   - >2 windows     -> first two bars inline, everything else behind a +N
 //                       overflow button placed after the last bar.
 // Grid columns [4rem_267px_auto]: the label column is a fixed 4rem, the
-// middle column keeps a fixed 267px width (2/3 of the earlier 400px rail,
-// having been scaled down by 1/3) so remaining bars stay compact without
-// stretching or shrinking dynamically.
-const MAX_INLINE_GROUPS = 2;
+// middle column keeps a fixed 267px width so remaining bars stay compact
+// without stretching or shrinking dynamically.
+const MAX_INLINE_WINDOWS = 2;
 
-export function QuotaSummaryCapsule({
-  items,
-  provider,
-  fallback = null,
-}: {
-  items: CPAQuotaItem[];
-  provider: string;
-  fallback?: ReactNode;
-}) {
+export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuotaItem[]; fallback?: ReactNode }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === 'zh' ? 'zh-CN' : 'en-US';
   const windows = cpaQuotaItemsToWindows(items, t, locale);
   if (windows.length === 0) return fallback;
 
-  const groups = summarizeCredentialQuotaGroups(windows, provider);
-  const inline = groups.slice(0, MAX_INLINE_GROUPS);
-  // Every window without its own inline bar: non-representative windows of
-  // shown pools plus all windows of truncated pools.
-  const hidden = [...inline.flatMap(({ rest }) => rest), ...groups.slice(MAX_INLINE_GROUPS).flatMap(({ rep, rest }) => [rep, ...rest])];
+  const inline = windows.slice(0, MAX_INLINE_WINDOWS);
+  const hidden = windows.slice(MAX_INLINE_WINDOWS);
 
   // Single ungrouped window: same grid with an empty label slot, so its bar
   // lines up with the labelled rows above and below.
@@ -45,7 +33,7 @@ export function QuotaSummaryCapsule({
     return (
       <div className='grid w-max grid-cols-[4rem_267px_auto] items-center gap-x-2'>
         <span />
-        <QuotaCapsule window={inline[0].rep} size='sm' />
+        <QuotaCapsule window={inline[0]} size='sm' />
         <span />
       </div>
     );
@@ -53,22 +41,22 @@ export function QuotaSummaryCapsule({
 
   return (
     <div className='grid w-max grid-cols-[4rem_267px_auto] items-center gap-x-2 gap-y-1'>
-      {inline.map(({ group, rep }, index) => {
-        const label = shortGroupLabel(group, t);
+      {inline.map((window, index) => {
+        const label = shortGroupLabel(window.group, t);
         const isLast = index === inline.length - 1;
         return [
           // Explicit placeholder spans keep grid auto-placement aligned:
           // row = [group label][capsule][+N on the last row only]. A null
           // child would NOT occupy a grid cell and would shift later items.
           label ? (
-            <span key={`${rep.id}-label`} className='text-muted-foreground truncate text-[10px] font-semibold' title={group}>
+            <span key={`${window.id}-label`} className='text-muted-foreground truncate text-[10px] font-semibold' title={window.group}>
               {label}
             </span>
           ) : (
-            <span key={`${rep.id}-label`} />
+            <span key={`${window.id}-label`} />
           ),
-          <span key={`${rep.id}-capsule`}>
-            <QuotaCapsule window={rep} size='sm' />
+          <span key={`${window.id}-capsule`}>
+            <QuotaCapsule window={window} size='sm' />
           </span>,
           isLast && hidden.length > 0 ? (
             <QuotaMorePopover key='more' windows={hidden} size='sm'>
@@ -81,7 +69,7 @@ export function QuotaSummaryCapsule({
               </button>
             </QuotaMorePopover>
           ) : (
-            <span key={`more-${rep.id}`} />
+            <span key={`more-${window.id}`} />
           ),
         ];
       })}

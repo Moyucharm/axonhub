@@ -364,6 +364,22 @@ func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACreden
 	available := healthState == objects.CPACredentialHealthHealthy && !cooling
 	instanceStale := !instance.Enabled || (instance.LastError != nil && strings.TrimSpace(*instance.LastError) != "")
 	stale := instanceStale || quotaError
+	quotaData := credential.QuotaData
+	for index, item := range quotaData.Items {
+		if item.EstimateEligible || (item.EstimatedLimitUSD == nil && item.EstimatedCostUSD == nil && item.EstimateSource == "") {
+			continue
+		}
+		quotaData.Items = append([]objects.CPAQuotaItem(nil), quotaData.Items...)
+		for i := index; i < len(quotaData.Items); i++ {
+			candidate := &quotaData.Items[i]
+			if !candidate.EstimateEligible {
+				candidate.EstimatedLimitUSD = nil
+				candidate.EstimatedCostUSD = nil
+				candidate.EstimateSource = ""
+			}
+		}
+		break
+	}
 	return &CPACredentialView{
 		ID:                 credential.ID,
 		InstanceID:         credential.CpaInstanceID,
@@ -379,7 +395,7 @@ func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACreden
 		Priority:           credential.Priority,
 		PlanType:           credential.PlanType,
 		QuotaState:         credential.QuotaState,
-		QuotaData:          credential.QuotaData,
+		QuotaData:          quotaData,
 		QuotaLastAttemptAt: credential.QuotaLastAttemptAt,
 		QuotaLastSuccessAt: credential.QuotaLastSuccessAt,
 		QuotaLastFailureAt: credential.QuotaLastFailureAt,

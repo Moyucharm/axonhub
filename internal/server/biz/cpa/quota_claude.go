@@ -72,6 +72,7 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 		if windowInfo.period > 0 {
 			period := windowInfo.period
 			item.PeriodSeconds = &period
+			item.EstimateEligible = true
 		}
 		items = append(items, item)
 	}

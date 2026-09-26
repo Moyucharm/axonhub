@@ -117,6 +117,7 @@ func codexLimitItems(prefix, label string, rateLimit map[string]any, now time.Ti
 			RemainingPercent: remaining,
 			ResetAt:          resetFromRecord(window, now),
 			PeriodSeconds:    period,
+			EstimateEligible: prefix == "code",
 		})
 	}
 	return items

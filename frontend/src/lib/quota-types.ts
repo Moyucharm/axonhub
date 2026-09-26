@@ -46,27 +46,6 @@ export const QUOTA_PERIOD_SHORT_LABELS: Record<QuotaWindowKind, string | undefin
   other: undefined,
 };
 
-/** Kind priority used for primary-window selection (higher wins). */
-export const QUOTA_KIND_PRIORITY: Record<QuotaWindowKind, number> = {
-  weekly: 4,
-  monthly: 3,
-  daily: 2,
-  hourly: 1,
-  other: 0,
-};
-
-/**
- * Pick the single most important quota window from a list.
- * Priority: weekly > monthly > daily > hourly > other.
- * Within the same kind, the highest usage percentage wins.
- */
-export function pickPrimaryQuotaWindow(windows: QuotaWindowItem[]): QuotaWindowItem | undefined {
-  if (windows.length === 0) return undefined;
-  const pickBest = (kind: QuotaWindowKind) =>
-    windows.filter((w) => w.kind === kind).sort((a, b) => b.percent - a.percent)[0];
-  return pickBest('weekly') ?? pickBest('monthly') ?? pickBest('daily') ?? pickBest('hourly') ?? pickBest('other');
-}
-
 // Compact USD formatting for quota value estimates: integers above $100, one
 // decimal below that keeps small estimates readable without noise.
 export function formatQuotaUSD(value: number): string {

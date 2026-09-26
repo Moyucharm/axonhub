@@ -34,6 +34,13 @@ export type ProtocolConfigs = {
 
 const OPEN_CODE_ZEN_API_FORMATS: readonly ApiFormat[] = ['openai/chat_completions', 'openai/responses', 'anthropic/messages'];
 
+// Channel types whose model overrides and endpoints pick between several
+// protocol formats. Everything else keeps its configured format.
+const SUPPORTED_PROTOCOL_FORMATS: Partial<Record<ChannelType, readonly ApiFormat[]>> = {
+  opencode_zen: OPEN_CODE_ZEN_API_FORMATS,
+  zenmux: ['zenmux/video'],
+};
+
 export function getApiFormatsForProvider(provider: string, configs: ProtocolConfigs): ApiFormat[] {
   const providerConfig = configs.providerConfigs[provider];
   if (!providerConfig) return [];
@@ -143,29 +150,34 @@ export function getModelProtocolsForChannelApiFormat(
   return [...untouchedProtocols, ...models.map((model) => ({ model, apiFormats: [apiFormat], enabled: true }))];
 }
 
-export function getInitialApiFormatForChannel(
+/**
+ * Effective protocol of a stored channel. Explicit model overrides win even
+ * when they select the default format; the endpoint list is only consulted
+ * when no model pins a format, and several distinct overrides keep the
+ * channel default because a row badge cannot show two choices.
+ */
+export function getEffectiveApiFormatForChannel(
   channelType: ChannelType,
   defaultApiFormat: ApiFormat,
-  modelProtocols: readonly ModelProtocol[] | null | undefined
+  modelProtocols: readonly ModelProtocol[] | null | undefined,
+  endpoints: readonly ProtocolEndpoint[] | null | undefined
 ): ApiFormat {
-  if (
-    channelType === 'zenmux' &&
-    modelProtocols?.some((protocol) => protocol.enabled !== false && protocol.apiFormats.includes('zenmux/video'))
-  ) {
-    return 'zenmux/video';
-  }
+  const supportedFormats = SUPPORTED_PROTOCOL_FORMATS[channelType];
+  if (!supportedFormats) return defaultApiFormat;
 
-  if (channelType === 'opencode_zen') {
-    const selectedFormats = new Set(
-      (modelProtocols ?? [])
-        .filter((protocol) => protocol.enabled !== false)
-        .flatMap((protocol) => protocol.apiFormats)
-        .filter((format): format is ApiFormat => OPEN_CODE_ZEN_API_FORMATS.includes(format as ApiFormat))
-    );
-    if (selectedFormats.size === 1) {
-      for (const selectedFormat of selectedFormats) return selectedFormat;
-    }
+  const selectedFormats = new Set<ApiFormat>(
+    (modelProtocols ?? [])
+      .filter((protocol) => protocol.enabled !== false)
+      .flatMap((protocol) => protocol.apiFormats)
+      .filter((format): format is ApiFormat => supportedFormats.includes(format as ApiFormat))
+  );
+  if (selectedFormats.size === 1) {
+    for (const selectedFormat of selectedFormats) return selectedFormat;
   }
+  if (selectedFormats.size > 1) return defaultApiFormat;
 
-  return defaultApiFormat;
+  const endpointFormat = endpoints?.find(
+    (endpoint) => endpoint.apiFormat && supportedFormats.includes(endpoint.apiFormat as ApiFormat)
+  )?.apiFormat;
+  return (endpointFormat as ApiFormat | undefined) ?? defaultApiFormat;
 }

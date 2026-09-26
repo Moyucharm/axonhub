@@ -312,7 +312,7 @@ func sameQuotaPeriod(left, right *objects.CPAQuotaItem) bool {
 // different slot ids to be equal.
 func sameCodexEstimateWindow(left, right *objects.CPAQuotaItem) bool {
 	return left != nil && right != nil &&
-		(left.ID == right.ID || left.Group == right.Group) &&
+		(left.ID == right.ID || (left.Group != "" && left.Group == right.Group)) &&
 		sameQuotaPeriod(left, right) &&
 		left.ResetAt != nil && right.ResetAt != nil && sameQuotaReset(*left.ResetAt, *right.ResetAt)
 }

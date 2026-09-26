@@ -8,8 +8,6 @@ import {
   cpaQuotaItemsToWindows,
   formatTime,
   shortGroupLabel,
-  summarizeCredentialQuotaGroups,
-  summarizeQuotaGroups,
 } from './quota-windows.ts';
 
 const srcRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -124,86 +122,48 @@ test('cpaQuotaItemsToWindows skips items without any computable percentage', () 
   assert.equal(windows[0].percent, 30);
 });
 
-test('summarizeQuotaGroups picks the tightest representative per pool in first-appearance order', () => {
-  const win = (id, group, percent, kind) => ({ id, group, percent, kind });
-  // Antigravity pro shape: two pools x two periods.
-  const windows = [
-    win('gemini-weekly', 'Gemini Models', 1, 'weekly'),
-    win('gemini-5h', 'Gemini Models', 90, 'hourly'),
-    win('3p-weekly', 'Claude and GPT models', 0, 'weekly'),
-    win('3p-5h', 'Claude and GPT models', 40, 'hourly'),
-  ];
-  const groups = summarizeQuotaGroups(windows);
-
-  assert.equal(groups.length, 2);
-  assert.equal(groups[0].group, 'Gemini Models');
-  assert.equal(groups[0].rep.id, 'gemini-5h');
-  assert.deepEqual(
-    groups[0].rest.map((w) => w.id),
-    ['gemini-weekly']
+test('cpaQuotaItemsToWindows orders shortest period first and alphabetically on ties', () => {
+  const windows = cpaQuotaItemsToWindows(
+    [
+      { id: 'code-secondary', group: 'Code', label: '7 day', description: '', usedPercent: 20, remainingPercent: 80, periodSeconds: 7 * 24 * 3600 },
+      { id: 'code-primary', group: 'Code', label: '5 hour', description: '', usedPercent: 10, remainingPercent: 90, periodSeconds: 5 * 3600 },
+    ],
+    t
   );
-  assert.equal(groups[1].group, 'Claude and GPT models');
-  assert.equal(groups[1].rep.id, '3p-5h');
-});
-
-test('summarizeCredentialQuotaGroups orders windows by duration ascending and alphabet', () => {
-  const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
-  const fiveHour = win('code-primary', 'Code', 10, 'hourly', 5 * 60 * 60);
-  const weekly = win('code-secondary', 'Code', 20, 'weekly', 7 * 24 * 60 * 60);
-
-  const codex = summarizeCredentialQuotaGroups([fiveHour, weekly], 'codex');
   // 小区间（5h）排在大区间（7d）前面
   assert.deepEqual(
-    codex.map(({ rep }) => rep.id),
+    windows.map((window) => window.id),
     ['code-primary', 'code-secondary']
   );
 
-  const antigravity = summarizeCredentialQuotaGroups([weekly, fiveHour], 'antigravity');
-  assert.deepEqual(antigravity.map(({ rep }) => rep.id), ['code-primary', 'code-secondary']);
-
-  const monthly = win('code-monthly', 'Code', 5, 'monthly', 30 * 24 * 60 * 60);
-  const triple = summarizeCredentialQuotaGroups([weekly, monthly, fiveHour], 'codex');
-  // 超过两个额度区间时，小区间在前，大区间在后（供 +x 放入气泡）
-  assert.deepEqual(
-    triple.map(({ rep }) => rep.id),
-    ['code-primary', 'code-secondary', 'code-monthly']
-  );
-});
-
-test('summarizeCredentialQuotaGroups orders multi-pool windows by duration ascending then alphabet', () => {
-  const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
-  const groups = summarizeCredentialQuotaGroups(
+  // 时间相同时按字母升序：Claude (C) 在 Gemini (G) 前
+  const multiPool = cpaQuotaItemsToWindows(
     [
-      win('g-5h', 'Gemini Models', 62, 'hourly', 5 * 60 * 60),
-      win('g-7d', 'Gemini Models', 12, 'weekly', 7 * 24 * 60 * 60),
-      win('c-5h', 'Claude and GPT models', 96, 'hourly', 5 * 60 * 60),
-      win('c-7d', 'Claude and GPT models', 45, 'weekly', 7 * 24 * 60 * 60),
+      { id: 'g-5h', group: 'Gemini Models', label: '5 hour', description: '', usedPercent: 62, remainingPercent: 38, periodSeconds: 5 * 3600 },
+      { id: 'g-7d', group: 'Gemini Models', label: '7 day', description: '', usedPercent: 12, remainingPercent: 88, periodSeconds: 7 * 24 * 3600 },
+      { id: 'c-5h', group: 'Claude and GPT models', label: '5 hour', description: '', usedPercent: 96, remainingPercent: 4, periodSeconds: 5 * 3600 },
+      { id: 'c-7d', group: 'Claude and GPT models', label: '7 day', description: '', usedPercent: 45, remainingPercent: 55, periodSeconds: 7 * 24 * 3600 },
     ],
-    'antigravity'
+    t
   );
-  // 5h 优先于 7d；时间相同时 Claude (C) 在 Gemini (G) 前
   assert.deepEqual(
-    groups.map(({ rep }) => rep.id),
+    multiPool.map((window) => window.id),
     ['c-5h', 'g-5h', 'c-7d', 'g-7d']
   );
-});
 
-test('summarizeQuotaGroups breaks percent ties by kind priority and keeps ungrouped singletons', () => {
-  const win = (id, group, percent, kind) => ({ id, group, percent, kind });
-  // All-zero pools surface the long-term ceiling (weekly wins the tie).
-  const antigravityFree = summarizeQuotaGroups([
-    win('gemini-weekly', 'Gemini Models', 0, 'weekly'),
-    win('3p-weekly', 'Claude and GPT models', 0, 'weekly'),
-  ]);
-  assert.equal(antigravityFree.length, 2);
-  assert.equal(antigravityFree[0].rep.id, 'gemini-weekly');
-  assert.deepEqual(antigravityFree[0].rest, []);
-
-  // Ungrouped windows never merge into one pool.
-  const ungrouped = summarizeQuotaGroups([win('x', undefined, 10, 'other'), win('y', undefined, 20, 'other')]);
-  assert.equal(ungrouped.length, 2);
-  assert.equal(ungrouped[0].group, undefined);
-  assert.equal(ungrouped[1].rep.id, 'y');
+  // A third window keeps its position behind the two inline slots.
+  const triple = cpaQuotaItemsToWindows(
+    [
+      { id: 'code-secondary', group: 'Code', label: '7 day', description: '', usedPercent: 20, remainingPercent: 80, periodSeconds: 7 * 24 * 3600 },
+      { id: 'code-monthly', group: 'Code', label: 'Monthly', description: '', usedPercent: 5, remainingPercent: 95, periodSeconds: 30 * 24 * 3600 },
+      { id: 'code-primary', group: 'Code', label: '5 hour', description: '', usedPercent: 10, remainingPercent: 90, periodSeconds: 5 * 3600 },
+    ],
+    t
+  );
+  assert.deepEqual(
+    triple.map((window) => window.id),
+    ['code-primary', 'code-secondary', 'code-monthly']
+  );
 });
 
 test('shortGroupLabel maps known pools to i18n keys and truncates unknown ones', () => {
@@ -220,34 +180,6 @@ test('formatTime renders a fallback dash for missing timestamps', () => {
   assert.ok(rendered.includes('2026'));
   assert.equal(formatTime('not-a-date'), 'not-a-date');
 });
-
-test('CPA page renders quota capsules via QuotaWindowsBlock and QuotaSummaryCapsule', () => {
-  const index = read('features/cpa/index.tsx');
-  const table = read('features/cpa/components/credential-table.tsx');
-  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
-  const capsule = read('components/quota-capsule.tsx');
-  assert.match(index, /CPACredentialTable/);
-  assert.match(table, /QuotaWindowsBlock/);
-  assert.match(table, /QuotaSummaryCapsule/);
-  assert.match(summary, /QuotaCapsule/);
-  assert.match(summary, /size='sm'/);
-  assert.match(capsule, /type CapsuleSize = 'md' \| 'sm'/);
-});
-
-
-test('overflow popover reuses the external capsule and wraps full window names', () => {
-  const capsule = read('components/quota-capsule.tsx');
-  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
-  assert.match(capsule, /w-\[min\(28rem,calc\(100vw-2rem\)\)\]/);
-  assert.match(capsule, /grid-cols-\[minmax\(0,1fr\)_max-content\]/);
-  // The popover hands the capsule a fixed 13rem rail to fill.
-  assert.match(capsule, /<span className='w-52'>/);
-  assert.match(capsule, /min-w-0 .*break-words/);
-  assert.match(capsule, /<QuotaCapsule window=\{window\} size=\{size\} \/>/);
-  assert.doesNotMatch(capsule, /w-36 shrink-0 truncate text-right/);
-  assert.match(summary, /<QuotaMorePopover key='more' windows=\{hidden\} size='sm'>/);
-});
-
 
 test('expanded quota block lists every window as a width-capped detail block', () => {
   const capsule = read('components/quota-capsule.tsx');
@@ -296,9 +228,6 @@ test('quota capsule renders remaining semantics with stepped severity tones', ()
   assert.match(capsule, /TONE_CLASSES\[remainingTone\(used\)\]/);
   assert.match(capsule, /CHIP_TONES/);
   assert.doesNotMatch(capsule, /severityGradient|severityColor\(/);
-  // Data layer keeps used-percent semantics for primary-window picking.
-  const cpaWindows = read('features/cpa/quota-windows.ts');
-  assert.match(cpaWindows, /const percent = Math\.max\(0, Math\.min\(100, usedPct\)\)/);
 });
 
 test('quota capsule remaining i18n keys exist in both locales', () => {

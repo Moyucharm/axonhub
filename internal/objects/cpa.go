@@ -58,6 +58,9 @@ type CPAQuotaItem struct {
 	Unit             string     `json:"unit,omitempty"`
 	ResetAt          *time.Time `json:"reset_at,omitempty"`
 	PeriodSeconds    *int       `json:"period_seconds,omitempty"`
+	// EstimateEligible marks a full-credential spending window. Old JSON lacks
+	// this field and is not eligible until the next successful refresh.
+	EstimateEligible bool `json:"estimate_eligible,omitempty"`
 
 	// EstimatedLimitUSD is the estimated total quota value derived from the
 	// locally observed cost and percentage delta.
