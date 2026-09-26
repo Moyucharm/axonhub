@@ -202,10 +202,12 @@ func (svc *CPAService) executeCPARuntimeJob(ctx context.Context, job cpaRuntimeJ
 		},
 		func() { svc.patrolInstanceEnabled(ctx, job.instance) },
 		func() { svc.patrolInstanceDisabled(ctx, job.instance) },
+		// Auto use runs last so it sees the snapshots this cycle just refreshed.
+		func() { svc.autoResetCodexInstance(ctx, job.instance) },
 	)
 }
 
-func executeCPARuntimeOperations(job cpaRuntimeJob, refresh, enabledPatrol, disabledPatrol func()) {
+func executeCPARuntimeOperations(job cpaRuntimeJob, refresh, enabledPatrol, disabledPatrol, autoReset func()) {
 	if job.refresh {
 		refresh()
 	}
@@ -214,5 +216,8 @@ func executeCPARuntimeOperations(job cpaRuntimeJob, refresh, enabledPatrol, disa
 	}
 	if job.disabledPatrol {
 		disabledPatrol()
+	}
+	if autoReset != nil {
+		autoReset()
 	}
 }

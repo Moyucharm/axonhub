@@ -12,6 +12,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
+	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
@@ -138,6 +139,48 @@ func init() {
 	apikeyprofiletemplateDescProfile := apikeyprofiletemplateFields[3].Descriptor()
 	// apikeyprofiletemplate.DefaultProfile holds the default value on creation for the profile field.
 	apikeyprofiletemplate.DefaultProfile = apikeyprofiletemplateDescProfile.Default.(*objects.APIKeyProfile)
+	cpacodexresetattemptMixin := schema.CPACodexResetAttempt{}.Mixin()
+	cpacodexresetattempt.Policy = privacy.NewPolicies(schema.CPACodexResetAttempt{})
+	cpacodexresetattempt.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := cpacodexresetattempt.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	cpacodexresetattemptMixinFields0 := cpacodexresetattemptMixin[0].Fields()
+	_ = cpacodexresetattemptMixinFields0
+	cpacodexresetattemptFields := schema.CPACodexResetAttempt{}.Fields()
+	_ = cpacodexresetattemptFields
+	// cpacodexresetattemptDescCreatedAt is the schema descriptor for created_at field.
+	cpacodexresetattemptDescCreatedAt := cpacodexresetattemptMixinFields0[0].Descriptor()
+	// cpacodexresetattempt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cpacodexresetattempt.DefaultCreatedAt = cpacodexresetattemptDescCreatedAt.Default.(func() time.Time)
+	// cpacodexresetattemptDescUpdatedAt is the schema descriptor for updated_at field.
+	cpacodexresetattemptDescUpdatedAt := cpacodexresetattemptMixinFields0[1].Descriptor()
+	// cpacodexresetattempt.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cpacodexresetattempt.DefaultUpdatedAt = cpacodexresetattemptDescUpdatedAt.Default.(func() time.Time)
+	// cpacodexresetattempt.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cpacodexresetattempt.UpdateDefaultUpdatedAt = cpacodexresetattemptDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// cpacodexresetattemptDescCreditKey is the schema descriptor for credit_key field.
+	cpacodexresetattemptDescCreditKey := cpacodexresetattemptFields[0].Descriptor()
+	// cpacodexresetattempt.CreditKeyValidator is a validator for the "credit_key" field. It is called by the builders before save.
+	cpacodexresetattempt.CreditKeyValidator = func() func(string) error {
+		validators := cpacodexresetattemptDescCreditKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(credit_key string) error {
+			for _, fn := range fns {
+				if err := fn(credit_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	cpacredentialMixin := schema.CPACredential{}.Mixin()
 	cpacredential.Policy = privacy.NewPolicies(schema.CPACredential{})
 	cpacredential.Hooks[0] = func(next ent.Mutator) ent.Mutator {
@@ -342,8 +385,12 @@ func init() {
 	cpainstanceDescAutoManageEnabled := cpainstanceFields[10].Descriptor()
 	// cpainstance.DefaultAutoManageEnabled holds the default value on creation for the auto_manage_enabled field.
 	cpainstance.DefaultAutoManageEnabled = cpainstanceDescAutoManageEnabled.Default.(bool)
+	// cpainstanceDescAutoResetEnabled is the schema descriptor for auto_reset_enabled field.
+	cpainstanceDescAutoResetEnabled := cpainstanceFields[11].Descriptor()
+	// cpainstance.DefaultAutoResetEnabled holds the default value on creation for the auto_reset_enabled field.
+	cpainstance.DefaultAutoResetEnabled = cpainstanceDescAutoResetEnabled.Default.(bool)
 	// cpainstanceDescEnabledPatrolIntervalMinutes is the schema descriptor for enabled_patrol_interval_minutes field.
-	cpainstanceDescEnabledPatrolIntervalMinutes := cpainstanceFields[11].Descriptor()
+	cpainstanceDescEnabledPatrolIntervalMinutes := cpainstanceFields[12].Descriptor()
 	// cpainstance.DefaultEnabledPatrolIntervalMinutes holds the default value on creation for the enabled_patrol_interval_minutes field.
 	cpainstance.DefaultEnabledPatrolIntervalMinutes = cpainstanceDescEnabledPatrolIntervalMinutes.Default.(int)
 	// cpainstance.EnabledPatrolIntervalMinutesValidator is a validator for the "enabled_patrol_interval_minutes" field. It is called by the builders before save.
@@ -363,7 +410,7 @@ func init() {
 		}
 	}()
 	// cpainstanceDescDisabledPatrolIntervalMinutes is the schema descriptor for disabled_patrol_interval_minutes field.
-	cpainstanceDescDisabledPatrolIntervalMinutes := cpainstanceFields[12].Descriptor()
+	cpainstanceDescDisabledPatrolIntervalMinutes := cpainstanceFields[13].Descriptor()
 	// cpainstance.DefaultDisabledPatrolIntervalMinutes holds the default value on creation for the disabled_patrol_interval_minutes field.
 	cpainstance.DefaultDisabledPatrolIntervalMinutes = cpainstanceDescDisabledPatrolIntervalMinutes.Default.(int)
 	// cpainstance.DisabledPatrolIntervalMinutesValidator is a validator for the "disabled_patrol_interval_minutes" field. It is called by the builders before save.
@@ -383,15 +430,15 @@ func init() {
 		}
 	}()
 	// cpainstanceDescServerVersion is the schema descriptor for server_version field.
-	cpainstanceDescServerVersion := cpainstanceFields[15].Descriptor()
+	cpainstanceDescServerVersion := cpainstanceFields[16].Descriptor()
 	// cpainstance.DefaultServerVersion holds the default value on creation for the server_version field.
 	cpainstance.DefaultServerVersion = cpainstanceDescServerVersion.Default.(string)
 	// cpainstanceDescServerCommit is the schema descriptor for server_commit field.
-	cpainstanceDescServerCommit := cpainstanceFields[16].Descriptor()
+	cpainstanceDescServerCommit := cpainstanceFields[17].Descriptor()
 	// cpainstance.DefaultServerCommit holds the default value on creation for the server_commit field.
 	cpainstance.DefaultServerCommit = cpainstanceDescServerCommit.Default.(string)
 	// cpainstanceDescServerBuildDate is the schema descriptor for server_build_date field.
-	cpainstanceDescServerBuildDate := cpainstanceFields[17].Descriptor()
+	cpainstanceDescServerBuildDate := cpainstanceFields[18].Descriptor()
 	// cpainstance.DefaultServerBuildDate holds the default value on creation for the server_build_date field.
 	cpainstance.DefaultServerBuildDate = cpainstanceDescServerBuildDate.Default.(string)
 	channelMixin := schema.Channel{}.Mixin()

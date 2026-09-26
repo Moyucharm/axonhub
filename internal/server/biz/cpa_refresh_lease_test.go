@@ -132,7 +132,9 @@ func TestCPARefreshLeaseDeduplicatesProviderFetchAcrossServices(t *testing.T) {
 	close(release)
 	first := <-results
 	second := <-results
-	require.Equal(t, int32(1), calls.Load())
+	// One credential refresh reads the Codex quota and the reset cards together,
+	// so a single shared refresh still issues exactly two provider requests.
+	require.Equal(t, int32(2), calls.Load())
 	require.Equal(t, cpaQuotaExecutionSuccess, first.status)
 	require.Equal(t, cpaQuotaExecutionSuccess, second.status)
 	fresh := clientA.CPACredential.GetX(ctxA, credential.ID)

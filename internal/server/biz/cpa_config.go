@@ -17,6 +17,7 @@ type cpaInstanceConfig struct {
 	autoRefreshEnabled     bool
 	refreshIntervalMinutes int
 	autoManageEnabled      bool
+	autoResetEnabled       bool
 	usageStreamEnabled     bool
 	enabledPatrolInterval  int
 	disabledPatrolInterval int
@@ -48,6 +49,9 @@ func normalizeCreateCPAInstanceConfig(input CreateCPAInstanceInput) (cpaInstance
 		return cpaInstanceConfig{}, err
 	}
 
+	// Reset-card auto use runs inside the credential patrol, so it can only be
+	// enabled together with the patrol that refreshes quota and reset credits.
+	autoManageEnabled := boolOrDefault(input.AutoManageEnabled, false)
 	return cpaInstanceConfig{
 		name:                   name,
 		baseURL:                baseURL,
@@ -56,7 +60,8 @@ func normalizeCreateCPAInstanceConfig(input CreateCPAInstanceInput) (cpaInstance
 		insecureSkipTLS:        input.InsecureSkipTLS,
 		autoRefreshEnabled:     boolOrDefault(input.AutoRefreshEnabled, true),
 		refreshIntervalMinutes: refreshInterval,
-		autoManageEnabled:      boolOrDefault(input.AutoManageEnabled, false),
+		autoManageEnabled:      autoManageEnabled,
+		autoResetEnabled:       autoManageEnabled && boolOrDefault(input.AutoResetEnabled, false),
 		usageStreamEnabled:     boolOrDefault(input.UsageStreamEnabled, false),
 		enabledPatrolInterval:  enabledPatrolInterval,
 		disabledPatrolInterval: disabledPatrolInterval,
@@ -72,6 +77,7 @@ func mergeUpdateCPAInstanceConfig(current *ent.CPAInstance, input UpdateCPAInsta
 		autoRefreshEnabled:     current.AutoRefreshEnabled,
 		refreshIntervalMinutes: current.RefreshIntervalMinutes,
 		autoManageEnabled:      current.AutoManageEnabled,
+		autoResetEnabled:       current.AutoResetEnabled,
 		usageStreamEnabled:     current.UsageStreamEnabled,
 		enabledPatrolInterval:  current.EnabledPatrolIntervalMinutes,
 		disabledPatrolInterval: current.DisabledPatrolIntervalMinutes,
@@ -107,6 +113,9 @@ func mergeUpdateCPAInstanceConfig(current *ent.CPAInstance, input UpdateCPAInsta
 	if input.AutoManageEnabled != nil {
 		config.autoManageEnabled = *input.AutoManageEnabled
 	}
+	if input.AutoResetEnabled != nil {
+		config.autoResetEnabled = *input.AutoResetEnabled
+	}
 	if input.UsageStreamEnabled != nil {
 		config.usageStreamEnabled = *input.UsageStreamEnabled
 	}
@@ -130,6 +139,9 @@ func mergeUpdateCPAInstanceConfig(current *ent.CPAInstance, input UpdateCPAInsta
 	baseURLChanged := config.baseURL != current.BaseURL
 	if baseURLChanged && !secretChanged {
 		return cpaInstanceConfig{}, false, false, fmt.Errorf("CPA management secret is required when changing the base URL")
+	}
+	if !config.autoManageEnabled {
+		config.autoResetEnabled = false
 	}
 	connectionChanged := baseURLChanged || config.insecureSkipTLS != current.InsecureSkipTLS || secretChanged || (!current.Enabled && config.enabled)
 	return config, secretChanged, connectionChanged, nil

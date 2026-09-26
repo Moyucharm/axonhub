@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,7 +23,18 @@ const (
 	maxAuthFilesBodySize  = 32 << 20
 	maxAPICallBodySize    = 16 << 20
 	maxUsageQueueBodySize = 16 << 20
+	// Unstable networks (VPN tunnels, reverse proxies, congested links) drop
+	// reads often enough that a bounded retry is standard behavior. Only
+	// idempotent reads retry; writes stay single-shot so a lost response can
+	// never repeat a side effect.
+	readRetryAttempts  = 3
+	readRetryBaseDelay = 250 * time.Millisecond
 )
+
+// retryableStatus reports transient upstream statuses worth another attempt.
+func retryableStatus(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
+}
 
 // ManagementClient contains the remote operations used by the CPA business layer.
 // Keeping the protocol behind this interface lets sync, refresh, and patrol
@@ -40,6 +52,8 @@ type Client struct {
 	baseURL          *url.URL
 	managementSecret string
 	httpClient       *http.Client
+	retryAttempts    int
+	retryBaseDelay   time.Duration
 }
 
 // Config configures a CPA management client.
@@ -140,6 +154,8 @@ func NewClient(cfg Config) (*Client, error) {
 	client := &Client{
 		baseURL:          baseURL,
 		managementSecret: strings.TrimSpace(cfg.ManagementSecret),
+		retryAttempts:    readRetryAttempts,
+		retryBaseDelay:   readRetryBaseDelay,
 	}
 	client.httpClient = &http.Client{
 		Transport: transport,
@@ -189,7 +205,10 @@ func (c *Client) ListCredentials(ctx context.Context) (*AuthFilesResponse, Build
 	return &result, buildInfo, nil
 }
 
-// CallProvider asks CPA to execute a provider quota request with the selected auth.
+// CallProvider asks CPA to execute a provider request with the selected auth.
+// Provider GET calls are idempotent reads and retry on transient failures; POST
+// calls (for example a reset-card consume) are sent exactly once per call so a
+// lost response can never repeat the side effect.
 func (c *Client) CallProvider(ctx context.Context, call ProviderCall) (*ProviderCallResult, error) {
 	method := strings.ToUpper(strings.TrimSpace(call.Method))
 	if method != http.MethodGet && method != http.MethodPost {
@@ -206,19 +225,48 @@ func (c *Client) CallProvider(ctx context.Context, call ProviderCall) (*Provider
 		"header":     call.Headers,
 		"data":       call.Body,
 	}
-	var envelope struct {
-		StatusCode int                 `json:"status_code"`
-		Header     map[string][]string `json:"header"`
-		Body       string              `json:"body"`
+	idempotent := method == http.MethodGet
+	attempts := 1
+	if idempotent {
+		attempts = c.attempts()
 	}
-	if _, err := c.doJSON(ctx, http.MethodPost, "api-call", payload, maxAPICallBodySize, &envelope); err != nil {
-		return nil, err
+	var (
+		result  *ProviderCallResult
+		lastErr error
+	)
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if attempt > 1 {
+			if err := c.waitBeforeRetry(ctx, attempt); err != nil {
+				return nil, err
+			}
+		}
+		var envelope struct {
+			StatusCode int                 `json:"status_code"`
+			Header     map[string][]string `json:"header"`
+			Body       string              `json:"body"`
+		}
+		if _, err := c.doJSONOnce(ctx, http.MethodPost, "api-call", payload, maxAPICallBodySize, &envelope); err != nil {
+			if !retryableManagementError(err) {
+				return nil, err
+			}
+			lastErr = err
+			result = nil
+			continue
+		}
+		result = &ProviderCallResult{
+			StatusCode: envelope.StatusCode,
+			Headers:    http.Header(envelope.Header),
+			Body:       []byte(envelope.Body),
+		}
+		lastErr = nil
+		if !idempotent || !retryableStatus(result.StatusCode) {
+			return result, nil
+		}
 	}
-	return &ProviderCallResult{
-		StatusCode: envelope.StatusCode,
-		Headers:    http.Header(envelope.Header),
-		Body:       []byte(envelope.Body),
-	}, nil
+	if result != nil {
+		return result, nil
+	}
+	return nil, lastErr
 }
 
 // ListUsageQueue pops up to count oldest usage records from CPA's transient queue.
@@ -228,7 +276,9 @@ func (c *Client) ListUsageQueue(ctx context.Context, count int) ([]*UsageEvent, 
 	}
 	var events []*UsageEvent
 	endpoint := "usage-queue?count=" + strconv.Itoa(count)
-	if _, err := c.doJSON(ctx, http.MethodGet, endpoint, nil, maxUsageQueueBodySize, &events); err != nil {
+	// The usage queue pops records, so a retried read would silently drop the
+	// batch whose first response was lost. Send it exactly once.
+	if _, err := c.doJSONOnce(ctx, http.MethodGet, endpoint, nil, maxUsageQueueBodySize, &events); err != nil {
 		return nil, err
 	}
 	if events == nil {
@@ -260,7 +310,68 @@ func (c *Client) PatchAuthFileStatus(ctx context.Context, name, authIndex string
 	return err
 }
 
+// doJSON performs one management request, retrying idempotent GET reads on
+// transient network or upstream failures. Other methods stay single-shot.
 func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
+	attempts := 1
+	if method == http.MethodGet {
+		attempts = c.attempts()
+	}
+	var (
+		buildInfo BuildInfo
+		lastErr   error
+	)
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if attempt > 1 {
+			if err := c.waitBeforeRetry(ctx, attempt); err != nil {
+				return buildInfo, err
+			}
+		}
+		buildInfo, lastErr = c.doJSONOnce(ctx, method, endpoint, payload, maxBody, output)
+		if lastErr == nil {
+			return buildInfo, nil
+		}
+		if !retryableManagementError(lastErr) {
+			return buildInfo, lastErr
+		}
+	}
+	return buildInfo, lastErr
+}
+
+// retryableManagementError reports management failures another attempt may
+// resolve. Transport failures qualify; HTTP replies retry only when transient.
+func retryableManagementError(err error) bool {
+	var httpErr *ManagementHTTPError
+	if errors.As(err, &httpErr) {
+		return retryableStatus(httpErr.StatusCode)
+	}
+	return true
+}
+
+func (c *Client) attempts() int {
+	if c == nil || c.retryAttempts < 1 {
+		return 1
+	}
+	return c.retryAttempts
+}
+
+func (c *Client) waitBeforeRetry(ctx context.Context, attempt int) error {
+	delay := readRetryBaseDelay
+	if c != nil && c.retryBaseDelay > 0 {
+		delay = c.retryBaseDelay
+	}
+	timer := time.NewTimer(delay * time.Duration(attempt-1))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// doJSONOnce performs exactly one management request and decodes its reply.
+func (c *Client) doJSONOnce(ctx context.Context, method, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
 	if c == nil || c.httpClient == nil || c.baseURL == nil {
 		return BuildInfo{}, fmt.Errorf("CPA client is not initialized")
 	}

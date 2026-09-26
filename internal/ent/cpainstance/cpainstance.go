@@ -41,6 +41,8 @@ const (
 	FieldNextRefreshAt = "next_refresh_at"
 	// FieldAutoManageEnabled holds the string denoting the auto_manage_enabled field in the database.
 	FieldAutoManageEnabled = "auto_manage_enabled"
+	// FieldAutoResetEnabled holds the string denoting the auto_reset_enabled field in the database.
+	FieldAutoResetEnabled = "auto_reset_enabled"
 	// FieldEnabledPatrolIntervalMinutes holds the string denoting the enabled_patrol_interval_minutes field in the database.
 	FieldEnabledPatrolIntervalMinutes = "enabled_patrol_interval_minutes"
 	// FieldDisabledPatrolIntervalMinutes holds the string denoting the disabled_patrol_interval_minutes field in the database.
@@ -92,6 +94,7 @@ var Columns = []string{
 	FieldRefreshIntervalMinutes,
 	FieldNextRefreshAt,
 	FieldAutoManageEnabled,
+	FieldAutoResetEnabled,
 	FieldEnabledPatrolIntervalMinutes,
 	FieldDisabledPatrolIntervalMinutes,
 	FieldNextEnabledPatrolAt,
@@ -149,6 +152,8 @@ var (
 	RefreshIntervalMinutesValidator func(int) error
 	// DefaultAutoManageEnabled holds the default value on creation for the "auto_manage_enabled" field.
 	DefaultAutoManageEnabled bool
+	// DefaultAutoResetEnabled holds the default value on creation for the "auto_reset_enabled" field.
+	DefaultAutoResetEnabled bool
 	// DefaultEnabledPatrolIntervalMinutes holds the default value on creation for the "enabled_patrol_interval_minutes" field.
 	DefaultEnabledPatrolIntervalMinutes int
 	// EnabledPatrolIntervalMinutesValidator is a validator for the "enabled_patrol_interval_minutes" field. It is called by the builders before save.
@@ -236,6 +241,11 @@ func ByNextRefreshAt(opts ...sql.OrderTermOption) OrderOption {
 // ByAutoManageEnabled orders the results by the auto_manage_enabled field.
 func ByAutoManageEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAutoManageEnabled, opts...).ToFunc()
+}
+
+// ByAutoResetEnabled orders the results by the auto_reset_enabled field.
+func ByAutoResetEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAutoResetEnabled, opts...).ToFunc()
 }
 
 // ByEnabledPatrolIntervalMinutes orders the results by the enabled_patrol_interval_minutes field.

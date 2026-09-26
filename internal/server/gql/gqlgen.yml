@@ -110,6 +110,9 @@ models:
   CPAManagedCredential:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPACredentialView
+  CPAQuotaResetCredit:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAQuotaResetCredit
   CPACredentialConnection:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPACredentialConnection

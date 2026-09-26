@@ -58,10 +58,19 @@ func (codexQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, inp
 	if len(items) == 0 {
 		return QuotaResult{}, fmt.Errorf("Codex quota response contained no windows")
 	}
+	snapshot := objects.CPAQuotaSnapshot{Items: items}
+	// Reset cards ride along with the quota refresh so the UI never needs a
+	// second read path. A failed card read must not fail quota, but it stays
+	// visible as a failure instead of looking like "no cards".
+	if credits, err := ListCodexResetCredits(ctx, client, input.AuthIndex, input.AccountID); err != nil {
+		snapshot.ResetCreditsFailed = true
+	} else {
+		snapshot.ResetCredits = UsableCodexResetCredits(credits, now)
+	}
 	return QuotaResult{
 		State:    objects.CPAQuotaStateSuccess,
 		PlanType: planType,
-		Snapshot: objects.CPAQuotaSnapshot{Items: items},
+		Snapshot: snapshot,
 	}, nil
 }
 

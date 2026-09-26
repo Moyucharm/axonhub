@@ -12,6 +12,9 @@ type APIKey func(*sql.Selector)
 // APIKeyProfileTemplate is the predicate function for apikeyprofiletemplate builders.
 type APIKeyProfileTemplate func(*sql.Selector)
 
+// CPACodexResetAttempt is the predicate function for cpacodexresetattempt builders.
+type CPACodexResetAttempt func(*sql.Selector)
+
 // CPACredential is the predicate function for cpacredential builders.
 type CPACredential func(*sql.Selector)
 

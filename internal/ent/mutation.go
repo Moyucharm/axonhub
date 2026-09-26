@@ -18,6 +18,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
@@ -54,6 +55,7 @@ const (
 	// Node types.
 	TypeAPIKey                   = "APIKey"
 	TypeAPIKeyProfileTemplate    = "APIKeyProfileTemplate"
+	TypeCPACodexResetAttempt     = "CPACodexResetAttempt"
 	TypeCPACredential            = "CPACredential"
 	TypeCPAInstance              = "CPAInstance"
 	TypeChannel                  = "Channel"
@@ -2096,6 +2098,584 @@ func (m *APIKeyProfileTemplateMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown APIKeyProfileTemplate edge %s", name)
+}
+
+// CPACodexResetAttemptMutation represents an operation that mutates the CPACodexResetAttempt nodes in the graph.
+type CPACodexResetAttemptMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int
+	created_at       *time.Time
+	updated_at       *time.Time
+	credit_key       *string
+	credential_id    *int
+	addcredential_id *int
+	state            *cpacodexresetattempt.State
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*CPACodexResetAttempt, error)
+	predicates       []predicate.CPACodexResetAttempt
+}
+
+var _ ent.Mutation = (*CPACodexResetAttemptMutation)(nil)
+
+// cpacodexresetattemptOption allows management of the mutation configuration using functional options.
+type cpacodexresetattemptOption func(*CPACodexResetAttemptMutation)
+
+// newCPACodexResetAttemptMutation creates new mutation for the CPACodexResetAttempt entity.
+func newCPACodexResetAttemptMutation(c config, op Op, opts ...cpacodexresetattemptOption) *CPACodexResetAttemptMutation {
+	m := &CPACodexResetAttemptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCPACodexResetAttempt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCPACodexResetAttemptID sets the ID field of the mutation.
+func withCPACodexResetAttemptID(id int) cpacodexresetattemptOption {
+	return func(m *CPACodexResetAttemptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CPACodexResetAttempt
+		)
+		m.oldValue = func(ctx context.Context) (*CPACodexResetAttempt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CPACodexResetAttempt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCPACodexResetAttempt sets the old CPACodexResetAttempt of the mutation.
+func withCPACodexResetAttempt(node *CPACodexResetAttempt) cpacodexresetattemptOption {
+	return func(m *CPACodexResetAttemptMutation) {
+		m.oldValue = func(context.Context) (*CPACodexResetAttempt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CPACodexResetAttemptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CPACodexResetAttemptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CPACodexResetAttemptMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CPACodexResetAttemptMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CPACodexResetAttempt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CPACodexResetAttemptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CPACodexResetAttemptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CPACodexResetAttempt entity.
+// If the CPACodexResetAttempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACodexResetAttemptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CPACodexResetAttemptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CPACodexResetAttemptMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CPACodexResetAttemptMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CPACodexResetAttempt entity.
+// If the CPACodexResetAttempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACodexResetAttemptMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CPACodexResetAttemptMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetCreditKey sets the "credit_key" field.
+func (m *CPACodexResetAttemptMutation) SetCreditKey(s string) {
+	m.credit_key = &s
+}
+
+// CreditKey returns the value of the "credit_key" field in the mutation.
+func (m *CPACodexResetAttemptMutation) CreditKey() (r string, exists bool) {
+	v := m.credit_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreditKey returns the old "credit_key" field's value of the CPACodexResetAttempt entity.
+// If the CPACodexResetAttempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACodexResetAttemptMutation) OldCreditKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreditKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreditKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreditKey: %w", err)
+	}
+	return oldValue.CreditKey, nil
+}
+
+// ResetCreditKey resets all changes to the "credit_key" field.
+func (m *CPACodexResetAttemptMutation) ResetCreditKey() {
+	m.credit_key = nil
+}
+
+// SetCredentialID sets the "credential_id" field.
+func (m *CPACodexResetAttemptMutation) SetCredentialID(i int) {
+	m.credential_id = &i
+	m.addcredential_id = nil
+}
+
+// CredentialID returns the value of the "credential_id" field in the mutation.
+func (m *CPACodexResetAttemptMutation) CredentialID() (r int, exists bool) {
+	v := m.credential_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCredentialID returns the old "credential_id" field's value of the CPACodexResetAttempt entity.
+// If the CPACodexResetAttempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACodexResetAttemptMutation) OldCredentialID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCredentialID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCredentialID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCredentialID: %w", err)
+	}
+	return oldValue.CredentialID, nil
+}
+
+// AddCredentialID adds i to the "credential_id" field.
+func (m *CPACodexResetAttemptMutation) AddCredentialID(i int) {
+	if m.addcredential_id != nil {
+		*m.addcredential_id += i
+	} else {
+		m.addcredential_id = &i
+	}
+}
+
+// AddedCredentialID returns the value that was added to the "credential_id" field in this mutation.
+func (m *CPACodexResetAttemptMutation) AddedCredentialID() (r int, exists bool) {
+	v := m.addcredential_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCredentialID resets all changes to the "credential_id" field.
+func (m *CPACodexResetAttemptMutation) ResetCredentialID() {
+	m.credential_id = nil
+	m.addcredential_id = nil
+}
+
+// SetState sets the "state" field.
+func (m *CPACodexResetAttemptMutation) SetState(c cpacodexresetattempt.State) {
+	m.state = &c
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *CPACodexResetAttemptMutation) State() (r cpacodexresetattempt.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the CPACodexResetAttempt entity.
+// If the CPACodexResetAttempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACodexResetAttemptMutation) OldState(ctx context.Context) (v cpacodexresetattempt.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *CPACodexResetAttemptMutation) ResetState() {
+	m.state = nil
+}
+
+// Where appends a list predicates to the CPACodexResetAttemptMutation builder.
+func (m *CPACodexResetAttemptMutation) Where(ps ...predicate.CPACodexResetAttempt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CPACodexResetAttemptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CPACodexResetAttemptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CPACodexResetAttempt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CPACodexResetAttemptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CPACodexResetAttemptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CPACodexResetAttempt).
+func (m *CPACodexResetAttemptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CPACodexResetAttemptMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.created_at != nil {
+		fields = append(fields, cpacodexresetattempt.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cpacodexresetattempt.FieldUpdatedAt)
+	}
+	if m.credit_key != nil {
+		fields = append(fields, cpacodexresetattempt.FieldCreditKey)
+	}
+	if m.credential_id != nil {
+		fields = append(fields, cpacodexresetattempt.FieldCredentialID)
+	}
+	if m.state != nil {
+		fields = append(fields, cpacodexresetattempt.FieldState)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CPACodexResetAttemptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cpacodexresetattempt.FieldCreatedAt:
+		return m.CreatedAt()
+	case cpacodexresetattempt.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cpacodexresetattempt.FieldCreditKey:
+		return m.CreditKey()
+	case cpacodexresetattempt.FieldCredentialID:
+		return m.CredentialID()
+	case cpacodexresetattempt.FieldState:
+		return m.State()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CPACodexResetAttemptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cpacodexresetattempt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cpacodexresetattempt.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cpacodexresetattempt.FieldCreditKey:
+		return m.OldCreditKey(ctx)
+	case cpacodexresetattempt.FieldCredentialID:
+		return m.OldCredentialID(ctx)
+	case cpacodexresetattempt.FieldState:
+		return m.OldState(ctx)
+	}
+	return nil, fmt.Errorf("unknown CPACodexResetAttempt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPACodexResetAttemptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cpacodexresetattempt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cpacodexresetattempt.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cpacodexresetattempt.FieldCreditKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreditKey(v)
+		return nil
+	case cpacodexresetattempt.FieldCredentialID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCredentialID(v)
+		return nil
+	case cpacodexresetattempt.FieldState:
+		v, ok := value.(cpacodexresetattempt.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPACodexResetAttempt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CPACodexResetAttemptMutation) AddedFields() []string {
+	var fields []string
+	if m.addcredential_id != nil {
+		fields = append(fields, cpacodexresetattempt.FieldCredentialID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CPACodexResetAttemptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case cpacodexresetattempt.FieldCredentialID:
+		return m.AddedCredentialID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CPACodexResetAttemptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case cpacodexresetattempt.FieldCredentialID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCredentialID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CPACodexResetAttempt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CPACodexResetAttemptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CPACodexResetAttemptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CPACodexResetAttemptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CPACodexResetAttempt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CPACodexResetAttemptMutation) ResetField(name string) error {
+	switch name {
+	case cpacodexresetattempt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cpacodexresetattempt.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cpacodexresetattempt.FieldCreditKey:
+		m.ResetCreditKey()
+		return nil
+	case cpacodexresetattempt.FieldCredentialID:
+		m.ResetCredentialID()
+		return nil
+	case cpacodexresetattempt.FieldState:
+		m.ResetState()
+		return nil
+	}
+	return fmt.Errorf("unknown CPACodexResetAttempt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CPACodexResetAttemptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CPACodexResetAttemptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CPACodexResetAttemptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CPACodexResetAttemptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CPACodexResetAttemptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CPACodexResetAttemptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CPACodexResetAttemptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CPACodexResetAttempt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CPACodexResetAttemptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CPACodexResetAttempt edge %s", name)
 }
 
 // CPACredentialMutation represents an operation that mutates the CPACredential nodes in the graph.
@@ -4532,6 +5112,7 @@ type CPAInstanceMutation struct {
 	addrefresh_interval_minutes         *int
 	next_refresh_at                     *time.Time
 	auto_manage_enabled                 *bool
+	auto_reset_enabled                  *bool
 	enabled_patrol_interval_minutes     *int
 	addenabled_patrol_interval_minutes  *int
 	disabled_patrol_interval_minutes    *int
@@ -5153,6 +5734,42 @@ func (m *CPAInstanceMutation) ResetAutoManageEnabled() {
 	m.auto_manage_enabled = nil
 }
 
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (m *CPAInstanceMutation) SetAutoResetEnabled(b bool) {
+	m.auto_reset_enabled = &b
+}
+
+// AutoResetEnabled returns the value of the "auto_reset_enabled" field in the mutation.
+func (m *CPAInstanceMutation) AutoResetEnabled() (r bool, exists bool) {
+	v := m.auto_reset_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoResetEnabled returns the old "auto_reset_enabled" field's value of the CPAInstance entity.
+// If the CPAInstance object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPAInstanceMutation) OldAutoResetEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoResetEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoResetEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoResetEnabled: %w", err)
+	}
+	return oldValue.AutoResetEnabled, nil
+}
+
+// ResetAutoResetEnabled resets all changes to the "auto_reset_enabled" field.
+func (m *CPAInstanceMutation) ResetAutoResetEnabled() {
+	m.auto_reset_enabled = nil
+}
+
 // SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
 func (m *CPAInstanceMutation) SetEnabledPatrolIntervalMinutes(i int) {
 	m.enabled_patrol_interval_minutes = &i
@@ -5755,7 +6372,7 @@ func (m *CPAInstanceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPAInstanceMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 25)
 	if m.created_at != nil {
 		fields = append(fields, cpainstance.FieldCreatedAt)
 	}
@@ -5794,6 +6411,9 @@ func (m *CPAInstanceMutation) Fields() []string {
 	}
 	if m.auto_manage_enabled != nil {
 		fields = append(fields, cpainstance.FieldAutoManageEnabled)
+	}
+	if m.auto_reset_enabled != nil {
+		fields = append(fields, cpainstance.FieldAutoResetEnabled)
 	}
 	if m.enabled_patrol_interval_minutes != nil {
 		fields = append(fields, cpainstance.FieldEnabledPatrolIntervalMinutes)
@@ -5862,6 +6482,8 @@ func (m *CPAInstanceMutation) Field(name string) (ent.Value, bool) {
 		return m.NextRefreshAt()
 	case cpainstance.FieldAutoManageEnabled:
 		return m.AutoManageEnabled()
+	case cpainstance.FieldAutoResetEnabled:
+		return m.AutoResetEnabled()
 	case cpainstance.FieldEnabledPatrolIntervalMinutes:
 		return m.EnabledPatrolIntervalMinutes()
 	case cpainstance.FieldDisabledPatrolIntervalMinutes:
@@ -5919,6 +6541,8 @@ func (m *CPAInstanceMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldNextRefreshAt(ctx)
 	case cpainstance.FieldAutoManageEnabled:
 		return m.OldAutoManageEnabled(ctx)
+	case cpainstance.FieldAutoResetEnabled:
+		return m.OldAutoResetEnabled(ctx)
 	case cpainstance.FieldEnabledPatrolIntervalMinutes:
 		return m.OldEnabledPatrolIntervalMinutes(ctx)
 	case cpainstance.FieldDisabledPatrolIntervalMinutes:
@@ -6040,6 +6664,13 @@ func (m *CPAInstanceMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAutoManageEnabled(v)
+		return nil
+	case cpainstance.FieldAutoResetEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoResetEnabled(v)
 		return nil
 	case cpainstance.FieldEnabledPatrolIntervalMinutes:
 		v, ok := value.(int)
@@ -6289,6 +6920,9 @@ func (m *CPAInstanceMutation) ResetField(name string) error {
 		return nil
 	case cpainstance.FieldAutoManageEnabled:
 		m.ResetAutoManageEnabled()
+		return nil
+	case cpainstance.FieldAutoResetEnabled:
+		m.ResetAutoResetEnabled()
 		return nil
 	case cpainstance.FieldEnabledPatrolIntervalMinutes:
 		m.ResetEnabledPatrolIntervalMinutes()

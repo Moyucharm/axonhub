@@ -203,6 +203,20 @@ func (_u *CPAInstanceUpdate) SetNillableAutoManageEnabled(v *bool) *CPAInstanceU
 	return _u
 }
 
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (_u *CPAInstanceUpdate) SetAutoResetEnabled(v bool) *CPAInstanceUpdate {
+	_u.mutation.SetAutoResetEnabled(v)
+	return _u
+}
+
+// SetNillableAutoResetEnabled sets the "auto_reset_enabled" field if the given value is not nil.
+func (_u *CPAInstanceUpdate) SetNillableAutoResetEnabled(v *bool) *CPAInstanceUpdate {
+	if v != nil {
+		_u.SetAutoResetEnabled(*v)
+	}
+	return _u
+}
+
 // SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
 func (_u *CPAInstanceUpdate) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceUpdate {
 	_u.mutation.ResetEnabledPatrolIntervalMinutes()
@@ -580,6 +594,9 @@ func (_u *CPAInstanceUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.AutoManageEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoManageEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.AutoResetEnabled(); ok {
+		_spec.SetField(cpainstance.FieldAutoResetEnabled, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.EnabledPatrolIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldEnabledPatrolIntervalMinutes, field.TypeInt, value)
 	}
@@ -873,6 +890,20 @@ func (_u *CPAInstanceUpdateOne) SetAutoManageEnabled(v bool) *CPAInstanceUpdateO
 func (_u *CPAInstanceUpdateOne) SetNillableAutoManageEnabled(v *bool) *CPAInstanceUpdateOne {
 	if v != nil {
 		_u.SetAutoManageEnabled(*v)
+	}
+	return _u
+}
+
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (_u *CPAInstanceUpdateOne) SetAutoResetEnabled(v bool) *CPAInstanceUpdateOne {
+	_u.mutation.SetAutoResetEnabled(v)
+	return _u
+}
+
+// SetNillableAutoResetEnabled sets the "auto_reset_enabled" field if the given value is not nil.
+func (_u *CPAInstanceUpdateOne) SetNillableAutoResetEnabled(v *bool) *CPAInstanceUpdateOne {
+	if v != nil {
+		_u.SetAutoResetEnabled(*v)
 	}
 	return _u
 }
@@ -1283,6 +1314,9 @@ func (_u *CPAInstanceUpdateOne) sqlSave(ctx context.Context) (_node *CPAInstance
 	}
 	if value, ok := _u.mutation.AutoManageEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoManageEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AutoResetEnabled(); ok {
+		_spec.SetField(cpainstance.FieldAutoResetEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.EnabledPatrolIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldEnabledPatrolIntervalMinutes, field.TypeInt, value)

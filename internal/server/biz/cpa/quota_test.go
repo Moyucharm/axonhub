@@ -38,6 +38,8 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 		switch {
 		case payload.URL == codexUsageURL:
 			body = `{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":25,"limit_window_seconds":18000,"reset_after_seconds":60}}}`
+		case payload.URL == codexResetCreditsURL:
+			body = `{"credits":[{"id":"credit-a","status":"available","expires_at":"2030-01-01T00:00:00Z"}]}`
 		case payload.URL == claudeUsageURL:
 			body = `{"five_hour":{"utilization":0.25,"resets_at":"2030-01-01T00:00:00Z"}}`
 		case payload.URL == claudeProfileURL:

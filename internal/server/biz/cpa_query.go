@@ -171,15 +171,18 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 	}
 
 	edges := make([]*CPACredentialEdge, 0, len(credentials))
+	views := make([]*CPACredentialView, 0, len(credentials))
 	for _, credential := range credentials {
 		cursor, encodeErr := encodeCPACredentialCursor(credential)
 		if encodeErr != nil {
 			return nil, encodeErr
 		}
-		edges = append(edges, &CPACredentialEdge{
-			Cursor: cursor,
-			Node:   buildCPACredentialView(instance, credential, now),
-		})
+		view := buildCPACredentialView(instance, credential, now)
+		views = append(views, view)
+		edges = append(edges, &CPACredentialEdge{Cursor: cursor, Node: view})
+	}
+	if err := svc.filterClaimedResetCredits(ctx, views...); err != nil {
+		return nil, err
 	}
 	pageInfo := &CPAPageInfo{
 		HasPreviousPage: hasPreviousPage,
@@ -336,6 +339,15 @@ func (svc *CPAService) providerOverviewAggregate(ctx context.Context, instanceID
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Provider < result[j].Provider })
 	return result, nil
+}
+
+// credentialView builds the API view and hides already-claimed reset cards.
+func (svc *CPAService) credentialView(ctx context.Context, instance *ent.CPAInstance, credential *ent.CPACredential) (*CPACredentialView, error) {
+	view := buildCPACredentialView(instance, credential, svc.now())
+	if err := svc.filterClaimedResetCredits(ctx, view); err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
 // buildCPACredentialView projects one SQL-selected credential row onto the API.

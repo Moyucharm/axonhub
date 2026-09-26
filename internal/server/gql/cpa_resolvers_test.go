@@ -57,3 +57,19 @@ func TestCPAOverviewResolverRequiresReadSettings(t *testing.T) {
 	require.Equal(t, &biz.CPACredentialStats{Available: 1, Total: 1, Abnormal: 0}, overview.Stats)
 	require.Equal(t, []*biz.CPAProviderOverview{{Provider: "codex", Count: 1, PlanTypes: []string{"plus"}}}, overview.Providers)
 }
+
+func TestCPACodexResetMutationEnforcesWriteSettings(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_reset_resolver?mode=memory&_fk=0")
+	defer client.Close()
+	user := &ent.User{ID: 42}
+	ctx := contexts.WithUser(authz.NewUserContext(ent.NewContext(t.Context(), client), user.ID), user)
+	resolver := &Resolver{cpaService: biz.NewCPAService(biz.CPAServiceParams{Ent: client})}
+	_, err := (&mutationResolver{resolver}).ResetCPACodexCredential(ctx, 123, "card")
+	require.ErrorContains(t, err, "write:settings")
+	user.Scopes = []string{string(scopes.ScopeReadSettings)}
+	_, err = (&mutationResolver{resolver}).ResetCPACodexCredential(ctx, 123, "card")
+	require.ErrorContains(t, err, "write:settings")
+	user.Scopes = []string{string(scopes.ScopeWriteSettings)}
+	_, err = (&mutationResolver{resolver}).ResetCPACodexCredential(ctx, 123, "card")
+	require.NotContains(t, err.Error(), "permission denied")
+}

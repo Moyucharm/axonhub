@@ -37,6 +37,7 @@ func (CPAInstance) Fields() []ent.Field {
 		field.Int("refresh_interval_minutes").Default(5).Min(5).Max(1440),
 		field.Time("next_refresh_at").Optional().Nillable(),
 		field.Bool("auto_manage_enabled").Default(false),
+		field.Bool("auto_reset_enabled").Default(false),
 		field.Int("enabled_patrol_interval_minutes").Default(5).Min(1).Max(1440),
 		field.Int("disabled_patrol_interval_minutes").Default(480).Min(60).Max(10080),
 		field.Time("next_enabled_patrol_at").Optional().Nillable(),

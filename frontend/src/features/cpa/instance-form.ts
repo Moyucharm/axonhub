@@ -10,6 +10,7 @@ export const cpaInstanceFormSchema = z.object({
   autoRefreshEnabled: z.boolean(),
   refreshIntervalMinutes: z.number().int().min(5).max(1440),
   autoManageEnabled: z.boolean(),
+  autoResetEnabled: z.boolean(),
   usageStreamEnabled: z.boolean(),
   enabledPatrolIntervalMinutes: z.number().int().min(1).max(1440),
   disabledPatrolIntervalMinutes: z.number().int().min(60).max(10080),
@@ -26,6 +27,7 @@ export const DEFAULT_CPA_INSTANCE_FORM_VALUES: CPAInstanceFormValues = {
   autoRefreshEnabled: true,
   refreshIntervalMinutes: 5,
   autoManageEnabled: false,
+  autoResetEnabled: false,
   usageStreamEnabled: false,
   enabledPatrolIntervalMinutes: 5,
   disabledPatrolIntervalMinutes: 480,
@@ -41,6 +43,9 @@ export function cpaInstanceFormValues(instance?: CPAInstance): CPAInstanceFormVa
     autoRefreshEnabled: instance?.autoRefreshEnabled ?? true,
     refreshIntervalMinutes: instance?.refreshIntervalMinutes ?? 5,
     autoManageEnabled: instance?.autoManageEnabled ?? false,
+    // Reset-card auto use runs with the credential patrol, so a stored value
+    // without the dependency stays off in the form and on save.
+    autoResetEnabled: (instance?.autoManageEnabled ?? false) && (instance?.autoResetEnabled ?? false),
     usageStreamEnabled: instance?.usageStreamEnabled ?? false,
     enabledPatrolIntervalMinutes: instance?.enabledPatrolIntervalMinutes ?? 5,
     disabledPatrolIntervalMinutes: instance?.disabledPatrolIntervalMinutes ?? 480,

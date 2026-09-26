@@ -97,3 +97,32 @@ func TestMergeUpdateCPAInstanceConfigRequiresSecretForURLChange(t *testing.T) {
 	_, _, _, err := mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{BaseURL: &newURL})
 	require.EqualError(t, err, "CPA management secret is required when changing the base URL")
 }
+
+func TestCPAInstanceConfigKeepsAutoResetDependentOnAutoManage(t *testing.T) {
+	created := true
+	config, err := normalizeCreateCPAInstanceConfig(CreateCPAInstanceInput{
+		Name:              "dependent",
+		BaseURL:           "http://127.0.0.1:8317",
+		ManagementSecret:  "secret",
+		AutoManageEnabled: new(bool),
+		AutoResetEnabled:  &created,
+	})
+	require.NoError(t, err)
+	require.False(t, config.autoResetEnabled)
+
+	managed := true
+	config, err = normalizeCreateCPAInstanceConfig(CreateCPAInstanceInput{
+		Name:              "dependent",
+		BaseURL:           "http://127.0.0.1:8318",
+		ManagementSecret:  "secret",
+		AutoManageEnabled: &managed,
+		AutoResetEnabled:  &created,
+	})
+	require.NoError(t, err)
+	require.True(t, config.autoResetEnabled)
+
+	current := &ent.CPAInstance{Name: "dependent", BaseURL: "http://127.0.0.1:8319", Enabled: true, AutoManageEnabled: true, AutoResetEnabled: true}
+	merged, _, _, err := mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{AutoManageEnabled: new(bool)})
+	require.NoError(t, err)
+	require.False(t, merged.autoResetEnabled)
+}

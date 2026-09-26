@@ -17,6 +17,45 @@ export interface CPAToggleConfirmation {
   disable: boolean;
 }
 
+export interface CPACodexResetConfirmation {
+  credentialID: number;
+  creditID: string;
+  displayName: string;
+  expiresAt?: string | null;
+}
+
+interface CPACodexResetDialogProps {
+  confirmation?: CPACodexResetConfirmation;
+  pending: boolean;
+  failed: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}
+
+export function CPACodexResetDialog({ confirmation, pending, failed, onOpenChange, onConfirm }: CPACodexResetDialogProps) {
+  const { t } = useTranslation();
+  const expiresAt = confirmation?.expiresAt ? new Date(confirmation.expiresAt).toLocaleString() : '—';
+  return (
+    <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => !pending && onOpenChange(open)}>
+      <AlertDialogContent data-testid='cpa-reset-confirmation'>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('cpa.reset.confirmTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t('cpa.reset.confirmDescription', { name: confirmation?.displayName, expiresAt })}
+          </AlertDialogDescription>
+          {failed && <p className='text-destructive mt-2'>{t('cpa.reset.failure')}</p>}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{t('common.buttons.cancel')}</AlertDialogCancel>
+          <Button data-testid='cpa-reset-confirm' onClick={onConfirm} disabled={pending || failed}>
+            {t('cpa.reset.use')}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 interface CPACredentialToggleDialogProps {
   confirmation?: CPAToggleConfirmation;
   pending: boolean;

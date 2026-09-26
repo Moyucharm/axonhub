@@ -1,6 +1,8 @@
 export type {
   CPAInstance,
   CPAQuotaItem,
+  CPAQuotaResetCredit,
+  CPAQuotaSnapshot,
   CPACredential,
   CPAConnectionStatus,
   CPAQuotaState,
@@ -24,4 +26,5 @@ export {
   useRefreshCPAInstance,
   useToggleCPACredential,
   useRefreshCPACredential,
+  useResetCPACodexCredential,
 } from './api/mutations';

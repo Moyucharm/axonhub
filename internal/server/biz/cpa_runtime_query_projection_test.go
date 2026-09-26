@@ -213,8 +213,9 @@ func TestCPARuntimeOperationsExecuteInOrder(t *testing.T) {
 		func() { operations = append(operations, "refresh") },
 		func() { operations = append(operations, "enabled") },
 		func() { operations = append(operations, "disabled") },
+		func() { operations = append(operations, "auto-reset") },
 	)
-	require.Equal(t, []string{"refresh", "enabled", "disabled"}, operations)
+	require.Equal(t, []string{"refresh", "enabled", "disabled", "auto-reset"}, operations)
 
 	operations = nil
 	executeCPARuntimeOperations(
@@ -222,8 +223,9 @@ func TestCPARuntimeOperationsExecuteInOrder(t *testing.T) {
 		func() { operations = append(operations, "refresh") },
 		func() { operations = append(operations, "enabled") },
 		func() { operations = append(operations, "disabled") },
+		func() { operations = append(operations, "auto-reset") },
 	)
-	require.Equal(t, []string{"enabled"}, operations)
+	require.Equal(t, []string{"enabled", "auto-reset"}, operations)
 }
 
 func TestCPARuntimeClaimIsAtomicAcrossDueOperations(t *testing.T) {

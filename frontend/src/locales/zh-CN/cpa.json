@@ -110,6 +110,7 @@
   "cpa.planLabels.xai.paid": "Paid",
   "cpa.instance.autoManage": "凭证自动管理",
   "cpa.instance.autoManageHint": "自动巡查凭证：额度耗尽或已过期的自动禁用，已禁用的额度恢复后自动启用。",
+  "cpa.instance.autoResetDependency": "需先开启「凭证自动管理」——只有它的巡检会按周期刷新额度与重置卡信息。",
   "cpa.instance.usageStream": "用量事件采集（额度估算）",
   "cpa.instance.usageStreamHint": "通过 CPA Management HTTP usage queue 持续采集请求用量，用于估算 Codex 额度总值；支持 HTTP 反向代理。历史从启用采集后开始积累，停机可回收范围受 CPA queue retention 限制。需 CPA 开启 usage-statistics-enabled。",
   "cpa.instance.enabledPatrolInterval": "启用凭证巡检周期（分钟）",
@@ -126,5 +127,19 @@
   "cpa.credential.disableTitle": "确认禁用该凭证？",
   "cpa.credential.disableDescription": "将在远端 CPA 服务上禁用 {{name}}，额度恢复后会自动重新启用。",
   "cpa.messages.credentialToggled": "凭证状态已更新",
-  "cpa.errors.toggleCredential": "更新凭证状态失败"
+  "cpa.errors.toggleCredential": "更新凭证状态失败",
+  "cpa.instance.autoReset": "自动使用 Codex 重置卡",
+  "cpa.instance.autoResetHint": "将于 30 分钟内过期的 Codex 重置卡自动使用；跟随刷新额度与重置卡信息的凭证巡检周期执行。",
+  "cpa.reset.empty": "当前没有可用的 Codex 重置卡。",
+  "cpa.reset.count": "剩余 {{count}} 次重置卡",
+  "cpa.reset.earliest": "最早过期：{{time}}",
+  "cpa.reset.type": "类型",
+  "cpa.reset.granted": "发放时间",
+  "cpa.reset.use": "使用重置卡",
+  "cpa.reset.item": "第 {{index}} 次",
+  "cpa.reset.readFailed": "上次刷新未能读取 Codex 重置卡，可刷新该凭证后重试。",
+  "cpa.reset.confirmTitle": "确认使用一张 Codex 重置卡？",
+  "cpa.reset.confirmDescription": "将为 {{name}} 消耗一张重置卡（过期时间 {{expiresAt}}），此操作不可撤销。",
+  "cpa.reset.success": "Codex 重置卡已使用",
+  "cpa.reset.failure": "Codex 重置结果可能不确定，请先到供应商核对，勿直接再次消费"
 }

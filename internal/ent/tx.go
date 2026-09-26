@@ -16,6 +16,8 @@ type Tx struct {
 	APIKey *APIKeyClient
 	// APIKeyProfileTemplate is the client for interacting with the APIKeyProfileTemplate builders.
 	APIKeyProfileTemplate *APIKeyProfileTemplateClient
+	// CPACodexResetAttempt is the client for interacting with the CPACodexResetAttempt builders.
+	CPACodexResetAttempt *CPACodexResetAttemptClient
 	// CPACredential is the client for interacting with the CPACredential builders.
 	CPACredential *CPACredentialClient
 	// CPAInstance is the client for interacting with the CPAInstance builders.
@@ -201,6 +203,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.APIKeyProfileTemplate = NewAPIKeyProfileTemplateClient(tx.config)
+	tx.CPACodexResetAttempt = NewCPACodexResetAttemptClient(tx.config)
 	tx.CPACredential = NewCPACredentialClient(tx.config)
 	tx.CPAInstance = NewCPAInstanceClient(tx.config)
 	tx.Channel = NewChannelClient(tx.config)

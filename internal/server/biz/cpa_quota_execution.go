@@ -156,15 +156,11 @@ func (executor *cpaQuotaExecutor) executeOnce(
 		credentialID: credential.ID,
 		attemptedAt:  executor.now(),
 	}
-	instanceLimiter := executor.instanceLimiter(credential.CpaInstanceID)
-	if err := instanceLimiter.Acquire(ctx, 1); err != nil {
+	release, err := executor.acquireProviderCall(ctx, credential.CpaInstanceID)
+	if err != nil {
 		return newCPAQuotaFailureOutcome(outcome.instanceID, outcome.credentialID, outcome.attemptedAt, err)
 	}
-	defer instanceLimiter.Release(1)
-	if err := executor.globalLimiter.Acquire(ctx, 1); err != nil {
-		return newCPAQuotaFailureOutcome(outcome.instanceID, outcome.credentialID, outcome.attemptedAt, err)
-	}
-	defer executor.globalLimiter.Release(1)
+	defer release()
 
 	result, err := executor.registry.Fetch(ctx, client, cpaclient.CredentialInput{
 		AuthIndex:   credential.AuthIndex,
@@ -202,6 +198,21 @@ func (executor *cpaQuotaExecutor) executeOnce(
 	outcome.planType = result.PlanType
 	outcome.snapshot = snapshot
 	return outcome
+}
+
+func (executor *cpaQuotaExecutor) acquireProviderCall(ctx context.Context, instanceID int) (func(), error) {
+	instanceLimiter := executor.instanceLimiter(instanceID)
+	if err := instanceLimiter.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	if err := executor.globalLimiter.Acquire(ctx, 1); err != nil {
+		instanceLimiter.Release(1)
+		return nil, err
+	}
+	return func() {
+		executor.globalLimiter.Release(1)
+		instanceLimiter.Release(1)
+	}, nil
 }
 
 func (executor *cpaQuotaExecutor) instanceLimiter(instanceID int) *semaphore.Weighted {

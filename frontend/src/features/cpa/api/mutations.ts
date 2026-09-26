@@ -7,6 +7,7 @@ import {
   CREATE_INSTANCE,
   DELETE_INSTANCE,
   REFRESH_CREDENTIAL,
+  RESET_CODEX_CREDENTIAL,
   REFRESH_INSTANCE,
   TOGGLE_CREDENTIAL,
   UPDATE_INSTANCE,
@@ -167,6 +168,28 @@ export function useRefreshCPACredential() {
       } else {
         toast.success(t('cpa.messages.credentialRefreshed'));
       }
+    },
+  });
+}
+
+export function useResetCPACodexCredential() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ credentialID, creditID }: { credentialID: number; creditID: string }) => {
+      try {
+        const data = await graphqlRequest<{ resetCPACodexCredential: boolean }>(RESET_CODEX_CREDENTIAL, { credentialID, creditID });
+        return data.resetCPACodexCredential;
+      } catch (error) {
+        handleError(error, { context: t('cpa.reset.failure') });
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cpa', 'credentials'] });
+      queryClient.invalidateQueries({ queryKey: ['cpa', 'overview'] });
+      toast.success(t('cpa.reset.success'));
     },
   });
 }

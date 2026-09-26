@@ -120,6 +120,7 @@ type CreateCPAInstanceInput struct {
 	AutoRefreshEnabled            *bool
 	RefreshIntervalMinutes        *int
 	AutoManageEnabled             *bool
+	AutoResetEnabled              *bool
 	UsageStreamEnabled            *bool
 	EnabledPatrolIntervalMinutes  *int
 	DisabledPatrolIntervalMinutes *int
@@ -135,6 +136,7 @@ type UpdateCPAInstanceInput struct {
 	AutoRefreshEnabled            *bool
 	RefreshIntervalMinutes        *int
 	AutoManageEnabled             *bool
+	AutoResetEnabled              *bool
 	UsageStreamEnabled            *bool
 	EnabledPatrolIntervalMinutes  *int
 	DisabledPatrolIntervalMinutes *int
@@ -160,6 +162,7 @@ type CPAInstanceView struct {
 	AutoRefreshEnabled            bool
 	RefreshIntervalMinutes        int
 	AutoManageEnabled             bool
+	AutoResetEnabled              bool
 	UsageStreamEnabled            bool
 	EnabledPatrolIntervalMinutes  int
 	DisabledPatrolIntervalMinutes int
@@ -215,6 +218,7 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetAutoRefreshEnabled(config.autoRefreshEnabled).
 			SetRefreshIntervalMinutes(config.refreshIntervalMinutes).
 			SetAutoManageEnabled(config.autoManageEnabled).
+			SetAutoResetEnabled(config.autoResetEnabled).
 			SetUsageStreamEnabled(config.usageStreamEnabled).
 			SetEnabledPatrolIntervalMinutes(config.enabledPatrolInterval).
 			SetDisabledPatrolIntervalMinutes(config.disabledPatrolInterval).
@@ -304,6 +308,7 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 				SetAutoRefreshEnabled(config.autoRefreshEnabled).
 				SetRefreshIntervalMinutes(config.refreshIntervalMinutes).
 				SetAutoManageEnabled(config.autoManageEnabled).
+				SetAutoResetEnabled(config.autoResetEnabled).
 				SetUsageStreamEnabled(config.usageStreamEnabled).
 				SetEnabledPatrolIntervalMinutes(config.enabledPatrolInterval).
 				SetDisabledPatrolIntervalMinutes(config.disabledPatrolInterval)
@@ -460,6 +465,7 @@ func buildCPAInstanceView(instance *ent.CPAInstance) *CPAInstanceView {
 		AutoRefreshEnabled:            instance.AutoRefreshEnabled,
 		RefreshIntervalMinutes:        instance.RefreshIntervalMinutes,
 		AutoManageEnabled:             instance.AutoManageEnabled,
+		AutoResetEnabled:              instance.AutoResetEnabled,
 		UsageStreamEnabled:            instance.UsageStreamEnabled,
 		EnabledPatrolIntervalMinutes:  instance.EnabledPatrolIntervalMinutes,
 		DisabledPatrolIntervalMinutes: instance.DisabledPatrolIntervalMinutes,

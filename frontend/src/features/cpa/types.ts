@@ -11,6 +11,7 @@ export interface CPAInstance {
   autoRefreshEnabled: boolean;
   refreshIntervalMinutes: number;
   autoManageEnabled: boolean;
+  autoResetEnabled: boolean;
   usageStreamEnabled: boolean;
   enabledPatrolIntervalMinutes: number;
   disabledPatrolIntervalMinutes: number;
@@ -63,7 +64,7 @@ export interface CPACredential {
   priority: number;
   planType: string;
   quotaState: CPAQuotaState;
-  quotaData: { items: CPAQuotaItem[] };
+  quotaData: CPAQuotaSnapshot;
   quotaLastAttemptAt?: string | null;
   quotaLastSuccessAt?: string | null;
   quotaLastFailureAt?: string | null;
@@ -134,6 +135,20 @@ export interface CPARefreshProgress {
   running: boolean;
 }
 
+export interface CPAQuotaResetCredit {
+  id: string;
+  title: string;
+  resetType: string;
+  grantedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface CPAQuotaSnapshot {
+  items: CPAQuotaItem[];
+  resetCredits: CPAQuotaResetCredit[];
+  resetCreditsFailed: boolean;
+}
+
 export interface CPAInstanceInput {
   name: string;
   baseURL: string;
@@ -143,6 +158,7 @@ export interface CPAInstanceInput {
   autoRefreshEnabled?: boolean;
   refreshIntervalMinutes?: number;
   autoManageEnabled?: boolean;
+  autoResetEnabled?: boolean;
   usageStreamEnabled?: boolean;
   enabledPatrolIntervalMinutes?: number;
   disabledPatrolIntervalMinutes?: number;

@@ -70,9 +70,29 @@ export function CPAInstanceSettings({
             <p className='text-muted-foreground text-xs'>{t('cpa.instance.autoManageHint')}</p>
           </div>
           <Switch
+            data-testid='cpa-auto-manage'
             id='cpa-auto-manage'
             checked={values.autoManageEnabled}
-            onCheckedChange={(value) => form.setValue('autoManageEnabled', value)}
+            onCheckedChange={(value) => {
+              form.setValue('autoManageEnabled', value);
+              // Reset-card auto use depends on the patrol that refreshes quota.
+              if (!value) form.setValue('autoResetEnabled', false);
+            }}
+          />
+        </div>
+        <div className='flex items-center justify-between gap-4'>
+          <div>
+            <Label htmlFor='cpa-auto-reset'>{t('cpa.instance.autoReset')}</Label>
+            <p className='text-muted-foreground text-xs'>
+              {values.autoManageEnabled ? t('cpa.instance.autoResetHint') : t('cpa.instance.autoResetDependency')}
+            </p>
+          </div>
+          <Switch
+            data-testid='cpa-auto-reset'
+            id='cpa-auto-reset'
+            checked={values.autoResetEnabled}
+            disabled={!values.autoManageEnabled}
+            onCheckedChange={(value) => form.setValue('autoResetEnabled', value)}
           />
         </div>
         <div className='flex items-center justify-between gap-4'>

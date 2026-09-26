@@ -82,3 +82,4 @@ export function useCPARefreshProgress(instanceID: number | null) {
     refetchInterval: instanceID != null ? 500 : false,
   });
 }
+

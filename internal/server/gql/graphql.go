@@ -147,6 +147,7 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 		"updateCPAInstance",
 		"refreshCPAInstance",
 		"refreshCPACredential",
+		"resetCPACodexCredential",
 	)
 	gqlSrv.Use(entgql.Transactioner{
 		TxOpener: deps.Ent,

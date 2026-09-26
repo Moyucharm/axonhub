@@ -110,6 +110,7 @@
   "cpa.planLabels.xai.paid": "Paid",
   "cpa.instance.autoManage": "Credential auto-management",
   "cpa.instance.autoManageHint": "Patrol credentials automatically: disable exhausted or expired ones and re-enable disabled ones once their quota recovered.",
+  "cpa.instance.autoResetDependency": "Requires credential auto-management: only that patrol refreshes quota and reset-credit data on schedule.",
   "cpa.instance.usageStream": "Usage event collection (quota estimation)",
   "cpa.instance.usageStreamHint": "Continuously collect request usage through CPA's Management HTTP usage queue to estimate Codex quota value; HTTP reverse proxies are supported. History starts when collection is enabled, and outage recovery is limited by CPA queue retention. Requires usage-statistics-enabled in CPA.",
   "cpa.instance.enabledPatrolInterval": "Enabled credential patrol interval (minutes)",
@@ -126,5 +127,19 @@
   "cpa.credential.disableTitle": "Disable this credential?",
   "cpa.credential.disableDescription": "This disables {{name}} on the remote CPA server. It will be re-enabled automatically once its quota recovers.",
   "cpa.messages.credentialToggled": "Credential state updated",
-  "cpa.errors.toggleCredential": "Failed to toggle credential state"
+  "cpa.errors.toggleCredential": "Failed to toggle credential state",
+  "cpa.instance.autoReset": "Automatically use Codex reset credits",
+  "cpa.instance.autoResetHint": "Automatically use Codex reset credits that expire within 30 minutes. Runs together with the credential patrol that refreshes quota and reset credits.",
+  "cpa.reset.empty": "No Codex reset credits available.",
+  "cpa.reset.count": "{{count}} reset credits remaining",
+  "cpa.reset.earliest": "Earliest expiration: {{time}}",
+  "cpa.reset.type": "Type",
+  "cpa.reset.granted": "Granted",
+  "cpa.reset.use": "Use reset credit",
+  "cpa.reset.item": "Reset {{index}}",
+  "cpa.reset.readFailed": "The last refresh could not read Codex reset credits. Refresh this credential to retry.",
+  "cpa.reset.confirmTitle": "Use one Codex reset credit?",
+  "cpa.reset.confirmDescription": "This will consume one reset credit for {{name}} (expires {{expiresAt}}). This action cannot be undone.",
+  "cpa.reset.success": "Codex reset credit redeemed",
+  "cpa.reset.failure": "Codex reset outcome may be uncertain; check the provider before attempting another credit"
 }

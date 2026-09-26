@@ -29,6 +29,7 @@ type CPAManagedInstance {
   autoRefreshEnabled: Boolean!
   refreshIntervalMinutes: Int!
   autoManageEnabled: Boolean!
+  autoResetEnabled: Boolean!
   usageStreamEnabled: Boolean!
   enabledPatrolIntervalMinutes: Int!
   disabledPatrolIntervalMinutes: Int!
@@ -66,8 +67,18 @@ type CPAQuotaItem {
   estimateSource: String
 }
 
+type CPAQuotaResetCredit {
+  id: String!
+  title: String!
+  resetType: String!
+  grantedAt: Time
+  expiresAt: Time
+}
+
 type CPAQuotaSnapshot {
   items: [CPAQuotaItem!]!
+  resetCredits: [CPAQuotaResetCredit!]!
+  resetCreditsFailed: Boolean!
 }
 
 type CPAManagedCredential {
@@ -160,6 +171,7 @@ input CreateCPAInstanceInput {
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
   autoManageEnabled: Boolean
+  autoResetEnabled: Boolean
   usageStreamEnabled: Boolean
   enabledPatrolIntervalMinutes: Int
   disabledPatrolIntervalMinutes: Int
@@ -174,6 +186,7 @@ input UpdateCPAInstanceInput {
   autoRefreshEnabled: Boolean
   refreshIntervalMinutes: Int
   autoManageEnabled: Boolean
+  autoResetEnabled: Boolean
   usageStreamEnabled: Boolean
   enabledPatrolIntervalMinutes: Int
   disabledPatrolIntervalMinutes: Int
@@ -205,4 +218,5 @@ extend type Mutation {
   refreshCPAInstance(instanceID: Int!, provider: String): CPARefreshResult!
   refreshCPACredential(credentialID: Int!): CPAManagedCredential!
   toggleCPACredential(credentialID: Int!, disabled: Boolean!): CPAManagedCredential!
+  resetCPACodexCredential(credentialID: Int!, creditID: String!): Boolean!
 }

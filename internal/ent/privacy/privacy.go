@@ -159,6 +159,30 @@ func (f APIKeyProfileTemplateMutationRuleFunc) EvalMutation(ctx context.Context,
 	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.APIKeyProfileTemplateMutation", m)
 }
 
+// The CPACodexResetAttemptQueryRuleFunc type is an adapter to allow the use of ordinary
+// functions as a query rule.
+type CPACodexResetAttemptQueryRuleFunc func(context.Context, *ent.CPACodexResetAttemptQuery) error
+
+// EvalQuery return f(ctx, q).
+func (f CPACodexResetAttemptQueryRuleFunc) EvalQuery(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPACodexResetAttemptQuery); ok {
+		return f(ctx, q)
+	}
+	return Denyf("ent/privacy: unexpected query type %T, expect *ent.CPACodexResetAttemptQuery", q)
+}
+
+// The CPACodexResetAttemptMutationRuleFunc type is an adapter to allow the use of ordinary
+// functions as a mutation rule.
+type CPACodexResetAttemptMutationRuleFunc func(context.Context, *ent.CPACodexResetAttemptMutation) error
+
+// EvalMutation calls f(ctx, m).
+func (f CPACodexResetAttemptMutationRuleFunc) EvalMutation(ctx context.Context, m ent.Mutation) error {
+	if m, ok := m.(*ent.CPACodexResetAttemptMutation); ok {
+		return f(ctx, m)
+	}
+	return Denyf("ent/privacy: unexpected mutation type %T, expect *ent.CPACodexResetAttemptMutation", m)
+}
+
 // The CPACredentialQueryRuleFunc type is an adapter to allow the use of ordinary
 // functions as a query rule.
 type CPACredentialQueryRuleFunc func(context.Context, *ent.CPACredentialQuery) error
@@ -822,6 +846,8 @@ func queryFilter(q ent.Query) (Filter, error) {
 		return q.Filter(), nil
 	case *ent.APIKeyProfileTemplateQuery:
 		return q.Filter(), nil
+	case *ent.CPACodexResetAttemptQuery:
+		return q.Filter(), nil
 	case *ent.CPACredentialQuery:
 		return q.Filter(), nil
 	case *ent.CPAInstanceQuery:
@@ -884,6 +910,8 @@ func mutationFilter(m ent.Mutation) (Filter, error) {
 	case *ent.APIKeyMutation:
 		return m.Filter(), nil
 	case *ent.APIKeyProfileTemplateMutation:
+		return m.Filter(), nil
+	case *ent.CPACodexResetAttemptMutation:
 		return m.Filter(), nil
 	case *ent.CPACredentialMutation:
 		return m.Filter(), nil

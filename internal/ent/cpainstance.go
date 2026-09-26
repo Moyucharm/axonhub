@@ -43,6 +43,8 @@ type CPAInstance struct {
 	NextRefreshAt *time.Time `json:"next_refresh_at,omitempty"`
 	// AutoManageEnabled holds the value of the "auto_manage_enabled" field.
 	AutoManageEnabled bool `json:"auto_manage_enabled,omitempty"`
+	// AutoResetEnabled holds the value of the "auto_reset_enabled" field.
+	AutoResetEnabled bool `json:"auto_reset_enabled,omitempty"`
 	// EnabledPatrolIntervalMinutes holds the value of the "enabled_patrol_interval_minutes" field.
 	EnabledPatrolIntervalMinutes int `json:"enabled_patrol_interval_minutes,omitempty"`
 	// DisabledPatrolIntervalMinutes holds the value of the "disabled_patrol_interval_minutes" field.
@@ -96,7 +98,7 @@ func (*CPAInstance) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled, cpainstance.FieldUsageStreamEnabled, cpainstance.FieldAutoManageEnabled:
+		case cpainstance.FieldEnabled, cpainstance.FieldInsecureSkipTLS, cpainstance.FieldAutoRefreshEnabled, cpainstance.FieldUsageStreamEnabled, cpainstance.FieldAutoManageEnabled, cpainstance.FieldAutoResetEnabled:
 			values[i] = new(sql.NullBool)
 		case cpainstance.FieldID, cpainstance.FieldRefreshIntervalMinutes, cpainstance.FieldEnabledPatrolIntervalMinutes, cpainstance.FieldDisabledPatrolIntervalMinutes:
 			values[i] = new(sql.NullInt64)
@@ -203,6 +205,12 @@ func (_m *CPAInstance) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field auto_manage_enabled", values[i])
 			} else if value.Valid {
 				_m.AutoManageEnabled = value.Bool
+			}
+		case cpainstance.FieldAutoResetEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_reset_enabled", values[i])
+			} else if value.Valid {
+				_m.AutoResetEnabled = value.Bool
 			}
 		case cpainstance.FieldEnabledPatrolIntervalMinutes:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -356,6 +364,9 @@ func (_m *CPAInstance) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auto_manage_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AutoManageEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("auto_reset_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AutoResetEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("enabled_patrol_interval_minutes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.EnabledPatrolIntervalMinutes))

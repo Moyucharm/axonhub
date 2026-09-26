@@ -1,6 +1,6 @@
 export const INSTANCE_FIELDS = `
   id name baseURL enabled insecureSkipTLS autoRefreshEnabled refreshIntervalMinutes
-  autoManageEnabled usageStreamEnabled enabledPatrolIntervalMinutes disabledPatrolIntervalMinutes
+  autoManageEnabled autoResetEnabled usageStreamEnabled enabledPatrolIntervalMinutes disabledPatrolIntervalMinutes
   nextRefreshAt nextEnabledPatrolAt nextDisabledPatrolAt
   serverVersion serverCommit serverBuildDate lastSyncAttemptAt
   lastSyncSuccessAt lastErrorAt lastError hasSecret connectionStatus createdAt updatedAt
@@ -10,7 +10,11 @@ export const CREDENTIAL_FIELDS = `
   id instanceID remoteName displayName provider email status statusMessage disabled unavailable
   runtimeOnly priority planType quotaState quotaLastAttemptAt quotaLastSuccessAt
   quotaLastFailureAt quotaLastError available abnormal stale expired cooling cooldownUntil createdAt updatedAt
-  quotaData { items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource } }
+  quotaData {
+    items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource }
+    resetCredits { id title resetType grantedAt expiresAt }
+    resetCreditsFailed
+  }
 `;
 
 export const INSTANCES_QUERY = `query CPAInstances { cpaInstances { ${INSTANCE_FIELDS} } }`;
@@ -44,3 +48,8 @@ export const REFRESH_CREDENTIAL =
   `mutation RefreshCPACredential($credentialID: Int!) { refreshCPACredential(credentialID: $credentialID) { ${CREDENTIAL_FIELDS} } }`;
 export const TOGGLE_CREDENTIAL =
   `mutation ToggleCPACredential($credentialID: Int!, $disabled: Boolean!) { toggleCPACredential(credentialID: $credentialID, disabled: $disabled) { ${CREDENTIAL_FIELDS} } }`;
+export const RESET_CODEX_CREDENTIAL = `
+  mutation ResetCPACodexCredential($credentialID: Int!, $creditID: String!) {
+    resetCPACodexCredential(credentialID: $credentialID, creditID: $creditID)
+  }
+`;

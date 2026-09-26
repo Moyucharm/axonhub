@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/layout/header';
 import { Main } from '@/components/layout/main';
-import { CPACredentialToggleDialog, CPAInstanceDeleteDialog } from './components/confirmation-dialogs';
+import { CPACodexResetDialog, CPACredentialToggleDialog, CPAInstanceDeleteDialog } from './components/confirmation-dialogs';
 import { CPAToolbar } from './components/cpa-toolbar';
 import { CPACredentialTable } from './components/credential-table';
 import { CPAInstanceAlerts } from './components/instance-alerts';
@@ -46,6 +46,8 @@ export default function CPAManagement() {
     expanded,
     togglingCredential,
     setTogglingCredential,
+    resettingCredential,
+    setResettingCredential,
     providerCounts,
     providers,
     availablePlanTypes,
@@ -56,6 +58,7 @@ export default function CPAManagement() {
     refreshCredential,
     toggleCredential,
     deleteInstance,
+    resetCredential,
     refreshProgress,
     showRefreshProgress,
     resetPagination,
@@ -65,6 +68,8 @@ export default function CPAManagement() {
     refreshSelectedScope,
     confirmDeleteInstance,
     confirmToggleCredential,
+    confirmResetCredential,
+    requestResetCredential,
     setPageSize,
   } = controller;
 
@@ -169,6 +174,8 @@ export default function CPAManagement() {
                 pageSize={pageSize}
                 expanded={expanded}
                 canWrite={canWrite}
+                instanceEnabled={selectedInstance.enabled}
+                resetPending={resetCredential.isPending}
                 refreshPending={refreshCredential.isPending}
                 togglePending={toggleCredential.isPending}
                 locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
@@ -181,6 +188,7 @@ export default function CPAManagement() {
                     disable: !credential.disabled,
                   })
                 }
+                onRequestReset={requestResetCredential}
                 onNextPage={() => {
                   if (!credentialsQuery.data?.pageInfo.hasNextPage || !credentialsQuery.data.pageInfo.endCursor) return;
                   setCursorHistory((history) => [...history, after]);
@@ -212,6 +220,15 @@ export default function CPAManagement() {
           if (!open) setTogglingCredential(undefined);
         }}
         onConfirm={confirmToggleCredential}
+      />
+      <CPACodexResetDialog
+        confirmation={resettingCredential}
+        pending={resetCredential.isPending}
+        failed={resetCredential.isError}
+        onOpenChange={(open) => {
+          if (!open) setResettingCredential(undefined);
+        }}
+        onConfirm={confirmResetCredential}
       />
       <CPAInstanceDeleteDialog
         instance={deletingInstance}

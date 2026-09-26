@@ -33,6 +33,18 @@ func (f APIKeyProfileTemplateFunc) Mutate(ctx context.Context, m ent.Mutation) (
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APIKeyProfileTemplateMutation", m)
 }
 
+// The CPACodexResetAttemptFunc type is an adapter to allow the use of ordinary
+// function as CPACodexResetAttempt mutator.
+type CPACodexResetAttemptFunc func(context.Context, *ent.CPACodexResetAttemptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CPACodexResetAttemptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CPACodexResetAttemptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CPACodexResetAttemptMutation", m)
+}
+
 // The CPACredentialFunc type is an adapter to allow the use of ordinary
 // function as CPACredential mutator.
 type CPACredentialFunc func(context.Context, *ent.CPACredentialMutation) (ent.Value, error)

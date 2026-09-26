@@ -13,6 +13,8 @@ import { planLabel, providerLabel } from '../labels';
 import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
+import { CodexResetCredits } from './codex-reset-credits';
+import type { CPACodexResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
 
 const MotionExpandedRow = motion.create(TableRow);
@@ -25,12 +27,15 @@ interface CPACredentialTableProps {
   pageSize: number;
   expanded: Set<number>;
   canWrite: boolean;
+  instanceEnabled: boolean;
+  resetPending: boolean;
   refreshPending: boolean;
   togglePending: boolean;
   locale: string;
   onToggleExpanded: (id: number) => void;
   onRefreshCredential: (id: number) => void;
   onRequestToggle: (credential: CPACredential) => void;
+  onRequestReset: (confirmation: CPACodexResetConfirmation) => void;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (size: number) => void;
@@ -61,12 +66,15 @@ export function CPACredentialTable({
   pageSize,
   expanded,
   canWrite,
+  instanceEnabled,
+  resetPending,
   refreshPending,
   togglePending,
   locale,
   onToggleExpanded,
   onRefreshCredential,
   onRequestToggle,
+  onRequestReset,
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
@@ -260,6 +268,16 @@ export function CPACredentialTable({
                                   <p className='text-muted-foreground text-sm'>
                                     {quotaStateText(credential, t) ?? (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
                                   </p>
+                                )}
+                                {credential.provider === 'codex' && (
+                                  <CodexResetCredits
+                                    credential={credential}
+                                    canWrite={canWrite}
+                                    instanceEnabled={instanceEnabled}
+                                    resetPending={resetPending}
+                                    locale={locale}
+                                    onRequestReset={onRequestReset}
+                                  />
                                 )}
                               </div>
                             </motion.div>

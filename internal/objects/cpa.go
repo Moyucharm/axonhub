@@ -27,6 +27,21 @@ const (
 // CPAQuotaSnapshot stores the normalized, provider-independent quota view.
 type CPAQuotaSnapshot struct {
 	Items []CPAQuotaItem `json:"items,omitempty"`
+	// ResetCredits mirrors the provider reset cards read together with quota.
+	// They are display data only: every consume is re-validated live first.
+	ResetCredits []CPAQuotaResetCredit `json:"reset_credits,omitempty"`
+	// ResetCreditsFailed marks a refresh whose card read failed while quota
+	// succeeded, so the UI never renders a failed read as "no cards".
+	ResetCreditsFailed bool `json:"reset_credits_failed,omitempty"`
+}
+
+// CPAQuotaResetCredit is one provider reset card usable for a quota reset.
+type CPAQuotaResetCredit struct {
+	ID        string     `json:"id"`
+	Title     string     `json:"title,omitempty"`
+	ResetType string     `json:"reset_type,omitempty"`
+	GrantedAt *time.Time `json:"granted_at,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 // CPAQuotaItem represents one quota window, balance, or provider-specific limit.

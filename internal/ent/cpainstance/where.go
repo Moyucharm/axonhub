@@ -120,6 +120,11 @@ func AutoManageEnabled(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldAutoManageEnabled, v))
 }
 
+// AutoResetEnabled applies equality check predicate on the "auto_reset_enabled" field. It's identical to AutoResetEnabledEQ.
+func AutoResetEnabled(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldAutoResetEnabled, v))
+}
+
 // EnabledPatrolIntervalMinutes applies equality check predicate on the "enabled_patrol_interval_minutes" field. It's identical to EnabledPatrolIntervalMinutesEQ.
 func EnabledPatrolIntervalMinutes(v int) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldEQ(FieldEnabledPatrolIntervalMinutes, v))
@@ -653,6 +658,16 @@ func AutoManageEnabledEQ(v bool) predicate.CPAInstance {
 // AutoManageEnabledNEQ applies the NEQ predicate on the "auto_manage_enabled" field.
 func AutoManageEnabledNEQ(v bool) predicate.CPAInstance {
 	return predicate.CPAInstance(sql.FieldNEQ(FieldAutoManageEnabled, v))
+}
+
+// AutoResetEnabledEQ applies the EQ predicate on the "auto_reset_enabled" field.
+func AutoResetEnabledEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldEQ(FieldAutoResetEnabled, v))
+}
+
+// AutoResetEnabledNEQ applies the NEQ predicate on the "auto_reset_enabled" field.
+func AutoResetEnabledNEQ(v bool) predicate.CPAInstance {
+	return predicate.CPAInstance(sql.FieldNEQ(FieldAutoResetEnabled, v))
 }
 
 // EnabledPatrolIntervalMinutesEQ applies the EQ predicate on the "enabled_patrol_interval_minutes" field.

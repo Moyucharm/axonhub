@@ -181,6 +181,20 @@ func (_c *CPAInstanceCreate) SetNillableAutoManageEnabled(v *bool) *CPAInstanceC
 	return _c
 }
 
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (_c *CPAInstanceCreate) SetAutoResetEnabled(v bool) *CPAInstanceCreate {
+	_c.mutation.SetAutoResetEnabled(v)
+	return _c
+}
+
+// SetNillableAutoResetEnabled sets the "auto_reset_enabled" field if the given value is not nil.
+func (_c *CPAInstanceCreate) SetNillableAutoResetEnabled(v *bool) *CPAInstanceCreate {
+	if v != nil {
+		_c.SetAutoResetEnabled(*v)
+	}
+	return _c
+}
+
 // SetEnabledPatrolIntervalMinutes sets the "enabled_patrol_interval_minutes" field.
 func (_c *CPAInstanceCreate) SetEnabledPatrolIntervalMinutes(v int) *CPAInstanceCreate {
 	_c.mutation.SetEnabledPatrolIntervalMinutes(v)
@@ -429,6 +443,10 @@ func (_c *CPAInstanceCreate) defaults() error {
 		v := cpainstance.DefaultAutoManageEnabled
 		_c.mutation.SetAutoManageEnabled(v)
 	}
+	if _, ok := _c.mutation.AutoResetEnabled(); !ok {
+		v := cpainstance.DefaultAutoResetEnabled
+		_c.mutation.SetAutoResetEnabled(v)
+	}
 	if _, ok := _c.mutation.EnabledPatrolIntervalMinutes(); !ok {
 		v := cpainstance.DefaultEnabledPatrolIntervalMinutes
 		_c.mutation.SetEnabledPatrolIntervalMinutes(v)
@@ -498,6 +516,9 @@ func (_c *CPAInstanceCreate) check() error {
 	}
 	if _, ok := _c.mutation.AutoManageEnabled(); !ok {
 		return &ValidationError{Name: "auto_manage_enabled", err: errors.New(`ent: missing required field "CPAInstance.auto_manage_enabled"`)}
+	}
+	if _, ok := _c.mutation.AutoResetEnabled(); !ok {
+		return &ValidationError{Name: "auto_reset_enabled", err: errors.New(`ent: missing required field "CPAInstance.auto_reset_enabled"`)}
 	}
 	if _, ok := _c.mutation.EnabledPatrolIntervalMinutes(); !ok {
 		return &ValidationError{Name: "enabled_patrol_interval_minutes", err: errors.New(`ent: missing required field "CPAInstance.enabled_patrol_interval_minutes"`)}
@@ -602,6 +623,10 @@ func (_c *CPAInstanceCreate) createSpec() (*CPAInstance, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AutoManageEnabled(); ok {
 		_spec.SetField(cpainstance.FieldAutoManageEnabled, field.TypeBool, value)
 		_node.AutoManageEnabled = value
+	}
+	if value, ok := _c.mutation.AutoResetEnabled(); ok {
+		_spec.SetField(cpainstance.FieldAutoResetEnabled, field.TypeBool, value)
+		_node.AutoResetEnabled = value
 	}
 	if value, ok := _c.mutation.EnabledPatrolIntervalMinutes(); ok {
 		_spec.SetField(cpainstance.FieldEnabledPatrolIntervalMinutes, field.TypeInt, value)
@@ -868,6 +893,18 @@ func (u *CPAInstanceUpsert) SetAutoManageEnabled(v bool) *CPAInstanceUpsert {
 // UpdateAutoManageEnabled sets the "auto_manage_enabled" field to the value that was provided on create.
 func (u *CPAInstanceUpsert) UpdateAutoManageEnabled() *CPAInstanceUpsert {
 	u.SetExcluded(cpainstance.FieldAutoManageEnabled)
+	return u
+}
+
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (u *CPAInstanceUpsert) SetAutoResetEnabled(v bool) *CPAInstanceUpsert {
+	u.Set(cpainstance.FieldAutoResetEnabled, v)
+	return u
+}
+
+// UpdateAutoResetEnabled sets the "auto_reset_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsert) UpdateAutoResetEnabled() *CPAInstanceUpsert {
+	u.SetExcluded(cpainstance.FieldAutoResetEnabled)
 	return u
 }
 
@@ -1275,6 +1312,20 @@ func (u *CPAInstanceUpsertOne) SetAutoManageEnabled(v bool) *CPAInstanceUpsertOn
 func (u *CPAInstanceUpsertOne) UpdateAutoManageEnabled() *CPAInstanceUpsertOne {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateAutoManageEnabled()
+	})
+}
+
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (u *CPAInstanceUpsertOne) SetAutoResetEnabled(v bool) *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetAutoResetEnabled(v)
+	})
+}
+
+// UpdateAutoResetEnabled sets the "auto_reset_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertOne) UpdateAutoResetEnabled() *CPAInstanceUpsertOne {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateAutoResetEnabled()
 	})
 }
 
@@ -1878,6 +1929,20 @@ func (u *CPAInstanceUpsertBulk) SetAutoManageEnabled(v bool) *CPAInstanceUpsertB
 func (u *CPAInstanceUpsertBulk) UpdateAutoManageEnabled() *CPAInstanceUpsertBulk {
 	return u.Update(func(s *CPAInstanceUpsert) {
 		s.UpdateAutoManageEnabled()
+	})
+}
+
+// SetAutoResetEnabled sets the "auto_reset_enabled" field.
+func (u *CPAInstanceUpsertBulk) SetAutoResetEnabled(v bool) *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.SetAutoResetEnabled(v)
+	})
+}
+
+// UpdateAutoResetEnabled sets the "auto_reset_enabled" field to the value that was provided on create.
+func (u *CPAInstanceUpsertBulk) UpdateAutoResetEnabled() *CPAInstanceUpsertBulk {
+	return u.Update(func(s *CPAInstanceUpsert) {
+		s.UpdateAutoResetEnabled()
 	})
 }
 

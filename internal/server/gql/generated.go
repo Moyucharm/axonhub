@@ -410,6 +410,7 @@ type ComplexityRoot struct {
 	CPAManagedInstance struct {
 		AutoManageEnabled             func(childComplexity int) int
 		AutoRefreshEnabled            func(childComplexity int) int
+		AutoResetEnabled              func(childComplexity int) int
 		BaseURL                       func(childComplexity int) int
 		ConnectionStatus              func(childComplexity int) int
 		CreatedAt                     func(childComplexity int) int
@@ -471,8 +472,18 @@ type ComplexityRoot struct {
 		UsedPercent       func(childComplexity int) int
 	}
 
+	CPAQuotaResetCredit struct {
+		ExpiresAt func(childComplexity int) int
+		GrantedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		ResetType func(childComplexity int) int
+		Title     func(childComplexity int) int
+	}
+
 	CPAQuotaSnapshot struct {
-		Items func(childComplexity int) int
+		Items              func(childComplexity int) int
+		ResetCredits       func(childComplexity int) int
+		ResetCreditsFailed func(childComplexity int) int
 	}
 
 	CPARefreshProgress struct {
@@ -1250,6 +1261,7 @@ type ComplexityRoot struct {
 		RefreshProvidersCatalog               func(childComplexity int) int
 		RemoveChannelAPIKeys                  func(childComplexity int, channelID objects.GUID, keys []string) int
 		RemoveUserFromProject                 func(childComplexity int, input RemoveUserFromProjectInput) int
+		ResetCPACodexCredential               func(childComplexity int, credentialID int, creditID string) int
 		ResetChannelQuotaNow                  func(childComplexity int, channelID objects.GUID) int
 		Restore                               func(childComplexity int, file graphql.Upload, input backup.RestoreOptions) int
 		RetainThread                          func(childComplexity int, id objects.GUID) int
@@ -2594,6 +2606,7 @@ type MutationResolver interface {
 	RefreshCPAInstance(ctx context.Context, instanceID int, provider *string) (*biz.CPARefreshResult, error)
 	RefreshCPACredential(ctx context.Context, credentialID int) (*biz.CPACredentialView, error)
 	ToggleCPACredential(ctx context.Context, credentialID int, disabled bool) (*biz.CPACredentialView, error)
+	ResetCPACodexCredential(ctx context.Context, credentialID int, creditID string) (bool, error)
 }
 type OIDCIdentityResolver interface {
 	ID(ctx context.Context, obj *ent.OIDCIdentity) (*objects.GUID, error)
@@ -4027,6 +4040,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedInstance.AutoRefreshEnabled(childComplexity), true
+	case "CPAManagedInstance.autoResetEnabled":
+		if e.complexity.CPAManagedInstance.AutoResetEnabled == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedInstance.AutoResetEnabled(childComplexity), true
 	case "CPAManagedInstance.baseURL":
 		if e.complexity.CPAManagedInstance.BaseURL == nil {
 			break
@@ -4314,12 +4333,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CPAQuotaItem.UsedPercent(childComplexity), true
 
+	case "CPAQuotaResetCredit.expiresAt":
+		if e.complexity.CPAQuotaResetCredit.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaResetCredit.ExpiresAt(childComplexity), true
+	case "CPAQuotaResetCredit.grantedAt":
+		if e.complexity.CPAQuotaResetCredit.GrantedAt == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaResetCredit.GrantedAt(childComplexity), true
+	case "CPAQuotaResetCredit.id":
+		if e.complexity.CPAQuotaResetCredit.ID == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaResetCredit.ID(childComplexity), true
+	case "CPAQuotaResetCredit.resetType":
+		if e.complexity.CPAQuotaResetCredit.ResetType == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaResetCredit.ResetType(childComplexity), true
+	case "CPAQuotaResetCredit.title":
+		if e.complexity.CPAQuotaResetCredit.Title == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaResetCredit.Title(childComplexity), true
+
 	case "CPAQuotaSnapshot.items":
 		if e.complexity.CPAQuotaSnapshot.Items == nil {
 			break
 		}
 
 		return e.complexity.CPAQuotaSnapshot.Items(childComplexity), true
+	case "CPAQuotaSnapshot.resetCredits":
+		if e.complexity.CPAQuotaSnapshot.ResetCredits == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaSnapshot.ResetCredits(childComplexity), true
+	case "CPAQuotaSnapshot.resetCreditsFailed":
+		if e.complexity.CPAQuotaSnapshot.ResetCreditsFailed == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaSnapshot.ResetCreditsFailed(childComplexity), true
 
 	case "CPARefreshProgress.completed":
 		if e.complexity.CPARefreshProgress.Completed == nil {
@@ -7745,6 +7807,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveUserFromProject(childComplexity, args["input"].(RemoveUserFromProjectInput)), true
+	case "Mutation.resetCPACodexCredential":
+		if e.complexity.Mutation.ResetCPACodexCredential == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetCPACodexCredential_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ResetCPACodexCredential(childComplexity, args["credentialID"].(int), args["creditID"].(string)), true
 	case "Mutation.resetChannelQuotaNow":
 		if e.complexity.Mutation.ResetChannelQuotaNow == nil {
 			break
@@ -14474,6 +14547,22 @@ func (ec *executionContext) field_Mutation_removeUserFromProject_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetCPACodexCredential_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "credentialID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["credentialID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "creditID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["creditID"] = arg1
 	return args, nil
 }
 
@@ -22867,6 +22956,10 @@ func (ec *executionContext) fieldContext_CPAManagedCredential_quotaData(_ contex
 			switch field.Name {
 			case "items":
 				return ec.fieldContext_CPAQuotaSnapshot_items(ctx, field)
+			case "resetCredits":
+				return ec.fieldContext_CPAQuotaSnapshot_resetCredits(ctx, field)
+			case "resetCreditsFailed":
+				return ec.fieldContext_CPAQuotaSnapshot_resetCreditsFailed(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaSnapshot", field.Name)
 		},
@@ -23442,6 +23535,35 @@ func (ec *executionContext) _CPAManagedInstance_autoManageEnabled(ctx context.Co
 }
 
 func (ec *executionContext) fieldContext_CPAManagedInstance_autoManageEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedInstance",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedInstance_autoResetEnabled(ctx context.Context, field graphql.CollectedField, obj *biz.CPAInstanceView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedInstance_autoResetEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.AutoResetEnabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedInstance_autoResetEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "CPAManagedInstance",
 		Field:      field,
@@ -24659,6 +24781,151 @@ func (ec *executionContext) fieldContext_CPAQuotaItem_estimateSource(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAQuotaResetCredit_id(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaResetCredit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaResetCredit_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaResetCredit_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaResetCredit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaResetCredit_title(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaResetCredit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaResetCredit_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaResetCredit_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaResetCredit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaResetCredit_resetType(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaResetCredit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaResetCredit_resetType,
+		func(ctx context.Context) (any, error) {
+			return obj.ResetType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaResetCredit_resetType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaResetCredit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaResetCredit_grantedAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaResetCredit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaResetCredit_grantedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.GrantedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaResetCredit_grantedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaResetCredit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaResetCredit_expiresAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaResetCredit) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaResetCredit_expiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaResetCredit_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaResetCredit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPAQuotaSnapshot_items(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -24715,6 +24982,76 @@ func (ec *executionContext) fieldContext_CPAQuotaSnapshot_items(_ context.Contex
 				return ec.fieldContext_CPAQuotaItem_estimateSource(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaItem", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaSnapshot_resetCredits(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaSnapshot_resetCredits,
+		func(ctx context.Context) (any, error) {
+			return obj.ResetCredits, nil
+		},
+		nil,
+		ec.marshalNCPAQuotaResetCredit2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaResetCreditᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaSnapshot_resetCredits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPAQuotaResetCredit_id(ctx, field)
+			case "title":
+				return ec.fieldContext_CPAQuotaResetCredit_title(ctx, field)
+			case "resetType":
+				return ec.fieldContext_CPAQuotaResetCredit_resetType(ctx, field)
+			case "grantedAt":
+				return ec.fieldContext_CPAQuotaResetCredit_grantedAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_CPAQuotaResetCredit_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaResetCredit", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaSnapshot_resetCreditsFailed(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaSnapshot_resetCreditsFailed,
+		func(ctx context.Context) (any, error) {
+			return obj.ResetCreditsFailed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaSnapshot_resetCreditsFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -45183,6 +45520,8 @@ func (ec *executionContext) fieldContext_Mutation_createCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "autoResetEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoResetEnabled(ctx, field)
 			case "usageStreamEnabled":
 				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
@@ -45276,6 +45615,8 @@ func (ec *executionContext) fieldContext_Mutation_updateCPAInstance(ctx context.
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "autoResetEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoResetEnabled(ctx, field)
 			case "usageStreamEnabled":
 				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
@@ -45608,6 +45949,47 @@ func (ec *executionContext) fieldContext_Mutation_toggleCPACredential(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_toggleCPACredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resetCPACodexCredential(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_resetCPACodexCredential,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ResetCPACodexCredential(ctx, fc.Args["credentialID"].(int), fc.Args["creditID"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_resetCPACodexCredential(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetCPACodexCredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -54863,6 +55245,8 @@ func (ec *executionContext) fieldContext_Query_cpaInstances(_ context.Context, f
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "autoResetEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoResetEnabled(ctx, field)
 			case "usageStreamEnabled":
 				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
@@ -54945,6 +55329,8 @@ func (ec *executionContext) fieldContext_Query_cpaInstance(ctx context.Context, 
 				return ec.fieldContext_CPAManagedInstance_refreshIntervalMinutes(ctx, field)
 			case "autoManageEnabled":
 				return ec.fieldContext_CPAManagedInstance_autoManageEnabled(ctx, field)
+			case "autoResetEnabled":
+				return ec.fieldContext_CPAManagedInstance_autoResetEnabled(ctx, field)
 			case "usageStreamEnabled":
 				return ec.fieldContext_CPAManagedInstance_usageStreamEnabled(ctx, field)
 			case "enabledPatrolIntervalMinutes":
@@ -78427,7 +78813,7 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "autoResetEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -78490,6 +78876,13 @@ func (ec *executionContext) unmarshalInputCreateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.AutoManageEnabled = data
+		case "autoResetEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoResetEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoResetEnabled = data
 		case "usageStreamEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("usageStreamEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -92909,7 +93302,7 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
+	fieldsInOrder := [...]string{"name", "baseURL", "managementSecret", "enabled", "insecureSkipTLS", "autoRefreshEnabled", "refreshIntervalMinutes", "autoManageEnabled", "autoResetEnabled", "usageStreamEnabled", "enabledPatrolIntervalMinutes", "disabledPatrolIntervalMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -92972,6 +93365,13 @@ func (ec *executionContext) unmarshalInputUpdateCPAInstanceInput(ctx context.Con
 				return it, err
 			}
 			it.AutoManageEnabled = data
+		case "autoResetEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("autoResetEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AutoResetEnabled = data
 		case "usageStreamEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("usageStreamEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -101383,6 +101783,11 @@ func (ec *executionContext) _CPAManagedInstance(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "autoResetEnabled":
+			out.Values[i] = ec._CPAManagedInstance_autoResetEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "usageStreamEnabled":
 			out.Values[i] = ec._CPAManagedInstance_usageStreamEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -101690,6 +102095,59 @@ func (ec *executionContext) _CPAQuotaItem(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var cPAQuotaResetCreditImplementors = []string{"CPAQuotaResetCredit"}
+
+func (ec *executionContext) _CPAQuotaResetCredit(ctx context.Context, sel ast.SelectionSet, obj *objects.CPAQuotaResetCredit) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAQuotaResetCreditImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAQuotaResetCredit")
+		case "id":
+			out.Values[i] = ec._CPAQuotaResetCredit_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._CPAQuotaResetCredit_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetType":
+			out.Values[i] = ec._CPAQuotaResetCredit_resetType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "grantedAt":
+			out.Values[i] = ec._CPAQuotaResetCredit_grantedAt(ctx, field, obj)
+		case "expiresAt":
+			out.Values[i] = ec._CPAQuotaResetCredit_expiresAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPAQuotaSnapshotImplementors = []string{"CPAQuotaSnapshot"}
 
 func (ec *executionContext) _CPAQuotaSnapshot(ctx context.Context, sel ast.SelectionSet, obj *objects.CPAQuotaSnapshot) graphql.Marshaler {
@@ -101703,6 +102161,16 @@ func (ec *executionContext) _CPAQuotaSnapshot(ctx context.Context, sel ast.Selec
 			out.Values[i] = graphql.MarshalString("CPAQuotaSnapshot")
 		case "items":
 			out.Values[i] = ec._CPAQuotaSnapshot_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetCredits":
+			out.Values[i] = ec._CPAQuotaSnapshot_resetCredits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetCreditsFailed":
+			out.Values[i] = ec._CPAQuotaSnapshot_resetCreditsFailed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -108866,6 +109334,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "toggleCPACredential":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_toggleCPACredential(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetCPACodexCredential":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetCPACodexCredential(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -122175,6 +122650,54 @@ func (ec *executionContext) marshalNCPAQuotaItem2ᚕgithubᚗcomᚋloopljᚋaxon
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNCPAQuotaItem2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaItem(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCPAQuotaResetCredit2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaResetCredit(ctx context.Context, sel ast.SelectionSet, v objects.CPAQuotaResetCredit) graphql.Marshaler {
+	return ec._CPAQuotaResetCredit(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPAQuotaResetCredit2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaResetCreditᚄ(ctx context.Context, sel ast.SelectionSet, v []objects.CPAQuotaResetCredit) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPAQuotaResetCredit2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAQuotaResetCredit(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

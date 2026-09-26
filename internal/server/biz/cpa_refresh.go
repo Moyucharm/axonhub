@@ -78,7 +78,7 @@ func (svc *CPAService) RefreshCredential(ctx context.Context, credentialID int) 
 		return nil, outcome.err
 	}
 	svc.scheduleNextRefresh(ctx, instance, svc.now().Add(time.Duration(instance.RefreshIntervalMinutes)*time.Minute))
-	return buildCPACredentialView(instance, outcome.credential, svc.now()), nil
+	return svc.credentialView(ctx, instance, outcome.credential)
 }
 
 // ToggleCredential enables or disables one CPA credential through the remote
@@ -94,7 +94,7 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 		return nil, fmt.Errorf("CPA instance is disabled")
 	}
 	if credential.Disabled == disabled {
-		return buildCPACredentialView(instance, credential, svc.now()), nil
+		return svc.credentialView(ctx, instance, credential)
 	}
 
 	client, err := svc.clientForInstance(ctx, instance)
@@ -118,7 +118,7 @@ func (svc *CPAService) ToggleCredential(ctx context.Context, credentialID int, d
 	if err != nil {
 		return nil, fmt.Errorf("reload CPA credential after toggle: %w", err)
 	}
-	return buildCPACredentialView(instance, updated, svc.now()), nil
+	return svc.credentialView(ctx, instance, updated)
 }
 
 func (svc *CPAService) refreshCredentialBatch(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential, onResult func(cpaQuotaExecutionOutcome)) (*CPARefreshResult, error) {

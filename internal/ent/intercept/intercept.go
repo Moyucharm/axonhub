@@ -15,6 +15,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
+	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
@@ -147,6 +148,33 @@ func (f TraverseAPIKeyProfileTemplate) Traverse(ctx context.Context, q ent.Query
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.APIKeyProfileTemplateQuery", q)
+}
+
+// The CPACodexResetAttemptFunc type is an adapter to allow the use of ordinary function as a Querier.
+type CPACodexResetAttemptFunc func(context.Context, *ent.CPACodexResetAttemptQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f CPACodexResetAttemptFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.CPACodexResetAttemptQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.CPACodexResetAttemptQuery", q)
+}
+
+// The TraverseCPACodexResetAttempt type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseCPACodexResetAttempt func(context.Context, *ent.CPACodexResetAttemptQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseCPACodexResetAttempt) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseCPACodexResetAttempt) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CPACodexResetAttemptQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.CPACodexResetAttemptQuery", q)
 }
 
 // The CPACredentialFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -858,6 +886,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.APIKeyQuery, predicate.APIKey, apikey.OrderOption]{typ: ent.TypeAPIKey, tq: q}, nil
 	case *ent.APIKeyProfileTemplateQuery:
 		return &query[*ent.APIKeyProfileTemplateQuery, predicate.APIKeyProfileTemplate, apikeyprofiletemplate.OrderOption]{typ: ent.TypeAPIKeyProfileTemplate, tq: q}, nil
+	case *ent.CPACodexResetAttemptQuery:
+		return &query[*ent.CPACodexResetAttemptQuery, predicate.CPACodexResetAttempt, cpacodexresetattempt.OrderOption]{typ: ent.TypeCPACodexResetAttempt, tq: q}, nil
 	case *ent.CPACredentialQuery:
 		return &query[*ent.CPACredentialQuery, predicate.CPACredential, cpacredential.OrderOption]{typ: ent.TypeCPACredential, tq: q}, nil
 	case *ent.CPAInstanceQuery:
