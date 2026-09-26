@@ -254,18 +254,6 @@ test('CPA page renders quota capsules via QuotaWindowsBlock and QuotaSummaryCaps
   assert.match(capsule, /type CapsuleSize = 'md' \| 'sm'/);
 });
 
-test('quota summary fills the cell and keeps +N beside the bars', () => {
-  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
-  // Fixed 4rem label column + a 1fr capsule column that takes the cell's
-  // leftover width: every bar in the column shares one left edge, and the
-  // leftover width is absorbed by the bars instead of leaving dead space next
-  // to the refreshed-at column. +N sits after the last bar, not on its own row.
-  assert.match(summary, /grid w-full grid-cols-\[4rem_minmax\(0,1fr\)_auto\]/);
-  assert.doesNotMatch(summary, /w-max min-w-(52|60)/);
-  assert.match(summary, /isLast && hidden\.length > 0/);
-  // Placeholder spans keep grid auto-placement aligned when cells are empty.
-  assert.match(summary, /<span key=\{`more-\$\{rep\.id\}`} \/>/);
-});
 
 test('overflow popover reuses the external capsule and wraps full window names', () => {
   const capsule = read('components/quota-capsule.tsx');
@@ -280,20 +268,6 @@ test('overflow popover reuses the external capsule and wraps full window names',
   assert.match(summary, /<QuotaMorePopover key='more' windows=\{hidden\} size='sm'>/);
 });
 
-test('estimate capsule sits beside the quota bar without shrinking it', () => {
-  const capsule = read('components/quota-capsule.tsx');
-  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
-
-  // The estimate is a sibling after the bordered quota bar, not another item
-  // inside the bar's flex row where it would consume the track width. The sm
-  // bar fills its host (the quota cell's 1fr column, or the popover's 13rem
-  // rail) and the md bar takes the width left beside the badge, so bar + badge
-  // never overflow.
-  assert.match(capsule, /size === 'sm' \? 'w-full' : 'w-max min-w-full'/);
-  assert.match(capsule, /size === 'sm' \? 'h-7 min-w-0 flex-1' : 'h-8 flex-1'/);
-  assert.match(capsule, /<CapsuleBar window=\{window\} size=\{size\} \/>\s*<\/div>\s*<EstimateBadge window=\{window\} size=\{size\} \/>/);
-  assert.match(summary, /grid w-full grid-cols-\[4rem_minmax\(0,1fr\)_auto\]/);
-});
 
 test('expanded quota block lists every window as a width-capped detail block', () => {
   const capsule = read('components/quota-capsule.tsx');

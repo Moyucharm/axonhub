@@ -117,17 +117,29 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
   const { t } = useTranslation();
   const used = Math.min(Math.max(window.percent || 0, 0), 100);
   const remaining = Math.round(100 - used);
+  const hasEstimateInExtras = window.tooltipExtras?.some(
+    (line) => window.estimatedLimitUSD != null && line.includes(formatQuotaUSD(window.estimatedLimitUSD))
+  );
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side='top'>
-        <div className='space-y-0.5'>
+        <div className='space-y-0.5 text-xs'>
           <div className='font-medium'>{windowFullName(window, t)}</div>
           <div>{t('quota.capsule.remaining', { percent: remaining })}</div>
           <div>{t('quota.label.percent_used', { percent: Math.round(used) })}</div>
           {window.durationPercent !== undefined && (
             <div>
               {t('quota.label.time_elapsed')}: {Math.round(window.durationPercent)}%
+            </div>
+          )}
+          {window.estimatedLimitUSD != null && !hasEstimateInExtras && (
+            <div>
+              {t('cpa.quota.estimateDetail', {
+                limit: formatQuotaUSD(window.estimatedLimitUSD),
+                cost: window.estimatedCostUSD != null ? formatQuotaUSD(window.estimatedCostUSD) : '—',
+              })}
             </div>
           )}
           {window.tooltipExtras?.map((line) => (
@@ -144,10 +156,18 @@ function CapsuleTooltip({ window, children }: { window: QuotaWindowItem; childre
 // it the leftover cell width, the popover rows hand it a fixed 13rem); the 'md'
 // bar fills the width left beside the estimate badge (a full-width bar plus the
 // badge would overflow its container).
-export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
+export function QuotaCapsule({
+  window,
+  size = 'md',
+  className,
+}: {
+  window: QuotaWindowItem;
+  size?: CapsuleSize;
+  className?: string;
+}) {
   return (
     <CapsuleTooltip window={window}>
-      <div className={cn('flex min-w-0 items-center gap-1.5', size === 'sm' ? 'w-full' : 'w-max min-w-full')}>
+      <div className={cn('flex min-w-0 items-center gap-1.5', size === 'sm' ? 'w-full' : 'w-max min-w-full', className)}>
         <div
           className={cn(
             'bg-muted/50 hover:bg-muted/70 flex items-center gap-1.5 overflow-hidden rounded-full px-2 transition-colors',
@@ -156,7 +176,6 @@ export function QuotaCapsule({ window, size = 'md' }: { window: QuotaWindowItem;
         >
           <CapsuleBar window={window} size={size} />
         </div>
-        <EstimateBadge window={window} size={size} />
       </div>
     </CapsuleTooltip>
   );

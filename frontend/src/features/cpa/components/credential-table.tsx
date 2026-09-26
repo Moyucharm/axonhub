@@ -1,8 +1,9 @@
 import { Fragment } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/table-skeleton';
@@ -13,7 +14,7 @@ import { planLabel, providerLabel } from '../labels';
 import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
-import { CodexResetCredits } from './codex-reset-credits';
+import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming } from './codex-reset-credits';
 import type { CPACodexResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
 
@@ -56,6 +57,100 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   if (credential.quotaState === 'error') return <span>{t('cpa.quota.error')}</span>;
   if (credential.quotaData.items.length === 0) return <span>—</span>;
   return <QuotaSummaryCapsule items={credential.quotaData.items} provider={credential.provider} fallback={<span>—</span>} />;
+}
+
+function CredentialResetBubble({
+  credential,
+  canWrite,
+  instanceEnabled,
+  resetPending,
+  locale,
+  onRequestReset,
+}: {
+  credential: CPACredential;
+  canWrite: boolean;
+  instanceEnabled: boolean;
+  resetPending: boolean;
+  locale: string;
+  onRequestReset: (confirmation: CPACodexResetConfirmation) => void;
+}) {
+  const { t } = useTranslation();
+  const resetCredits = credential.quotaData?.resetCredits ?? [];
+  const usableCredits = resetCredits.filter((credit) => resetCreditIsUsable(credit.expiresAt));
+
+  if (usableCredits.length === 0) return null;
+
+  const firstCredit = usableCredits[0];
+  const canUse = canWrite && instanceEnabled && !resetPending;
+  const commonTitle = usableCredits.length > 0 && usableCredits.every((c) => c.title === firstCredit.title)
+    ? firstCredit.title
+    : null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          data-testid={`cpa-reset-bubble-${credential.id}`}
+          disabled={!canUse}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestReset({
+              credentialID: credential.id,
+              creditID: firstCredit.id,
+              displayName: credential.email || credential.displayName || credential.remoteName,
+              expiresAt: firstCredit.expiresAt,
+            });
+          }}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums transition-colors',
+            'bg-violet-500/10 text-violet-600 hover:bg-violet-500/20 dark:bg-violet-500/20 dark:text-violet-400 dark:hover:bg-violet-500/30',
+            !canUse && 'cursor-not-allowed opacity-60'
+          )}
+          aria-label={t('cpa.reset.count', { count: usableCredits.length })}
+        >
+          <Ticket className='h-3 w-3' />
+          <span>{usableCredits.length}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side='top' className='w-fit space-y-1.5 p-2.5 text-xs text-background shadow-md'>
+        <div className='border-b border-background/20 pb-1'>
+          <div className='flex items-center justify-between gap-4 font-semibold'>
+            <span className='flex items-center gap-1.5 text-background'>
+              <Ticket className='h-3.5 w-3.5 text-violet-400' />
+              {t('cpa.reset.count', { count: usableCredits.length })}
+            </span>
+            {canUse && (
+              <span className='text-[10px] font-normal text-background/70'>
+                {t('cpa.reset.use')}
+              </span>
+            )}
+          </div>
+          {commonTitle && (
+            <p className='mt-0.5 text-[11px] font-normal text-background/60'>
+              {commonTitle}
+            </p>
+          )}
+        </div>
+        <div className='space-y-1'>
+          {usableCredits.map((credit, idx) => {
+            const expiry = resetCreditTiming(credit.expiresAt, locale);
+            const label = commonTitle ? t('cpa.reset.item', { index: idx + 1 }) : (credit.title || t('cpa.reset.item', { index: idx + 1 }));
+            return (
+              <div key={credit.id || idx} className='flex items-center justify-between gap-3 text-background/80'>
+                <span className='font-medium text-background'>
+                  {label}
+                </span>
+                <span className='shrink-0 tabular-nums text-background/70 text-[11px]'>
+                  {expiry ? `${expiry.absolute} (${expiry.relative})` : '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 export function CPACredentialTable({
@@ -106,7 +201,7 @@ export function CPACredentialTable({
                 <TableHead className='text-muted-foreground w-[120px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.status')}
                 </TableHead>
-                <TableHead className='text-muted-foreground border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[520px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.quota')}
                 </TableHead>
                 <TableHead className='text-muted-foreground w-[170px] border-0 text-xs font-semibold tracking-wider uppercase'>
@@ -137,19 +232,29 @@ export function CPACredentialTable({
                         </Button>
                       </TableCell>
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className='max-w-[200px] cursor-default truncate font-medium'>
-                              {credential.email || credential.displayName || '—'}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side='top'>
-                            {credential.remoteName}
-                            {credential.displayName && credential.displayName !== credential.remoteName
-                              ? ` · ${credential.displayName}`
-                              : ''}
-                          </TooltipContent>
-                        </Tooltip>
+                        <div className='flex items-center gap-1.5'>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className='min-w-0 max-w-[180px] cursor-default truncate font-medium'>
+                                {credential.email || credential.displayName || '—'}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side='top'>
+                              {credential.remoteName}
+                              {credential.displayName && credential.displayName !== credential.remoteName
+                                ? ` · ${credential.displayName}`
+                                : ''}
+                            </TooltipContent>
+                          </Tooltip>
+                          <CredentialResetBubble
+                            credential={credential}
+                            canWrite={canWrite}
+                            instanceEnabled={instanceEnabled}
+                            resetPending={resetPending}
+                            locale={locale}
+                            onRequestReset={onRequestReset}
+                          />
+                        </div>
                       </TableCell>
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <div>{providerLabel(credential.provider, t)}</div>

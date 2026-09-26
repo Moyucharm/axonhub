@@ -17,7 +17,7 @@ interface CodexResetCreditsProps {
 // Reset cards arrive with the quota refresh, so this panel renders stored data
 // only. Labels mirror the provider panel: absolute local time plus a relative
 // badge.
-function resetCreditTiming(value: string | null | undefined, locale: string) {
+export function resetCreditTiming(value: string | null | undefined, locale: string) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -29,7 +29,7 @@ function resetCreditTiming(value: string | null | undefined, locale: string) {
   return { absolute, relative };
 }
 
-function resetCreditIsUsable(expiresAt: string | null | undefined) {
+export function resetCreditIsUsable(expiresAt: string | null | undefined) {
   if (!expiresAt) return true;
   const date = new Date(expiresAt);
   return Number.isNaN(date.getTime()) || date.getTime() > Date.now();

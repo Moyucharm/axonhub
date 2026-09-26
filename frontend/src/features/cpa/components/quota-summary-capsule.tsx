@@ -13,12 +13,10 @@ import type { CPAQuotaItem } from '../types';
 //   - <=2 pools      -> one bar per pool, all visible
 //   - >2 pools       -> first two bars inline, everything else behind a +N
 //                       overflow button placed after the last bar.
-// Grid columns [4rem_minmax(0,1fr)_auto]: the label column is a fixed 4rem so
-// every capsule plate in the column shares one left edge (and the single
-// ungrouped case reserves the same slot), the middle column takes whatever
-// width the cell has left so the bars absorb it instead of leaving a gap next
-// to the refreshed-at column, and the trailing auto column hosts the inline +N
-// overflow button at the cell's right edge.
+// Grid columns [4rem_400px_auto]: the label column is a fixed 4rem, the
+// middle column keeps a fixed 400px width (2x the default compact rail)
+// so remaining bars never stretch or shrink dynamically, and the trailing
+// auto column hosts the inline +N overflow button at the right edge.
 const MAX_INLINE_GROUPS = 2;
 
 export function QuotaSummaryCapsule({
@@ -45,7 +43,7 @@ export function QuotaSummaryCapsule({
   // lines up with the labelled rows above and below.
   if (inline.length === 1 && !inline[0].group && hidden.length === 0) {
     return (
-      <div className='grid w-full grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-1.5'>
+      <div className='grid w-max grid-cols-[4rem_400px_auto] items-center gap-x-2'>
         <span />
         <QuotaCapsule window={inline[0].rep} size='sm' />
         <span />
@@ -54,7 +52,7 @@ export function QuotaSummaryCapsule({
   }
 
   return (
-    <div className='grid w-full grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1'>
+    <div className='grid w-max grid-cols-[4rem_400px_auto] items-center gap-x-2 gap-y-1'>
       {inline.map(({ group, rep }, index) => {
         const label = shortGroupLabel(group, t);
         const isLast = index === inline.length - 1;
