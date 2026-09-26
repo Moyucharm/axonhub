@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
 | 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.2`（待创建 tag 并发布镜像） |
+| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.3`（待创建 tag 并发布镜像） |
 
 ### 更新本文件的方法
 
@@ -271,6 +271,14 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 对应决策记录：[Codex CPA 周/月额度估算的窗口身份与区间保留](.agents/notes/implemented/bug-fix/2026-09-25-cpa-estimate-window-identity.md)。本次仅修复行为与持久化兼容，不单独修改版本号、tag 或发布基线。
 
+### 3.17 CPA 多窗口额度金额估算（`c632a065`）
+
+- **按窗口独立观察**：`quota_observed` 新增 `windows[]`，每个周期各自保存 collector、baseline、high-water 与 checkpoint；旧 7d `secondary_*` JSON 读取时原地迁移，首次新观察写入即切到新结构。usage 采集器按 `(instance, auth_index)` 记录 checkpoint，重放/乱序样本只推进 checkpoint，不动区间端点与估算金额。
+- **双来源区间**：Codex 的 5h/7d 从同一 usage 响应头分别推进本地区间（`precise-header-delta`）；月窗口以及 Claude、Kimi、Antigravity、xAI 的 5h/7d/月窗口按额度刷新快照建立区间（`refresh-delta`）。
+- **估算范围收紧**：只有覆盖面等于凭证整体用量的窗口参与估算——Claude 仅 `five_hour`/`seven_day` 聚合窗口，Opus/Sonnet 等模型或应用子限额保持纯展示，避免用子集百分比去除全模型聚合成本；其余前置条件（百分比、重置时间、周期、usage stream、定价覆盖率）保持不变。
+- **界面**：胶囊与展开行按窗口展示估算徽标；同一资源池的精确 5h+7d 双窗口拆分展示，并按「池优先」排序，内联额度内优先保证每个池有一个代表窗口，其余进入 `+N`。
+- 版本号递增为 `v1.0.0-beta10+azusa.v0.6.3`。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
 本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。
@@ -305,7 +313,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：自用功能更新递增增强号并同步更新 `internal/build/VERSION` 与 git tag。增强号为 `azusa.v<主>.<次>.<修订>`：常规自用发布递增修订位（第三位，如 `v0.6.1` → `v0.6.2`），功能集合整体升级时递增次位（如 `v0.6` → `v0.7`）。
-- **当前状态**：`2026-09-21` 发布 `v1.0.0-beta10+azusa.v0.6.2`。相对 `v0.6.1`（OpenCode Zen 渠道）新增 TypeSafe System One（Jev）端点、CPA 幽灵 auth-file 清理，以及请求执行详情、强制流式可见性与渠道列表字段修复（见 3.13～3.15）。`beta10..unstable` 未发行提交不在本次范围内。
+- **当前状态**：`2026-09-26` 发布 `v1.0.0-beta10+azusa.v0.6.3`。相对 `v0.6.2`（TypeSafe System One、CPA 幽灵 auth-file 清理等）新增 CPA 多窗口额度金额估算（见 2.4、3.17）：5h/7d 按窗口独立观察与估算、估算范围限定为覆盖凭证整体用量的窗口、拆分资源池按「池优先」展示。`beta10..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 
