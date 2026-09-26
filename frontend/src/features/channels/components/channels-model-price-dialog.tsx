@@ -28,6 +28,11 @@ import {
   type ModelPrice,
   type SaveChannelModelPriceInput,
 } from '../data/schema';
+import {
+  findCatalogPriceMatch,
+  hasUsableCatalogCost,
+  type CatalogPriceMatchMethod,
+} from '../utils/price-model-match';
 
 const priceItemCodes = ['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens'] as const;
 const pricingModes = ['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume'] as const;
@@ -425,6 +430,57 @@ function getProviderModelLabel(model: ProviderModel) {
   return `${name} (${model.id})`;
 }
 
+/**
+ * Price borrowed from a differently named catalog model. Session-only: the saved channel
+ * price keeps the target model id and never records where its numbers came from.
+ */
+type AppliedPriceSource = {
+  method: CatalogPriceMatchMethod | 'manual';
+  providerId: string;
+  catalogModelId: string;
+};
+
+type BulkUnmatchedModels = {
+  needsManual: string[];
+  keepCurrent: string[];
+};
+
+const priceMatchMethodLabelKeys: Record<AppliedPriceSource['method'], string> = {
+  exact: 'price.apply.method.exact',
+  prefix: 'price.apply.method.prefix',
+  suffix: 'price.apply.method.suffix',
+  prefix_suffix: 'price.apply.method.prefix_suffix',
+  manual: 'price.apply.method.manual',
+};
+
+const MIN_MANUAL_SOURCE_SEARCH_LENGTH = 2;
+const MAX_MANUAL_SOURCE_OPTIONS = 100;
+
+function formatCatalogSourceLabel(providerId: string, catalogModelId: string) {
+  return `${providerId} · ${catalogModelId}`;
+}
+
+// Only priced catalog entries can be copied; self-hosted zero-cost entries would
+// otherwise fill a channel model with a meaningless 0 price.
+function buildCatalogPriceSourceOptions(providersData: ProvidersData) {
+  const options: Array<{ value: string; label: string; search: string }> = [];
+
+  Object.keys(providersData.providers)
+    .sort()
+    .forEach((providerId) => {
+      (providersData.providers[providerId]?.models || []).forEach((model) => {
+        if (!hasUsableCatalogCost(model)) return;
+        options.push({
+          value: JSON.stringify([providerId, model.id]),
+          label: formatCatalogSourceLabel(providerId, getProviderModelLabel(model)),
+          search: `${providerId} ${model.id} ${model.display_name || model.name || ''}`.toLowerCase(),
+        });
+      });
+    });
+
+  return options;
+}
+
 function findProviderModelById(providersData: ProvidersData, modelId: string, providerId?: string) {
   const provider = providerId ? providersData.providers[providerId] : undefined;
   if (provider?.models?.length) {
@@ -440,6 +496,8 @@ function findProviderModelById(providersData: ProvidersData, modelId: string, pr
   return null;
 }
 
+// Callers must pass a catalog model with a usable cost (see hasUsableCatalogCost), so a
+// missing cost can never turn into a zero-priced placeholder on the channel.
 function buildItemsFromProviderModel(model: ProviderModel, multiplier: number = 1): PriceFormData['prices'][number]['price']['items'] {
   const items: PriceFormData['prices'][number]['price']['items'] = [];
   const cost = model.cost;
@@ -458,13 +516,6 @@ function buildItemsFromProviderModel(model: ProviderModel, multiplier: number = 
   if (cost?.output != null) pushUsagePerUnit('completion_tokens', cost.output);
   if (cost?.cache_read != null) pushUsagePerUnit('prompt_cached_tokens', cost.cache_read);
   if (cost?.cache_write != null) pushUsagePerUnit('prompt_write_cached_tokens', cost.cache_write);
-
-  if (items.length === 0) {
-    items.push({
-      itemCode: 'prompt_tokens',
-      pricing: { mode: 'usage_per_unit', usagePerUnit: '0' },
-    });
-  }
 
   return items;
 }
@@ -515,6 +566,7 @@ const PriceCard = memo(function PriceCard({
   priceIndex,
   currencyCode,
   defaultTimezone,
+  sourceLabel,
   onAddItem,
   onModelSelected,
   onDuplicatePrice,
@@ -529,8 +581,10 @@ const PriceCard = memo(function PriceCard({
   priceIndex: number;
   currencyCode?: string;
   defaultTimezone?: string;
+  /** Warning shown when this card's price is borrowed from a differently named model. */
+  sourceLabel: string | null;
   onAddItem: (priceIndex: number) => void;
-  onModelSelected: (priceIndex: number, modelId: string) => void;
+  onModelSelected: (priceIndex: number, modelId: string, previousModelId?: string) => void;
   onDuplicatePrice: (priceIndex: number) => void;
   onRemoveItem: (priceIndex: number, itemIndex: number) => void;
   onRemovePrice: (priceIndex: number) => void;
@@ -590,8 +644,9 @@ const PriceCard = memo(function PriceCard({
                 <FormItem>
                   <Select
                     onValueChange={(value) => {
+                      // The previous id clears the session warning belonging to the old model.
+                      onModelSelected(priceIndex, value, field.value);
                       field.onChange(value);
-                      onModelSelected(priceIndex, value);
                     }}
                     value={field.value}
                   >
@@ -612,6 +667,11 @@ const PriceCard = memo(function PriceCard({
                 </FormItem>
               )}
             />
+            {sourceLabel && (
+              <p className='mt-1 text-[11px] leading-tight break-words text-amber-600 dark:text-amber-400'>
+                {sourceLabel}
+              </p>
+            )}
           </div>
 
           <div className='min-w-0'>
@@ -753,6 +813,129 @@ export function ChannelsModelPriceDialog() {
     }
   }, [isOpen, currentPrices, reset]);
 
+  /**
+   * Prices borrowed from a differently named catalog model live for this dialog session
+   * only: nothing about the borrowed source is persisted, so reopening the dialog never
+   * claims a source for prices loaded back from the server.
+   */
+  const [priceSources, setPriceSources] = useState<Record<string, AppliedPriceSource>>({});
+  const [unmatchedModels, setUnmatchedModels] = useState<BulkUnmatchedModels>({
+    needsManual: [],
+    keepCurrent: [],
+  });
+  const [manualTargetId, setManualTargetId] = useState('');
+  const [manualSourceKey, setManualSourceKey] = useState('');
+  const [manualSourceSearch, setManualSourceSearch] = useState('');
+
+  const clearPriceSession = useCallback(() => {
+    setPriceSources({});
+    setUnmatchedModels({ needsManual: [], keepCurrent: [] });
+  }, []);
+
+  // Session warnings and manual picks must not outlive the dialog or the channel they
+  // were made in.
+  useEffect(() => {
+    clearPriceSession();
+    setManualTargetId('');
+    setManualSourceKey('');
+    setManualSourceSearch('');
+  }, [clearPriceSession, currentRow?.id, isOpen]);
+
+  // Reloading prices from the server rebuilds every card, so a warning about a borrowed
+  // price would describe items that no longer exist.
+  useEffect(() => {
+    clearPriceSession();
+  }, [clearPriceSession, currentPrices]);
+
+  const dropPriceSource = useCallback((modelId: string | undefined) => {
+    if (!modelId) return;
+    setPriceSources((prev) => {
+      if (!(modelId in prev)) return prev;
+      const next = { ...prev };
+      delete next[modelId];
+      return next;
+    });
+  }, []);
+
+  const recordPriceSource = useCallback((modelId: string, source: AppliedPriceSource) => {
+    if (!modelId) return;
+    setPriceSources((prev) => ({ ...prev, [modelId]: source }));
+  }, []);
+
+  // Model ids currently in the form; a warning for a card that was removed or renamed
+  // must neither render nor come back.
+  const configuredModelIds = useMemo(
+    () =>
+      new Set(
+        (watchedPrices || []).map((price) => price?.modelId).filter((modelId): modelId is string => !!modelId)
+      ),
+    [watchedPrices]
+  );
+
+  const visiblePriceSources = useMemo(
+    () => Object.entries(priceSources).filter(([modelId]) => configuredModelIds.has(modelId)),
+    [configuredModelIds, priceSources]
+  );
+
+  const cardSourceLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    Object.entries(priceSources).forEach(([modelId, source]) => {
+      labels[modelId] = t('price.apply.source.card', {
+        source: formatCatalogSourceLabel(source.providerId, source.catalogModelId),
+        method: t(priceMatchMethodLabelKeys[source.method]),
+      });
+    });
+    return labels;
+  }, [priceSources, t]);
+
+  const unmatchedNeedsManual = useMemo(
+    () => unmatchedModels.needsManual.filter((modelId) => !configuredModelIds.has(modelId)),
+    [configuredModelIds, unmatchedModels.needsManual]
+  );
+
+  // A model that later received a borrowed price no longer "keeps its current
+  // configuration", so its stale notice must not contradict the source line.
+  const unmatchedKeepCurrent = useMemo(
+    () =>
+      unmatchedModels.keepCurrent.filter(
+        (modelId) => configuredModelIds.has(modelId) && !(modelId in priceSources)
+      ),
+    [configuredModelIds, priceSources, unmatchedModels.keepCurrent]
+  );
+
+  const hasPriceSessionNotice =
+    visiblePriceSources.length > 0 || unmatchedNeedsManual.length > 0 || unmatchedKeepCurrent.length > 0;
+
+  const catalogSourceOptions = useMemo(
+    () => (providersData ? buildCatalogPriceSourceOptions(providersData) : []),
+    [providersData]
+  );
+
+  const manualTargetOptions = useMemo(
+    () => supportedModels.map((modelId) => ({ value: modelId, label: modelId })),
+    [supportedModels]
+  );
+
+  const manualSourceOptions = useMemo(() => {
+    const selected = manualSourceKey ? catalogSourceOptions.find((item) => item.value === manualSourceKey) : undefined;
+    const query = manualSourceSearch.trim().toLowerCase();
+    if (query.length < MIN_MANUAL_SOURCE_SEARCH_LENGTH) return selected ? [selected] : [];
+
+    const matches: typeof catalogSourceOptions = [];
+    for (const option of catalogSourceOptions) {
+      if (!option.search.includes(query)) continue;
+      matches.push(option);
+      if (matches.length >= MAX_MANUAL_SOURCE_OPTIONS) break;
+    }
+
+    // Keep the selected entry in the list, otherwise the field cannot render it.
+    if (selected && !matches.some((item) => item.value === selected.value)) {
+      matches.unshift(selected);
+    }
+
+    return matches;
+  }, [catalogSourceOptions, manualSourceKey, manualSourceSearch]);
+
   // Tracks the channel/dialog the import was started in, so a stale async file
   // read can be discarded if the user switches channels or closes the dialog
   // before it resolves (the dialog is a single shared instance).
@@ -849,6 +1032,7 @@ export function ChannelsModelPriceDialog() {
         return;
       }
 
+      clearPriceSession();
       reset(mapSaveInputsToFormData(filtered));
       rowVirtualizer.scrollToIndex(0, { align: 'start' });
       if (skipped > 0) {
@@ -857,7 +1041,7 @@ export function ChannelsModelPriceDialog() {
         toast.success(t('price.import.success', { count: filtered.length }));
       }
     },
-    [currentRow, reset, rowVirtualizer, t]
+    [clearPriceSession, currentRow, reset, rowVirtualizer, t]
   );
 
   const onSubmitError = useCallback(
@@ -1000,15 +1184,27 @@ export function ChannelsModelPriceDialog() {
     });
   }, [append]);
 
-  const removePrice = useCallback((index: number) => remove(index), [remove]);
-
-  const applyProviderModelToIndex = useCallback(
-    (priceIndex: number, providerModel: ProviderModel) => {
-      const currentItems = getValues(`prices.${priceIndex}.price.items`) || [];
-      const merged = mergeItemsWithProviderCost(currentItems, providerModel, multiplier);
-      setValue(`prices.${priceIndex}.price.items`, merged, { shouldDirty: true, shouldValidate: true });
+  const removePrice = useCallback(
+    (index: number) => {
+      dropPriceSource(getValues(`prices.${index}.modelId`));
+      remove(index);
     },
-    [getValues, setValue, multiplier]
+    [dropPriceSource, getValues, remove]
+  );
+
+  const applyCatalogPriceToIndex = useCallback(
+    (priceIndex: number, providerModel: ProviderModel, options?: { replace?: boolean }) => {
+      const items = options?.replace
+        ? buildItemsFromProviderModel(providerModel, multiplier)
+        : mergeItemsWithProviderCost(getValues(`prices.${priceIndex}.price.items`) || [], providerModel, multiplier);
+      setValue(`prices.${priceIndex}.price.items`, items, { shouldDirty: true, shouldValidate: true });
+
+      if (options?.replace) {
+        // A borrowed price must not inherit the previous model's rate overrides.
+        setValue(`prices.${priceIndex}.price.schedule`, null, { shouldDirty: true, shouldValidate: true });
+      }
+    },
+    [getValues, multiplier, setValue]
   );
 
   const applyProviderModelById = useCallback(
@@ -1019,11 +1215,18 @@ export function ChannelsModelPriceDialog() {
         toast.error(t('price.apply.notFound', { modelId }));
         return;
       }
+      if (!hasUsableCatalogCost(found.model)) {
+        toast.error(t('price.apply.noCost', { modelId }));
+        return;
+      }
+
+      // Applying the same-named catalog entry replaces any borrowed-source warning.
+      dropPriceSource(modelId);
 
       const prices = getValues('prices') || [];
       const existingIndex = prices.findIndex((p) => p?.modelId === modelId);
       if (existingIndex >= 0) {
-        applyProviderModelToIndex(existingIndex, found.model);
+        applyCatalogPriceToIndex(existingIndex, found.model);
         toast.success(t('price.apply.applied', { modelId }));
         return;
       }
@@ -1036,21 +1239,204 @@ export function ChannelsModelPriceDialog() {
       });
       toast.success(t('price.apply.added', { modelId }));
     },
-    [append, applyProviderModelToIndex, getValues, providersData, t, multiplier]
+    [append, applyCatalogPriceToIndex, dropPriceSource, getValues, multiplier, providersData, t]
   );
 
   const onModelSelected = useCallback(
-    (priceIndex: number, modelId: string) => {
+    (priceIndex: number, modelId: string, previousModelId?: string) => {
+      if (previousModelId && previousModelId !== modelId) {
+        dropPriceSource(previousModelId);
+      }
       if (!modelId || !providersData) return;
+
       const preferredProviderId =
         defaultProviderId && providersData.providers[defaultProviderId] ? defaultProviderId : selectedProviderId;
-      const found = findProviderModelById(providersData, modelId, preferredProviderId);
-      if (!found) return;
-      applyProviderModelToIndex(priceIndex, found.model);
-      toast.success(t('price.apply.applied', { modelId }));
+      const match = findCatalogPriceMatch(providersData, modelId, preferredProviderId);
+
+      if (!match) {
+        // No catalog price: keep whatever the editor already holds instead of writing a 0.
+        dropPriceSource(modelId);
+        toast.warning(t('price.apply.noMatch', { modelId }));
+        return;
+      }
+
+      if (match.method === 'exact') {
+        dropPriceSource(modelId);
+        applyCatalogPriceToIndex(priceIndex, match.model);
+        toast.success(t('price.apply.applied', { modelId }));
+        return;
+      }
+
+      recordPriceSource(modelId, {
+        method: match.method,
+        providerId: match.providerId,
+        catalogModelId: match.model.id,
+      });
+      applyCatalogPriceToIndex(priceIndex, match.model, { replace: true });
+      toast.warning(
+        t('price.apply.borrowed', {
+          modelId,
+          source: formatCatalogSourceLabel(match.providerId, match.model.id),
+        })
+      );
     },
-    [applyProviderModelToIndex, defaultProviderId, providersData, selectedProviderId, t]
+    [
+      applyCatalogPriceToIndex,
+      defaultProviderId,
+      dropPriceSource,
+      providersData,
+      recordPriceSource,
+      selectedProviderId,
+      t,
+    ]
   );
+
+  /**
+   * Automatic pass over the channel's supported models. Non-exact hits are recorded so the
+   * borrowed source stays visible for the rest of the dialog session.
+   */
+  const bulkMatchAndFill = useCallback(() => {
+    if (!providersData) return;
+
+    const providerId = selectedProviderId || defaultProviderId;
+    const prices = getValues('prices') || [];
+    const existingModelIds = new Set(
+      prices.map((price) => price?.modelId).filter((modelId): modelId is string => !!modelId)
+    );
+    // Manual picks win over the automatic pass for the rest of this dialog session.
+    const manualModelIds = new Set(
+      Object.entries(priceSources)
+        .filter(([, source]) => source.method === 'manual')
+        .map(([modelId]) => modelId)
+    );
+    const sourceUpdates = new Map<string, AppliedPriceSource | null>();
+    const needsManual: string[] = [];
+    const keepCurrent: string[] = [];
+    let applied = 0;
+    let added = 0;
+    let missed = 0;
+
+    supportedModels.forEach((modelId) => {
+      if (manualModelIds.has(modelId)) return;
+
+      const match = findCatalogPriceMatch(providersData, modelId, providerId);
+      const existingIndex = prices.findIndex((price) => price?.modelId === modelId);
+
+      if (!match) {
+        missed += 1;
+        if (existingIndex >= 0) {
+          keepCurrent.push(modelId);
+        } else {
+          needsManual.push(modelId);
+        }
+        return;
+      }
+
+      sourceUpdates.set(
+        modelId,
+        match.method === 'exact'
+          ? null
+          : {
+              method: match.method,
+              providerId: match.providerId,
+              catalogModelId: match.model.id,
+            }
+      );
+
+      if (existingIndex >= 0) {
+        // A borrowed price replaces the whole item list: keeping the old items or the old
+        // schedule would mix another model's rates into the copied price.
+        applyCatalogPriceToIndex(existingIndex, match.model, { replace: match.method !== 'exact' });
+        applied += 1;
+        return;
+      }
+
+      // Guard against a repeated id in supportedModels appending the same card twice.
+      if (existingModelIds.has(modelId)) return;
+      existingModelIds.add(modelId);
+      // New cards are appended at the end; scroll into view once they render.
+      pendingScrollToNewCardRef.current = true;
+      append({
+        modelId,
+        price: { items: buildItemsFromProviderModel(match.model, multiplier) },
+      });
+      added += 1;
+    });
+
+    if (sourceUpdates.size > 0) {
+      setPriceSources((prev) => {
+        const next = { ...prev };
+        sourceUpdates.forEach((source, modelId) => {
+          if (source) {
+            next[modelId] = source;
+          } else {
+            delete next[modelId];
+          }
+        });
+        return next;
+      });
+    }
+    setUnmatchedModels({ needsManual, keepCurrent });
+
+    if (applied || added) {
+      toast.success(t('price.apply.bulkSuccess', { applied, added }));
+    }
+    if (missed) {
+      toast.warning(t('price.apply.bulkMissed', { missed }));
+    }
+  }, [
+    append,
+    applyCatalogPriceToIndex,
+    defaultProviderId,
+    getValues,
+    multiplier,
+    priceSources,
+    providersData,
+    selectedProviderId,
+    supportedModels,
+    t,
+  ]);
+
+  const applyManualPriceSource = useCallback(() => {
+    if (!manualTargetId || !providersData) return;
+
+    const selected = catalogSourceOptions.find((option) => option.value === manualSourceKey);
+    if (!selected) return;
+
+    const [providerId, catalogModelId] = JSON.parse(selected.value) as [string, string];
+    const sourceModel = (providersData.providers[providerId]?.models || []).find((model) => model.id === catalogModelId);
+    if (!sourceModel || !hasUsableCatalogCost(sourceModel)) {
+      toast.error(t('price.apply.noCost', { modelId: catalogModelId }));
+      return;
+    }
+
+    const prices = getValues('prices') || [];
+    const existingIndex = prices.findIndex((price) => price?.modelId === manualTargetId);
+    if (existingIndex >= 0) {
+      applyCatalogPriceToIndex(existingIndex, sourceModel, { replace: true });
+    } else {
+      // The saved price keeps the target model id; only its numbers come from the source.
+      pendingScrollToNewCardRef.current = true;
+      append({
+        modelId: manualTargetId,
+        price: { items: buildItemsFromProviderModel(sourceModel, multiplier) },
+      });
+    }
+
+    recordPriceSource(manualTargetId, { method: 'manual', providerId, catalogModelId });
+    toast.success(t('price.apply.manual.applied', { source: formatCatalogSourceLabel(providerId, catalogModelId) }));
+  }, [
+    append,
+    applyCatalogPriceToIndex,
+    catalogSourceOptions,
+    getValues,
+    manualSourceKey,
+    manualTargetId,
+    multiplier,
+    providersData,
+    recordPriceSource,
+    t,
+  ]);
 
   const addItem = useCallback(
     (index: number) => {
@@ -1200,48 +1586,7 @@ export function ChannelsModelPriceDialog() {
                     <Button
                       type='button'
                       variant='outline'
-                      onClick={() => {
-                        if (!providersData) return;
-                        const providerId = selectedProviderId || defaultProviderId;
-                        const prices = getValues('prices') || [];
-                        const existingModelIds = new Set(prices.map((p) => p?.modelId).filter(Boolean));
-
-                        let applied = 0;
-                        let added = 0;
-                        let missed = 0;
-
-                        supportedModels.forEach((modelId) => {
-                          const found = findProviderModelById(providersData, modelId, providerId);
-                          if (!found) {
-                            missed += 1;
-                            return;
-                          }
-                          const existingIndex = prices.findIndex((p) => p?.modelId === modelId);
-                          if (existingIndex >= 0) {
-                            applyProviderModelToIndex(existingIndex, found.model);
-                            applied += 1;
-                            return;
-                          }
-                          if (existingModelIds.has(modelId)) return;
-                          append({
-                            modelId,
-                            price: { items: buildItemsFromProviderModel(found.model, multiplier) },
-                          });
-                          added += 1;
-                        });
-
-                        if (added > 0) {
-                          // New cards are appended at the end; scroll into view once rendered.
-                          pendingScrollToNewCardRef.current = true;
-                        }
-
-                        if (applied || added) {
-                          toast.success(t('price.apply.bulkSuccess', { applied, added }));
-                        }
-                        if (missed) {
-                          toast.warning(t('price.apply.bulkMissed', { missed }));
-                        }
-                      }}
+                      onClick={bulkMatchAndFill}
                       disabled={supportedModels.length === 0}
                       title={t('price.apply.bulk')}
                     >
@@ -1249,6 +1594,81 @@ export function ChannelsModelPriceDialog() {
                     </Button>
                   </div>
                 </div>
+
+                <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] md:items-end'>
+                  <div className='min-w-0'>
+                    <FormLabel className='text-sm'>{t('price.apply.manual.target')}</FormLabel>
+                    <AutoCompleteSelect
+                      selectedValue={manualTargetId}
+                      onSelectedValueChange={setManualTargetId}
+                      items={manualTargetOptions}
+                      placeholder={t('price.apply.manual.targetPlaceholder')}
+                      emptyMessage={t('price.apply.empty')}
+                      portalContainer={dialogContent}
+                      inputClassName='h-8'
+                    />
+                  </div>
+                  <div className='min-w-0'>
+                    <FormLabel className='text-sm'>{t('price.apply.manual.source')}</FormLabel>
+                    <AutoCompleteSelect
+                      selectedValue={manualSourceKey}
+                      onSelectedValueChange={setManualSourceKey}
+                      searchValue={manualSourceSearch}
+                      onSearchValueChange={setManualSourceSearch}
+                      items={manualSourceOptions}
+                      placeholder={t('price.apply.manual.sourcePlaceholder')}
+                      emptyMessage={
+                        manualSourceSearch.trim().length < MIN_MANUAL_SOURCE_SEARCH_LENGTH
+                          ? t('price.apply.manual.sourceTypeToSearch')
+                          : t('price.apply.manual.sourceEmpty')
+                      }
+                      portalContainer={dialogContent}
+                      inputClassName='h-8'
+                    />
+                  </div>
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={applyManualPriceSource}
+                      disabled={!manualTargetId || !manualSourceKey}
+                      title={t('price.apply.manual.applyHint')}
+                    >
+                      {t('price.apply.manual.apply')}
+                    </Button>
+                  </div>
+                </div>
+
+                {hasPriceSessionNotice && (
+                  <div className='mt-3 max-h-32 overflow-y-auto rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-400'>
+                    <div className='font-medium'>{t('price.apply.source.title')}</div>
+                    <ul className='mt-1 space-y-1'>
+                      {visiblePriceSources.map(([modelId, source]) => (
+                        <li key={modelId}>
+                          <div>
+                            {t('price.apply.source.line', {
+                              target: modelId,
+                              source: formatCatalogSourceLabel(source.providerId, source.catalogModelId),
+                            })}
+                          </div>
+                          <div className='opacity-80'>
+                            {t(priceMatchMethodLabelKeys[source.method])}
+                            {' · '}
+                            {source.method === 'manual'
+                              ? t('price.apply.source.manualNote')
+                              : t('price.apply.source.borrowNote')}
+                          </div>
+                        </li>
+                      ))}
+                      {unmatchedNeedsManual.map((modelId) => (
+                        <li key={`manual-${modelId}`}>{t('price.apply.unmatched.needsManual', { modelId })}</li>
+                      ))}
+                      {unmatchedKeepCurrent.map((modelId) => (
+                        <li key={`keep-${modelId}`}>{t('price.apply.unmatched.keepCurrent', { modelId })}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
             <div ref={priceListRef} className='min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pt-4 pr-4'>
@@ -1277,6 +1697,7 @@ export function ChannelsModelPriceDialog() {
                         priceIndex={index}
                         currencyCode={settings?.currencyCode}
                         defaultTimezone={settings?.timezone || 'UTC'}
+                        sourceLabel={cardSourceLabels[watchedPrices?.[index]?.modelId ?? ''] ?? null}
                         onAddItem={addItem}
                         onModelSelected={onModelSelected}
                         onDuplicatePrice={duplicatePrice}
