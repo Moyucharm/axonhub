@@ -302,29 +302,21 @@ func (svc *CPAService) refreshCredentialOutcome(ctx context.Context, client cpac
 	}
 }
 
-// applyQuotaEstimate computes and attaches an independent interval estimate to
-// every weekly/monthly window. Monthly baselines advance only at quota refresh;
-// weekly baselines are maintained from precise usage response headers.
+// applyQuotaEstimate attaches an independent estimate to every supported window.
 func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.CPACredential, snapshot *objects.CPAQuotaSnapshot) {
 	collectorSessionID, latestEventID := svc.usageCollectorCheckpoint(ctx, credential.CpaInstanceID, credential.AuthIndex)
 	for _, item := range estimateWindowItems(*snapshot) {
 		previous := previousQuotaItem(credential.QuotaData, item)
 		intervalReanchored := false
-		if item.PeriodSeconds != nil {
-			switch {
-			case *item.PeriodSeconds == cpaWeeklyPeriodSeconds:
-				intervalReanchored = prepareCodexWeeklyInterval(item, previous, credential.QuotaObserved, collectorSessionID)
-			case isMonthlyQuotaPeriod(*item.PeriodSeconds):
-				intervalReanchored = prepareCodexMonthlyInterval(
-					item,
-					previous,
-					collectorSessionID,
-					latestEventID,
-				)
-			}
+		period := *item.PeriodSeconds
+		switch {
+		case cpaPreciseWindowPeriod(credential.Provider, period):
+			intervalReanchored = prepareCodexPreciseInterval(item, previous, credential.QuotaObserved, collectorSessionID)
+		case cpaEstimableQuotaPeriod(period):
+			intervalReanchored = prepareCodexRefreshInterval(item, previous, collectorSessionID, latestEventID)
 		}
 		carryForwardCodexQuotaEstimate(item, previous, intervalReanchored)
-		estimate := svc.estimateCredentialQuotaForItem(ctx, credential.CpaInstanceID, credential.AuthIndex, item, credential.QuotaObserved)
+		estimate := svc.estimateCredentialQuotaForItem(ctx, credential.CpaInstanceID, credential.AuthIndex, item, credential.QuotaObserved, credential.Provider)
 		if estimate == nil {
 			continue
 		}

@@ -25,9 +25,9 @@ type credentialCacheEntry struct {
 }
 
 type usageObservedState struct {
-	lastWrite    time.Time
-	lastPercent  float64
-	hasLastWrite bool
+	lastWrite           time.Time
+	lastPercentByPeriod map[int]float64
+	hasLastWrite        bool
 }
 
 // cpaUsageRepository owns local usage-event persistence and the small caches

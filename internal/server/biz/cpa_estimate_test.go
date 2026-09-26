@@ -14,6 +14,10 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
+// codexEstimateIntervalForItem keeps the Codex contract available to internal tests.
+func codexEstimateIntervalForItem(item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved) *codexEstimateInterval {
+	return codexEstimateIntervalDecisionForItem(item, observed, "codex").interval
+}
 func estimateTestSnapshot(usedPercent float64) objects.CPAQuotaSnapshot {
 	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
 	period := cpaWeeklyPeriodSeconds
@@ -43,19 +47,18 @@ func TestEstimateWindowItem(t *testing.T) {
 	weeklyReset := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
 	weekly := cpaWeeklyPeriodSeconds
 
-	// Restored Codex 5h + 7d shape: only the 7d window participates in the
-	// weekly dollar estimate.
+	// Codex 5h and 7d windows are independently estimable.
 	snapshot.Items = []objects.CPAQuotaItem{
 		{PeriodSeconds: &hourly, ResetAt: &hourlyReset},
 		{PeriodSeconds: &weekly, ResetAt: &weeklyReset},
 	}
-	require.Len(t, estimateWindowItems(snapshot), 1)
+	require.Len(t, estimateWindowItems(snapshot), 2)
 	item = estimateWindowItem(snapshot)
 	require.NotNil(t, item)
 	require.Equal(t, cpaWeeklyPeriodSeconds, *item.PeriodSeconds)
 
-	// Weekly + monthly coexisting: both long windows are independently
-	// estimable, while the legacy single-window helper continues to prefer 7d.
+	// Weekly and monthly windows coexist with the 5h window; the legacy
+	// single-window helper continues to prefer 7d.
 	monthly := 30 * 24 * 60 * 60
 	monthlyReset := time.Date(2026, 9, 21, 5, 0, 0, 0, time.UTC)
 	snapshot.Items = []objects.CPAQuotaItem{
@@ -67,23 +70,23 @@ func TestEstimateWindowItem(t *testing.T) {
 	require.NotNil(t, item)
 	require.Equal(t, cpaWeeklyPeriodSeconds, *item.PeriodSeconds)
 	estimable := estimateWindowItems(snapshot)
-	require.Len(t, estimable, 2)
-	require.Equal(t, []int{weekly, monthly}, []int{*estimable[0].PeriodSeconds, *estimable[1].PeriodSeconds})
+	require.Len(t, estimable, 3)
+	require.Equal(t, []int{hourly, weekly, monthly}, []int{*estimable[0].PeriodSeconds, *estimable[1].PeriodSeconds, *estimable[2].PeriodSeconds})
 
-	// Codex 5h + 30d shape remains monthly-estimated; 5h is still excluded.
+	// Codex 5h and 30d windows are both estimable.
 	snapshot.Items = []objects.CPAQuotaItem{
 		{PeriodSeconds: &hourly, ResetAt: &hourlyReset},
 		{PeriodSeconds: &monthly, ResetAt: &monthlyReset},
 	}
-	require.Len(t, estimateWindowItems(snapshot), 1)
+	require.Len(t, estimateWindowItems(snapshot), 2)
 	item = estimateWindowItem(snapshot)
 	require.NotNil(t, item)
 	require.Equal(t, monthly, *item.PeriodSeconds)
 
-	// Hourly windows are never eligible, even when they carry a reset time.
+	// A standalone 5h window is estimable.
 	snapshot.Items = []objects.CPAQuotaItem{{PeriodSeconds: &hourly, ResetAt: &hourlyReset}}
-	require.Nil(t, estimateWindowItem(snapshot))
-	require.Empty(t, estimateWindowItems(snapshot))
+	require.Equal(t, hourly, *estimateWindowItem(snapshot).PeriodSeconds)
+	require.Len(t, estimateWindowItems(snapshot), 1)
 
 	// Empty snapshot yields nothing.
 	require.Nil(t, estimateWindowItem(objects.CPAQuotaSnapshot{}))
@@ -118,7 +121,7 @@ func TestCodexEstimateIntervalsRequireLocalPercentageDelta(t *testing.T) {
 	staleReset := matchingReset.Add(-time.Hour)
 	observed.SecondaryResetAt = &staleReset
 	require.Nil(t, codexEstimateIntervalForItem(weekly, observed))
-	require.Equal(t, "reset-mismatch", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
+	require.Equal(t, "reset-mismatch", codexEstimateIntervalDecisionForItem(weekly, observed, "codex").skipReason)
 
 	// A sub-3% local delta is intentionally hidden instead of falling back to
 	// the inaccurate cumulative WHAM denominator.
@@ -126,12 +129,12 @@ func TestCodexEstimateIntervalsRequireLocalPercentageDelta(t *testing.T) {
 	smallLatest := 22.5
 	observed.SecondaryUsedPercent = &smallLatest
 	require.Nil(t, codexEstimateIntervalForItem(weekly, observed))
-	require.Equal(t, "insufficient-percent-delta", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
+	require.Equal(t, "insufficient-percent-delta", codexEstimateIntervalDecisionForItem(weekly, observed, "codex").skipReason)
 
 	observed.SecondaryUsedPercent = &latestPercent
 	invalidLatestEventID := baselineEventID
 	observed.SecondaryLatestEventID = &invalidLatestEventID
-	require.Equal(t, "invalid-event-range", codexEstimateIntervalDecisionForItem(weekly, observed).skipReason)
+	require.Equal(t, "invalid-event-range", codexEstimateIntervalDecisionForItem(weekly, observed, "codex").skipReason)
 	observed.SecondaryLatestEventID = &latestEventID
 
 	monthlyPeriod := 30 * 24 * 60 * 60
@@ -265,7 +268,7 @@ func TestEstimateCredentialQuotaUsesOnlyLocalCollectorInterval(t *testing.T) {
 				observed = objects.CPAQuotaObserved{}
 				expectedSource = "refresh-delta"
 			}
-			estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed)
+			estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed, "codex")
 			require.NotNil(t, estimate)
 			require.InDelta(t, 100, estimate.LimitUSD, 1e-9)
 			require.InDelta(t, float64(tc.intervalCost), estimate.CostUSD, 1e-9)
@@ -300,7 +303,7 @@ func TestPrepareCodexWeeklyIntervalKeepsStableBaselineAcrossRefreshes(t *testing
 		SecondaryLatestEventID:       &latestEventID,
 		SecondaryResetAt:             &resetAt,
 	}
-	require.False(t, prepareCodexWeeklyInterval(current, previous, observed, "collector-a"))
+	require.False(t, prepareCodexPreciseInterval(current, previous, observed, "collector-a"))
 	require.Equal(t, "collector-a", current.EstimateCollectorSessionID)
 	require.Equal(t, baselineEventID, *current.EstimateBaselineEventID)
 	require.Equal(t, latestEventID, *current.EstimateLatestEventID)
@@ -311,7 +314,7 @@ func TestPrepareCodexWeeklyIntervalKeepsStableBaselineAcrossRefreshes(t *testing
 	observed.SecondaryBaselineEventID = &newBaselineEventID
 	observed.SecondaryUsedPercent = &newBaselinePercent
 	observed.SecondaryLatestEventID = &newBaselineEventID
-	require.True(t, prepareCodexWeeklyInterval(current, previous, observed, "collector-a"))
+	require.True(t, prepareCodexPreciseInterval(current, previous, observed, "collector-a"))
 	require.Equal(t, newBaselineEventID, *current.EstimateBaselineEventID)
 }
 
@@ -320,14 +323,14 @@ func TestPrepareCodexMonthlyIntervalReanchorsOnIdentityAndRandomReset(t *testing
 	resetAt := time.Date(2026, 9, 21, 5, 0, 0, 0, time.UTC)
 	used20 := 20.0
 	first := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used20, ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod}
-	prepareCodexMonthlyInterval(first, nil, "session-a", 10)
+	prepareCodexRefreshInterval(first, nil, "session-a", 10)
 	require.Equal(t, 20.0, *first.EstimateBaselineUsedPercent)
 	require.Equal(t, 10, *first.EstimateBaselineEventID)
 	require.Nil(t, codexEstimateIntervalForItem(first, objects.CPAQuotaObserved{}))
 
 	used50 := 50.0
 	second := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used50, ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod}
-	prepareCodexMonthlyInterval(second, first, "session-a", 40)
+	prepareCodexRefreshInterval(second, first, "session-a", 40)
 	interval := codexEstimateIntervalForItem(second, objects.CPAQuotaObserved{})
 	require.NotNil(t, interval)
 	require.Equal(t, "refresh-delta", interval.source)
@@ -337,7 +340,7 @@ func TestPrepareCodexMonthlyIntervalReanchorsOnIdentityAndRandomReset(t *testing
 	// not at an assumed zero-usage boundary.
 	used64 := 64.0
 	switched := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used64, ResetAt: &resetAt, PeriodSeconds: &monthlyPeriod}
-	prepareCodexMonthlyInterval(switched, second, "session-b", 45)
+	prepareCodexRefreshInterval(switched, second, "session-b", 45)
 	require.Equal(t, 64.0, *switched.EstimateBaselineUsedPercent)
 	require.Equal(t, 45, *switched.EstimateBaselineEventID)
 	require.Nil(t, codexEstimateIntervalForItem(switched, objects.CPAQuotaObserved{}))
@@ -347,7 +350,7 @@ func TestPrepareCodexMonthlyIntervalReanchorsOnIdentityAndRandomReset(t *testing
 	activityReset := resetAt.Add(12 * time.Hour)
 	used7 := 7.0
 	reset := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used7, ResetAt: &activityReset, PeriodSeconds: &monthlyPeriod}
-	prepareCodexMonthlyInterval(reset, switched, "session-b", 50)
+	prepareCodexRefreshInterval(reset, switched, "session-b", 50)
 	require.Equal(t, 7.0, *reset.EstimateBaselineUsedPercent)
 	require.Nil(t, codexEstimateIntervalForItem(reset, objects.CPAQuotaObserved{}))
 
@@ -355,7 +358,7 @@ func TestPrepareCodexMonthlyIntervalReanchorsOnIdentityAndRandomReset(t *testing
 	// percentage regression and also reanchors at the actual observed value.
 	used3 := 3.0
 	granted := &objects.CPAQuotaItem{ID: "monthly", UsedPercent: &used3, ResetAt: &activityReset, PeriodSeconds: &monthlyPeriod}
-	prepareCodexMonthlyInterval(granted, reset, "session-b", 55)
+	prepareCodexRefreshInterval(granted, reset, "session-b", 55)
 	require.Equal(t, 3.0, *granted.EstimateBaselineUsedPercent)
 }
 
@@ -600,11 +603,11 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	require.NoError(t, err)
 
 	// No events at all → nil even with sufficient percentage.
-	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", estimateTestSnapshot(50), objects.CPAQuotaObserved{}))
+	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", estimateTestSnapshot(50), objects.CPAQuotaObserved{}, "codex"))
 
 	// Below 3% threshold → nil regardless of events.
 	snapshot := estimateTestSnapshot(2.5)
-	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}))
+	require.Nil(t, svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex"))
 
 	// Seed usage events within the current cycle for a model without configured
 	// price (unpriced) and one with a price configured through a channel.
@@ -621,7 +624,7 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 	require.NoError(t, err)
 
 	snapshot = estimateTestSnapshot(4)
-	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{})
+	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex")
 	require.Nil(t, estimate, "all tokens unpriced should not yield an estimate")
 
 	// Events outside the current cycle are excluded.
@@ -637,7 +640,7 @@ func TestEstimateCredentialQuotaThresholds(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	estimate = svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{})
+	estimate = svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, objects.CPAQuotaObserved{}, "codex")
 	// Still nil because gpt-5.2 has no channel price in this test setup and the
 	// unpriced model dominates; this asserts the aggregation window works via
 	// the unpriced path rather than producing an estimate from stale data.
@@ -690,7 +693,7 @@ func TestEstimateCredentialQuotaUsesBuiltinModelPrice(t *testing.T) {
 		SecondaryResetAt:             &resetAt,
 	}
 
-	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed)
+	estimate := svc.EstimateCredentialQuota(ctx, instance.ID, "idx", snapshot, observed, "codex")
 	require.NotNil(t, estimate)
 	require.InDelta(t, 5, estimate.CostUSD, 1e-9)
 	require.InDelta(t, 100, estimate.LimitUSD, 1e-9)
@@ -701,13 +704,10 @@ func TestCodexEstimateSurvivesResetJitter(t *testing.T) {
 	t.Parallel()
 	resetAt := time.Date(2026, 9, 7, 3, 42, 28, 0, time.UTC)
 	weeklyPeriod := cpaWeeklyPeriodSeconds
-	observed, reanchored := advanceCodexWeeklyObservation(objects.CPAQuotaObserved{}, codexWeeklyObservation{
-		collectorSessionID: "session-a",
-		eventID:            100,
-		usedPercent:        6.4,
-		resetAt:            resetAt,
-		observedAt:         resetAt.Add(-time.Hour),
-	})
+	observed, reanchored := advanceCodexWindowObservation(objects.CPAQuotaObserved{}, codexWindowObservation{collectorSessionID: "session-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: 100,
+		usedPercent: 6.4,
+		resetAt:     resetAt,
+		observedAt:  resetAt.Add(-time.Hour)})
 	require.True(t, reanchored)
 
 	// The usage response headers and the quota snapshot report the same window
@@ -715,18 +715,15 @@ func TestCodexEstimateSurvivesResetJitter(t *testing.T) {
 	eventID := 100
 	for _, jitter := range []time.Duration{-4 * time.Minute, -30 * time.Second, 0, 30 * time.Second, 4 * time.Minute} {
 		eventID++
-		observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
-			collectorSessionID: "session-a",
-			eventID:            eventID,
-			usedPercent:        14.2,
-			resetAt:            resetAt.Add(jitter),
-			observedAt:         resetAt.Add(-30 * time.Minute),
-		})
+		observed, reanchored = advanceCodexWindowObservation(observed, codexWindowObservation{collectorSessionID: "session-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: eventID,
+			usedPercent: 14.2,
+			resetAt:     resetAt.Add(jitter),
+			observedAt:  resetAt.Add(-30 * time.Minute)})
 		require.False(t, reanchored, "reset drift %s must not re-anchor the interval", jitter)
-		require.Equal(t, 100, *observed.SecondaryBaselineEventID)
-		require.InDelta(t, 6.4, *observed.SecondaryBaselineUsedPercent, 1e-9)
-		require.Equal(t, resetAt, *observed.SecondaryResetAt, "the window anchor must stay stable")
-		require.Equal(t, eventID, *observed.SecondaryLatestEventID)
+		require.Equal(t, 100, *observed.ObservedWindows()[0].BaselineEventID)
+		require.InDelta(t, 6.4, *observed.ObservedWindows()[0].BaselineUsedPercent, 1e-9)
+		require.Equal(t, resetAt, *observed.ObservedWindows()[0].ResetAt, "the window anchor must stay stable")
+		require.Equal(t, eventID, *observed.ObservedWindows()[0].LatestEventID)
 	}
 
 	// The drifted snapshot reset still matches the anchored observation, so the
@@ -750,15 +747,12 @@ func TestCodexEstimateSurvivesResetJitter(t *testing.T) {
 	// The tolerance is inclusive: drift of exactly cpaQuotaResetTolerance is
 	// still the same window, both for the observation and for the estimate.
 	atBoundary := resetAt.Add(cpaQuotaResetTolerance)
-	boundaryObserved, boundaryReanchored := advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
-		collectorSessionID: "session-a",
-		eventID:            eventID + 1,
-		usedPercent:        15.0,
-		resetAt:            atBoundary,
-		observedAt:         resetAt.Add(-time.Second),
-	})
+	boundaryObserved, boundaryReanchored := advanceCodexWindowObservation(observed, codexWindowObservation{collectorSessionID: "session-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: eventID + 1,
+		usedPercent: 15.0,
+		resetAt:     atBoundary,
+		observedAt:  resetAt.Add(-time.Second)})
 	require.False(t, boundaryReanchored, "drift of exactly the tolerance must not re-anchor")
-	require.Equal(t, resetAt, *boundaryObserved.SecondaryResetAt, "the window anchor keeps the original boundary")
+	require.Equal(t, resetAt, *boundaryObserved.ObservedWindows()[0].ResetAt, "the window anchor keeps the original boundary")
 	boundaryItem := &objects.CPAQuotaItem{
 		ID:            "code-secondary",
 		Group:         "Code",
@@ -772,16 +766,13 @@ func TestCodexEstimateSurvivesResetJitter(t *testing.T) {
 	// One second past the tolerance is a new window: the interval re-anchors and
 	// the estimate reports the reset mismatch instead of a delta from the old one.
 	beyondBoundary := atBoundary.Add(time.Second)
-	reanchoredObserved, beyondReanchored := advanceCodexWeeklyObservation(boundaryObserved, codexWeeklyObservation{
-		collectorSessionID: "session-a",
-		eventID:            eventID + 2,
-		usedPercent:        1.2,
-		resetAt:            beyondBoundary,
-		observedAt:         resetAt.Add(-time.Second),
-	})
+	reanchoredObserved, beyondReanchored := advanceCodexWindowObservation(boundaryObserved, codexWindowObservation{collectorSessionID: "session-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: eventID + 2,
+		usedPercent: 1.2,
+		resetAt:     beyondBoundary,
+		observedAt:  resetAt.Add(-time.Second)})
 	require.True(t, beyondReanchored)
-	require.Equal(t, beyondBoundary, *reanchoredObserved.SecondaryResetAt, "beyond the tolerance the anchor moves")
-	require.InDelta(t, 1.2, *reanchoredObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.Equal(t, beyondBoundary, *reanchoredObserved.ObservedWindows()[0].ResetAt, "beyond the tolerance the anchor moves")
+	require.InDelta(t, 1.2, *reanchoredObserved.ObservedWindows()[0].BaselineUsedPercent, 1e-9)
 	farItem := &objects.CPAQuotaItem{
 		ID:            "code-secondary",
 		Group:         "Code",
@@ -790,7 +781,7 @@ func TestCodexEstimateSurvivesResetJitter(t *testing.T) {
 		PeriodSeconds: &weeklyPeriod,
 	}
 	require.Equal(t, "reset-mismatch",
-		codexEstimateIntervalDecisionForItem(farItem, reanchoredObserved).skipReason)
+		codexEstimateIntervalDecisionForItem(farItem, reanchoredObserved, "codex").skipReason)
 }
 
 func TestPrepareCodexWeeklyIntervalReanchorsOnForeignObservation(t *testing.T) {
@@ -836,7 +827,7 @@ func TestPrepareCodexWeeklyIntervalReanchorsOnForeignObservation(t *testing.T) {
 		ResetAt:       &resetAt,
 		PeriodSeconds: &weeklyPeriod,
 	}
-	require.True(t, prepareCodexWeeklyInterval(item, previous, foreign, "collector-b"))
+	require.True(t, prepareCodexPreciseInterval(item, previous, foreign, "collector-b"))
 	require.Empty(t, item.EstimateCollectorSessionID)
 	require.Nil(t, item.EstimateBaselineEventID)
 	require.Nil(t, item.EstimateLatestEventID)
@@ -853,7 +844,7 @@ func TestPrepareCodexWeeklyIntervalReanchorsOnForeignObservation(t *testing.T) {
 		ResetAt:       &shiftedReset,
 		PeriodSeconds: &weeklyPeriod,
 	}
-	require.True(t, prepareCodexWeeklyInterval(item, previous, foreign, "collector-a"))
+	require.True(t, prepareCodexPreciseInterval(item, previous, foreign, "collector-a"))
 	require.Empty(t, item.EstimateCollectorSessionID)
 	require.Nil(t, item.EstimateBaselineEventID)
 
@@ -865,7 +856,7 @@ func TestPrepareCodexWeeklyIntervalReanchorsOnForeignObservation(t *testing.T) {
 		ResetAt:       &resetAt,
 		PeriodSeconds: &weeklyPeriod,
 	}
-	require.False(t, prepareCodexWeeklyInterval(item, previous, foreign, "collector-a"))
+	require.False(t, prepareCodexPreciseInterval(item, previous, foreign, "collector-a"))
 	require.Equal(t, "collector-a", item.EstimateCollectorSessionID)
 	require.Equal(t, storedBaselineEventID, *item.EstimateBaselineEventID)
 	require.Equal(t, storedLatestEventID, *item.EstimateLatestEventID)
@@ -911,7 +902,7 @@ func TestCodexMonthlyIntervalAdoptsWhenCheckpointHasNoEvents(t *testing.T) {
 	// baseline percentage still starts at this refresh. The durable interval of
 	// the same window is adopted instead, so the displayed value survives.
 	item := newItem()
-	require.False(t, prepareCodexMonthlyInterval(item, previous, "collector-a", 0))
+	require.False(t, prepareCodexRefreshInterval(item, previous, "collector-a", 0))
 	require.Equal(t, "collector-a", item.EstimateCollectorSessionID)
 	require.Equal(t, storedBaselinePercent, *item.EstimateBaselineUsedPercent)
 	require.Equal(t, storedBaselineEventID, *item.EstimateBaselineEventID)
@@ -928,7 +919,7 @@ func TestCodexMonthlyIntervalAdoptsWhenCheckpointHasNoEvents(t *testing.T) {
 		ResetAt:       &shiftedReset,
 		PeriodSeconds: &monthlyPeriod,
 	}
-	require.True(t, prepareCodexMonthlyInterval(moved, previous, "collector-a", 0))
+	require.True(t, prepareCodexRefreshInterval(moved, previous, "collector-a", 0))
 	require.Empty(t, moved.EstimateCollectorSessionID)
 	require.Nil(t, moved.EstimateBaselineEventID)
 	carryForwardCodexQuotaEstimate(moved, previous, true)
@@ -952,7 +943,7 @@ func TestCodexMonthlyIntervalAdoptsWhenCheckpointHasNoEvents(t *testing.T) {
 		EstimateSource:              "refresh-delta",
 	}
 	item = newItem()
-	require.True(t, prepareCodexMonthlyInterval(item, legacyPrevious, "collector-a", 30))
+	require.True(t, prepareCodexRefreshInterval(item, legacyPrevious, "collector-a", 30))
 	require.Equal(t, currentUsed, *item.EstimateBaselineUsedPercent)
 	require.Equal(t, 30, *item.EstimateBaselineEventID)
 	require.Equal(t, 30, *item.EstimateLatestEventID)
@@ -998,16 +989,13 @@ func TestCodexEstimateClearsOnRealWindowReset(t *testing.T) {
 	// has no estimable interval yet.
 	shiftedReset := resetAt.Add(7 * 24 * time.Hour)
 	shiftedPercent := 1.5
-	observed, reanchored := advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
-		collectorSessionID: "session-a",
-		eventID:            21,
-		usedPercent:        shiftedPercent,
-		resetAt:            shiftedReset,
-		observedAt:         resetAt.Add(-time.Minute),
-	})
+	observed, reanchored := advanceCodexWindowObservation(observed, codexWindowObservation{collectorSessionID: "session-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: 21,
+		usedPercent: shiftedPercent,
+		resetAt:     shiftedReset,
+		observedAt:  resetAt.Add(-time.Minute)})
 	require.True(t, reanchored)
-	require.InDelta(t, shiftedPercent, *observed.SecondaryBaselineUsedPercent, 1e-9)
-	require.Equal(t, shiftedReset, *observed.SecondaryResetAt)
+	require.InDelta(t, shiftedPercent, *observed.ObservedWindows()[0].BaselineUsedPercent, 1e-9)
+	require.Equal(t, shiftedReset, *observed.ObservedWindows()[0].ResetAt)
 
 	item := &objects.CPAQuotaItem{
 		ID:            "code-secondary",
@@ -1016,7 +1004,7 @@ func TestCodexEstimateClearsOnRealWindowReset(t *testing.T) {
 		ResetAt:       &shiftedReset,
 		PeriodSeconds: &weeklyPeriod,
 	}
-	require.True(t, prepareCodexWeeklyInterval(item, previous, observed, "session-a"))
+	require.True(t, prepareCodexPreciseInterval(item, previous, observed, "session-a"))
 	carryForwardCodexQuotaEstimate(item, previous, true)
 	require.Nil(t, item.EstimatedLimitUSD)
 	require.Nil(t, item.EstimatedCostUSD)
@@ -1044,7 +1032,7 @@ func TestCodexEstimateClearsOnRealWindowReset(t *testing.T) {
 		EstimatedLimitUSD:           &limit,
 		EstimatedCostUSD:            &cost,
 	}
-	require.True(t, prepareCodexMonthlyInterval(monthlyItem, monthlyPrevious, "session-a", 40))
+	require.True(t, prepareCodexRefreshInterval(monthlyItem, monthlyPrevious, "session-a", 40))
 	require.InDelta(t, shiftedPercent, *monthlyItem.EstimateBaselineUsedPercent, 1e-9)
 	carryForwardCodexQuotaEstimate(monthlyItem, monthlyPrevious, true)
 	require.Nil(t, monthlyItem.EstimatedLimitUSD)
@@ -1080,12 +1068,12 @@ func TestCodexMonthlyIntervalSurvivesPercentRegression(t *testing.T) {
 		ResetAt:       &resetAt,
 		PeriodSeconds: &monthlyPeriod,
 	}
-	require.False(t, prepareCodexMonthlyInterval(item, previous, "session-a", 15))
+	require.False(t, prepareCodexRefreshInterval(item, previous, "session-a", 15))
 	require.Equal(t, 20.0, *item.EstimateBaselineUsedPercent)
 	require.Equal(t, 10, *item.EstimateBaselineEventID)
 	require.Equal(t, 15, *item.EstimateLatestEventID)
 	require.Equal(t, "insufficient-percent-delta",
-		codexEstimateIntervalDecisionForItem(item, objects.CPAQuotaObserved{}).skipReason,
+		codexEstimateIntervalDecisionForItem(item, objects.CPAQuotaObserved{}, "codex").skipReason,
 		"keeping the interval must not invent a smaller delta")
 
 	// Once usage grows past the threshold, the preserved interval is used and it
@@ -1098,7 +1086,7 @@ func TestCodexMonthlyIntervalSurvivesPercentRegression(t *testing.T) {
 		ResetAt:       &resetAt,
 		PeriodSeconds: &monthlyPeriod,
 	}
-	require.False(t, prepareCodexMonthlyInterval(recoveredItem, item, "session-a", 30))
+	require.False(t, prepareCodexRefreshInterval(recoveredItem, item, "session-a", 30))
 	interval := codexEstimateIntervalForItem(recoveredItem, objects.CPAQuotaObserved{})
 	require.NotNil(t, interval)
 	require.Equal(t, 10, interval.fromEventID)
@@ -1114,7 +1102,7 @@ func TestCodexMonthlyIntervalSurvivesPercentRegression(t *testing.T) {
 		ResetAt:       &resetAt,
 		PeriodSeconds: &monthlyPeriod,
 	}
-	require.True(t, prepareCodexMonthlyInterval(grantedItem, recoveredItem, "session-a", 35))
+	require.True(t, prepareCodexRefreshInterval(grantedItem, recoveredItem, "session-a", 35))
 	require.Equal(t, granted, *grantedItem.EstimateBaselineUsedPercent)
 	require.Equal(t, 35, *grantedItem.EstimateBaselineEventID)
 }
@@ -1301,13 +1289,10 @@ func TestCodexEstimatePersistsUntilWindowReset(t *testing.T) {
 	// The usage collector persists an event and advances the durable interval.
 	collect := func(tokens int64, percent float64, sampleReset time.Time) int {
 		eventID := usageEvent(tokens, sampleReset)
-		advanced, _ := advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
-			collectorSessionID: "collector-a",
-			eventID:            eventID,
-			usedPercent:        percent,
-			resetAt:            sampleReset,
-			observedAt:         time.Now().UTC(),
-		})
+		advanced, _ := advanceCodexWindowObservation(observed, codexWindowObservation{collectorSessionID: "collector-a", periodSeconds: cpaWeeklyPeriodSeconds, eventID: eventID,
+			usedPercent: percent,
+			resetAt:     sampleReset,
+			observedAt:  time.Now().UTC()})
 		observed = advanced
 		client.CPACredential.UpdateOneID(credential.ID).SetQuotaObserved(observed).ExecX(ctx)
 		session.recordPersisted("auth-1", eventID)
@@ -1360,16 +1345,16 @@ func TestCodexEstimatePersistsUntilWindowReset(t *testing.T) {
 	require.Equal(t, baselineEventID, *item.EstimateBaselineEventID)
 	require.Equal(t, intervalEndEventID, *item.EstimateLatestEventID,
 		"the interval end must stay on the high-water sample")
-	require.Equal(t, regressedEventID, *observed.SecondaryCheckpointEventID,
+	require.Equal(t, regressedEventID, *observed.ObservedWindows()[0].CheckpointEventID,
 		"the regressed sample only advances the checkpoint")
 
 	// The observation must survive the round trip through quota_observed: the
 	// checkpoint carries the newest event while the interval end keeps the
 	// high-water sample.
 	persisted := client.CPACredential.GetX(ctx, credential.ID)
-	require.NotNil(t, persisted.QuotaObserved.SecondaryCheckpointEventID)
-	require.Equal(t, regressedEventID, *persisted.QuotaObserved.SecondaryCheckpointEventID)
-	require.Equal(t, intervalEndEventID, *persisted.QuotaObserved.SecondaryLatestEventID)
+	require.NotNil(t, persisted.QuotaObserved.ObservedWindows()[0].CheckpointEventID)
+	require.Equal(t, regressedEventID, *persisted.QuotaObserved.ObservedWindows()[0].CheckpointEventID)
+	require.Equal(t, intervalEndEventID, *persisted.QuotaObserved.ObservedWindows()[0].LatestEventID)
 
 	// (b2) Reset drift between the snapshot and the observation is the same
 	// window, so nothing is re-anchored.
@@ -1408,7 +1393,7 @@ func TestCodexEstimatePersistsUntilWindowReset(t *testing.T) {
 	require.Equal(t, "collector-a", item.EstimateCollectorSessionID)
 	require.Equal(t, 1.5, *item.EstimateBaselineUsedPercent)
 	require.Equal(t, nextBaselineEventID, *item.EstimateBaselineEventID)
-	require.Equal(t, nextReset, *observed.SecondaryResetAt)
+	require.Equal(t, nextReset, *observed.ObservedWindows()[0].ResetAt)
 
 	// (d) The next window reaches the threshold and the estimate returns.
 	collect(300, 4.5, nextReset)

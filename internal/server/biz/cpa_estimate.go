@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	// cpaWeeklyPeriodSeconds is the Codex 7d quota window. Primary and
-	// secondary are wire slots; window duration determines weekly semantics.
-	cpaWeeklyPeriodSeconds = 7 * 24 * 60 * 60
+	cpaFiveHourPeriodSeconds = objects.CPAFiveHourPeriodSeconds
+	cpaWeeklyPeriodSeconds   = objects.CPAWeeklyPeriodSeconds
 	// cpaEstimateMinPercentDelta is the minimum locally observed percentage
 	// change before an interval estimate is considered reliable.
 	cpaEstimateMinPercentDelta = 3.0
@@ -24,8 +23,25 @@ const (
 	cpaMaxUnpricedRatio = 0.1
 )
 
-// CPAQuotaEstimate is the derived total quota value of a codex credential's
-// current long-period (weekly or monthly) window.
+func cpaEstimableQuotaPeriod(periodSeconds int) bool {
+	return periodSeconds == cpaFiveHourPeriodSeconds || periodSeconds == cpaWeeklyPeriodSeconds || isMonthlyQuotaPeriod(periodSeconds)
+}
+
+// Only Codex reports per-request percentages; other providers use refresh snapshots.
+func cpaPreciseWindowPeriod(provider string, periodSeconds int) bool {
+	return strings.EqualFold(strings.TrimSpace(provider), "codex") &&
+		(periodSeconds == cpaFiveHourPeriodSeconds || periodSeconds == cpaWeeklyPeriodSeconds)
+}
+
+// Short windows permit a smaller delta above one integer rounding point.
+func cpaEstimateMinPercentDeltaFor(periodSeconds int) float64 {
+	if periodSeconds == cpaFiveHourPeriodSeconds {
+		return 2.0
+	}
+	return cpaEstimateMinPercentDelta
+}
+
+// CPAQuotaEstimate is the derived total value of a credential's quota window.
 type CPAQuotaEstimate struct {
 	LimitUSD    float64
 	CostUSD     float64
@@ -34,24 +50,18 @@ type CPAQuotaEstimate struct {
 	Source string
 }
 
-// EstimateCredentialQuota estimates the credential's weekly/monthly quota total:
-//
-//	total = locally observed interval cost / percentage delta * 100
-//
-// It returns nil whenever prerequisites are missing: no complete local interval,
-// percentage delta below 3%, no matching usage events, or too many unpriced
-// tokens. Only Codex credentials carry such intervals, so callers gate on
-// provider == "codex".
-func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID int, authIndex string, snapshot objects.CPAQuotaSnapshot, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
+// EstimateCredentialQuota estimates the credential's quota total from local
+// interval cost divided by the percentage change, multiplied by 100.
+func (svc *CPAService) EstimateCredentialQuota(ctx context.Context, instanceID int, authIndex string, snapshot objects.CPAQuotaSnapshot, observed objects.CPAQuotaObserved, provider string) *CPAQuotaEstimate {
 	item := estimateWindowItem(snapshot)
-	return svc.estimateCredentialQuotaForItem(ctx, instanceID, authIndex, item, observed)
+	return svc.estimateCredentialQuotaForItem(ctx, instanceID, authIndex, item, observed, provider)
 }
 
-func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, instanceID int, authIndex string, item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved) *CPAQuotaEstimate {
+func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, instanceID int, authIndex string, item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, provider string) *CPAQuotaEstimate {
 	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil {
 		return nil
 	}
-	decision := codexEstimateIntervalDecisionForItem(item, observed)
+	decision := codexEstimateIntervalDecisionForItem(item, observed, provider)
 	interval := decision.interval
 	if interval == nil {
 		log.Debug(ctx, "skip CPA quota estimate: incomplete interval",
@@ -60,12 +70,7 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 			log.String("quota_item_id", item.ID),
 			log.Int("period_seconds", *item.PeriodSeconds),
 			log.String("reason", decision.skipReason),
-			log.String("collector_session_id", observed.SecondaryCollectorSessionID),
-			log.Any("baseline_used_percent", observed.SecondaryBaselineUsedPercent),
-			log.Any("latest_used_percent", observed.SecondaryUsedPercent),
-			log.Any("baseline_event_id", observed.SecondaryBaselineEventID),
-			log.Any("latest_event_id", observed.SecondaryLatestEventID),
-			log.Any("observed_reset_at", observed.SecondaryResetAt),
+			log.Any("observed_windows", observed.ObservedWindows()),
 			log.Any("quota_reset_at", item.ResetAt),
 			log.String("refresh_collector_session_id", item.EstimateCollectorSessionID),
 			log.Any("refresh_baseline_used_percent", item.EstimateBaselineUsedPercent),
@@ -145,14 +150,10 @@ func (svc *CPAService) estimateCredentialQuotaForItem(ctx context.Context, insta
 }
 
 func estimateWindowItems(snapshot objects.CPAQuotaSnapshot) []*objects.CPAQuotaItem {
-	items := make([]*objects.CPAQuotaItem, 0, 2)
+	items := make([]*objects.CPAQuotaItem, 0, len(snapshot.Items))
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
-		if item.PeriodSeconds == nil || item.ResetAt == nil {
-			continue
-		}
-		period := *item.PeriodSeconds
-		if period == cpaWeeklyPeriodSeconds || isMonthlyQuotaPeriod(period) {
+		if item.PeriodSeconds != nil && item.ResetAt != nil && cpaEstimableQuotaPeriod(*item.PeriodSeconds) {
 			items = append(items, item)
 		}
 	}
@@ -160,14 +161,14 @@ func estimateWindowItems(snapshot objects.CPAQuotaSnapshot) []*objects.CPAQuotaI
 }
 
 // estimateWindowItem preserves the legacy single-estimate preference: weekly
-// first, otherwise the available monthly window.
+// first, otherwise the last estimable window.
 func estimateWindowItem(snapshot objects.CPAQuotaSnapshot) *objects.CPAQuotaItem {
-	var monthly *objects.CPAQuotaItem
+	var candidate *objects.CPAQuotaItem
 	for _, item := range estimateWindowItems(snapshot) {
 		if *item.PeriodSeconds == cpaWeeklyPeriodSeconds {
 			return item
 		}
-		monthly = item
+		candidate = item
 	}
-	return monthly
+	return candidate
 }

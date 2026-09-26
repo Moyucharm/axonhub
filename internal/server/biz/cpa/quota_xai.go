@@ -54,8 +54,8 @@ func (xaiQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input
 	}, &monthly)
 
 	items := make([]objects.CPAQuotaItem, 0, 6)
-	items = append(items, xaiBillingItems("weekly", weekly)...)
-	items = append(items, xaiBillingItems("monthly", monthly)...)
+	items = append(items, xaiBillingItems("weekly", weekly, objects.CPAWeeklyPeriodSeconds)...)
+	items = append(items, xaiBillingItems("monthly", monthly, 30*24*60*60)...)
 	if len(items) == 0 {
 		if weeklyErr != nil && monthlyErr != nil {
 			return QuotaResult{}, fmt.Errorf("xAI billing endpoints failed: %w", weeklyErr)
@@ -70,7 +70,7 @@ func (xaiQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input
 	}, nil
 }
 
-func xaiBillingItems(prefix string, payload map[string]any) []objects.CPAQuotaItem {
+func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) []objects.CPAQuotaItem {
 	config := asMap(firstValue(payload, "config"))
 	if len(config) == 0 {
 		return nil
@@ -85,6 +85,7 @@ func xaiBillingItems(prefix string, payload map[string]any) []objects.CPAQuotaIt
 			UsedPercent:      used,
 			RemainingPercent: remaining,
 			ResetAt:          parseTimeValue(firstValue(period, "end"), time.Now().UTC()),
+			PeriodSeconds:    &periodSeconds,
 		})
 	}
 	for index, productRaw := range asSlice(firstValue(config, "productUsage", "product_usage")) {
@@ -104,6 +105,7 @@ func xaiBillingItems(prefix string, payload map[string]any) []objects.CPAQuotaIt
 			UsedPercent:      usedPercent,
 			RemainingPercent: remainingPercent,
 			ResetAt:          parseTimeValue(firstValue(period, "end"), time.Now().UTC()),
+			PeriodSeconds:    &periodSeconds,
 		})
 	}
 
@@ -132,6 +134,7 @@ func xaiBillingItems(prefix string, payload map[string]any) []objects.CPAQuotaIt
 			Unit:             "cents",
 			ResetAt: parseTimeValue(firstValue(config,
 				"billingPeriodEnd", "billing_period_end"), time.Now().UTC()),
+			PeriodSeconds: &periodSeconds,
 		})
 	}
 	return items

@@ -133,15 +133,15 @@ export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSumm
   return summarizeQuotaBuckets(windows, (window) => window.group ?? `\u0000${window.id}`);
 }
 
-// Codex restored a 5h primary limit alongside its 7d secondary limit. Both
-// windows must stay visible in the credential table only for that exact
-// two-window shape. Other providers and all additional/missing-period shapes
-// keep the normal one-representative-per-pool summary.
+// An exact 5h + 7d pair in one pool keeps both windows visible in the
+// credential table, regardless of provider. Other shapes stay summarized.
+// Pool-first ordering keeps one bar per pool inside the summary cell's two
+// inline slots: each split pool's representative (tightest window) ranks
+// before its sibling window.
 export function summarizeCredentialQuotaGroups(
   windows: QuotaWindowItem[],
-  provider: string
+  _provider: string
 ): QuotaGroupSummary[] {
-  if (provider.trim().toLowerCase() !== 'codex') return summarizeQuotaGroups(windows);
 
   const windowsByGroup = new Map<string, QuotaWindowItem[]>();
   for (const window of windows) {
@@ -163,12 +163,26 @@ export function summarizeCredentialQuotaGroups(
   );
   if (splitGroups.size === 0) return summarizeQuotaGroups(windows);
 
-  return summarizeQuotaBuckets(windows, (window) => {
+  const summaries = summarizeQuotaBuckets(windows, (window) => {
     if (window.group && splitGroups.has(window.group)) {
       return `${window.group}\u0000${window.periodSeconds}`;
     }
     return window.group ?? `\u0000${window.id}`;
   });
+  const rankWithinPool = new Map<QuotaWindowItem, number>();
+  for (const group of splitGroups) {
+    [...(windowsByGroup.get(group) ?? [])]
+      .sort(compareRepWindows)
+      .forEach((window, index) => rankWithinPool.set(window, index));
+  }
+  return summaries
+    .map((summary, index) => ({ summary, index }))
+    .sort((left, right) => {
+      const rankDelta =
+        (rankWithinPool.get(left.summary.rep) ?? 0) - (rankWithinPool.get(right.summary.rep) ?? 0);
+      return rankDelta !== 0 ? rankDelta : left.index - right.index;
+    })
+    .map(({ summary }) => summary);
 }
 
 // Short chip labels for known backend pools. Brand names are locale-neutral,

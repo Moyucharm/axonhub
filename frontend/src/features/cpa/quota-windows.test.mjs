@@ -149,27 +149,23 @@ test('summarizeQuotaGroups picks the tightest representative per pool in first-a
   assert.equal(groups[1].rep.id, '3p-5h');
 });
 
-test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair', () => {
+test('summarizeCredentialQuotaGroups exposes an exact 5h and 7d pair for any provider', () => {
   const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
   const fiveHour = win('code-primary', 'Code', 10, 'hourly', 5 * 60 * 60);
   const weekly = win('code-secondary', 'Code', 20, 'weekly', 7 * 24 * 60 * 60);
 
   const codex = summarizeCredentialQuotaGroups([fiveHour, weekly], 'codex');
+  // The tightest window ranks first so a pool's inline bar is its most
+  // constrained window.
   assert.deepEqual(
     codex.map(({ rep }) => rep.id),
-    ['code-primary', 'code-secondary']
+    ['code-secondary', 'code-primary']
   );
   assert.ok(codex.every(({ rest }) => rest.length === 0));
 
-  // The same period pair remains one summarized resource pool for providers
-  // such as Antigravity.
   const antigravity = summarizeCredentialQuotaGroups([fiveHour, weekly], 'antigravity');
-  assert.equal(antigravity.length, 1);
-  assert.equal(antigravity[0].rep.id, 'code-secondary');
-  assert.deepEqual(
-    antigravity[0].rest.map(({ id }) => id),
-    ['code-primary']
-  );
+  assert.deepEqual(antigravity.map(({ rep }) => rep.id), ['code-secondary', 'code-primary']);
+  assert.ok(antigravity.every(({ rest }) => rest.length === 0));
 
   const monthly = win('code-monthly', 'Code', 5, 'monthly', 30 * 24 * 60 * 60);
   const oneHour = win('code-1h', 'Code', 25, 'hourly', 60 * 60);
@@ -189,6 +185,27 @@ test('summarizeCredentialQuotaGroups only exposes the exact Codex 5h and 7d pair
     triple[0].rest.map(({ id }) => id),
     ['code-primary', 'code-monthly']
   );
+});
+
+test('summarizeCredentialQuotaGroups keeps one inline bar per pool when two pools split', () => {
+  const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
+  // Antigravity pro shape: both pools hold an exact 5h + 7d pair, so the
+  // summary cell's two inline slots must surface one window per pool instead of
+  // both windows of the first pool.
+  const groups = summarizeCredentialQuotaGroups(
+    [
+      win('g-5h', 'Gemini Models', 62, 'hourly', 5 * 60 * 60),
+      win('g-7d', 'Gemini Models', 12, 'weekly', 7 * 24 * 60 * 60),
+      win('c-5h', 'Claude and GPT models', 96, 'hourly', 5 * 60 * 60),
+      win('c-7d', 'Claude and GPT models', 45, 'weekly', 7 * 24 * 60 * 60),
+    ],
+    'antigravity'
+  );
+  assert.deepEqual(
+    groups.map(({ rep }) => rep.id),
+    ['g-5h', 'c-5h', 'g-7d', 'c-7d']
+  );
+  assert.ok(groups.every(({ rest }) => rest.length === 0));
 });
 
 test('summarizeQuotaGroups breaks percent ties by kind priority and keeps ungrouped singletons', () => {
@@ -379,6 +396,9 @@ test('cpaQuotaItemsToWindows passes through quota value estimates', () => {
         label: '5 hour',
         usedPercent: 10,
         periodSeconds: 18000,
+        estimatedLimitUSD: 42.5,
+        estimatedCostUSD: 2.5,
+        estimateSource: 'precise-header-delta',
       },
     ],
     (key) => key
@@ -390,6 +410,14 @@ test('cpaQuotaItemsToWindows passes through quota value estimates', () => {
   assert.equal(weekly.periodSeconds, 604800);
   assert.ok(weekly.tooltipExtras.some((line) => line.includes('cpa.quota.estimateDetail')));
   const primary = windows.find((w) => w.id === 'codex-primary');
-  assert.equal(primary.estimatedLimitUSD, undefined);
-  assert.ok(!primary.tooltipExtras?.some((line) => line.includes('estimateDetail')));
+  assert.equal(primary.estimatedLimitUSD, 42.5);
+  assert.ok(primary.tooltipExtras.some((line) => line.includes('cpa.quota.estimateDetail')));
+  const providerWindow = cpaQuotaItemsToWindows([
+    { id: 'antigravity-5h', label: '5 hour', usedPercent: 20, periodSeconds: 18000,
+      estimatedLimitUSD: 38, estimatedCostUSD: 7.6, estimateSource: 'refresh-delta' },
+    { id: 'balance', label: 'Balance', estimatedLimitUSD: 10 },
+  ], (key) => key);
+  assert.equal(providerWindow.length, 1);
+  assert.equal(providerWindow[0].estimatedLimitUSD, 38);
+  assert.ok(providerWindow[0].tooltipExtras.some((line) => line.includes('cpa.quota.estimateDetail')));
 });

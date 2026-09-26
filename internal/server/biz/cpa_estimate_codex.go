@@ -11,47 +11,37 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
-// cpaQuotaResetTolerance absorbs the small drift of a provider-reported window
-// boundary. Upstream reports a floating reset until usage anchors a window, and
-// AxonHub reads the same boundary from two independent sources (usage response
-// headers and the quota snapshot), so exact-second equality re-anchored healthy
-// intervals. The value stays far below the shortest estimable window (7 days).
+// cpaQuotaResetTolerance absorbs small drift between provider snapshots and usage headers.
 const cpaQuotaResetTolerance = 5 * time.Minute
 
-type codexWeeklyObservation struct {
+type codexWindowObservation struct {
 	collectorSessionID string
 	eventID            int
+	periodSeconds      int
 	usedPercent        float64
 	resetAt            time.Time
 	observedAt         time.Time
-	// durationVerified records whether the sample carried an explicit 7d window
-	// duration, which is what distinguishes the weekly window from a 5h window
-	// in the same wire slot. It is never persisted.
-	durationVerified bool
+	durationVerified   bool
 }
 
-// observeCodexUsageIntervals advances the precise 7d observation interval from
-// persisted usage events. Primary and secondary are wire slots, so the weekly
-// window is normalized by its reported duration before advancing the interval.
-// The first observation of a collector identity or upstream quota window is only
-// a baseline; it does not need to be zero usage.
+// observeCodexUsageIntervals advances each reported window independently.
 func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Context, events []persistedUsageEvent) {
-	byCredential := make(map[int][]codexWeeklyObservation)
+	byCredential := make(map[int][]codexWindowObservation)
 	for _, persisted := range events {
 		envelope := persisted.envelope
 		event := envelope.event
 		if event == nil || event.Failed || !strings.EqualFold(strings.TrimSpace(event.Provider), "codex") {
 			continue
 		}
-		observation, ok := parseCodexWeeklyObservation(envelope.sessionID(), persisted.eventID, event)
-		if !ok {
+		observations := parseCodexWindowObservations(envelope.sessionID(), persisted.eventID, event)
+		if len(observations) == 0 {
 			continue
 		}
 		credentialID, found := repository.lookupCredentialID(ctx, envelope.instanceID, event.AuthIndex)
 		if !found {
 			continue
 		}
-		byCredential[credentialID] = append(byCredential[credentialID], observation)
+		byCredential[credentialID] = append(byCredential[credentialID], observations...)
 	}
 	if len(byCredential) == 0 {
 		return
@@ -72,24 +62,30 @@ func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Con
 		observed := credential.QuotaObserved
 		reanchored := false
 		for _, observation := range byCredential[credential.ID] {
-			if !observation.durationVerified && !codexWeeklyResetConfirmed(credential.QuotaData, observation.resetAt) {
-				// A duration-less legacy sample cannot tell the 5h window from
-				// the 7d window, so only a snapshot that reports the same reset
-				// as its 7d window makes it trustworthy.
+			if !observation.durationVerified && !codexWindowResetConfirmed(credential.QuotaData, observation.periodSeconds, observation.resetAt) {
 				continue
 			}
 			var changed bool
-			observed, changed = advanceCodexWeeklyObservation(observed, observation)
+			observed, changed = advanceCodexWindowObservation(observed, observation)
 			reanchored = reanchored || changed
 		}
-		if observed.SecondaryUsedPercent == nil {
+		windows := observed.ObservedWindows()
+		if len(windows) == 0 {
 			continue
 		}
-
 		state := repository.observedState(credential.ID)
 		skip := !reanchored && state.hasLastWrite &&
-			repository.now().Sub(state.lastWrite) < percentObservationMinGap &&
-			absFloat64(*observed.SecondaryUsedPercent-state.lastPercent) < 0.01
+			repository.now().Sub(state.lastWrite) < percentObservationMinGap
+		for _, window := range windows {
+			previous, ok := state.lastPercentByPeriod[window.PeriodSeconds]
+			if window.UsedPercent == nil || !ok || absFloat64(*window.UsedPercent-previous) >= 0.01 {
+				skip = false
+				break
+			}
+		}
+		if len(state.lastPercentByPeriod) != len(windows) {
+			skip = false
+		}
 		if skip {
 			continue
 		}
@@ -104,10 +100,16 @@ func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Con
 			)
 			continue
 		}
+		percentByPeriod := make(map[int]float64, len(windows))
+		for _, window := range windows {
+			if window.UsedPercent != nil {
+				percentByPeriod[window.PeriodSeconds] = *window.UsedPercent
+			}
+		}
 		repository.setObservedState(credential.ID, usageObservedState{
-			lastWrite:    repository.now(),
-			lastPercent:  *observed.SecondaryUsedPercent,
-			hasLastWrite: true,
+			lastWrite:           repository.now(),
+			lastPercentByPeriod: percentByPeriod,
+			hasLastWrite:        true,
 		})
 	}
 }
@@ -119,46 +121,48 @@ func (envelope usageEventEnvelope) sessionID() string {
 	return envelope.session.id
 }
 
-func parseCodexWeeklyObservation(sessionID string, eventID int, event interface {
+func parseCodexWindowObservations(sessionID string, eventID int, event interface {
 	HeaderValue(string) string
-}) (codexWeeklyObservation, bool) {
+}) []codexWindowObservation {
 	if sessionID == "" || eventID <= 0 {
-		return codexWeeklyObservation{}, false
+		return nil
 	}
+	var observations []codexWindowObservation
 	for _, slot := range []string{"primary", "secondary"} {
 		prefix := "x-codex-" + slot + "-"
 		minutes, err := strconv.Atoi(strings.TrimSpace(event.HeaderValue(prefix + "window-minutes")))
-		if err != nil || minutes*60 != cpaWeeklyPeriodSeconds {
+		if err != nil || (minutes*60 != cpaFiveHourPeriodSeconds && minutes*60 != cpaWeeklyPeriodSeconds) {
 			continue
 		}
 		if observation, ok := parseCodexWeeklyWindowObservation(sessionID, eventID, prefix, event); ok {
+			observation.periodSeconds = minutes * 60
 			observation.durationVerified = true
-			return observation, true
+			observations = append(observations, observation)
 		}
 	}
-
-	// Older CPA HTTP usage records can carry the legacy secondary percent/reset
-	// pair without window-minutes. Keep accepting that established 7d shape, but
-	// never reinterpret an explicitly non-weekly secondary duration.
+	// Duration-less secondary records require a matching weekly snapshot reset.
 	if strings.TrimSpace(event.HeaderValue("x-codex-secondary-window-minutes")) == "" {
-		return parseCodexWeeklyWindowObservation(sessionID, eventID, "x-codex-secondary-", event)
+		if observation, ok := parseCodexWeeklyWindowObservation(sessionID, eventID, "x-codex-secondary-", event); ok {
+			observation.periodSeconds = cpaWeeklyPeriodSeconds
+			observations = append(observations, observation)
+		}
 	}
-	return codexWeeklyObservation{}, false
+	return observations
 }
 
 func parseCodexWeeklyWindowObservation(sessionID string, eventID int, prefix string, event interface {
 	HeaderValue(string) string
-}) (codexWeeklyObservation, bool) {
+}) (codexWindowObservation, bool) {
 	rawPercent := strings.TrimSuffix(event.HeaderValue(prefix+"used-percent"), "%")
 	percent, err := strconv.ParseFloat(strings.TrimSpace(rawPercent), 64)
 	if err != nil || percent < 0 || percent > 100 {
-		return codexWeeklyObservation{}, false
+		return codexWindowObservation{}, false
 	}
 	resetAt := parseHeaderUnixTime(event.HeaderValue(prefix + "reset-at"))
 	if resetAt == nil {
-		return codexWeeklyObservation{}, false
+		return codexWindowObservation{}, false
 	}
-	return codexWeeklyObservation{
+	return codexWindowObservation{
 		collectorSessionID: sessionID,
 		eventID:            eventID,
 		usedPercent:        percent,
@@ -167,85 +171,53 @@ func parseCodexWeeklyWindowObservation(sessionID string, eventID int, prefix str
 	}, true
 }
 
-// codexWeeklyResetConfirmed reports whether the credential's current quota
-// snapshot already identifies this reset as its 7d window. Duration-less legacy
-// records cannot tell the 5h window from the 7d window, so an ambiguous sample
-// is only trusted when the snapshot agrees.
-func codexWeeklyResetConfirmed(snapshot objects.CPAQuotaSnapshot, resetAt time.Time) bool {
+// codexWindowResetConfirmed verifies an ambiguous legacy sample against its snapshot.
+func codexWindowResetConfirmed(snapshot objects.CPAQuotaSnapshot, periodSeconds int, resetAt time.Time) bool {
 	for index := range snapshot.Items {
 		item := &snapshot.Items[index]
-		if item.PeriodSeconds == nil || *item.PeriodSeconds != cpaWeeklyPeriodSeconds || item.ResetAt == nil {
-			continue
-		}
-		if sameQuotaReset(*item.ResetAt, resetAt) {
+		if item.PeriodSeconds != nil && *item.PeriodSeconds == periodSeconds &&
+			item.ResetAt != nil && sameQuotaReset(*item.ResetAt, resetAt) {
 			return true
 		}
 	}
 	return false
 }
 
-func advanceCodexWeeklyObservation(
+func advanceCodexWindowObservation(
 	observed objects.CPAQuotaObserved,
-	next codexWeeklyObservation,
+	next codexWindowObservation,
 ) (objects.CPAQuotaObserved, bool) {
-	reanchor := observed.SecondaryCollectorSessionID != next.collectorSessionID ||
-		observed.SecondaryBaselineUsedPercent == nil ||
-		observed.SecondaryBaselineEventID == nil ||
-		observed.SecondaryUsedPercent == nil ||
-		observed.SecondaryLatestEventID == nil ||
-		observed.SecondaryResetAt == nil ||
-		!sameQuotaReset(*observed.SecondaryResetAt, next.resetAt)
+	window, _ := observed.Window(next.periodSeconds)
+	reanchor := window.CollectorSessionID != next.collectorSessionID ||
+		window.BaselineUsedPercent == nil || window.BaselineEventID == nil ||
+		window.UsedPercent == nil || window.LatestEventID == nil ||
+		window.ResetAt == nil || !sameQuotaReset(*window.ResetAt, next.resetAt)
 	if reanchor {
-		baselinePercent := next.usedPercent
-		baselineEventID := next.eventID
-		latestPercent := next.usedPercent
-		latestEventID := next.eventID
-		checkpointEventID := next.eventID
-		resetAt := next.resetAt
-		observed.SecondaryCollectorSessionID = next.collectorSessionID
-		observed.SecondaryBaselineUsedPercent = &baselinePercent
-		observed.SecondaryBaselineEventID = &baselineEventID
-		observed.SecondaryUsedPercent = &latestPercent
-		observed.SecondaryLatestEventID = &latestEventID
-		observed.SecondaryCheckpointEventID = &checkpointEventID
-		observed.SecondaryResetAt = &resetAt
-		observed.ObservedAt = &next.observedAt
-		return observed, true
+		baselinePercent, eventID, resetAt := next.usedPercent, next.eventID, next.resetAt
+		window = objects.CPAQuotaWindowObservation{
+			PeriodSeconds: next.periodSeconds, CollectorSessionID: next.collectorSessionID,
+			BaselineUsedPercent: &baselinePercent, BaselineEventID: &eventID,
+			UsedPercent: &baselinePercent, LatestEventID: &eventID,
+			CheckpointEventID: &eventID, ResetAt: &resetAt, ObservedAt: &next.observedAt,
+		}
+		return observed.WithWindow(window), true
 	}
-
-	// Event IDs are the durable interval boundary. A replayed or out-of-order
-	// usage event must not look like a new quota window and clear a valid
-	// estimate.
-	checkpointEventID := observed.SecondaryCheckpointEventID
+	checkpointEventID := window.CheckpointEventID
 	if checkpointEventID == nil {
-		// Rows written before this field existed stored the newest event in
-		// SecondaryLatestEventID, even when that sample had a lower percentage.
-		// Until a sample at or above the high-water arrives, such a row's
-		// interval end can therefore sit on a regressed sample and read a little
-		// low; the pairing is not recoverable and heals on the next high-water
-		// sample.
-		checkpointEventID = observed.SecondaryLatestEventID
+		checkpointEventID = window.LatestEventID
 	}
 	if next.eventID <= *checkpointEventID {
 		return observed, false
 	}
-	newCheckpointEventID := next.eventID
-	observed.SecondaryCheckpointEventID = &newCheckpointEventID
-	observed.ObservedAt = &next.observedAt
-	// The 7d reset timestamp is the authoritative window boundary. A lower
-	// percentage with the same reset is a non-monotonic provider sample (for
-	// example a 5h refresh side effect or rolling-window correction), not a new
-	// local interval. Retain the high-water percentage so the existing estimate
-	// remains usable until the 7d window actually changes.
-	if next.usedPercent < *observed.SecondaryUsedPercent {
-		return observed, false
+	checkpoint := next.eventID
+	window.CheckpointEventID = &checkpoint
+	window.ObservedAt = &next.observedAt
+	if next.usedPercent >= *window.UsedPercent {
+		percent, eventID := next.usedPercent, next.eventID
+		window.UsedPercent = &percent
+		window.LatestEventID = &eventID
 	}
-
-	latestPercent := next.usedPercent
-	latestEventID := next.eventID
-	observed.SecondaryUsedPercent = &latestPercent
-	observed.SecondaryLatestEventID = &latestEventID
-	return observed, false
+	return observed.WithWindow(window), false
 }
 
 type codexEstimateInterval struct {
@@ -260,65 +232,44 @@ type codexEstimateIntervalDecision struct {
 	skipReason string
 }
 
-func codexEstimateIntervalForItem(
-	item *objects.CPAQuotaItem,
-	observed objects.CPAQuotaObserved,
-) *codexEstimateInterval {
-	return codexEstimateIntervalDecisionForItem(item, observed).interval
-}
-
-func codexEstimateIntervalDecisionForItem(
-	item *objects.CPAQuotaItem,
-	observed objects.CPAQuotaObserved,
-) codexEstimateIntervalDecision {
+func codexEstimateIntervalDecisionForItem(item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, provider string) codexEstimateIntervalDecision {
 	if item == nil || item.PeriodSeconds == nil || item.ResetAt == nil {
 		return codexEstimateIntervalDecision{skipReason: "missing-window-metadata"}
 	}
 	period := *item.PeriodSeconds
-	switch {
-	case period == cpaWeeklyPeriodSeconds:
-		return codexWeeklyEstimateIntervalDecision(item, observed)
-	case isMonthlyQuotaPeriod(period):
-		return codexRefreshEstimateIntervalDecision(item)
-	default:
+	if !cpaEstimableQuotaPeriod(period) {
 		return codexEstimateIntervalDecision{skipReason: "unsupported-window-period"}
 	}
+	if cpaPreciseWindowPeriod(provider, period) {
+		return codexPreciseEstimateIntervalDecision(item, observed)
+	}
+	return codexRefreshEstimateIntervalDecision(item)
 }
 
-func codexWeeklyEstimateIntervalDecision(
-	item *objects.CPAQuotaItem,
-	observed objects.CPAQuotaObserved,
-) codexEstimateIntervalDecision {
-	if observed.SecondaryCollectorSessionID == "" ||
-		observed.SecondaryBaselineUsedPercent == nil ||
-		observed.SecondaryBaselineEventID == nil ||
-		observed.SecondaryUsedPercent == nil ||
-		observed.SecondaryLatestEventID == nil ||
-		observed.SecondaryResetAt == nil {
-		return codexEstimateIntervalDecision{skipReason: "missing-weekly-observation"}
+func codexPreciseEstimateIntervalDecision(item *objects.CPAQuotaItem, observed objects.CPAQuotaObserved) codexEstimateIntervalDecision {
+	window, ok := observed.Window(*item.PeriodSeconds)
+	if !ok || window.CollectorSessionID == "" || window.BaselineUsedPercent == nil ||
+		window.BaselineEventID == nil || window.UsedPercent == nil ||
+		window.LatestEventID == nil || window.ResetAt == nil {
+		return codexEstimateIntervalDecision{skipReason: "missing-precise-observation"}
 	}
-	if !sameQuotaReset(*observed.SecondaryResetAt, *item.ResetAt) {
+	if !sameQuotaReset(*window.ResetAt, *item.ResetAt) {
 		return codexEstimateIntervalDecision{skipReason: "reset-mismatch"}
 	}
-	if *observed.SecondaryLatestEventID <= *observed.SecondaryBaselineEventID {
+	if *window.LatestEventID <= *window.BaselineEventID {
 		return codexEstimateIntervalDecision{skipReason: "invalid-event-range"}
 	}
-	// WHAM is commonly integer-rounded. A drop exceeding one percentage point
-	// while reset_at remains unchanged is still treated as an activity reset or
-	// quota expansion, but sub-point rounding differences do not invalidate a
-	// precise header interval.
-	if item.UsedPercent != nil && *item.UsedPercent+1 < *observed.SecondaryUsedPercent {
+	// One point of slack absorbs integer-rounded quota snapshot percentages.
+	if item.UsedPercent != nil && *item.UsedPercent+1 < *window.UsedPercent {
 		return codexEstimateIntervalDecision{skipReason: "quota-percent-regression"}
 	}
-	delta := *observed.SecondaryUsedPercent - *observed.SecondaryBaselineUsedPercent
-	if delta < cpaEstimateMinPercentDelta {
+	delta := *window.UsedPercent - *window.BaselineUsedPercent
+	if delta < cpaEstimateMinPercentDeltaFor(*item.PeriodSeconds) {
 		return codexEstimateIntervalDecision{skipReason: "insufficient-percent-delta"}
 	}
 	return codexEstimateIntervalDecision{interval: &codexEstimateInterval{
-		usedPercent: delta,
-		fromEventID: *observed.SecondaryBaselineEventID,
-		toEventID:   *observed.SecondaryLatestEventID,
-		source:      "precise-header-delta",
+		usedPercent: delta, fromEventID: *window.BaselineEventID,
+		toEventID: *window.LatestEventID, source: "precise-header-delta",
 	}}
 }
 
@@ -334,7 +285,7 @@ func codexRefreshEstimateIntervalDecision(item *objects.CPAQuotaItem) codexEstim
 		return codexEstimateIntervalDecision{skipReason: "invalid-event-range"}
 	}
 	delta := *item.UsedPercent - *item.EstimateBaselineUsedPercent
-	if delta < cpaEstimateMinPercentDelta {
+	if delta < cpaEstimateMinPercentDeltaFor(*item.PeriodSeconds) {
 		return codexEstimateIntervalDecision{skipReason: "insufficient-percent-delta"}
 	}
 	return codexEstimateIntervalDecision{interval: &codexEstimateInterval{
@@ -382,42 +333,31 @@ func adoptCodexQuotaInterval(item, previous *objects.CPAQuotaItem) bool {
 	return false
 }
 
-func prepareCodexWeeklyInterval(
-	item *objects.CPAQuotaItem,
-	previous *objects.CPAQuotaItem,
-	observed objects.CPAQuotaObserved,
-	collectorSessionID string,
-) bool {
+func prepareCodexPreciseInterval(item *objects.CPAQuotaItem, previous *objects.CPAQuotaItem, observed objects.CPAQuotaObserved, collectorSessionID string) bool {
 	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil ||
-		*item.PeriodSeconds != cpaWeeklyPeriodSeconds {
+		(*item.PeriodSeconds != cpaFiveHourPeriodSeconds && *item.PeriodSeconds != cpaWeeklyPeriodSeconds) {
 		clearCodexEstimateInterval(item)
 		return true
 	}
 	if collectorSessionID == "" {
-		// No live collector checkpoint: the observation cannot advance, so the
-		// durable metadata in quota_data is the only interval state. Keep it
-		// instead of discarding a window that is still current.
 		return adoptCodexQuotaInterval(item, previous)
 	}
-	if observed.SecondaryCollectorSessionID != collectorSessionID ||
-		observed.SecondaryBaselineUsedPercent == nil || observed.SecondaryBaselineEventID == nil ||
-		observed.SecondaryUsedPercent == nil || observed.SecondaryLatestEventID == nil ||
-		observed.SecondaryResetAt == nil || !sameQuotaReset(*item.ResetAt, *observed.SecondaryResetAt) {
+	window, ok := observed.Window(*item.PeriodSeconds)
+	if !ok || window.CollectorSessionID != collectorSessionID ||
+		window.BaselineUsedPercent == nil || window.BaselineEventID == nil ||
+		window.UsedPercent == nil || window.LatestEventID == nil ||
+		window.ResetAt == nil || !sameQuotaReset(*item.ResetAt, *window.ResetAt) {
 		clearCodexEstimateInterval(item)
 		return true
 	}
-
 	reanchored := !sameCodexEstimateWindow(item, previous) ||
 		previous.EstimateCollectorSessionID != collectorSessionID ||
 		previous.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineEventID == nil ||
 		previous.EstimateLatestEventID == nil ||
-		*previous.EstimateBaselineUsedPercent != *observed.SecondaryBaselineUsedPercent ||
-		*previous.EstimateBaselineEventID != *observed.SecondaryBaselineEventID ||
-		*observed.SecondaryLatestEventID < *previous.EstimateLatestEventID
-
-	baselinePercent := *observed.SecondaryBaselineUsedPercent
-	baselineEventID := *observed.SecondaryBaselineEventID
-	latestEventID := *observed.SecondaryLatestEventID
+		*previous.EstimateBaselineUsedPercent != *window.BaselineUsedPercent ||
+		*previous.EstimateBaselineEventID != *window.BaselineEventID ||
+		*window.LatestEventID < *previous.EstimateLatestEventID
+	baselinePercent, baselineEventID, latestEventID := *window.BaselineUsedPercent, *window.BaselineEventID, *window.LatestEventID
 	item.EstimateCollectorSessionID = collectorSessionID
 	item.EstimateBaselineUsedPercent = &baselinePercent
 	item.EstimateBaselineEventID = &baselineEventID
@@ -425,7 +365,7 @@ func prepareCodexWeeklyInterval(
 	return reanchored
 }
 
-func prepareCodexMonthlyInterval(
+func prepareCodexRefreshInterval(
 	item *objects.CPAQuotaItem,
 	previous *objects.CPAQuotaItem,
 	collectorSessionID string,
@@ -447,7 +387,7 @@ func prepareCodexMonthlyInterval(
 		previous.EstimateCollectorSessionID != collectorSessionID ||
 		previous.EstimateBaselineUsedPercent == nil ||
 		previous.EstimateBaselineEventID == nil || *previous.EstimateBaselineEventID <= 0 ||
-		*item.UsedPercent+cpaEstimateMinPercentDelta <= *previous.EstimateBaselineUsedPercent ||
+		*item.UsedPercent+cpaEstimateMinPercentDeltaFor(*item.PeriodSeconds) <= *previous.EstimateBaselineUsedPercent ||
 		latestEventID < *previous.EstimateBaselineEventID
 	if reanchor {
 		baselinePercent := *item.UsedPercent
@@ -467,10 +407,8 @@ func prepareCodexMonthlyInterval(
 	return false
 }
 
-// carryForwardCodexQuotaEstimate keeps the last known estimate of a window that
-// this refresh cannot recompute. Callers must pass items filtered to 7d or
-// 28-31d windows (see estimateWindowItems); the period is otherwise only checked
-// for equality, and a 5h window has no estimate contract.
+// carryForwardCodexQuotaEstimate keeps the last estimate of a window that
+// cannot be recomputed. The 5h and 7d Codex windows share the precise contract.
 func carryForwardCodexQuotaEstimate(
 	item *objects.CPAQuotaItem,
 	previous *objects.CPAQuotaItem,

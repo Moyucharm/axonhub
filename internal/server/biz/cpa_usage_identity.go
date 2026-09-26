@@ -95,6 +95,11 @@ func (svc *CPAService) legacyCPAUsageCollectorID(ctx context.Context, instanceID
 		if collectorID := strings.TrimSpace(credential.QuotaObserved.SecondaryCollectorSessionID); collectorID != "" {
 			known[collectorID] = struct{}{}
 		}
+		for _, window := range credential.QuotaObserved.ObservedWindows() {
+			if collectorID := strings.TrimSpace(window.CollectorSessionID); collectorID != "" {
+				known[collectorID] = struct{}{}
+			}
+		}
 		for _, item := range credential.QuotaData.Items {
 			if collectorID := strings.TrimSpace(item.EstimateCollectorSessionID); collectorID != "" {
 				known[collectorID] = struct{}{}

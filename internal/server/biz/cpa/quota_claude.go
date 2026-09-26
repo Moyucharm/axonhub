@@ -37,12 +37,19 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 
 	now := time.Now().UTC()
 	items := make([]objects.CPAQuotaItem, 0, 8)
+	// period marks a window whose utilization covers the credential's whole
+	// usage, the precondition for the local amount estimate: the estimate
+	// divides the cost aggregated over every model by this window's percentage
+	// delta. Model- or app-scoped sub-limits keep period unset and stay
+	// display-only, otherwise a subset percentage would be applied to the full
+	// credential cost.
 	windows := []struct {
-		key   string
-		label string
+		key    string
+		label  string
+		period int
 	}{
-		{key: "five_hour", label: "5 hour"},
-		{key: "seven_day", label: "7 day"},
+		{key: "five_hour", label: "5 hour", period: objects.CPAFiveHourPeriodSeconds},
+		{key: "seven_day", label: "7 day", period: objects.CPAWeeklyPeriodSeconds},
 		{key: "seven_day_oauth_apps", label: "7 day OAuth apps"},
 		{key: "seven_day_opus", label: "7 day Opus"},
 		{key: "seven_day_sonnet", label: "7 day Sonnet"},
@@ -55,13 +62,18 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 			continue
 		}
 		used, remaining := percentPointersFromUsed(firstValue(window, "utilization"))
-		items = append(items, objects.CPAQuotaItem{
+		item := objects.CPAQuotaItem{
 			ID:               strings.ReplaceAll(windowInfo.key, "_", "-"),
 			Label:            windowInfo.label,
 			UsedPercent:      used,
 			RemainingPercent: remaining,
 			ResetAt:          resetFromRecord(window, now),
-		})
+		}
+		if windowInfo.period > 0 {
+			period := windowInfo.period
+			item.PeriodSeconds = &period
+		}
+		items = append(items, item)
 	}
 
 	if extra := asMap(firstValue(usage, "extra_usage", "extraUsage")); len(extra) > 0 {

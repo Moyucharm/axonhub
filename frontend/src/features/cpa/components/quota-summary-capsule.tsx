@@ -5,8 +5,10 @@ import { cpaQuotaItemsToWindows, shortGroupLabel, summarizeCredentialQuotaGroups
 import type { CPAQuotaItem } from '../types';
 
 // Compact quota cell for the CPA credential table. Windows are normally
-// grouped by backend pool (antigravity: Gemini vs Claude/GPT), while Codex
-// groups containing both 5h and 7d keep both windows visible. Rows are stacked:
+// grouped by backend pool (antigravity: Gemini vs Claude/GPT), while a pool
+// holding an exact 5h + 7d pair keeps both windows visible; split pools are
+// ordered pool-first, so each pool keeps one bar in the two-bar inline budget.
+// Rows are stacked:
 //   - 1 window/pool  -> single plain capsule (no pool chip)
 //   - <=2 pools      -> one bar per pool, all visible
 //   - >2 pools       -> first two bars inline, everything else behind a +N

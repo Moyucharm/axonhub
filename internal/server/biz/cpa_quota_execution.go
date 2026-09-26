@@ -187,7 +187,7 @@ func (executor *cpaQuotaExecutor) executeOnce(
 	}
 
 	snapshot := result.Snapshot
-	if result.State == objects.CPAQuotaStateSuccess && strings.EqualFold(strings.TrimSpace(credential.Provider), "codex") && executor.estimate != nil {
+	if result.State == objects.CPAQuotaStateSuccess && executor.estimate != nil {
 		executor.estimate(ctx, credential, &snapshot)
 	}
 	if result.State == objects.CPAQuotaStateUnsupported || result.State == objects.CPAQuotaStateInsufficientData {

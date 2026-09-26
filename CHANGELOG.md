@@ -3,6 +3,7 @@
 ### Added
 
 - Added per-channel API key rules with status/keyword matching, configurable error thresholds, temporary auto-recovery, and permanent disable/delete actions.
+- Added per-window CPA quota value estimates for Codex 5-hour and 7-day usage headers and refresh-based Claude, Kimi, Antigravity, and xAI windows, limited to credential-wide windows (model-scoped sub-limits such as Claude Opus/Sonnet stay display-only), with legacy observation compatibility.
 
 v0.4.0
 

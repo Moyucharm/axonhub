@@ -41,15 +41,15 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 		case payload.URL == codexResetCreditsURL:
 			body = `{"credits":[{"id":"credit-a","status":"available","expires_at":"2030-01-01T00:00:00Z"}]}`
 		case payload.URL == claudeUsageURL:
-			body = `{"five_hour":{"utilization":0.25,"resets_at":"2030-01-01T00:00:00Z"}}`
+			body = `{"five_hour":{"utilization":0.25,"resets_at":"2030-01-01T00:00:00Z"},"seven_day":{"utilization":0.35,"resets_at":"2030-01-07T00:00:00Z"},"seven_day_opus":{"utilization":0.4,"resets_at":"2030-01-07T00:00:00Z"}}`
 		case payload.URL == claudeProfileURL:
 			body = `{"account":{"has_claude_pro":true}}`
 		case payload.URL == kimiUsageURL:
-			body = `{"limits":[{"name":"Weekly","detail":{"used":20,"limit":100,"remaining":80}}]}`
+			body = `{"limits":[{"name":"Weekly","window":{"duration":7,"timeUnit":"DAY"},"detail":{"used":20,"limit":100,"remaining":80,"resets_at":"2030-01-07T00:00:00Z"}}]}`
 		case strings.HasPrefix(payload.URL, "https://cli-chat-proxy.grok.com/v1/billing"):
 			body = `{"config":{"creditUsagePercent":20,"currentPeriod":{"end":"2030-01-01T00:00:00Z"}}}`
 		case strings.Contains(payload.URL, "retrieveUserQuotaSummary"):
-			body = `{"groups":[{"displayName":"Models","buckets":[{"bucketId":"gemini","displayName":"Gemini","remainingFraction":0.8,"window":"5h","resetTime":"2030-01-01T00:00:00Z"}]}]}`
+			body = `{"groups":[{"displayName":"Models","buckets":[{"bucketId":"gemini","displayName":"Gemini","remainingFraction":0.8,"window":"5h","resetTime":"2030-01-01T00:00:00Z"},{"bucketId":"claude","displayName":"Claude","remainingFraction":0.7,"window":"weekly","resetTime":"2030-01-07T00:00:00Z"}]}]}`
 		case payload.URL == antigravitySubscriptionURL:
 			body = `{"currentTier":{"id":"g1-pro-tier"}}`
 		default:
@@ -90,6 +90,37 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 			}
 			if len(result.Snapshot.Items) == 0 {
 				t.Fatalf("%s returned no normalized quota items", input.Provider)
+			}
+			expected := map[string]map[string]int{
+				"claude":      {"five-hour": objects.CPAFiveHourPeriodSeconds, "seven-day": objects.CPAWeeklyPeriodSeconds},
+				"kimi":        {"limit-1": objects.CPAWeeklyPeriodSeconds},
+				"xai":         {"weekly-credits": objects.CPAWeeklyPeriodSeconds, "monthly-credits": 30 * 24 * 60 * 60},
+				"antigravity": {"gemini": objects.CPAFiveHourPeriodSeconds, "claude": objects.CPAWeeklyPeriodSeconds},
+			}[input.Provider]
+			for _, item := range result.Snapshot.Items {
+				if want, ok := expected[item.ID]; ok {
+					if item.PeriodSeconds == nil || *item.PeriodSeconds != want || item.ResetAt == nil || item.UsedPercent == nil {
+						t.Fatalf("%s %s missing estimate contract: %#v", input.Provider, item.ID, item)
+					}
+					delete(expected, item.ID)
+				}
+			}
+			if len(expected) > 0 {
+				t.Fatalf("%s missing windows: %v", input.Provider, expected)
+			}
+			if input.Provider == "claude" {
+				// Model-scoped sub-limits must stay display-only: their percentage
+				// cannot be paired with the credential-wide cost aggregate.
+				var opus *objects.CPAQuotaItem
+				for index := range result.Snapshot.Items {
+					if result.Snapshot.Items[index].ID == "seven-day-opus" {
+						opus = &result.Snapshot.Items[index]
+						break
+					}
+				}
+				if opus == nil || opus.UsedPercent == nil || opus.ResetAt == nil || opus.PeriodSeconds != nil {
+					t.Fatalf("claude seven-day-opus must stay display-only: %#v", opus)
+				}
 			}
 		})
 	}
@@ -303,5 +334,27 @@ func TestQuotaRegistryDegradesMissingManagementCapabilityToUnsupported(t *testin
 	}
 	if result.State != objects.CPAQuotaStateUnsupported {
 		t.Fatalf("unexpected degraded state: %s", result.State)
+	}
+}
+
+func TestXAIBillingProductAndBalancePeriods(t *testing.T) {
+	t.Parallel()
+	const period = 30 * 24 * 60 * 60
+	items := xaiBillingItems("monthly", map[string]any{"config": map[string]any{
+		"currentPeriod": map[string]any{"end": "2030-01-07T00:00:00Z"},
+		"productUsage":  []any{map[string]any{"product": "grok", "usagePercent": 25}},
+		"monthlyLimit":  100, "used": 25,
+		"billingPeriodEnd": "2030-01-07T00:00:00Z",
+	}}, period)
+	if len(items) != 2 {
+		t.Fatalf("expected product and balance, got %d items", len(items))
+	}
+	for _, item := range items {
+		if item.PeriodSeconds == nil || *item.PeriodSeconds != period || item.UsedPercent == nil || item.ResetAt == nil {
+			t.Fatalf("xAI item %s missing monthly estimate contract: %#v", item.ID, item)
+		}
+	}
+	if items[0].ID != "monthly-product-1" || items[1].ID != "monthly-monthly-balance" {
+		t.Fatalf("unexpected xAI item identities: %s, %s", items[0].ID, items[1].ID)
 	}
 }

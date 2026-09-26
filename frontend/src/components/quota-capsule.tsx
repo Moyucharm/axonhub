@@ -6,9 +6,7 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Estimate badge rendered to the right of the quota bar capsule: "≈ $100".
-// Only present when a backend attaches estimatedLimitUSD (currently CPA codex
-// weekly windows).
+// Backend estimates are attached per window, independent of provider.
 const EstimateBadge = memo(function EstimateBadge({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
   if (window.estimatedLimitUSD == null) return null;
   return (
