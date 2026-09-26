@@ -50,7 +50,7 @@ export function cpaWindowKind(item: CpaWindowLike): QuotaWindowKind {
 // renderable usage info, so they are skipped instead of being shown as a
 // misleading full remaining bar.
 export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, locale = 'en-US'): QuotaWindowItem[] {
-  return items.flatMap((item) => {
+  const windows = items.flatMap((item) => {
     if (item.usedPercent == null && item.remainingPercent == null) return [];
     const usedPct = item.usedPercent ?? (item.remainingPercent != null ? 100 - item.remainingPercent : 0);
     const percent = Math.max(0, Math.min(100, usedPct));
@@ -86,6 +86,7 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
       },
     ];
   });
+  return windows.sort(compareQuotaWindows);
 }
 
 // One summarized resource pool: the representative (tightest) window plus the
@@ -97,13 +98,38 @@ export interface QuotaGroupSummary {
   rest: QuotaWindowItem[];
 }
 
-function compareRepWindows(a: QuotaWindowItem, b: QuotaWindowItem): number {
-  // Tightest window first: highest usage wins; ties fall back to the shared
-  // kind priority (weekly > monthly > daily > hourly > other) so an all-zero
-  // pool still surfaces its long-term ceiling.
-  if (a.percent !== b.percent) return b.percent - a.percent;
-  const kindDelta = QUOTA_KIND_PRIORITY[b.kind] - QUOTA_KIND_PRIORITY[a.kind];
-  if (kindDelta !== 0) return kindDelta;
+export function getQuotaWindowDuration(window: QuotaWindowItem): number {
+  if (typeof window.periodSeconds === 'number' && Number.isFinite(window.periodSeconds) && window.periodSeconds > 0) {
+    return window.periodSeconds;
+  }
+  switch (window.kind) {
+    case 'hourly':
+      return 5 * 3600;
+    case 'daily':
+      return 24 * 3600;
+    case 'weekly':
+      return 7 * 24 * 3600;
+    case 'monthly':
+      return 30 * 24 * 3600;
+    default:
+      return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+export function compareQuotaWindows(a: QuotaWindowItem, b: QuotaWindowItem): number {
+  // 1. 时间额度区间：较短周期排在上面/前面，较长周期排在下面/后面 (e.g. 5h < 7d)
+  const durA = getQuotaWindowDuration(a);
+  const durB = getQuotaWindowDuration(b);
+  if (durA !== durB) {
+    return durA - durB;
+  }
+
+  // 2. 如果时间一致，则根据字母升序排序
+  const labelA = a.fullLabel || a.labelSuffix || a.group || a.id;
+  const labelB = b.fullLabel || b.labelSuffix || b.group || b.id;
+  const comp = labelA.localeCompare(labelB);
+  if (comp !== 0) return comp;
+
   return a.id.localeCompare(b.id);
 }
 
@@ -119,70 +145,32 @@ function summarizeQuotaBuckets(
     else buckets.set(key, { group: window.group, members: [window] });
   }
   return Array.from(buckets.values(), ({ group, members }) => {
-    const sorted = [...members].sort(compareRepWindows);
+    const sorted = [...members].sort(compareQuotaWindows);
     const rep = sorted[0];
-    const rest = members.filter((window) => window !== rep);
+    const rest = sorted.slice(1);
     return { group, rep, rest };
   });
 }
 
 // Groups projected windows by their backend pool name and picks each pool's
-// representative window. Group order follows first appearance so backend
-// ordering (e.g. antigravity Gemini before Claude/GPT) is preserved.
+// representative (shortest duration) window.
 export function summarizeQuotaGroups(windows: QuotaWindowItem[]): QuotaGroupSummary[] {
   return summarizeQuotaBuckets(windows, (window) => window.group ?? `\u0000${window.id}`);
 }
 
-// An exact 5h + 7d pair in one pool keeps both windows visible in the
-// credential table, regardless of provider. Other shapes stay summarized.
-// Pool-first ordering keeps one bar per pool inside the summary cell's two
-// inline slots: each split pool's representative (tightest window) ranks
-// before its sibling window.
+// All quota windows ordered by duration (shortest first) and alphabet.
+// Each window surfaces as an inline slot (up to 2), with any surplus windows
+// routed into the +x overflow popover.
 export function summarizeCredentialQuotaGroups(
   windows: QuotaWindowItem[],
-  _provider: string
+  _provider?: string
 ): QuotaGroupSummary[] {
-
-  const windowsByGroup = new Map<string, QuotaWindowItem[]>();
-  for (const window of windows) {
-    if (!window.group) continue;
-    const members = windowsByGroup.get(window.group) ?? [];
-    members.push(window);
-    windowsByGroup.set(window.group, members);
-  }
-  const fiveHours = 5 * 60 * 60;
-  const sevenDays = 7 * 24 * 60 * 60;
-  const splitGroups = new Set(
-    Array.from(windowsByGroup.entries())
-      .filter(([, members]) =>
-        members.length === 2 &&
-        members.some((window) => window.periodSeconds === fiveHours) &&
-        members.some((window) => window.periodSeconds === sevenDays)
-      )
-      .map(([group]) => group)
-  );
-  if (splitGroups.size === 0) return summarizeQuotaGroups(windows);
-
-  const summaries = summarizeQuotaBuckets(windows, (window) => {
-    if (window.group && splitGroups.has(window.group)) {
-      return `${window.group}\u0000${window.periodSeconds}`;
-    }
-    return window.group ?? `\u0000${window.id}`;
-  });
-  const rankWithinPool = new Map<QuotaWindowItem, number>();
-  for (const group of splitGroups) {
-    [...(windowsByGroup.get(group) ?? [])]
-      .sort(compareRepWindows)
-      .forEach((window, index) => rankWithinPool.set(window, index));
-  }
-  return summaries
-    .map((summary, index) => ({ summary, index }))
-    .sort((left, right) => {
-      const rankDelta =
-        (rankWithinPool.get(left.summary.rep) ?? 0) - (rankWithinPool.get(right.summary.rep) ?? 0);
-      return rankDelta !== 0 ? rankDelta : left.index - right.index;
-    })
-    .map(({ summary }) => summary);
+  const sorted = [...windows].sort(compareQuotaWindows);
+  return sorted.map((window) => ({
+    group: window.group,
+    rep: window,
+    rest: [],
+  }));
 }
 
 // Short chip labels for known backend pools. Brand names are locale-neutral,

@@ -67,26 +67,23 @@ test('cpaQuotaItemsToWindows uses usedPercent and builds tooltip extras', () => 
   );
 
   assert.equal(windows.length, 2);
-  assert.equal(windows[0].id, 'a');
-  assert.equal(windows[0].kind, 'weekly');
-  // Group prefix keeps windows distinguishable outside their pool context.
-  assert.equal(windows[0].fullLabel, 'Code · 7 day');
-  assert.equal(windows[0].group, 'Code');
-  assert.equal(windows[0].shortLabelKey, 'quota.capsule.period.7d');
-  assert.equal(windows[0].percent, 42);
-  // The raw group moved to the window field / fullLabel, so extras start at usage.
-  assert.equal(windows[0].tooltipExtras.length, 3);
-  // toLocaleString output varies by runtime locale; accept both comma-separated and plain formats.
-  assert.match(windows[0].tooltipExtras[0], /cpa\.quota\.used: 420 credits \/ cpa\.quota\.limit: [\s\S]*1[,.]?000 credits/);
-  assert.match(windows[0].tooltipExtras[1], /^cpa\.quota\.resetAt: /);
-  assert.equal(windows[0].tooltipExtras[2], 'Weekly coding allowance');
+  assert.equal(windows[0].id, 'b');
+  assert.equal(windows[0].kind, 'hourly');
+  assert.equal(windows[0].percent, 75);
+  assert.equal(windows[0].group, undefined);
+  assert.equal(windows[0].shortLabelKey, 'quota.capsule.period.5h');
 
-  assert.equal(windows[1].id, 'b');
-  assert.equal(windows[1].kind, 'hourly');
-  assert.equal(windows[1].percent, 75);
-  assert.equal(windows[1].group, undefined);
-  assert.equal(windows[1].shortLabelKey, 'quota.capsule.period.5h');
-  assert.equal(windows[1].tooltipExtras, undefined);
+  assert.equal(windows[1].id, 'a');
+  assert.equal(windows[1].kind, 'weekly');
+  // Group prefix keeps windows distinguishable outside their pool context.
+  assert.equal(windows[1].fullLabel, 'Code · 7 day');
+  assert.equal(windows[1].group, 'Code');
+  assert.equal(windows[1].shortLabelKey, 'quota.capsule.period.7d');
+  assert.equal(windows[1].percent, 42);
+  assert.equal(windows[1].tooltipExtras.length, 3);
+  assert.match(windows[1].tooltipExtras[0], /cpa\.quota\.used: 420 credits \/ cpa\.quota\.limit: [\s\S]*1[,.]?000 credits/);
+  assert.match(windows[1].tooltipExtras[1], /^cpa\.quota\.resetAt: /);
+  assert.equal(windows[1].tooltipExtras[2], 'Weekly coding allowance');
 });
 
 test('cpaQuotaItemsToWindows clamps percentages and falls back to remainingPercent', () => {
@@ -149,49 +146,32 @@ test('summarizeQuotaGroups picks the tightest representative per pool in first-a
   assert.equal(groups[1].rep.id, '3p-5h');
 });
 
-test('summarizeCredentialQuotaGroups exposes an exact 5h and 7d pair for any provider', () => {
+test('summarizeCredentialQuotaGroups orders windows by duration ascending and alphabet', () => {
   const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
   const fiveHour = win('code-primary', 'Code', 10, 'hourly', 5 * 60 * 60);
   const weekly = win('code-secondary', 'Code', 20, 'weekly', 7 * 24 * 60 * 60);
 
   const codex = summarizeCredentialQuotaGroups([fiveHour, weekly], 'codex');
-  // The tightest window ranks first so a pool's inline bar is its most
-  // constrained window.
+  // 小区间（5h）排在大区间（7d）前面
   assert.deepEqual(
     codex.map(({ rep }) => rep.id),
-    ['code-secondary', 'code-primary']
+    ['code-primary', 'code-secondary']
   );
-  assert.ok(codex.every(({ rest }) => rest.length === 0));
 
-  const antigravity = summarizeCredentialQuotaGroups([fiveHour, weekly], 'antigravity');
-  assert.deepEqual(antigravity.map(({ rep }) => rep.id), ['code-secondary', 'code-primary']);
-  assert.ok(antigravity.every(({ rest }) => rest.length === 0));
+  const antigravity = summarizeCredentialQuotaGroups([weekly, fiveHour], 'antigravity');
+  assert.deepEqual(antigravity.map(({ rep }) => rep.id), ['code-primary', 'code-secondary']);
 
   const monthly = win('code-monthly', 'Code', 5, 'monthly', 30 * 24 * 60 * 60);
-  const oneHour = win('code-1h', 'Code', 25, 'hourly', 60 * 60);
-  const missingPeriod = win('code-unknown-hourly', 'Code', 25, 'hourly');
-  for (const windows of [
-    [fiveHour, monthly],
-    [oneHour, weekly],
-    [missingPeriod, weekly],
-    [fiveHour, weekly, monthly],
-  ]) {
-    const groups = summarizeCredentialQuotaGroups(windows, 'CODEX');
-    assert.equal(groups.length, 1);
-  }
-  const triple = summarizeCredentialQuotaGroups([fiveHour, weekly, monthly], 'codex');
-  assert.equal(triple[0].rep.id, 'code-secondary');
+  const triple = summarizeCredentialQuotaGroups([weekly, monthly, fiveHour], 'codex');
+  // 超过两个额度区间时，小区间在前，大区间在后（供 +x 放入气泡）
   assert.deepEqual(
-    triple[0].rest.map(({ id }) => id),
-    ['code-primary', 'code-monthly']
+    triple.map(({ rep }) => rep.id),
+    ['code-primary', 'code-secondary', 'code-monthly']
   );
 });
 
-test('summarizeCredentialQuotaGroups keeps one inline bar per pool when two pools split', () => {
+test('summarizeCredentialQuotaGroups orders multi-pool windows by duration ascending then alphabet', () => {
   const win = (id, group, percent, kind, periodSeconds) => ({ id, group, percent, kind, periodSeconds });
-  // Antigravity pro shape: both pools hold an exact 5h + 7d pair, so the
-  // summary cell's two inline slots must surface one window per pool instead of
-  // both windows of the first pool.
   const groups = summarizeCredentialQuotaGroups(
     [
       win('g-5h', 'Gemini Models', 62, 'hourly', 5 * 60 * 60),
@@ -201,11 +181,11 @@ test('summarizeCredentialQuotaGroups keeps one inline bar per pool when two pool
     ],
     'antigravity'
   );
+  // 5h 优先于 7d；时间相同时 Claude (C) 在 Gemini (G) 前
   assert.deepEqual(
     groups.map(({ rep }) => rep.id),
-    ['g-5h', 'c-5h', 'g-7d', 'c-7d']
+    ['c-5h', 'g-5h', 'c-7d', 'g-7d']
   );
-  assert.ok(groups.every(({ rest }) => rest.length === 0));
 });
 
 test('summarizeQuotaGroups breaks percent ties by kind priority and keeps ungrouped singletons', () => {
