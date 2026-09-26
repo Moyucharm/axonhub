@@ -323,7 +323,7 @@ func (svc *CPAService) applyQuotaEstimate(ctx context.Context, credential *ent.C
 				)
 			}
 		}
-		carryForwardCodexQuotaEstimate(item, previous, collectorSessionID, intervalReanchored)
+		carryForwardCodexQuotaEstimate(item, previous, intervalReanchored)
 		estimate := svc.estimateCredentialQuotaForItem(ctx, credential.CpaInstanceID, credential.AuthIndex, item, credential.QuotaObserved)
 		if estimate == nil {
 			continue

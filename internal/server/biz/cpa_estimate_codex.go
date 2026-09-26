@@ -11,12 +11,23 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
+// cpaQuotaResetTolerance absorbs the small drift of a provider-reported window
+// boundary. Upstream reports a floating reset until usage anchors a window, and
+// AxonHub reads the same boundary from two independent sources (usage response
+// headers and the quota snapshot), so exact-second equality re-anchored healthy
+// intervals. The value stays far below the shortest estimable window (7 days).
+const cpaQuotaResetTolerance = 5 * time.Minute
+
 type codexWeeklyObservation struct {
 	collectorSessionID string
 	eventID            int
 	usedPercent        float64
 	resetAt            time.Time
 	observedAt         time.Time
+	// durationVerified records whether the sample carried an explicit 7d window
+	// duration, which is what distinguishes the weekly window from a 5h window
+	// in the same wire slot. It is never persisted.
+	durationVerified bool
 }
 
 // observeCodexUsageIntervals advances the precise 7d observation interval from
@@ -61,6 +72,12 @@ func (repository *cpaUsageRepository) observeCodexUsageIntervals(ctx context.Con
 		observed := credential.QuotaObserved
 		reanchored := false
 		for _, observation := range byCredential[credential.ID] {
+			if !observation.durationVerified && !codexWeeklyResetConfirmed(credential.QuotaData, observation.resetAt) {
+				// A duration-less legacy sample cannot tell the 5h window from
+				// the 7d window, so only a snapshot that reports the same reset
+				// as its 7d window makes it trustworthy.
+				continue
+			}
 			var changed bool
 			observed, changed = advanceCodexWeeklyObservation(observed, observation)
 			reanchored = reanchored || changed
@@ -115,6 +132,7 @@ func parseCodexWeeklyObservation(sessionID string, eventID int, event interface 
 			continue
 		}
 		if observation, ok := parseCodexWeeklyWindowObservation(sessionID, eventID, prefix, event); ok {
+			observation.durationVerified = true
 			return observation, true
 		}
 	}
@@ -149,6 +167,23 @@ func parseCodexWeeklyWindowObservation(sessionID string, eventID int, prefix str
 	}, true
 }
 
+// codexWeeklyResetConfirmed reports whether the credential's current quota
+// snapshot already identifies this reset as its 7d window. Duration-less legacy
+// records cannot tell the 5h window from the 7d window, so an ambiguous sample
+// is only trusted when the snapshot agrees.
+func codexWeeklyResetConfirmed(snapshot objects.CPAQuotaSnapshot, resetAt time.Time) bool {
+	for index := range snapshot.Items {
+		item := &snapshot.Items[index]
+		if item.PeriodSeconds == nil || *item.PeriodSeconds != cpaWeeklyPeriodSeconds || item.ResetAt == nil {
+			continue
+		}
+		if sameQuotaReset(*item.ResetAt, resetAt) {
+			return true
+		}
+	}
+	return false
+}
+
 func advanceCodexWeeklyObservation(
 	observed objects.CPAQuotaObserved,
 	next codexWeeklyObservation,
@@ -165,12 +200,14 @@ func advanceCodexWeeklyObservation(
 		baselineEventID := next.eventID
 		latestPercent := next.usedPercent
 		latestEventID := next.eventID
+		checkpointEventID := next.eventID
 		resetAt := next.resetAt
 		observed.SecondaryCollectorSessionID = next.collectorSessionID
 		observed.SecondaryBaselineUsedPercent = &baselinePercent
 		observed.SecondaryBaselineEventID = &baselineEventID
 		observed.SecondaryUsedPercent = &latestPercent
 		observed.SecondaryLatestEventID = &latestEventID
+		observed.SecondaryCheckpointEventID = &checkpointEventID
 		observed.SecondaryResetAt = &resetAt
 		observed.ObservedAt = &next.observedAt
 		return observed, true
@@ -179,12 +216,21 @@ func advanceCodexWeeklyObservation(
 	// Event IDs are the durable interval boundary. A replayed or out-of-order
 	// usage event must not look like a new quota window and clear a valid
 	// estimate.
-	if next.eventID <= *observed.SecondaryLatestEventID {
+	checkpointEventID := observed.SecondaryCheckpointEventID
+	if checkpointEventID == nil {
+		// Rows written before this field existed stored the newest event in
+		// SecondaryLatestEventID, even when that sample had a lower percentage.
+		// Until a sample at or above the high-water arrives, such a row's
+		// interval end can therefore sit on a regressed sample and read a little
+		// low; the pairing is not recoverable and heals on the next high-water
+		// sample.
+		checkpointEventID = observed.SecondaryLatestEventID
+	}
+	if next.eventID <= *checkpointEventID {
 		return observed, false
 	}
-
-	latestEventID := next.eventID
-	observed.SecondaryLatestEventID = &latestEventID
+	newCheckpointEventID := next.eventID
+	observed.SecondaryCheckpointEventID = &newCheckpointEventID
 	observed.ObservedAt = &next.observedAt
 	// The 7d reset timestamp is the authoritative window boundary. A lower
 	// percentage with the same reset is a non-monotonic provider sample (for
@@ -196,7 +242,9 @@ func advanceCodexWeeklyObservation(
 	}
 
 	latestPercent := next.usedPercent
+	latestEventID := next.eventID
 	observed.SecondaryUsedPercent = &latestPercent
+	observed.SecondaryLatestEventID = &latestEventID
 	return observed, false
 }
 
@@ -297,6 +345,43 @@ func codexRefreshEstimateIntervalDecision(item *objects.CPAQuotaItem) codexEstim
 	}}
 }
 
+// sameQuotaPeriod reports whether two quota items describe the same window period.
+func sameQuotaPeriod(left, right *objects.CPAQuotaItem) bool {
+	return left != nil && right != nil &&
+		left.PeriodSeconds != nil && right.PeriodSeconds != nil &&
+		*left.PeriodSeconds == *right.PeriodSeconds
+}
+
+// sameCodexEstimateWindow reports whether two quota items describe the same
+// estimation window: same wire slot or same resource group, plus the same period
+// and reset boundary. The id encodes the upstream wire slot, and a dynamic
+// window can move between slots; the group label can be renamed by the provider
+// (additional limits take it from `limit_name`), so either identity anchor is
+// accepted. Cross-group pairs still cannot match, because that would require two
+// different slot ids to be equal.
+func sameCodexEstimateWindow(left, right *objects.CPAQuotaItem) bool {
+	return left != nil && right != nil &&
+		(left.ID == right.ID || left.Group == right.Group) &&
+		sameQuotaPeriod(left, right) &&
+		left.ResetAt != nil && right.ResetAt != nil && sameQuotaReset(*left.ResetAt, *right.ResetAt)
+}
+
+// adoptCodexQuotaInterval carries a still-current window's interval metadata and
+// last-known estimate when this refresh has no fresh observation to advance it
+// (no live collector checkpoint, or a snapshot without a usable percentage). It
+// reports whether the interval must be treated as re-anchored.
+func adoptCodexQuotaInterval(item, previous *objects.CPAQuotaItem) bool {
+	if !sameCodexEstimateWindow(item, previous) {
+		clearCodexEstimateInterval(item)
+		return true
+	}
+	item.EstimateCollectorSessionID = previous.EstimateCollectorSessionID
+	item.EstimateBaselineUsedPercent = previous.EstimateBaselineUsedPercent
+	item.EstimateBaselineEventID = previous.EstimateBaselineEventID
+	item.EstimateLatestEventID = previous.EstimateLatestEventID
+	return false
+}
+
 func prepareCodexWeeklyInterval(
 	item *objects.CPAQuotaItem,
 	previous *objects.CPAQuotaItem,
@@ -304,8 +389,17 @@ func prepareCodexWeeklyInterval(
 	collectorSessionID string,
 ) bool {
 	if item == nil || item.ResetAt == nil || item.PeriodSeconds == nil ||
-		*item.PeriodSeconds != cpaWeeklyPeriodSeconds || collectorSessionID == "" ||
-		observed.SecondaryCollectorSessionID != collectorSessionID ||
+		*item.PeriodSeconds != cpaWeeklyPeriodSeconds {
+		clearCodexEstimateInterval(item)
+		return true
+	}
+	if collectorSessionID == "" {
+		// No live collector checkpoint: the observation cannot advance, so the
+		// durable metadata in quota_data is the only interval state. Keep it
+		// instead of discarding a window that is still current.
+		return adoptCodexQuotaInterval(item, previous)
+	}
+	if observed.SecondaryCollectorSessionID != collectorSessionID ||
 		observed.SecondaryBaselineUsedPercent == nil || observed.SecondaryBaselineEventID == nil ||
 		observed.SecondaryUsedPercent == nil || observed.SecondaryLatestEventID == nil ||
 		observed.SecondaryResetAt == nil || !sameQuotaReset(*item.ResetAt, *observed.SecondaryResetAt) {
@@ -313,10 +407,10 @@ func prepareCodexWeeklyInterval(
 		return true
 	}
 
-	reanchored := previous == nil || previous.EstimateCollectorSessionID != collectorSessionID ||
+	reanchored := !sameCodexEstimateWindow(item, previous) ||
+		previous.EstimateCollectorSessionID != collectorSessionID ||
 		previous.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineEventID == nil ||
-		previous.EstimateLatestEventID == nil || previous.ResetAt == nil ||
-		!sameQuotaReset(*previous.ResetAt, *item.ResetAt) ||
+		previous.EstimateLatestEventID == nil ||
 		*previous.EstimateBaselineUsedPercent != *observed.SecondaryBaselineUsedPercent ||
 		*previous.EstimateBaselineEventID != *observed.SecondaryBaselineEventID ||
 		*observed.SecondaryLatestEventID < *previous.EstimateLatestEventID
@@ -337,15 +431,23 @@ func prepareCodexMonthlyInterval(
 	collectorSessionID string,
 	latestEventID int,
 ) bool {
-	if item == nil || item.UsedPercent == nil || item.ResetAt == nil || collectorSessionID == "" {
-		clearCodexEstimateInterval(item)
-		return true
+	if item == nil || item.UsedPercent == nil || item.ResetAt == nil || collectorSessionID == "" || latestEventID <= 0 {
+		// No usable sample for this refresh: keep the previous window state
+		// instead of clearing a window that has not moved. A non-positive
+		// checkpoint event id cannot anchor an interval: it would turn the
+		// interval into "all events of the cycle" while the baseline percentage
+		// still measures only usage after this refresh.
+		return adoptCodexQuotaInterval(item, previous)
 	}
-	reanchor := previous == nil || previous.UsedPercent == nil || previous.ResetAt == nil ||
+	// A percentage that fell a full threshold below the anchor is a real reset
+	// or grant, not provider rounding; sub-threshold movement must not restart a
+	// long local interval. A non-positive recorded baseline event id is a legacy
+	// anchor written before this distinction existed and must be re-anchored.
+	reanchor := previous == nil || !sameCodexEstimateWindow(item, previous) ||
 		previous.EstimateCollectorSessionID != collectorSessionID ||
-		previous.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineEventID == nil ||
-		!sameQuotaReset(*previous.ResetAt, *item.ResetAt) ||
-		*item.UsedPercent < *previous.UsedPercent ||
+		previous.EstimateBaselineUsedPercent == nil ||
+		previous.EstimateBaselineEventID == nil || *previous.EstimateBaselineEventID <= 0 ||
+		*item.UsedPercent+cpaEstimateMinPercentDelta <= *previous.EstimateBaselineUsedPercent ||
 		latestEventID < *previous.EstimateBaselineEventID
 	if reanchor {
 		baselinePercent := *item.UsedPercent
@@ -365,20 +467,20 @@ func prepareCodexMonthlyInterval(
 	return false
 }
 
+// carryForwardCodexQuotaEstimate keeps the last known estimate of a window that
+// this refresh cannot recompute. Callers must pass items filtered to 7d or
+// 28-31d windows (see estimateWindowItems); the period is otherwise only checked
+// for equality, and a 5h window has no estimate contract.
 func carryForwardCodexQuotaEstimate(
 	item *objects.CPAQuotaItem,
 	previous *objects.CPAQuotaItem,
-	collectorSessionID string,
 	intervalReanchored bool,
 ) {
-	if item == nil || previous == nil || intervalReanchored || collectorSessionID == "" ||
+	if item == nil || previous == nil || intervalReanchored ||
 		previous.EstimatedLimitUSD == nil || previous.EstimatedCostUSD == nil ||
-		item.PeriodSeconds == nil || previous.PeriodSeconds == nil ||
-		*item.PeriodSeconds != *previous.PeriodSeconds || item.ResetAt == nil || previous.ResetAt == nil ||
-		!sameQuotaReset(*item.ResetAt, *previous.ResetAt) ||
-		!isEstimableCodexQuotaPeriod(*item.PeriodSeconds) ||
-		item.EstimateCollectorSessionID != collectorSessionID ||
-		previous.EstimateCollectorSessionID != collectorSessionID ||
+		!sameCodexEstimateWindow(item, previous) ||
+		item.EstimateCollectorSessionID == "" ||
+		item.EstimateCollectorSessionID != previous.EstimateCollectorSessionID ||
 		item.EstimateBaselineUsedPercent == nil || previous.EstimateBaselineUsedPercent == nil ||
 		*item.EstimateBaselineUsedPercent != *previous.EstimateBaselineUsedPercent ||
 		item.EstimateBaselineEventID == nil || previous.EstimateBaselineEventID == nil ||
@@ -395,10 +497,6 @@ func carryForwardCodexQuotaEstimate(
 	item.EstimateSource = previous.EstimateSource
 }
 
-func isEstimableCodexQuotaPeriod(period int) bool {
-	return period == cpaWeeklyPeriodSeconds || isMonthlyQuotaPeriod(period)
-}
-
 func clearCodexEstimateInterval(item *objects.CPAQuotaItem) {
 	if item == nil {
 		return
@@ -409,17 +507,28 @@ func clearCodexEstimateInterval(item *objects.CPAQuotaItem) {
 	item.EstimateLatestEventID = nil
 }
 
+// previousQuotaItem returns the previous snapshot's counterpart of the same
+// window. The window identity decides, and an id match only wins among
+// candidates that describe the same window, so a slot that changed window does
+// not shadow the window that migrated into another slot.
 func previousQuotaItem(snapshot objects.CPAQuotaSnapshot, current *objects.CPAQuotaItem) *objects.CPAQuotaItem {
 	if current == nil {
 		return nil
 	}
+	var sameWindow *objects.CPAQuotaItem
 	for index := range snapshot.Items {
 		candidate := &snapshot.Items[index]
+		if !sameCodexEstimateWindow(candidate, current) {
+			continue
+		}
 		if candidate.ID == current.ID {
 			return candidate
 		}
+		if sameWindow == nil {
+			sameWindow = candidate
+		}
 	}
-	return nil
+	return sameWindow
 }
 
 func isMonthlyQuotaPeriod(period int) bool {
@@ -439,8 +548,12 @@ func parseHeaderUnixTime(raw string) *time.Time {
 	return &parsed
 }
 
+// sameQuotaReset reports whether two observations describe the same window
+// boundary. Provider reset timestamps drift by seconds between the usage
+// response headers and the quota snapshot, and an unanchored window reports a
+// floating reset, so a small tolerance keeps one window from looking like two.
 func sameQuotaReset(left, right time.Time) bool {
-	return left.Unix() == right.Unix()
+	return left.Sub(right).Abs() <= cpaQuotaResetTolerance
 }
 
 func absFloat64(value float64) float64 {

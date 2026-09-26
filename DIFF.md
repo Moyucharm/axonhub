@@ -257,6 +257,19 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **渠道列表凭据与冷却字段**（`5a949f07`）：渠道列表基础查询补齐 `credentials` 与 `cooldownUntil`/`cooldownErrorCode`/`cooldownErrorMessage`，使列表视图的 Key Pool 状态与冷却徽标有数据。
 - **OpenCode Zen 渠道 Chat 格式选择**：创建或编辑渠道时，前端为当前支持的模型显式保存所选的 Chat、Responses 或 Messages 格式；原先选择 Chat 会清除协议设置，使 Responses/Messages 客户端按入站格式直连错误的上游端点。已有 Chat 渠道需重新保存一次以写入明确的协议设置；不按模型名称写死出站格式。
 
+### 3.16 Codex 周/月额度估算的窗口身份漂移与区间保留
+
+修复 CPA Codex 凭据的周/月额度美元估算在同一周期内反复丢失的问题；上一轮的 collector identity 与 high-water 基线保持不动，本次收紧窗口身份与区间继承的判定。
+
+- **窗口边界容忍漂移**：`sameQuotaReset` 由秒级完全相等改为 5 分钟容忍（`cpaQuotaResetTolerance`，与自用 CPA 插件的 reset 归一桶一致）。上游对未锚定窗口报浮动 reset，且同一 7d 窗口来自 usage 响应头与 WHAM 快照两个来源，秒级漂移不再把同一窗口判成新周期、不再重置 baseline 与 `estimate_*`。
+- **无 duration 的旧记录需快照确认**：legacy `x-codex-secondary-*` 形态无法区分 5h 与 7d，只有在凭证快照里存在同 reset 的 7d 窗口时才被采纳，消除 5h 重置改写 7d 观测的路径。
+- **无观测时保留区间而非清空**：usage stream 关闭、worker 未运行、月度 `used_percent` 缺失或 collector 尚未落任何事件（checkpoint event id 为 0，此前会以 0 为锚点算出偏高的金额）时，同窗口的 `estimate_*` 与最后一次 `estimated_*` 继续保留；以 0 为锚点的历史行在下次刷新自愈重锚。只有真实换代才清空。
+- **月度区间容忍百分比抖动**：只有跌幅满 3 点（真实重置或 grant）才重锚，上游取整造成的 1–3 点回退只推进区间端点；同时补齐 group/period/reset 一致性判断。
+- **区间端点只跟随 high-water 采样**：新增 `quota_observed.secondary_checkpoint_event_id`（JSON 字段，无 Ent schema/生成代码变更）记录最新已持久化事件用于拒绝重放/乱序；`secondary_latest_event_id` 恢复为「区间末端」语义，回退样本不再让其前进，同一窗口内估算金额不再持续变小。
+- **`previous` 与继承按窗口身份判定**：窗口身份 = 同槽位 id **或**同资源组，再叠加同周期与同 reset；槽位迁移（窗口换 wire slot）与上游改名（additional limit 的 `limit_name` 变化会让 Group 变而 id 不变）都能沿用同窗口前值并继承金额，同时不同组之间不会互串。collector identity 轮换、真实 reset、真实 grant 依旧清空并从新周期重新出现。不改 GraphQL 契约、3% 本地区间与定价覆盖率保护。
+
+对应决策记录：[Codex CPA 周/月额度估算的窗口身份与区间保留](.agents/notes/implemented/bug-fix/2026-09-25-cpa-estimate-window-identity.md)。本次仅修复行为与持久化兼容，不单独修改版本号、tag 或发布基线。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
 本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。

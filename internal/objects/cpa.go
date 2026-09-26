@@ -96,6 +96,11 @@ type CPAQuotaObserved struct {
 	SecondaryLatestEventID       *int       `json:"secondary_latest_event_id,omitempty"`
 	SecondaryResetAt             *time.Time `json:"secondary_reset_at,omitempty"`
 	ObservedAt                   *time.Time `json:"observed_at,omitempty"`
+	// SecondaryCheckpointEventID is the newest persisted usage event seen in
+	// this interval. It only guards against replayed or out-of-order events;
+	// SecondaryLatestEventID is the interval end, i.e. the sample that produced
+	// the current high-water percentage.
+	SecondaryCheckpointEventID *int `json:"secondary_checkpoint_event_id,omitempty"`
 }
 
 // CPAQuotaContext contains the minimum non-token metadata needed by quota adapters.

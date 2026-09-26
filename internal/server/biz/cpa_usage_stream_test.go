@@ -168,7 +168,10 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	event := func(percent string, offset time.Duration) *cpaclient.UsageEvent {
 		return eventForSlot("secondary", percent, offset)
 	}
-	svc := newCPAServiceForTest(client, nil)
+	// The collector throttles redundant observation writes to one per minute, so
+	// the regression sample below needs a clock that has moved on.
+	currentTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	svc := newCPAServiceForTest(client, func() time.Time { return currentTime })
 	sessionA := &usageCollectorSession{id: "session-a"}
 	sessionB := &usageCollectorSession{id: "session-b"}
 	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
@@ -193,7 +196,7 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	require.InDelta(t, 12.0, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
 
 	_, sessionALatest := sessionA.checkpoint("auth-1")
-	require.Equal(t, *loaded.QuotaObserved.SecondaryLatestEventID, sessionALatest)
+	require.Equal(t, *loaded.QuotaObserved.SecondaryCheckpointEventID, sessionALatest)
 
 	// A process restart recreates the in-memory session but reuses the
 	// persisted collector identity, so the local interval continues.
@@ -230,6 +233,8 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	// A same-reset lower percentage is a non-monotonic sample, not proof that
 	// the 7d window reset. Keep the local high-water baseline so a 5h reset
 	// cannot clear the 7d estimate.
+	highWaterEventID := *loaded.QuotaObserved.SecondaryLatestEventID
+	currentTime = currentTime.Add(2 * time.Minute)
 	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
 		{instanceID: instance.ID, session: sessionB, event: event("4.8", 3*time.Minute)},
 	}))
@@ -237,6 +242,57 @@ func TestPersistUsageEventsTracksCodexCollectorInterval(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, 61.7, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
 	require.InDelta(t, 61.7, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
+	_, sessionBLatest := sessionB.checkpoint("auth-1")
+	require.Equal(t, sessionBLatest, *loaded.QuotaObserved.SecondaryCheckpointEventID)
+	require.Equal(t, highWaterEventID, *loaded.QuotaObserved.SecondaryLatestEventID,
+		"the persisted interval end must stay on the high-water sample")
+	require.Less(t, *loaded.QuotaObserved.SecondaryLatestEventID, *loaded.QuotaObserved.SecondaryCheckpointEventID)
+}
+
+func TestAdvanceCodexWeeklyObservationUpgradesLegacyCheckpoint(t *testing.T) {
+	resetAt := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
+	baselinePercent := 6.4
+	highWaterPercent := 9.8
+	baselineEventID := 10
+	highWaterEventID := 15
+	// A row written before secondary_checkpoint_event_id existed stored the
+	// newest event in SecondaryLatestEventID.
+	observed := objects.CPAQuotaObserved{
+		SecondaryCollectorSessionID:  "session-a",
+		SecondaryBaselineUsedPercent: &baselinePercent,
+		SecondaryBaselineEventID:     &baselineEventID,
+		SecondaryUsedPercent:         &highWaterPercent,
+		SecondaryLatestEventID:       &highWaterEventID,
+		SecondaryResetAt:             &resetAt,
+	}
+
+	// The newest event of that legacy row is already recorded, so replaying it
+	// must not change the interval at all.
+	replayed, replayedReanchored := advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
+		collectorSessionID: "session-a",
+		eventID:            highWaterEventID,
+		usedPercent:        highWaterPercent,
+		resetAt:            resetAt,
+		observedAt:         resetAt.Add(-time.Minute),
+	})
+	require.False(t, replayedReanchored)
+	require.Nil(t, replayed.SecondaryCheckpointEventID, "a replayed legacy event must not be recorded")
+	require.Equal(t, highWaterEventID, *replayed.SecondaryLatestEventID)
+
+	// A newer sample with a lower percentage advances only the checkpoint.
+	regressedEventID := highWaterEventID + 1
+	regressed := 4.2
+	advanced, advancedReanchored := advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
+		collectorSessionID: "session-a",
+		eventID:            regressedEventID,
+		usedPercent:        regressed,
+		resetAt:            resetAt,
+		observedAt:         resetAt.Add(-30 * time.Second),
+	})
+	require.False(t, advancedReanchored)
+	require.Equal(t, regressedEventID, *advanced.SecondaryCheckpointEventID)
+	require.Equal(t, highWaterEventID, *advanced.SecondaryLatestEventID)
+	require.InDelta(t, highWaterPercent, *advanced.SecondaryUsedPercent, 1e-9)
 }
 
 func TestUsageCollectorCheckpointIsSessionAndCredentialScoped(t *testing.T) {
@@ -284,6 +340,7 @@ func TestAdvanceCodexWeeklyObservationMaintainsWindowBoundaries(t *testing.T) {
 	require.True(t, reanchored)
 	require.InDelta(t, 6.4, *observed.SecondaryBaselineUsedPercent, 1e-9)
 	require.Equal(t, 10, *observed.SecondaryBaselineEventID)
+	require.Equal(t, 10, *observed.SecondaryCheckpointEventID)
 
 	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-a",
@@ -333,9 +390,12 @@ func TestAdvanceCodexWeeklyObservationMaintainsWindowBoundaries(t *testing.T) {
 	require.False(t, reanchored)
 	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
 	require.InDelta(t, 7.2, *observed.SecondaryUsedPercent, 1e-9)
-	require.Equal(t, 22, *observed.SecondaryLatestEventID)
+	require.Equal(t, 21, *observed.SecondaryLatestEventID,
+		"the interval end must stay on the sample that produced the high-water percentage")
+	require.Equal(t, 22, *observed.SecondaryCheckpointEventID)
 
-	// Duplicate or out-of-order events must not re-anchor the interval either.
+	// A replayed or out-of-order event is behind the checkpoint and must not
+	// move either boundary.
 	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
 		collectorSessionID: "session-b",
 		eventID:            21,
@@ -345,7 +405,127 @@ func TestAdvanceCodexWeeklyObservationMaintainsWindowBoundaries(t *testing.T) {
 	})
 	require.False(t, reanchored)
 	require.InDelta(t, 7.2, *observed.SecondaryBaselineUsedPercent, 1e-9)
-	require.Equal(t, 22, *observed.SecondaryLatestEventID)
+	require.Equal(t, 21, *observed.SecondaryLatestEventID)
+	require.Equal(t, 22, *observed.SecondaryCheckpointEventID)
+
+	// Provider percentages are rounded, so an equal sample still extends the
+	// interval end while the checkpoint keeps moving.
+	observed, reanchored = advanceCodexWeeklyObservation(observed, codexWeeklyObservation{
+		collectorSessionID: "session-b",
+		eventID:            23,
+		usedPercent:        7.2,
+		resetAt:            activityReset,
+		observedAt:         resetAt.Add(-3 * time.Minute),
+	})
+	require.False(t, reanchored)
+	require.Equal(t, 23, *observed.SecondaryLatestEventID)
+	require.Equal(t, 23, *observed.SecondaryCheckpointEventID)
+}
+
+func TestLegacyCodexWeeklySignalRequiresSnapshotConfirmation(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_legacy_weekly?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	instance, err := client.CPAInstance.Create().
+		SetName("legacy-weekly").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		Save(ctx)
+	require.NoError(t, err)
+
+	weeklyReset := time.Date(2026, 8, 24, 13, 5, 35, 0, time.UTC)
+	fiveHourReset := weeklyReset.Add(-time.Hour)
+	fiveHourPeriod := 5 * 60 * 60
+	weeklyPeriod := cpaWeeklyPeriodSeconds
+	fiveHourUsed := 80.0
+	weeklyUsed := 16.0
+	credential, err := client.CPACredential.Create().
+		SetCpaInstanceID(instance.ID).
+		SetExternalKey("credential-1").
+		SetAuthIndex("auth-1").
+		SetRemoteName("codex.json").
+		SetDisplayName("codex.json").
+		SetProvider("codex").
+		SetQuotaData(objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{
+			{
+				ID:            "code-primary",
+				Group:         "Code",
+				UsedPercent:   &fiveHourUsed,
+				ResetAt:       &fiveHourReset,
+				PeriodSeconds: &fiveHourPeriod,
+			},
+			{
+				ID:            "code-secondary",
+				Group:         "Code",
+				UsedPercent:   &weeklyUsed,
+				ResetAt:       &weeklyReset,
+				PeriodSeconds: &weeklyPeriod,
+			},
+		}}).
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := newCPAServiceForTest(client, nil)
+	session := newUsageCollectorSession("session-a", nil)
+	legacy := func(percent string, resetAt time.Time, offset time.Duration) *cpaclient.UsageEvent {
+		return &cpaclient.UsageEvent{
+			Timestamp: weeklyReset.Add(-time.Hour + offset),
+			AuthIndex: "auth-1",
+			Provider:  "codex",
+			Model:     "gpt-5.2",
+			Tokens:    cpaclient.UsageEventTokens{InputTokens: 10},
+			ResponseHeaders: map[string]any{
+				"x-codex-secondary-used-percent": percent,
+				"x-codex-secondary-reset-at":     strconv.FormatInt(resetAt.Unix(), 10),
+			},
+		}
+	}
+
+	// The duration-less shape cannot tell the 5h window from the 7d window, so
+	// the snapshot decides: this sample belongs to the 5h window and must not
+	// become the weekly observation.
+	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
+		{instanceID: instance.ID, session: session, event: legacy("80", fiveHourReset, 0)},
+	}))
+	loaded, err := client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.Empty(t, loaded.QuotaObserved.SecondaryCollectorSessionID)
+	require.Nil(t, loaded.QuotaObserved.SecondaryBaselineEventID)
+	require.Nil(t, loaded.QuotaObserved.SecondaryLatestEventID)
+
+	// The same ambiguous shape with the 7d reset is confirmed by the snapshot.
+	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
+		{instanceID: instance.ID, session: session, event: legacy("16", weeklyReset, time.Minute)},
+	}))
+	loaded, err = client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.Equal(t, "session-a", loaded.QuotaObserved.SecondaryCollectorSessionID)
+	require.InDelta(t, 16, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.InDelta(t, 16, *loaded.QuotaObserved.SecondaryUsedPercent, 1e-9)
+	require.Equal(t, weeklyReset, *loaded.QuotaObserved.SecondaryResetAt)
+
+	// An explicit duration is trustworthy on its own: a real window change is
+	// still adopted without snapshot confirmation.
+	shiftedReset := weeklyReset.Add(7 * 24 * time.Hour)
+	shiftedUsed := 2.5
+	require.True(t, svc.persistUsageEvents(ctx, []usageEventEnvelope{
+		{instanceID: instance.ID, session: session, event: &cpaclient.UsageEvent{
+			Timestamp: weeklyReset.Add(2 * time.Minute),
+			AuthIndex: "auth-1",
+			Provider:  "codex",
+			Model:     "gpt-5.2",
+			Tokens:    cpaclient.UsageEventTokens{InputTokens: 10},
+			ResponseHeaders: map[string]any{
+				"x-codex-secondary-used-percent":   "2.5",
+				"x-codex-secondary-window-minutes": "10080",
+				"x-codex-secondary-reset-at":       strconv.FormatInt(shiftedReset.Unix(), 10),
+			},
+		}},
+	}))
+	loaded, err = client.CPACredential.Get(ctx, credential.ID)
+	require.NoError(t, err)
+	require.InDelta(t, shiftedUsed, *loaded.QuotaObserved.SecondaryBaselineUsedPercent, 1e-9)
+	require.Equal(t, shiftedReset, *loaded.QuotaObserved.SecondaryResetAt)
 }
 
 func TestUsageCollectorCheckpointRestoresPersistedEventID(t *testing.T) {
