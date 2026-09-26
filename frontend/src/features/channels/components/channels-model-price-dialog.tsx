@@ -2,22 +2,22 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { useFieldArray, useForm, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { IconCopy, IconDownload, IconPlus, IconTrash, IconUpload } from '@tabler/icons-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { AutoCompleteSelect } from '@/components/auto-complete-select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AutoCompleteSelect } from '@/components/auto-complete-select';
 import { ModelPriceEditor } from '@/components/model-price-editor';
 import { PriceScheduleEditor } from '@/components/price-schedule-editor';
-import { type ProviderModel, type ProvidersData } from '@/features/models/data/providers.schema';
 import { useProvidersData } from '@/features/models/data/providers';
+import { type ProviderModel, type ProvidersData } from '@/features/models/data/providers.schema';
 import { useGeneralSettings } from '@/features/system/data/system';
 import { useChannels } from '../context/channels-context';
 import { useChannelModelPrices, useSaveChannelModelPrices } from '../data/channels';
@@ -28,11 +28,7 @@ import {
   type ModelPrice,
   type SaveChannelModelPriceInput,
 } from '../data/schema';
-import {
-  findCatalogPriceMatch,
-  hasUsableCatalogCost,
-  type CatalogPriceMatchMethod,
-} from '../utils/price-model-match';
+import { findCatalogPriceMatch, hasUsableCatalogCost, type CatalogPriceMatchMethod } from '../utils/price-model-match';
 
 const priceItemCodes = ['prompt_tokens', 'completion_tokens', 'prompt_cached_tokens', 'prompt_write_cached_tokens'] as const;
 const pricingModes = ['flat_fee', 'usage_per_unit', 'usage_tiered', 'usage_volume'] as const;
@@ -440,11 +436,6 @@ type AppliedPriceSource = {
   catalogModelId: string;
 };
 
-type BulkUnmatchedModels = {
-  needsManual: string[];
-  keepCurrent: string[];
-};
-
 const priceMatchMethodLabelKeys: Record<AppliedPriceSource['method'], string> = {
   exact: 'price.apply.method.exact',
   prefix: 'price.apply.method.prefix',
@@ -566,7 +557,7 @@ const PriceCard = memo(function PriceCard({
   priceIndex,
   currencyCode,
   defaultTimezone,
-  sourceLabel,
+  source,
   onAddItem,
   onModelSelected,
   onDuplicatePrice,
@@ -581,8 +572,8 @@ const PriceCard = memo(function PriceCard({
   priceIndex: number;
   currencyCode?: string;
   defaultTimezone?: string;
-  /** Warning shown when this card's price is borrowed from a differently named model. */
-  sourceLabel: string | null;
+  /** Notice shown when this card's price is borrowed from a differently named model. */
+  source: { prefix: string; model: string; suffix: string; hint: string } | null;
   onAddItem: (priceIndex: number) => void;
   onModelSelected: (priceIndex: number, modelId: string, previousModelId?: string) => void;
   onDuplicatePrice: (priceIndex: number) => void;
@@ -595,7 +586,7 @@ const PriceCard = memo(function PriceCard({
     <Card className='overflow-hidden'>
       <CardContent className='pt-6'>
         {/* Single responsive layout: 1 column on mobile, [model | editors | actions] grid on desktop */}
-        <div className='grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)_auto] md:gap-x-4 md:gap-y-3'>
+        <div className='grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2.7fr)_auto] md:gap-x-4 md:gap-y-3'>
           <div className='flex h-8 min-w-0 items-center justify-between'>
             <FormLabel className='truncate pr-2'>{t('price.model')}</FormLabel>
             <div className='flex gap-1'>
@@ -625,13 +616,7 @@ const PriceCard = memo(function PriceCard({
           </div>
 
           <div className='hidden items-start justify-end md:flex'>
-            <Button
-              type='button'
-              variant='ghost'
-              size='icon-sm'
-              className='text-destructive'
-              onClick={() => onRemovePrice(priceIndex)}
-            >
+            <Button type='button' variant='ghost' size='icon-sm' className='text-destructive' onClick={() => onRemovePrice(priceIndex)}>
               <IconTrash size={16} />
             </Button>
           </div>
@@ -667,9 +652,11 @@ const PriceCard = memo(function PriceCard({
                 </FormItem>
               )}
             />
-            {sourceLabel && (
-              <p className='mt-1 text-[11px] leading-tight break-words text-amber-600 dark:text-amber-400'>
-                {sourceLabel}
+            {source && (
+              <p className='mt-1 pl-3 text-[11px] leading-tight text-amber-600 dark:text-amber-400' title={source.hint}>
+                {source.prefix}
+                <span className='whitespace-nowrap'>{source.model}</span>
+                <span className='whitespace-nowrap'>{source.suffix}</span>
               </p>
             )}
           </div>
@@ -688,12 +675,7 @@ const PriceCard = memo(function PriceCard({
               onAddVariant={onAddVariant}
               onRemoveVariant={onRemoveVariant}
             />
-            <PriceScheduleEditor
-              control={control}
-              priceIndex={priceIndex}
-              currencyCode={currencyCode}
-              defaultTimezone={defaultTimezone}
-            />
+            <PriceScheduleEditor control={control} priceIndex={priceIndex} currencyCode={currencyCode} defaultTimezone={defaultTimezone} />
           </div>
 
           <div />
@@ -819,33 +801,31 @@ export function ChannelsModelPriceDialog() {
    * claims a source for prices loaded back from the server.
    */
   const [priceSources, setPriceSources] = useState<Record<string, AppliedPriceSource>>({});
-  const [unmatchedModels, setUnmatchedModels] = useState<BulkUnmatchedModels>({
-    needsManual: [],
-    keepCurrent: [],
-  });
   const [manualTargetId, setManualTargetId] = useState('');
   const [manualSourceKey, setManualSourceKey] = useState('');
   const [manualSourceSearch, setManualSourceSearch] = useState('');
+  // The manual picker is an escape hatch, so it stays collapsed to keep the list visible.
+  const [manualPickerOpen, setManualPickerOpen] = useState(false);
 
-  const clearPriceSession = useCallback(() => {
+  const clearPriceSources = useCallback(() => {
     setPriceSources({});
-    setUnmatchedModels({ needsManual: [], keepCurrent: [] });
   }, []);
 
-  // Session warnings and manual picks must not outlive the dialog or the channel they
+  // Borrowed-price hints and manual picks must not outlive the dialog or the channel they
   // were made in.
   useEffect(() => {
-    clearPriceSession();
+    clearPriceSources();
     setManualTargetId('');
     setManualSourceKey('');
     setManualSourceSearch('');
-  }, [clearPriceSession, currentRow?.id, isOpen]);
+    setManualPickerOpen(false);
+  }, [clearPriceSources, currentRow?.id, isOpen]);
 
-  // Reloading prices from the server rebuilds every card, so a warning about a borrowed
-  // price would describe items that no longer exist.
+  // Reloading prices from the server rebuilds every card, so a hint about a borrowed price
+  // would describe items that no longer exist.
   useEffect(() => {
-    clearPriceSession();
-  }, [clearPriceSession, currentPrices]);
+    clearPriceSources();
+  }, [clearPriceSources, currentPrices]);
 
   const dropPriceSource = useCallback((modelId: string | undefined) => {
     if (!modelId) return;
@@ -862,59 +842,30 @@ export function ChannelsModelPriceDialog() {
     setPriceSources((prev) => ({ ...prev, [modelId]: source }));
   }, []);
 
-  // Model ids currently in the form; a warning for a card that was removed or renamed
-  // must neither render nor come back.
-  const configuredModelIds = useMemo(
-    () =>
-      new Set(
-        (watchedPrices || []).map((price) => price?.modelId).filter((modelId): modelId is string => !!modelId)
-      ),
-    [watchedPrices]
-  );
-
-  const visiblePriceSources = useMemo(
-    () => Object.entries(priceSources).filter(([modelId]) => configuredModelIds.has(modelId)),
-    [configuredModelIds, priceSources]
-  );
+  // One hint per card is enough: an aggregate listing would only repeat these lines.
+  const manualPickCount = useMemo(() => Object.values(priceSources).filter((source) => source.method === 'manual').length, [priceSources]);
 
   const cardSourceLabels = useMemo(() => {
-    const labels: Record<string, string> = {};
+    const labels: Record<string, { prefix: string; model: string; suffix: string; hint: string }> = {};
     Object.entries(priceSources).forEach(([modelId, source]) => {
-      labels[modelId] = t('price.apply.source.card', {
-        source: formatCatalogSourceLabel(source.providerId, source.catalogModelId),
-        method: t(priceMatchMethodLabelKeys[source.method]),
-      });
+      const sourceLabel = formatCatalogSourceLabel(source.providerId, source.catalogModelId);
+      labels[modelId] = {
+        prefix: t('price.apply.source.cardPrefix'),
+        model: source.catalogModelId,
+        suffix: t('price.apply.source.cardSuffix'),
+        // Provider and transformation stay available on hover without adding visual noise.
+        hint:
+          source.method === 'manual'
+            ? t('price.apply.source.cardManualHint', { source: sourceLabel })
+            : t('price.apply.source.cardHint', { source: sourceLabel, method: t(priceMatchMethodLabelKeys[source.method]) }),
+      };
     });
     return labels;
   }, [priceSources, t]);
 
-  const unmatchedNeedsManual = useMemo(
-    () => unmatchedModels.needsManual.filter((modelId) => !configuredModelIds.has(modelId)),
-    [configuredModelIds, unmatchedModels.needsManual]
-  );
+  const catalogSourceOptions = useMemo(() => (providersData ? buildCatalogPriceSourceOptions(providersData) : []), [providersData]);
 
-  // A model that later received a borrowed price no longer "keeps its current
-  // configuration", so its stale notice must not contradict the source line.
-  const unmatchedKeepCurrent = useMemo(
-    () =>
-      unmatchedModels.keepCurrent.filter(
-        (modelId) => configuredModelIds.has(modelId) && !(modelId in priceSources)
-      ),
-    [configuredModelIds, priceSources, unmatchedModels.keepCurrent]
-  );
-
-  const hasPriceSessionNotice =
-    visiblePriceSources.length > 0 || unmatchedNeedsManual.length > 0 || unmatchedKeepCurrent.length > 0;
-
-  const catalogSourceOptions = useMemo(
-    () => (providersData ? buildCatalogPriceSourceOptions(providersData) : []),
-    [providersData]
-  );
-
-  const manualTargetOptions = useMemo(
-    () => supportedModels.map((modelId) => ({ value: modelId, label: modelId })),
-    [supportedModels]
-  );
+  const manualTargetOptions = useMemo(() => supportedModels.map((modelId) => ({ value: modelId, label: modelId })), [supportedModels]);
 
   const manualSourceOptions = useMemo(() => {
     const selected = manualSourceKey ? catalogSourceOptions.find((item) => item.value === manualSourceKey) : undefined;
@@ -968,7 +919,11 @@ export function ChannelsModelPriceDialog() {
     const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
-    const safeName = currentRow.name.trim().replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, '') || 'channel';
+    const safeName =
+      currentRow.name
+        .trim()
+        .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+        .replace(/^-+|-+$/g, '') || 'channel';
     anchor.href = url;
     anchor.download = `${safeName}-model-prices.json`;
     document.body.appendChild(anchor);
@@ -1032,7 +987,7 @@ export function ChannelsModelPriceDialog() {
         return;
       }
 
-      clearPriceSession();
+      clearPriceSources();
       reset(mapSaveInputsToFormData(filtered));
       rowVirtualizer.scrollToIndex(0, { align: 'start' });
       if (skipped > 0) {
@@ -1041,7 +996,7 @@ export function ChannelsModelPriceDialog() {
         toast.success(t('price.import.success', { count: filtered.length }));
       }
     },
-    [clearPriceSession, currentRow, reset, rowVirtualizer, t]
+    [clearPriceSources, currentRow, reset, rowVirtualizer, t]
   );
 
   const onSubmitError = useCallback(
@@ -1050,9 +1005,7 @@ export function ChannelsModelPriceDialog() {
       // so scroll it into view before surfacing the error message.
       const priceErrors = errors?.prices;
       if (Array.isArray(priceErrors)) {
-        const firstIndex = priceErrors.findIndex(
-          (e) => e && typeof e === 'object' && Object.keys(e).length > 0
-        );
+        const firstIndex = priceErrors.findIndex((e) => e && typeof e === 'object' && Object.keys(e).length > 0);
         if (firstIndex >= 0) {
           rowVirtualizer.scrollToIndex(firstIndex, { align: 'start' });
         }
@@ -1249,8 +1202,7 @@ export function ChannelsModelPriceDialog() {
       }
       if (!modelId || !providersData) return;
 
-      const preferredProviderId =
-        defaultProviderId && providersData.providers[defaultProviderId] ? defaultProviderId : selectedProviderId;
+      const preferredProviderId = defaultProviderId && providersData.providers[defaultProviderId] ? defaultProviderId : selectedProviderId;
       const match = findCatalogPriceMatch(providersData, modelId, preferredProviderId);
 
       if (!match) {
@@ -1280,15 +1232,7 @@ export function ChannelsModelPriceDialog() {
         })
       );
     },
-    [
-      applyCatalogPriceToIndex,
-      defaultProviderId,
-      dropPriceSource,
-      providersData,
-      recordPriceSource,
-      selectedProviderId,
-      t,
-    ]
+    [applyCatalogPriceToIndex, defaultProviderId, dropPriceSource, providersData, recordPriceSource, selectedProviderId, t]
   );
 
   /**
@@ -1300,9 +1244,7 @@ export function ChannelsModelPriceDialog() {
 
     const providerId = selectedProviderId || defaultProviderId;
     const prices = getValues('prices') || [];
-    const existingModelIds = new Set(
-      prices.map((price) => price?.modelId).filter((modelId): modelId is string => !!modelId)
-    );
+    const existingModelIds = new Set(prices.map((price) => price?.modelId).filter((modelId): modelId is string => !!modelId));
     // Manual picks win over the automatic pass for the rest of this dialog session.
     const manualModelIds = new Set(
       Object.entries(priceSources)
@@ -1310,8 +1252,6 @@ export function ChannelsModelPriceDialog() {
         .map(([modelId]) => modelId)
     );
     const sourceUpdates = new Map<string, AppliedPriceSource | null>();
-    const needsManual: string[] = [];
-    const keepCurrent: string[] = [];
     let applied = 0;
     let added = 0;
     let missed = 0;
@@ -1324,11 +1264,6 @@ export function ChannelsModelPriceDialog() {
 
       if (!match) {
         missed += 1;
-        if (existingIndex >= 0) {
-          keepCurrent.push(modelId);
-        } else {
-          needsManual.push(modelId);
-        }
         return;
       }
 
@@ -1376,7 +1311,6 @@ export function ChannelsModelPriceDialog() {
         return next;
       });
     }
-    setUnmatchedModels({ needsManual, keepCurrent });
 
     if (applied || added) {
       toast.success(t('price.apply.bulkSuccess', { applied, added }));
@@ -1524,10 +1458,7 @@ export function ChannelsModelPriceDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        ref={setDialogContent}
-        className='flex h-[85vh] max-h-[800px] flex-col overflow-hidden sm:max-w-4xl'
-      >
+      <DialogContent ref={setDialogContent} className='flex h-[90vh] max-h-[900px] flex-col overflow-hidden sm:max-w-4xl'>
         <DialogHeader>
           <DialogTitle>{t('price.title')}</DialogTitle>
           <DialogDescription>{t('price.description', { name: currentRow?.name })}</DialogDescription>
@@ -1537,9 +1468,7 @@ export function ChannelsModelPriceDialog() {
           <form onSubmit={form.handleSubmit(onSubmit, onSubmitError)} className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'>
             <Card className='mb-4 max-h-[15vh] shrink-0 overflow-y-auto md:max-h-none md:overflow-visible'>
               <CardContent className='pt-0 md:pt-4'>
-                <div className='mb-3 text-xs text-muted-foreground'>
-                  {t('price.apply.usdHint')}
-                </div>
+                <div className='text-muted-foreground mb-3 text-xs'>{t('price.apply.usdHint')}</div>
                 <div className='grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_80px_auto] md:items-end'>
                   <div className='min-w-0'>
                     <FormLabel className='text-sm'>{t('price.apply.provider')}</FormLabel>
@@ -1592,86 +1521,71 @@ export function ChannelsModelPriceDialog() {
                     >
                       {t('price.apply.bulk')}
                     </Button>
-                  </div>
-                </div>
-
-                <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] md:items-end'>
-                  <div className='min-w-0'>
-                    <FormLabel className='text-sm'>{t('price.apply.manual.target')}</FormLabel>
-                    <AutoCompleteSelect
-                      selectedValue={manualTargetId}
-                      onSelectedValueChange={setManualTargetId}
-                      items={manualTargetOptions}
-                      placeholder={t('price.apply.manual.targetPlaceholder')}
-                      emptyMessage={t('price.apply.empty')}
-                      portalContainer={dialogContent}
-                      inputClassName='h-8'
-                    />
-                  </div>
-                  <div className='min-w-0'>
-                    <FormLabel className='text-sm'>{t('price.apply.manual.source')}</FormLabel>
-                    <AutoCompleteSelect
-                      selectedValue={manualSourceKey}
-                      onSelectedValueChange={setManualSourceKey}
-                      searchValue={manualSourceSearch}
-                      onSearchValueChange={setManualSourceSearch}
-                      items={manualSourceOptions}
-                      placeholder={t('price.apply.manual.sourcePlaceholder')}
-                      emptyMessage={
-                        manualSourceSearch.trim().length < MIN_MANUAL_SOURCE_SEARCH_LENGTH
-                          ? t('price.apply.manual.sourceTypeToSearch')
-                          : t('price.apply.manual.sourceEmpty')
-                      }
-                      portalContainer={dialogContent}
-                      inputClassName='h-8'
-                    />
-                  </div>
-                  <div className='flex gap-2'>
                     <Button
                       type='button'
                       variant='outline'
-                      onClick={applyManualPriceSource}
-                      disabled={!manualTargetId || !manualSourceKey}
-                      title={t('price.apply.manual.applyHint')}
+                      onClick={() => setManualPickerOpen((open) => !open)}
+                      title={t('price.apply.manual.toggleHint')}
+                      aria-expanded={manualPickerOpen}
+                      className={
+                        manualPickCount > 0 ? 'border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400' : undefined
+                      }
                     >
-                      {t('price.apply.manual.apply')}
+                      {manualPickCount > 0
+                        ? t('price.apply.manual.toggleCount', { count: manualPickCount })
+                        : t('price.apply.manual.toggle')}
                     </Button>
                   </div>
                 </div>
 
-                {hasPriceSessionNotice && (
-                  <div className='mt-3 max-h-32 overflow-y-auto rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-400'>
-                    <div className='font-medium'>{t('price.apply.source.title')}</div>
-                    <ul className='mt-1 space-y-1'>
-                      {visiblePriceSources.map(([modelId, source]) => (
-                        <li key={modelId}>
-                          <div>
-                            {t('price.apply.source.line', {
-                              target: modelId,
-                              source: formatCatalogSourceLabel(source.providerId, source.catalogModelId),
-                            })}
-                          </div>
-                          <div className='opacity-80'>
-                            {t(priceMatchMethodLabelKeys[source.method])}
-                            {' · '}
-                            {source.method === 'manual'
-                              ? t('price.apply.source.manualNote')
-                              : t('price.apply.source.borrowNote')}
-                          </div>
-                        </li>
-                      ))}
-                      {unmatchedNeedsManual.map((modelId) => (
-                        <li key={`manual-${modelId}`}>{t('price.apply.unmatched.needsManual', { modelId })}</li>
-                      ))}
-                      {unmatchedKeepCurrent.map((modelId) => (
-                        <li key={`keep-${modelId}`}>{t('price.apply.unmatched.keepCurrent', { modelId })}</li>
-                      ))}
-                    </ul>
+                {manualPickerOpen && (
+                  <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] md:items-end'>
+                    <div className='min-w-0'>
+                      <FormLabel className='text-sm'>{t('price.apply.manual.target')}</FormLabel>
+                      <AutoCompleteSelect
+                        selectedValue={manualTargetId}
+                        onSelectedValueChange={setManualTargetId}
+                        items={manualTargetOptions}
+                        placeholder={t('price.apply.manual.targetPlaceholder')}
+                        emptyMessage={t('price.apply.empty')}
+                        portalContainer={dialogContent}
+                        inputClassName='h-8'
+                      />
+                    </div>
+                    <div className='min-w-0'>
+                      <FormLabel className='text-sm'>{t('price.apply.manual.source')}</FormLabel>
+                      <AutoCompleteSelect
+                        selectedValue={manualSourceKey}
+                        onSelectedValueChange={setManualSourceKey}
+                        searchValue={manualSourceSearch}
+                        onSearchValueChange={setManualSourceSearch}
+                        items={manualSourceOptions}
+                        placeholder={t('price.apply.manual.sourcePlaceholder')}
+                        emptyMessage={
+                          manualSourceSearch.trim().length < MIN_MANUAL_SOURCE_SEARCH_LENGTH
+                            ? t('price.apply.manual.sourceTypeToSearch')
+                            : t('price.apply.manual.sourceEmpty')
+                        }
+                        portalContainer={dialogContent}
+                        inputClassName='h-8'
+                      />
+                    </div>
+                    <div className='flex gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={applyManualPriceSource}
+                        disabled={!manualTargetId || !manualSourceKey}
+                        title={t('price.apply.manual.applyHint')}
+                      >
+                        {t('price.apply.manual.apply')}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
-            <div ref={priceListRef} className='min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pt-4 pr-4'>
+            <div ref={priceListRef} className='min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-4 pr-4'>
               {fields.length === 0 && !isLoading && (
                 <div className='text-muted-foreground flex flex-col items-center justify-center py-12'>
                   <p>{t('price.noPrices')}</p>
@@ -1697,7 +1611,7 @@ export function ChannelsModelPriceDialog() {
                         priceIndex={index}
                         currencyCode={settings?.currencyCode}
                         defaultTimezone={settings?.timezone || 'UTC'}
-                        sourceLabel={cardSourceLabels[watchedPrices?.[index]?.modelId ?? ''] ?? null}
+                        source={cardSourceLabels[watchedPrices?.[index]?.modelId ?? ''] ?? null}
                         onAddItem={addItem}
                         onModelSelected={onModelSelected}
                         onDuplicatePrice={duplicatePrice}
