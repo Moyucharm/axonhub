@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,7 +15,7 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
-	"github.com/looplj/axonhub/llm/transformer/anthropic"
+	"github.com/looplj/axonhub/llm/transformer"
 	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 )
 
@@ -117,19 +118,31 @@ func TestOpenCodeZenBuildsNativeProtocolOutbounds(t *testing.T) {
 	require.NotEmpty(t, responsesRequest.Headers.Get("X-Opencode-Request"))
 
 	messagesOutbound := built.Outbounds[llm.APIFormatAnthropicMessage.String()]
-	require.IsType(t, &anthropic.OutboundTransformer{}, messagesOutbound)
-	messagesRequest, err := messagesOutbound.TransformRequest(context.Background(), &llm.Request{
-		Model: "claude-sonnet-4-5",
+	request := &llm.Request{
+		Model:  "claude-sonnet-4-5",
+		Stream: new(false),
 		Messages: []llm.Message{
 			{Role: "user", Content: llm.MessageContent{Content: ptrTo("hello")}},
 		},
-	})
+	}
+	messagesRequest, err := messagesOutbound.TransformRequest(context.Background(), request)
 	require.NoError(t, err)
+	require.NotNil(t, request.Stream)
+	require.True(t, *request.Stream)
+	var body struct {
+		Stream bool `json:"stream"`
+	}
+	require.NoError(t, json.Unmarshal(messagesRequest.Body, &body))
+	require.True(t, body.Stream)
 	require.Equal(t, opencodezen.DefaultBaseURL+"/messages", messagesRequest.URL)
 	require.NotNil(t, messagesRequest.Auth)
 	require.Equal(t, httpclient.AuthTypeAPIKey, messagesRequest.Auth.Type)
 	require.Equal(t, "X-API-Key", messagesRequest.Auth.HeaderKey)
 	require.Equal(t, opencodezen.PublicAPIKey, messagesRequest.Auth.APIKey)
+	messagesRequest.Body = []byte(`{"stream":false}`)
+	finalized := messagesOutbound.(transformer.TransportRequestFinalizer).FinalizeTransportRequest(messagesRequest)
+	require.NoError(t, json.Unmarshal(finalized.Body, &body))
+	require.True(t, body.Stream)
 }
 
 func TestOpenCodeZenNativeProtocolOutboundsUseConfiguredKey(t *testing.T) {

@@ -540,8 +540,7 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 		})
 	case llm.APIFormatAnthropicMessage.String():
 		if c.Type == channel.TypeOpencodeZen {
-			return anthropic.NewOutboundTransformerWithConfig(&anthropic.Config{
-				Type:           anthropic.PlatformDirect,
+			return opencodezen.NewMessagesOutboundTransformerWithConfig(&opencodezen.Config{
 				BaseURL:        baseURL,
 				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
 				EndpointPath:   ep.Path,
