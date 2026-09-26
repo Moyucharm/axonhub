@@ -1313,6 +1313,13 @@ const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
             reason
             expiresAt
           }
+          settings {
+            modelProtocols {
+              model
+              apiFormats
+              enabled
+            }
+          }
 `;
 
 const CHANNEL_QUERY_SUPPORTED_MODELS_SELECTION = `

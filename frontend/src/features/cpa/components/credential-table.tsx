@@ -201,7 +201,7 @@ export function CPACredentialTable({
                 <TableHead className='text-muted-foreground w-[120px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.status')}
                 </TableHead>
-                <TableHead className='text-muted-foreground w-[520px] border-0 text-xs font-semibold tracking-wider uppercase'>
+                <TableHead className='text-muted-foreground w-[390px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.quota')}
                 </TableHead>
                 <TableHead className='text-muted-foreground w-[170px] border-0 text-xs font-semibold tracking-wider uppercase'>
@@ -268,7 +268,21 @@ export function CPACredentialTable({
                         <div className='flex flex-col items-start gap-1'>
                           {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
                           {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
-                          {credential.abnormal && <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>}
+                          {credential.abnormal &&
+                            (credential.statusMessage ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant='destructive' className='cursor-help'>
+                                    {t('cpa.status.abnormal')}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side='top' className='max-w-xs break-all text-xs'>
+                                  {credential.statusMessage}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>
+                            ))}
                           {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
                           {credential.cooling &&
                             (credential.cooldownUntil ? (
@@ -284,13 +298,7 @@ export function CPACredentialTable({
                               <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>
                             ))}
                           {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
-                          {credential.stale && <Badge variant='outline'>{t('cpa.status.stale')}</Badge>}
                         </div>
-                        {credential.statusMessage && (
-                          <p className='text-muted-foreground mt-1 max-w-[220px] truncate text-xs' title={credential.statusMessage}>
-                            {credential.statusMessage}
-                          </p>
-                        )}
                       </TableCell>
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>

@@ -48,7 +48,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { DataTableColumnHeader } from '@/components/data-table-column-header';
 import { useChannels } from '../context/channels-context';
 import { useRecoverChannelCooldown, useTestChannel, useUpdateChannel } from '../data/channels';
-import { CHANNEL_CONFIGS, getProvider } from '../data/config_channels';
+import { CHANNEL_CONFIGS, getChannelColor, getChannelEffectiveApiFormat, getProvider } from '../data/config_channels';
 import { Channel } from '../data/schema';
 import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { ChannelHealthCell } from './channel-health-cell';
@@ -598,13 +598,22 @@ NameCell.displayName = 'NameCell';
 
 const ProviderCell = memo(({ row }: { row: Row<Channel> }) => {
   const { t } = useTranslation();
-  const type = row.original.type;
+  const channel = row.original;
+  const type = channel.type;
   const config = CHANNEL_CONFIGS[type];
   const provider = getProvider(type);
   const IconComponent = config.icon;
-  return (
+  const color = getChannelColor(channel);
+  const effectiveApiFormat = getChannelEffectiveApiFormat(channel);
+
+  const tooltipText =
+    type === 'opencode_zen' && effectiveApiFormat
+      ? `${t(`channels.providers.${provider}`)} (${effectiveApiFormat})`
+      : undefined;
+
+  const badge = (
     <div className='flex justify-center'>
-      <Badge variant='outline' className={cn('capitalize', config.color)}>
+      <Badge variant='outline' className={cn('capitalize', color)}>
         <div className='flex items-center gap-2'>
           <IconComponent size={16} className='shrink-0' />
           <span>{t(`channels.providers.${provider}`)}</span>
@@ -612,6 +621,17 @@ const ProviderCell = memo(({ row }: { row: Row<Channel> }) => {
       </Badge>
     </div>
   );
+
+  if (tooltipText) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{badge}</TooltipTrigger>
+        <TooltipContent side='top'>{tooltipText}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return badge;
 });
 
 ProviderCell.displayName = 'ProviderCell';

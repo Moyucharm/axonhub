@@ -147,6 +147,24 @@ test('OpenCode Zen supports an optional user API key and dynamic models', () => 
   assert.match(zh['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
 });
 
+test('OpenCode Zen distinguishes endpoint formats by badge color', () => {
+  const channelsConfig = read('features/channels/data/config_channels.ts');
+  const columns = read('features/channels/components/channels-columns.tsx');
+  const expanded = read('features/channels/components/channel-expanded-row.tsx');
+
+  assert.match(channelsConfig, /OPEN_CODE_ZEN_ENDPOINT_COLORS/);
+  assert.match(channelsConfig, /'openai\/chat_completions':\s*'bg-violet-100/);
+  assert.match(channelsConfig, /'openai\/responses':\s*'bg-emerald-100/);
+  assert.match(channelsConfig, /'anthropic\/messages':\s*'bg-orange-100/);
+  assert.match(channelsConfig, /export function getChannelColor/);
+  assert.match(channelsConfig, /export function getChannelEffectiveApiFormat/);
+
+  assert.match(columns, /getChannelColor\(channel\)/);
+  assert.match(columns, /getChannelEffectiveApiFormat\(channel\)/);
+  assert.match(expanded, /getChannelColor\(channel\)/);
+  assert.match(expanded, /getChannelEffectiveApiFormat\(channel\)/);
+});
+
 test('xAI subscription is exposed as an OAuth Responses channel', () => {
   const schema = read('features/channels/data/schema.ts');
   const channelsConfig = read('features/channels/data/config_channels.ts');

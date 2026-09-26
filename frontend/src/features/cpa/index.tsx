@@ -7,7 +7,6 @@ import { Main } from '@/components/layout/main';
 import { CPACodexResetDialog, CPACredentialToggleDialog, CPAInstanceDeleteDialog } from './components/confirmation-dialogs';
 import { CPAToolbar } from './components/cpa-toolbar';
 import { CPACredentialTable } from './components/credential-table';
-import { CPAInstanceAlerts } from './components/instance-alerts';
 import { CPAInstanceDialog } from './components/instance-dialog';
 import { CPAInstanceToolbar } from './components/instance-toolbar';
 import { CPAProviderTabs } from './components/provider-tabs';
@@ -127,7 +126,6 @@ export default function CPAManagement() {
             </div>
           )}
 
-          {selectedInstance && <CPAInstanceAlerts instance={selectedInstance} />}
 
           {selectedInstance && (
             <>

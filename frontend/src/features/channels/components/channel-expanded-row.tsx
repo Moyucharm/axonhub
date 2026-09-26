@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
-import { CHANNEL_CONFIGS } from '../data/config_channels';
+import { CHANNEL_CONFIGS, getChannelColor, getChannelEffectiveApiFormat } from '../data/config_channels';
 import { useChannelDetails } from '../data/channels';
 import { Channel } from '../data/schema';
 import { getChannelAPIKeySummary } from '../utils/key-pool';
@@ -33,13 +33,13 @@ export const ChannelExpandedRow = memo(({ channel: listChannel, columnsLength, g
               </div>
               <div className='flex items-center justify-between'>
                 <span className='text-muted-foreground'>{t('channels.columns.type')}:</span>
-                <Badge variant='outline' className={config?.color}>
+                <Badge variant='outline' className={getChannelColor(channel)}>
                   {t(`channels.types.${channel.type}`)}
                 </Badge>
               </div>
               <div className='flex items-center justify-between'>
                 <span className='text-muted-foreground'>{t('channels.expandedRow.apiFormat')}:</span>
-                <span className='font-mono text-xs'>{getApiFormatLabel(config?.apiFormat)}</span>
+                <span className='font-mono text-xs'>{getApiFormatLabel(getChannelEffectiveApiFormat(channel))}</span>
               </div>
               <div className='flex justify-between'>
                 <span className='text-muted-foreground'>{t('common.columns.createdAt')}:</span>

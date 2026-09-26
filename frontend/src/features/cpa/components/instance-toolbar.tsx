@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatTime } from '../quota-windows';
 import type { CPAInstance, CPAStats } from '../types';
+import { CPAInstanceAlerts } from './instance-alerts';
 
 interface CPAInstanceToolbarProps {
   instances: CPAInstance[];
@@ -72,6 +73,7 @@ export function CPAInstanceToolbar({
         </Badge>
       )}
       {selectedInstance?.serverVersion && <Badge variant='outline'>CPA {selectedInstance.serverVersion}</Badge>}
+      {selectedInstance && <CPAInstanceAlerts instance={selectedInstance} />}
       {selectedInstance && (
         <div className='text-muted-foreground ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm'>
           <span className='shrink-0'>

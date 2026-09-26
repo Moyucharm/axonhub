@@ -37,7 +37,8 @@ import { CommandCodeIcon } from '../components/commandcode-icon';
 import { EvolinkIcon } from '../components/evolink-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
 import { BURNCLOUD_DEFAULT_MODELS } from './burncloud-models';
-import { ApiFormat, ChannelType } from './schema';
+import { getInitialApiFormatForChannel } from './protocol-options';
+import { ApiFormat, ChannelType, ModelProtocol } from './schema';
 
 export const OPENAI_CHAT_COMPLETIONS: ApiFormat = 'openai/chat_completions';
 export const OPENAI_RESPONSES: ApiFormat = 'openai/responses';
@@ -950,3 +951,49 @@ export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
 export const getProvider = (channelType: ChannelType): Provider => {
   return CHANNEL_TYPE_TO_PROVIDER[channelType];
 };
+
+export const OPEN_CODE_ZEN_ENDPOINT_COLORS: Record<string, string> = {
+  'openai/chat_completions': 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800',
+  'openai/responses': 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+  'anthropic/messages': 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
+};
+
+export function getChannelColor(channel: {
+  type: ChannelType;
+  settings?: { modelProtocols?: readonly ModelProtocol[] | null } | null;
+  endpoints?: readonly { apiFormat?: string | null }[] | null;
+}): string {
+  if (channel.type === 'opencode_zen') {
+    const defaultApiFormat = CHANNEL_CONFIGS.opencode_zen?.apiFormat || OPENAI_CHAT_COMPLETIONS;
+    let apiFormat = getInitialApiFormatForChannel(channel.type, defaultApiFormat, channel.settings?.modelProtocols);
+    if (apiFormat === defaultApiFormat && channel.endpoints?.length) {
+      const endpointFormat = channel.endpoints.find((ep) => ep.apiFormat && ep.apiFormat in OPEN_CODE_ZEN_ENDPOINT_COLORS)?.apiFormat;
+      if (endpointFormat) {
+        apiFormat = endpointFormat as ApiFormat;
+      }
+    }
+    return OPEN_CODE_ZEN_ENDPOINT_COLORS[apiFormat] || CHANNEL_CONFIGS.opencode_zen?.color || '';
+  }
+
+  return CHANNEL_CONFIGS[channel.type]?.color || '';
+}
+
+export function getChannelEffectiveApiFormat(channel: {
+  type: ChannelType;
+  settings?: { modelProtocols?: readonly ModelProtocol[] | null } | null;
+  endpoints?: readonly { apiFormat?: string | null }[] | null;
+}): ApiFormat | undefined {
+  const defaultApiFormat = CHANNEL_CONFIGS[channel.type]?.apiFormat;
+  if (!defaultApiFormat) return undefined;
+  if (channel.type === 'opencode_zen') {
+    let apiFormat = getInitialApiFormatForChannel(channel.type, defaultApiFormat, channel.settings?.modelProtocols);
+    if (apiFormat === defaultApiFormat && channel.endpoints?.length) {
+      const endpointFormat = channel.endpoints.find((ep) => ep.apiFormat && ep.apiFormat in OPEN_CODE_ZEN_ENDPOINT_COLORS)?.apiFormat;
+      if (endpointFormat) {
+        apiFormat = endpointFormat as ApiFormat;
+      }
+    }
+    return apiFormat;
+  }
+  return defaultApiFormat;
+}
