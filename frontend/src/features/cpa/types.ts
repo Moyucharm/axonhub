@@ -71,7 +71,6 @@ export interface CPACredential {
   quotaLastError: string;
   available: boolean;
   abnormal: boolean;
-  stale: boolean;
   expired: boolean;
   cooling: boolean;
   cooldownUntil?: string | null;

@@ -48,5 +48,5 @@ func deriveCPAExpired(credential *ent.CPACredential) bool {
 	if _, ok := cpaExpiredStatusMessages[statusMessage]; ok {
 		return true
 	}
-	return cpaclient.ClassifyProviderErrorText(statusMessage) == cpaclient.ProviderErrorCredentialExpired
+	return cpaclient.ClassifyProviderResponse(0, []byte(statusMessage)) == cpaclient.ProviderErrorCredentialExpired
 }

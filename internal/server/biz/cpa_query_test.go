@@ -13,6 +13,29 @@ import (
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
+func TestCPACredentialViewDistinguishesInstanceFailureFromProviderExpiry(t *testing.T) {
+	t.Parallel()
+
+	instanceError := "CPA management request failed: connection refused"
+	instance := &ent.CPAInstance{Enabled: true, LastError: &instanceError}
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	connectionFailure := buildCPACredentialView(instance, &ent.CPACredential{
+		Status:         "active",
+		QuotaState:     string(objects.CPAQuotaStateError),
+		QuotaLastError: `CPA management request failed: Post "http://unauthorized.internal/v0/management/api-call": connection refused`,
+	}, now)
+	require.True(t, connectionFailure.Stale)
+	require.False(t, connectionFailure.Expired)
+
+	providerFailure := buildCPACredentialView(instance, &ent.CPACredential{
+		Status:         "active",
+		QuotaState:     string(objects.CPAQuotaStateError),
+		QuotaLastError: "provider quota request returned HTTP 401",
+	}, now)
+	require.True(t, providerFailure.Stale)
+	require.True(t, providerFailure.Expired)
+}
+
 func TestCPAQuotaItemExhausted(t *testing.T) {
 	t.Parallel()
 

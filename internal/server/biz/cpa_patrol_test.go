@@ -122,6 +122,24 @@ func TestDeriveCPAExpired(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "CPA connection failure mentioning unauthorized is not credential expiry",
+			credential: &ent.CPACredential{
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: `CPA management request failed: Post "http://unauthorized.internal/v0/management/api-call": dial tcp: connection refused`,
+			},
+			want: false,
+		},
+		{
+			name: "CPA connection failure does not turn an older auth status into expiry",
+			credential: &ent.CPACredential{
+				Status:         "error",
+				StatusMessage:  "unauthorized",
+				QuotaState:     string(objects.CPAQuotaStateError),
+				QuotaLastError: "CPA management request failed: connection refused",
+			},
+			want: false,
+		},
+		{
 			name:       "unrelated quota error",
 			credential: &ent.CPACredential{QuotaState: string(objects.CPAQuotaStateError), QuotaLastError: "quota request failed"},
 			want:       false,

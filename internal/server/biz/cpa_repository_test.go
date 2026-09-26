@@ -106,6 +106,11 @@ func TestCPARepositoryPersistsProviderErrorClassification(t *testing.T) {
 			},
 			wantExpiry: true,
 		},
+		{
+			name: "CPA transport failure mentioning unauthorized",
+			err:  errors.New(`CPA management request failed: Post "http://unauthorized.internal/v0/management/api-call": dial tcp: connection refused`),
+			wantExpiry: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

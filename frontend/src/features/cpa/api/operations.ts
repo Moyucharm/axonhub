@@ -9,7 +9,7 @@ export const INSTANCE_FIELDS = `
 export const CREDENTIAL_FIELDS = `
   id instanceID remoteName displayName provider email status statusMessage disabled unavailable
   runtimeOnly priority planType quotaState quotaLastAttemptAt quotaLastSuccessAt
-  quotaLastFailureAt quotaLastError available abnormal stale expired cooling cooldownUntil createdAt updatedAt
+  quotaLastFailureAt quotaLastError available abnormal expired cooling cooldownUntil createdAt updatedAt
   quotaData {
     items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource }
     resetCredits { id title resetType grantedAt expiresAt }

@@ -63,22 +63,18 @@ func ClassifyProviderResponse(statusCode int, body []byte) ProviderErrorKind {
 	return classifyProviderSignal(statusCode, text+" "+summary)
 }
 
-// ClassifyProviderErrorText classifies the canonical error text persisted by
-// AxonHub. CPA management errors are deliberately kept separate from provider
-// errors even when both use HTTP 401 or 403.
+// ClassifyProviderErrorText classifies the canonical provider quota error
+// persisted by AxonHub. Arbitrary transport errors can include words such as
+// "unauthorized" in a CPA URL, but say nothing about provider credentials.
 func ClassifyProviderErrorText(raw string) ProviderErrorKind {
 	text := strings.ToLower(strings.TrimSpace(raw))
-	if text == "" {
-		return ProviderErrorUnknown
-	}
-	if strings.Contains(text, "cpa management request returned http") {
+	if strings.HasPrefix(text, "cpa management request") {
 		return ProviderErrorManagement
 	}
-	statusCode := providerHTTPStatus(text)
-	if strings.Contains(text, "provider quota request returned http") {
-		return classifyProviderSignal(statusCode, text)
+	if !strings.HasPrefix(text, "provider quota request returned http ") {
+		return ProviderErrorUnknown
 	}
-	return classifyProviderSignal(0, text)
+	return classifyProviderSignal(providerHTTPStatus(text), text)
 }
 
 func classifyProviderSignal(statusCode int, text string) ProviderErrorKind {
