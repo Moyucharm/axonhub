@@ -2056,3 +2056,439 @@ func TestFindUnassociatedChannels(t *testing.T) {
 		require.Empty(t, result)
 	})
 }
+
+func TestModelService_CreateModel_InjectsDefaultModelIDAssociation(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+	svc := &ModelService{
+		AbstractService: &AbstractService{
+			db: client,
+		},
+	}
+
+	ch, err := client.Channel.Create().
+		SetType(channel.TypeOpenai).
+		SetName("Default Association Channel").
+		SetStatus(channel.StatusEnabled).
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"test-key"}}).
+		SetSupportedModels([]string{"gpt-4-empty", "gpt-4-nil", "gpt-4-nil-only"}).
+		SetDefaultTestModel("gpt-4-empty").
+		Save(ctx)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		modelID  string
+		settings *objects.ModelSettings
+	}{
+		{
+			name:     "empty settings",
+			modelID:  "gpt-4-empty",
+			settings: &objects.ModelSettings{},
+		},
+		{
+			name:     "nil settings",
+			modelID:  "gpt-4-nil",
+			settings: nil,
+		},
+		{
+			name:     "nil-only associations",
+			modelID:  "gpt-4-nil-only",
+			settings: &objects.ModelSettings{Associations: []*objects.ModelAssociation{nil}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+				Developer: "openai",
+				ModelID:   tt.modelID,
+				Name:      tt.modelID,
+				Icon:      "openai",
+				Group:     "gpt",
+				ModelCard: &objects.ModelCard{},
+				Settings:  tt.settings,
+			})
+			require.NoError(t, err)
+
+			// Reload to assert the persisted settings, not the in-memory input.
+			reloaded, err := client.Model.Get(ctx, created.ID)
+			require.NoError(t, err)
+			require.NotNil(t, reloaded.Settings)
+			require.Len(t, reloaded.Settings.Associations, 1)
+
+			assoc := reloaded.Settings.Associations[0]
+			require.NotNil(t, assoc)
+			require.Equal(t, "model", assoc.Type)
+			require.NotNil(t, assoc.ModelID)
+			require.Equal(t, tt.modelID, assoc.ModelID.ModelID)
+			require.Equal(t, 0, assoc.Priority)
+			require.False(t, assoc.Disabled)
+			require.Nil(t, assoc.When, "injected rule must match every request")
+
+			// The injected rule must actually make the model routable.
+			connections := MatchConnections(
+				EffectiveModelAssociations(nil, reloaded),
+				[]*Channel{{Channel: ch}},
+			)
+			require.Len(t, connections, 1)
+			require.Equal(t, ch.ID, connections[0].Channel.ID)
+			require.Len(t, connections[0].Models, 1)
+			require.Equal(t, tt.modelID, connections[0].Models[0].ActualModel)
+		})
+	}
+}
+
+func TestModelService_CreateModel_PreservesExplicitAssociations(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+	svc := &ModelService{
+		AbstractService: &AbstractService{
+			db: client,
+		},
+	}
+
+	created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+		Developer: "openai",
+		ModelID:   "claude-sonnet",
+		Name:      "Claude Sonnet",
+		Icon:      "anthropic",
+		Group:     "claude",
+		ModelCard: &objects.ModelCard{},
+		Settings: &objects.ModelSettings{
+			Associations: []*objects.ModelAssociation{
+				{
+					Type:         "channel_model",
+					ChannelModel: &objects.ChannelModelAssociation{ChannelID: 7, ModelID: "glm-5.3-flash"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.Settings)
+	require.Len(t, created.Settings.Associations, 1)
+	require.Equal(t, "channel_model", created.Settings.Associations[0].Type)
+	require.Nil(t, created.Settings.Associations[0].ModelID)
+}
+
+func TestModelService_BulkCreateModels_InjectsDefaultModelIDAssociation(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+	svc := &ModelService{
+		AbstractService: &AbstractService{
+			db: client,
+		},
+	}
+
+	createdModels, err := svc.BulkCreateModels(ctx, []*ent.CreateModelInput{
+		{
+			Developer: "openai",
+			ModelID:   "bulk-model-a",
+			Name:      "Bulk Model A",
+			Icon:      "openai",
+			Group:     "bulk",
+			ModelCard: &objects.ModelCard{},
+			Settings:  &objects.ModelSettings{},
+		},
+		{
+			Developer: "openai",
+			ModelID:   "bulk-model-b",
+			Name:      "Bulk Model B",
+			Icon:      "openai",
+			Group:     "bulk",
+			ModelCard: &objects.ModelCard{},
+			Settings:  nil,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, createdModels, 2)
+
+	for i, wantModelID := range []string{"bulk-model-a", "bulk-model-b"} {
+		require.NotNil(t, createdModels[i].Settings)
+		require.Len(t, createdModels[i].Settings.Associations, 1)
+		assoc := createdModels[i].Settings.Associations[0]
+		require.NotNil(t, assoc.ModelID)
+		require.Equal(t, wantModelID, assoc.ModelID.ModelID)
+	}
+}
+
+func TestModelService_UpdateModel_DoesNotInjectDefaultAssociation(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+	svc := &ModelService{
+		AbstractService: &AbstractService{
+			db: client,
+		},
+	}
+
+	created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+		Developer: "openai",
+		ModelID:   "cleared-model",
+		Name:      "Cleared Model",
+		Icon:      "openai",
+		Group:     "gpt",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{},
+	})
+	require.NoError(t, err)
+	require.Len(t, created.Settings.Associations, 1)
+
+	// An explicit empty rule set must survive: rules removed by the user stay removed.
+	updated, err := svc.UpdateModel(ctx, created.ID, &ent.UpdateModelInput{
+		Settings: &objects.ModelSettings{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated.Settings)
+	require.Empty(t, updated.Settings.Associations)
+
+	reloaded, err := client.Model.Get(ctx, created.ID)
+	require.NoError(t, err)
+	require.Empty(t, reloaded.Settings.Associations)
+}
+
+func TestWithDefaultModelIDAssociation_KeepsCallerModelIDVerbatim(t *testing.T) {
+	// Blank IDs are rejected: injecting an empty rule would be pure noise.
+	require.Nil(t, withDefaultModelIDAssociation(nil, "   "))
+
+	settings := &objects.ModelSettings{Associations: []*objects.ModelAssociation{{Type: "regex"}}}
+	require.Same(t, settings, withDefaultModelIDAssociation(settings, ""))
+	require.Len(t, settings.Associations, 1)
+	require.Equal(t, "regex", settings.Associations[0].Type)
+
+	// Padded IDs are persisted verbatim by ent, so the rule must carry the same
+	// string or it could never match the model's own ID.
+	injected := withDefaultModelIDAssociation(nil, " gpt-4 ")
+	require.NotNil(t, injected)
+	require.Len(t, injected.Associations, 1)
+	require.Equal(t, " gpt-4 ", injected.Associations[0].ModelID.ModelID)
+}
+
+// newTestSystemServiceWithDeveloperRules builds a SystemService carrying the
+// given developer-level association rules.
+func newTestSystemServiceWithDeveloperRules(t *testing.T, client *ent.Client, developer string, associations []*objects.ModelAssociation) *SystemService {
+	t.Helper()
+
+	svc := &SystemService{
+		AbstractService: &AbstractService{
+			db: client,
+		},
+		Cache: xcache.NewFromConfig[ent.System](xcache.Config{Mode: xcache.ModeMemory}),
+	}
+
+	ctx := authz.WithTestBypass(ent.NewContext(context.Background(), client))
+	require.NoError(t, svc.SetModelSettings(ctx, SystemModelSettings{
+		DeveloperSettings: []*DeveloperModelSettings{
+			{Developer: developer, Associations: associations},
+		},
+	}))
+
+	return svc
+}
+
+func TestModelService_CreateModel_SkipsDefaultAssociationWhenDeveloperRulesAreInherited(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := ent.NewContext(context.Background(), client)
+	ctx = authz.WithTestBypass(ctx)
+
+	const developer = "anthropic"
+	devChannel, err := client.Channel.Create().
+		SetType(channel.TypeAnthropic).
+		SetName("Developer Pinned Channel").
+		SetStatus(channel.StatusEnabled).
+		SetCredentials(objects.ChannelCredentials{APIKeys: []string{"test-key"}}).
+		SetSupportedModels([]string{"claude-opus-4-6"}).
+		SetDefaultTestModel("claude-opus-4-6").
+		Save(ctx)
+	require.NoError(t, err)
+
+	systemSvc := newTestSystemServiceWithDeveloperRules(t, client, developer, []*objects.ModelAssociation{
+		{
+			Type:         "channel_model",
+			ChannelModel: &objects.ChannelModelAssociation{ChannelID: devChannel.ID},
+		},
+	})
+
+	svc := &ModelService{
+		AbstractService: &AbstractService{db: client},
+		systemService:   systemSvc,
+	}
+
+	created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+		Developer: developer,
+		ModelID:   "claude-opus-4-6",
+		Name:      "Claude Opus 4.6",
+		Icon:      "anthropic",
+		Group:     "claude",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{},
+	})
+	require.NoError(t, err)
+
+	// The developer's channel set stays authoritative: no extra exact-match rule.
+	require.NotNil(t, created.Settings)
+	require.Empty(t, created.Settings.Associations)
+
+	// The model is still routable through the inherited rule, which is why the
+	// default rule would only have widened the channel set.
+	systemSettings := systemSvc.ModelSettingsOrDefault(ctx)
+	effective := EffectiveModelAssociations(systemSettings, created)
+	require.Len(t, effective, 1)
+
+	connections := MatchConnections(effective, []*Channel{{Channel: devChannel}})
+	require.Len(t, connections, 1)
+	require.Equal(t, devChannel.ID, connections[0].Channel.ID)
+	require.Equal(t, "claude-opus-4-6", connections[0].Models[0].ActualModel)
+}
+
+func TestModelService_CreateModel_InjectsDefaultAssociationWhenDeveloperInheritanceDisabled(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := ent.NewContext(context.Background(), client)
+	ctx = authz.WithTestBypass(ctx)
+
+	const developer = "anthropic"
+	systemSvc := newTestSystemServiceWithDeveloperRules(t, client, developer, []*objects.ModelAssociation{
+		{
+			Type:         "channel_model",
+			ChannelModel: &objects.ChannelModelAssociation{ChannelID: 42},
+		},
+	})
+
+	svc := &ModelService{
+		AbstractService: &AbstractService{db: client},
+		systemService:   systemSvc,
+	}
+
+	created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+		Developer: developer,
+		ModelID:   "claude-sonnet-4-6",
+		Name:      "Claude Sonnet 4.6",
+		Icon:      "anthropic",
+		Group:     "claude",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{DisableDeveloperSettingsInheritance: true},
+	})
+	require.NoError(t, err)
+	require.Len(t, created.Settings.Associations, 1)
+	require.Equal(t, "claude-sonnet-4-6", created.Settings.Associations[0].ModelID.ModelID)
+}
+
+func TestModelService_BulkCreateModels_SkipsInjectionForInheritedDeveloperRules(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := ent.NewContext(context.Background(), client)
+	ctx = authz.WithTestBypass(ctx)
+
+	systemSvc := newTestSystemServiceWithDeveloperRules(t, client, "anthropic", []*objects.ModelAssociation{
+		{
+			Type:         "channel_model",
+			ChannelModel: &objects.ChannelModelAssociation{ChannelID: 7},
+		},
+	})
+
+	svc := &ModelService{
+		AbstractService: &AbstractService{db: client},
+		systemService:   systemSvc,
+	}
+
+	anthropicInput := &ent.CreateModelInput{
+		Developer: "anthropic",
+		ModelID:   "bulk-inherited",
+		Name:      "Bulk Inherited",
+		Icon:      "anthropic",
+		Group:     "claude",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{},
+	}
+	openAIInput := &ent.CreateModelInput{
+		Developer: "openai",
+		ModelID:   "bulk-injected",
+		Name:      "Bulk Injected",
+		Icon:      "openai",
+		Group:     "gpt",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{},
+	}
+
+	created, err := svc.BulkCreateModels(ctx, []*ent.CreateModelInput{anthropicInput, openAIInput})
+	require.NoError(t, err)
+	require.Len(t, created, 2)
+
+	byModelID := make(map[string]*ent.Model, len(created))
+	for _, m := range created {
+		byModelID[m.ModelID] = m
+	}
+
+	// Inherited developer rules win for the anthropic model.
+	inherited := byModelID["bulk-inherited"]
+	require.NotNil(t, inherited)
+	require.Empty(t, inherited.Settings.Associations)
+	require.Len(t, EffectiveModelAssociations(systemSvc.ModelSettingsOrDefault(ctx), inherited), 1)
+
+	// The openai model has no effective rules, so it gets the default one.
+	injected := byModelID["bulk-injected"]
+	require.NotNil(t, injected)
+	require.Len(t, injected.Settings.Associations, 1)
+	require.Equal(t, "bulk-injected", injected.Settings.Associations[0].ModelID.ModelID)
+
+	// Caller-owned inputs stay untouched by the per-row preparation.
+	require.Empty(t, anthropicInput.Settings.Associations)
+	require.Empty(t, openAIInput.Settings.Associations)
+}
+
+func TestModelService_CreateModel_InjectsDefaultAssociationWhenDeveloperRulesAreDisabled(t *testing.T) {
+	client := enttest.Open(t, dialect.SQLite, "file:ent?mode=memory&_fk=0")
+	defer client.Close()
+
+	ctx := ent.NewContext(context.Background(), client)
+	ctx = authz.WithTestBypass(ctx)
+
+	// Request-time matching skips disabled rules, so an all-disabled developer rule
+	// set leaves the model unroutable exactly like an empty one.
+	systemSvc := newTestSystemServiceWithDeveloperRules(t, client, "anthropic", []*objects.ModelAssociation{
+		{
+			Type:         "channel_model",
+			Disabled:     true,
+			ChannelModel: &objects.ChannelModelAssociation{ChannelID: 42},
+		},
+	})
+
+	svc := &ModelService{
+		AbstractService: &AbstractService{db: client},
+		systemService:   systemSvc,
+	}
+
+	created, err := svc.CreateModel(ctx, ent.CreateModelInput{
+		Developer: "anthropic",
+		ModelID:   "claude-haiku-4-6",
+		Name:      "Claude Haiku 4.6",
+		Icon:      "anthropic",
+		Group:     "claude",
+		ModelCard: &objects.ModelCard{},
+		Settings:  &objects.ModelSettings{},
+	})
+	require.NoError(t, err)
+	require.Len(t, created.Settings.Associations, 1)
+	require.Equal(t, "model", created.Settings.Associations[0].Type)
+	require.Equal(t, "claude-haiku-4-6", created.Settings.Associations[0].ModelID.ModelID)
+}

@@ -351,13 +351,81 @@ func filterConditionValueToInt64(condition objects.Condition) (int64, bool, erro
 	return value, ok, nil
 }
 
+// defaultModelIDAssociation is the exact-match rule every newly created model
+// starts with, so a fresh model is routable without manual configuration.
+func defaultModelIDAssociation(modelID string) *objects.ModelAssociation {
+	return &objects.ModelAssociation{
+		Type:    "model",
+		ModelID: &objects.ModelIDAssociation{ModelID: modelID},
+	}
+}
+
+// hasModelAssociations reports whether the settings carry at least one rule.
+func hasModelAssociations(settings *objects.ModelSettings) bool {
+	return settings != nil && len(lo.Compact(settings.Associations)) > 0
+}
+
+// withDefaultModelIDAssociation fills in the exact-match rule for models created
+// without any association, returning a copy so caller-owned settings are never
+// written to. Callers supplying their own rules are left untouched, and only the
+// create paths call this, so rules removed later stay removed. The rule always
+// carries the caller's model ID verbatim, so it can never drift from the
+// persisted model_id.
+func withDefaultModelIDAssociation(settings *objects.ModelSettings, modelID string) *objects.ModelSettings {
+	if strings.TrimSpace(modelID) == "" || hasModelAssociations(settings) {
+		return settings
+	}
+
+	withDefault := objects.ModelSettings{}
+	if settings != nil {
+		withDefault = *settings
+	}
+
+	withDefault.Associations = []*objects.ModelAssociation{defaultModelIDAssociation(modelID)}
+
+	return &withDefault
+}
+
+// withModelCreateDefaults adds the exact-match rule only when the model would
+// otherwise have no effective association: none of its own and none inherited
+// from the developer-level rules. Models already routing through inherited rules
+// keep exactly the channel set their developer configuration defines.
+func (svc *ModelService) withModelCreateDefaults(
+	ctx context.Context,
+	settings *objects.ModelSettings,
+	developer string,
+	modelID string,
+) *objects.ModelSettings {
+	if hasModelAssociations(settings) {
+		return settings
+	}
+
+	// Only channel/channel-tag rules are inheritable, so anything else leaves the
+	// model without effective rules and still needs the exact-match rule. Disabled
+	// rules are skipped at request time, so they cannot keep a model routable.
+	if settings == nil || !settings.DisableDeveloperSettingsInheritance {
+		inherited := inheritDeveloperAssociationsForModel(
+			developerAssociationsForDeveloper(svc.modelSettingsOrDefault(ctx), developer),
+			modelID,
+		)
+		enabled := lo.Filter(inherited, func(assoc *objects.ModelAssociation, _ int) bool {
+			return !assoc.Disabled
+		})
+		if len(enabled) > 0 {
+			return settings
+		}
+	}
+
+	return withDefaultModelIDAssociation(settings, modelID)
+}
+
 // CreateModel creates a new model with the provided input.
 func (svc *ModelService) CreateModel(ctx context.Context, input ent.CreateModelInput) (*ent.Model, error) {
+	input.Settings = svc.withModelCreateDefaults(ctx, input.Settings, input.Developer, input.ModelID)
+
 	// Validate regex patterns in settings if provided
-	if input.Settings != nil {
-		if err := svc.validateModelSettings(input.Settings); err != nil {
-			return nil, err
-		}
+	if err := svc.validateModelSettings(input.Settings); err != nil {
+		return nil, err
 	}
 
 	// Check if a model with the same developer and modelId already exists
@@ -389,29 +457,33 @@ func (svc *ModelService) CreateModel(ctx context.Context, input ent.CreateModelI
 
 // BulkCreateModels creates multiple models with the provided inputs.
 func (svc *ModelService) BulkCreateModels(ctx context.Context, inputs []*ent.CreateModelInput) ([]*ent.Model, error) {
-	// Check for duplicates in the input
+	// Prepare per-row copies so neither the caller's inputs nor a failed row leave
+	// half-applied defaults behind.
+	createInputs := make([]ent.CreateModelInput, len(inputs))
 	inputMap := make(map[string]bool)
 
-	for _, input := range inputs {
-		if input.Settings != nil {
-			if err := svc.validateModelSettings(input.Settings); err != nil {
-				return nil, err
-			}
+	for i, input := range inputs {
+		createInput := *input
+		createInput.Settings = svc.withModelCreateDefaults(ctx, createInput.Settings, createInput.Developer, createInput.ModelID)
+
+		if err := svc.validateModelSettings(createInput.Settings); err != nil {
+			return nil, err
 		}
 
-		key := fmt.Sprintf("%s:%s", input.Developer, input.ModelID)
+		key := fmt.Sprintf("%s:%s", createInput.Developer, createInput.ModelID)
 		if inputMap[key] {
-			return nil, fmt.Errorf("duplicate model in input: developer '%s' and modelId '%s'", input.Developer, input.ModelID)
+			return nil, fmt.Errorf("duplicate model in input: developer '%s' and modelId '%s'", createInput.Developer, createInput.ModelID)
 		}
 
 		inputMap[key] = true
+		createInputs[i] = createInput
 	}
 
 	// Check if any models already exist
 	existingModels, err := svc.entFromContext(ctx).Model.Query().
 		Where(func(s *sql.Selector) {
 			var predicates []*sql.Predicate
-			for _, input := range inputs {
+			for _, input := range createInputs {
 				predicates = append(predicates, sql.And(
 					sql.EQ(model.FieldDeveloper, input.Developer),
 					sql.EQ(model.FieldModelID, input.ModelID),
@@ -434,10 +506,10 @@ func (svc *ModelService) BulkCreateModels(ctx context.Context, inputs []*ent.Cre
 	}
 
 	// Create all models in a transaction
-	bulk := make([]*ent.ModelCreate, len(inputs))
-	for i, input := range inputs {
+	bulk := make([]*ent.ModelCreate, len(createInputs))
+	for i, input := range createInputs {
 		createBuilder := svc.entFromContext(ctx).Model.Create().
-			SetInput(*input)
+			SetInput(input)
 
 		if input.Remark != nil {
 			createBuilder.SetRemark(*input.Remark)
