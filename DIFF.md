@@ -280,6 +280,20 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **界面**：胶囊与展开行按窗口展示估算徽标；同一资源池的精确 5h+7d 双窗口拆分展示，并按「池优先」排序，内联额度内优先保证每个池有一个代表窗口，其余进入 `+N`。
 - 版本号递增为 `v1.0.0-beta10+azusa.v0.6.3`。
 
+### 3.18 新建模型自动注入模型 ID 精确匹配规则
+
+模型页新增模型后，若未配置任何关联规则，该模型在 `selectModelCandidates` 中会返回空候选（模型已 enabled 时不会回退渠道直选），表现为「模型创建了但请求无可用渠道」，必须手动补一条「模型 ID 精确匹配」规则才可用。
+
+- **统一在服务端注入**：`biz.CreateModel` / `biz.BulkCreateModels` 在写入前调用 `withModelCreateDefaults`，仅当该模型**最终不会有任何有效规则**时注入 `{type: "model", modelID: {modelId: <模型ID>}}`：
+  - 调用方自带规则（`associations` 非空，含 `channel_model` 精确指向别名）→ 原样保留，不追加；
+  - 该 developer 在系统设置的「Developer Rules」里有**启用中**的可继承规则（`channel_model` / `channel_tags_model`）→ 不注入，保持既有渠道集合。此类模型本来就可路由，注入一条 priority 0、匹配所有渠道同名模型的规则只会**静默扩大**路由与计费面；规则全部被禁用时（请求期 `MatchAssociations` 会跳过 disabled）仍按"无有效规则"处理并注入。规则指向的渠道当前被禁用/删除属于渠道侧状态，不在创建期判定，保持 developer 配置的原始意图。
+  - 显式关闭继承（`disableDeveloperSettingsInheritance`）或没有可继承的 developer 规则 → 注入。
+- **规则 ID 原样**：注入的 `modelId` 使用与 `model_id` 完全相同的字符串（仅用 `TrimSpace` 判空），因此规则永远能匹配自己的模型 ID，不会因前后空格与落库值漂移。
+- **不写穿调用方**：注入返回 settings 副本，批量创建按行使用本地副本，调用方传入的 `[]*CreateModelInput` 与其中的 `associations` 不被注入流程修改（既有校验仍会原地把空的负载均衡/粘性策略归一化为 `default`）。
+- **只作用于创建**：`UpdateModel` 不注入，用户在「Manage Association」里清空规则后不会被悄悄加回来；备份恢复走 Ent 直写路径，恢复出的历史规则原样保留。
+- **影响面**：单个创建对话框（此前发送空 `associations`，现由后端补齐）、GraphQL `createModel`/`bulkCreateModels` 调用方、以及批量添加对话框（本身已带规则，无行为变化）。已启用的旧模型不会被补齐，规则为空的旧模型需编辑一次或手动补规则。
+- 版本号递增为 `v1.0.0-beta10+azusa.v0.6.4`。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
 本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。
@@ -314,7 +328,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **未发行代码**：官方 `unstable` 上超出最新发行版的提交**忽略**（不合并、不作为基准、不计入差异清单重点），除非用户明确要求跟进。
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：自用功能更新递增增强号并同步更新 `internal/build/VERSION` 与 git tag。增强号为 `azusa.v<主>.<次>.<修订>`：常规自用发布递增修订位（第三位，如 `v0.6.1` → `v0.6.2`），功能集合整体升级时递增次位（如 `v0.6` → `v0.7`）。
-- **当前状态**：`2026-09-26` 发布 `v1.0.0-beta10+azusa.v0.6.3`。相对 `v0.6.2`（TypeSafe System One、CPA 幽灵 auth-file 清理等）新增 CPA 多窗口额度金额估算（见 2.4、3.17）：5h/7d 按窗口独立观察与估算、估算范围限定为覆盖凭证整体用量的窗口、拆分资源池按「池优先」展示。`beta10..unstable` 未发行提交不在本次范围内。
+- **当前状态**：`2026-09-28` 发布 `v1.0.0-beta10+azusa.v0.6.4`。相对 `v0.6.3`（CPA 多窗口额度金额估算）新增「新建模型自动注入模型 ID 精确匹配规则」（见 3.18）：创建时仅在模型最终没有有效规则（自身无规则、且无可继承的启用 developer 规则）时注入 `{type:"model"}` 规则，显式规则与 developer 继承规则优先，只作用于创建路径。`beta10..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 
