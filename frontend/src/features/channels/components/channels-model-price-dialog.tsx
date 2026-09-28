@@ -1563,7 +1563,7 @@ export function ChannelsModelPriceDialog() {
                         placeholder={t('price.apply.manual.sourcePlaceholder')}
                         emptyMessage={
                           manualSourceSearch.trim().length < MIN_MANUAL_SOURCE_SEARCH_LENGTH
-                            ? t('price.apply.manual.sourceTypeToSearch')
+                            ? t('price.apply.manual.sourceTypeToSearch', { count: MIN_MANUAL_SOURCE_SEARCH_LENGTH })
                             : t('price.apply.manual.sourceEmpty')
                         }
                         portalContainer={dialogContent}

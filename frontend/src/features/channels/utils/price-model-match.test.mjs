@@ -94,6 +94,30 @@ test('a trailing -max on qwen models is part of the name and is never stripped',
   assert.equal(prefixed.model.id, 'grok-5');
 });
 
+test('a served name matches the catalog regardless of letter case or padding', () => {
+  const data = catalog({ siliconflow: ['glm-4.6'], alibaba: ['qwen3-coder-480b-a35b-instruct'] });
+
+  // 渠道侧的默认写法带大写（config_channels.ts 的 `zai-org/GLM-4.6`），目录里是小写 id
+  const prefixed = findCatalogPriceMatch(data, 'zai-org/GLM-4.6');
+  assert.equal(prefixed.method, 'prefix');
+  assert.equal(prefixed.model.id, 'glm-4.6');
+  assert.equal(prefixed.providerId, 'siliconflow');
+
+  const cased = findCatalogPriceMatch(data, 'Qwen/Qwen3-Coder-480B-A35B-Instruct');
+  assert.equal(cased.method, 'prefix');
+  assert.equal(cased.model.id, 'qwen3-coder-480b-a35b-instruct');
+
+  // 首尾空格与大小写一起作用于查找，不影响命中
+  const padded = findCatalogPriceMatch(data, ' GLM-4.6 ');
+  assert.equal(padded.method, 'exact');
+  assert.equal(padded.model.id, 'glm-4.6');
+
+  // 判断思考力度后缀之后再拼接的候选同样按小写命中
+  const suffixed = findCatalogPriceMatch(data, 'zai-org/GLM-4.6-HIGH');
+  assert.equal(suffixed.method, 'prefix_suffix');
+  assert.equal(suffixed.model.id, 'glm-4.6');
+});
+
 test('catalog entries without a usable cost never produce a match', () => {
   const data = catalog({
     poolside: [

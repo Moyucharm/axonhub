@@ -134,7 +134,7 @@
   "price.apply.manual.targetPlaceholder": "选择渠道支持的模型...",
   "price.apply.manual.source": "价格来源（模型库）",
   "price.apply.manual.sourcePlaceholder": "搜索模型库中有价格的模型...",
-  "price.apply.manual.sourceTypeToSearch": "输入至少 2 个字符开始搜索",
+  "price.apply.manual.sourceTypeToSearch": "输入至少 {{count}} 个字符开始搜索",
   "price.apply.manual.sourceEmpty": "模型库中没有匹配的可用价格",
   "price.apply.manual.apply": "应用此模型价格",
   "price.apply.manual.applyHint": "把所选模型的价格复制到目标模型，目标模型 ID 保持不变",

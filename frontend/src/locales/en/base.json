@@ -283,7 +283,7 @@
   "price.apply.manual.targetPlaceholder": "Select a channel model...",
   "price.apply.manual.source": "Price source (catalog)",
   "price.apply.manual.sourcePlaceholder": "Search the catalog for a priced model...",
-  "price.apply.manual.sourceTypeToSearch": "Type at least 2 characters to search",
+  "price.apply.manual.sourceTypeToSearch": "Type at least {{count}} characters to search",
   "price.apply.manual.sourceEmpty": "No priced catalog model matches",
   "price.apply.manual.apply": "Apply this model's price",
   "price.apply.manual.applyHint": "Copies the selected model's price onto the target model; the target model id is unchanged",

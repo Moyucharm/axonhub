@@ -118,20 +118,27 @@ function buildProviderSearchOrder(data: ProvidersData, preferredProviderId?: str
 /**
  * Resolve the catalog price to copy for a channel model the catalog does not price
  * verbatim. Returns null when no candidate name has a priced catalog entry.
+ *
+ * Channel model ids are entered by hand and keep the provider's own casing
+ * (`zai-org/GLM-4.6`, `Qwen/Qwen3-Coder-...`), while catalog ids are lowercased, so
+ * both sides are folded before comparing. Trimming only affects the lookup, never the
+ * channel model id that gets saved.
  */
 export function findCatalogPriceMatch(
   data: ProvidersData,
   targetModelId: string,
   preferredProviderId?: string
 ): CatalogPriceMatch | null {
-  if (!targetModelId) return null;
+  const target = targetModelId.trim();
+  if (!target) return null;
 
   const providerOrder = buildProviderSearchOrder(data, preferredProviderId);
 
-  for (const candidate of buildCatalogNameCandidates(targetModelId)) {
+  for (const candidate of buildCatalogNameCandidates(target)) {
+    const name = candidate.name.toLowerCase();
     for (const providerId of providerOrder) {
       const model = (data.providers[providerId]?.models || []).find(
-        (entry) => entry.id === candidate.name && hasUsableCatalogCost(entry)
+        (entry) => entry.id.toLowerCase() === name && hasUsableCatalogCost(entry)
       );
       if (model) {
         return { model, providerId, method: candidate.method };
