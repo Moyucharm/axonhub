@@ -457,8 +457,9 @@ func (svc *ModelService) CreateModel(ctx context.Context, input ent.CreateModelI
 
 // BulkCreateModels creates multiple models with the provided inputs.
 func (svc *ModelService) BulkCreateModels(ctx context.Context, inputs []*ent.CreateModelInput) ([]*ent.Model, error) {
-	// Prepare per-row copies so neither the caller's inputs nor a failed row leave
-	// half-applied defaults behind.
+	// Prepare per-row copies so an injected association never reaches the caller's inputs
+	// and a rejected row leaves no half-applied default behind. Validation still normalizes
+	// the caller's settings in place (empty routing policies become defaults).
 	createInputs := make([]ent.CreateModelInput, len(inputs))
 	inputMap := make(map[string]bool)
 
