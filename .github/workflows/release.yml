@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   goreleaser:
+    if: github.repository_owner == 'looplj'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

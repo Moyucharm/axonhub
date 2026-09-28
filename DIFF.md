@@ -304,6 +304,14 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **手动选价**：折叠在「手动选价」按钮后（按钮带手动采用计数），可从任意有价目录条目把价格复制到渠道支持的模型，一键匹配对已手动采用的模型跳过；来源提示与手动采用状态在关框、换渠道、服务端价格重载、导入时清空。
 - **提交**：`f426b33a`（分级匹配、借价提示与手动选价）、`dc98cbd3`（对话框压缩重构与文案拆分）；目录匹配的大小写不敏感修复随本版本发布。
 
+### 3.20 自用分支不在 fork 上运行官方 Release 流水线
+
+推 `v*` tag 会触发从官方继承的 `.github/workflows/release.yml`（goreleaser）：它要跨平台编译全部产物十几到二十几分钟，最后把 Homebrew formula 推到**上游作者的** tap（`.goreleaser.yml:107-113` → `owner: looplj / name: homebrew-axonhub`）。本 fork 没有 `HOMEBREW_TAP_GITHUB_TOKEN`，回退用的 `GITHUB_TOKEN` 对该仓库无写权限，于是每次都以 `homebrew formula: could not update "Formula/axonhub.rb": ... 403 Resource not accessible by integration` 收尾，并留下一个 Draft Release。
+
+- **守卫**：`jobs.goreleaser.if: github.repository_owner == 'looplj'`（与 `helm-chart.yml` 既有的同款守卫保持一致）。官方仓库照常发布；自用 fork 上该 job 直接 skipped，不再消耗 runner 时间、不再产生 Draft Release。
+- **不影响自用产物**：自用镜像仍由 `.github/workflows/docker-selfhosted.yml` 构建并推送 GHCR，与 tag 一起构成自用发布流程。
+- **不单独修改版本号**：纯 CI 守卫，不改变任何产物内容，随下次自用发布带上（同 3.16 的处理方式）。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta10
 
 本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-beta10`（`939b2bc0`）相对旧缓存基线 `a037c0bf` 新增 **62 个提交**；本次仅对齐发行 tag，明确忽略 `v1.0.0-beta10..unstable` 的未发行提交。
