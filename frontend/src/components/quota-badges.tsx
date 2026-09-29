@@ -35,6 +35,7 @@ import {
 } from '@/features/system/data/quotas';
 import { useGeneralSettings, useQuotaEnforcementSettings, type QuotaEnforcementMode } from '@/features/system/data/system';
 import { capitalizeZenmuxTier, getZenmuxMonthlyQuotaUSD, getZenmuxUsagePercentage } from '@/features/system/data/zenmux-quota-display';
+import { formatClineEstimatedCost } from '@/features/system/data/quota-windows';
 
 const syntheticWeeklyRegenTickPct = 0.02;
 
@@ -245,16 +246,20 @@ function ProgressBar({
   percentage,
   type = 'usage',
   durationPercentage,
+  usageColor,
 }: {
   percentage: number;
   type?: 'usage' | 'duration';
   durationPercentage?: number;
+  usageColor?: string;
 }) {
   const clamped = Math.min(Math.max(percentage || 0, 0), 100);
 
   let bgStyle = {};
   if (type === 'duration') {
     bgStyle = { backgroundColor: '#71717a' }; // zinc-500
+  } else if (usageColor) {
+    bgStyle = { backgroundColor: usageColor };
   } else {
     const u = clamped / 100;
     let severity = u;
@@ -291,14 +296,14 @@ function ProgressBar({
 // UsageTimeBar shows usage on a single progress bar with a small triangle below
 // it marking how far the reset window has elapsed (time progress). Hovering
 // reveals the detailed figures via tooltip, keeping the row compact.
-function UsageTimeBar({ usagePercent, durationPercent, tooltip }: { usagePercent: number; durationPercent?: number; tooltip: ReactNode }) {
+function UsageTimeBar({ usagePercent, durationPercent, tooltip, usageColor }: { usagePercent: number; durationPercent?: number; tooltip: ReactNode; usageColor?: string }) {
   const markerLeft = durationPercent === undefined ? undefined : Math.min(Math.max(durationPercent, 0), 100);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className='relative cursor-default pb-1.5'>
-          <ProgressBar percentage={usagePercent} durationPercentage={durationPercent} />
+          <ProgressBar percentage={usagePercent} durationPercentage={durationPercent} usageColor={usageColor} />
           {markerLeft !== undefined && (
             <div className='absolute top-2 -translate-x-1/2' style={{ left: `${markerLeft}%` }} aria-hidden>
               {/* upward triangle pointing at the bar, marking elapsed time */}
@@ -487,15 +492,6 @@ function QuotaRow({ channel, enforcementMode, allowedChannelIDs }: { channel: Pr
     return calcDurationPercent(limits[key], resetAfter);
   };
 
-  const formatClineCost = (units?: number, scale?: number) => {
-    if (units == null || !scale) return '';
-    return t('currencies.format', {
-      val: units / scale,
-      currency: 'USD',
-      locale: i18n.language === 'zh' ? 'zh-CN' : 'en-US',
-      minimumFractionDigits: 6,
-    });
-  };
 
   const formatTimeToReset = (resetAtOrSeconds?: string | number | null, usedPercent?: number, regenerates?: boolean | number) => {
     if (!resetAtOrSeconds) return '';
@@ -1023,20 +1019,15 @@ function QuotaRow({ channel, enforcementMode, allowedChannelIDs }: { channel: Pr
                 const usedPct = getClineUsagePercent(window);
                 const hasUsagePercent = window.usage_percent != null || window.usage_ratio != null;
                 const durationPct = getClineDurationPercent(key, window);
-                const used = formatClineCost(window.used_cost_units, qd.cost_scale);
-                const limit = formatClineCost(window.limit_cost_units, qd.cost_scale);
+                const estimatedCost = formatClineEstimatedCost(window, qd.cost_scale, t, i18n.language);
                 const resetText = window.next_reset_at ? formatTimeToReset(window.next_reset_at) : '';
 
                 items.push(
                   <div key={key} className={index > 0 ? 'border-border/60 space-y-1.5 border-t border-dashed pt-3' : 'space-y-1.5'}>
                     <div className='flex items-center justify-between text-xs'>
                       <span className='text-muted-foreground font-medium'>
-                        {t(labelKey)}{' '}
-                        {used && limit ? (
-                          <span className='font-normal opacity-70'>
-                            ({used}/{limit})
-                          </span>
-                        ) : null}
+                        {t(labelKey)}
+                        {estimatedCost && <span className='font-normal opacity-70'> ({estimatedCost})</span>}
                       </span>
                       <span className='text-foreground font-medium'>
                         {hasUsagePercent ? t('quota.label.percent_used', { percent: Math.round(usedPct) }) : t('quota.label.unavailable')}
@@ -1046,6 +1037,7 @@ function QuotaRow({ channel, enforcementMode, allowedChannelIDs }: { channel: Pr
                       <UsageTimeBar
                         usagePercent={usedPct}
                         durationPercent={durationPct}
+                        usageColor='#22c55e'
                         tooltip={
                           <div className='space-y-0.5'>
                             <div className='font-medium'>{t(labelKey)}</div>

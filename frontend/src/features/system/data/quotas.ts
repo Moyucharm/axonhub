@@ -337,16 +337,9 @@ export type ClineQuotaWindow = {
   window_state?: 'active' | 'inactive' | 'unavailable' | 'invalid';
   active_window?: boolean;
   window_start_at?: string;
-  cost_start_at?: string;
-  items_count?: number;
-  used_cost_units?: number;
   limit_cost_units: number;
-  remaining_cost_units?: number;
-  credits_used?: number;
   usage_ratio?: number;
   usage_percent?: number;
-  cost_usage_ratio?: number;
-  cost_usage_percent?: number;
   usage_source?: string;
   reset_source?: string;
   cost_source?: string;
@@ -358,15 +351,6 @@ type ClineBalance = {
   unit_note?: string;
 };
 
-type ClineUsageFetch = {
-  pages: number;
-  items_seen: number;
-  cline_pass_items_seen?: number;
-  direct_items_seen?: number;
-  unclassified_items_seen?: number;
-  invalid_timestamp_items?: number;
-  truncated: boolean;
-};
 
 type ProviderClinePassQuotaData = ProviderQuotaDataCommon & {
   model_scope: 'cline_pass_only' | 'mixed' | 'unknown';
@@ -380,7 +364,6 @@ type ProviderClinePassQuotaData = ProviderQuotaDataCommon & {
     last7d: ClineQuotaWindow;
     last30d: ClineQuotaWindow;
   };
-  usage_fetch: ClineUsageFetch;
 };
 
 type ProviderClineUnavailablePassQuotaData = ProviderQuotaDataCommon & {
@@ -392,7 +375,6 @@ type ProviderClineUnavailablePassQuotaData = ProviderQuotaDataCommon & {
   balance: ClineBalance;
   cost_scale?: never;
   windows?: never;
-  usage_fetch?: never;
 };
 
 type ProviderClineDirectQuotaData = ProviderQuotaDataCommon & {
@@ -403,7 +385,6 @@ type ProviderClineDirectQuotaData = ProviderQuotaDataCommon & {
   balance: ClineBalance;
   cost_scale?: never;
   windows?: never;
-  usage_fetch?: never;
 };
 
 type ProviderClineErrorQuotaData = ProviderQuotaDataCommon & {
@@ -413,7 +394,6 @@ type ProviderClineErrorQuotaData = ProviderQuotaDataCommon & {
   balance?: ClineBalance;
   cost_scale?: never;
   windows?: never;
-  usage_fetch?: never;
 };
 
 export type ProviderClineQuotaData =

@@ -354,6 +354,7 @@
   "quota.window.5h": "5小时窗口",
   "quota.window.7d": "7天窗口",
   "quota.window.30d": "30天窗口",
+  "quota.label.cline_estimated_cost": "约 {{used}} / {{limit}}",
   "quota.window.daily": "每日窗口",
   "quota.window.weekly": "每周窗口",
   "quota.window.monthly": "每月窗口",

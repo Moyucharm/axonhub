@@ -352,6 +352,7 @@
   "quota.window.5h": "5h window",
   "quota.window.7d": "7d window",
   "quota.window.30d": "30d window",
+  "quota.label.cline_estimated_cost": "≈ {{used}} / {{limit}}",
   "quota.window.daily": "Daily window",
   "quota.window.weekly": "Weekly window",
   "quota.window.monthly": "Monthly window",
