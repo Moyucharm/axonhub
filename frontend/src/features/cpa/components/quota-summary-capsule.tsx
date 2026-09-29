@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
+import { EstimateBadge, QuotaCapsule, QuotaMorePopover } from '@/components/quota-capsule';
 import { cpaQuotaItemsToWindows, shortGroupLabel } from '@/features/cpa/quota-windows';
 import type { CPAQuotaItem } from '../types';
 
@@ -15,7 +15,8 @@ import type { CPAQuotaItem } from '../types';
 //                       overflow button placed after the last bar.
 // Grid columns [4rem_267px_auto]: the label column is a fixed 4rem, the
 // middle column keeps a fixed 267px width so remaining bars stay compact
-// without stretching or shrinking dynamically.
+// without stretching or shrinking dynamically, and the trailing auto column
+// hosts the estimate badge and/or the inline +N overflow button at the right edge.
 const MAX_INLINE_WINDOWS = 2;
 
 export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuotaItem[]; fallback?: ReactNode }) {
@@ -30,11 +31,12 @@ export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuot
   // Single ungrouped window: same grid with an empty label slot, so its bar
   // lines up with the labelled rows above and below.
   if (inline.length === 1 && !inline[0].group && hidden.length === 0) {
+    const window = inline[0];
     return (
       <div className='grid w-max grid-cols-[4rem_267px_auto] items-center gap-x-2'>
         <span />
-        <QuotaCapsule window={inline[0]} size='sm' />
-        <span />
+        <QuotaCapsule window={window} size='sm' />
+        {window.estimatedLimitUSD != null ? <EstimateBadge window={window} size='sm' /> : <span />}
       </div>
     );
   }
@@ -44,9 +46,11 @@ export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuot
       {inline.map((window, index) => {
         const label = shortGroupLabel(window.group, t);
         const isLast = index === inline.length - 1;
+        const hasEstimate = window.estimatedLimitUSD != null;
+        const hasMore = isLast && hidden.length > 0;
         return [
           // Explicit placeholder spans keep grid auto-placement aligned:
-          // row = [group label][capsule][+N on the last row only]. A null
+          // row = [group label][capsule][trailing right slot (estimate badge and/or +N)]. A null
           // child would NOT occupy a grid cell and would shift later items.
           label ? (
             <span key={`${window.id}-label`} className='text-muted-foreground truncate text-[10px] font-semibold' title={window.group}>
@@ -58,18 +62,23 @@ export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuot
           <span key={`${window.id}-capsule`}>
             <QuotaCapsule window={window} size='sm' />
           </span>,
-          isLast && hidden.length > 0 ? (
-            <QuotaMorePopover key='more' windows={hidden} size='sm'>
-              <button
-                type='button'
-                aria-label={t('quota.capsule.more')}
-                className='bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-colors'
-              >
-                +{hidden.length}
-              </button>
-            </QuotaMorePopover>
+          hasEstimate || hasMore ? (
+            <div key={`${window.id}-trailing`} className='flex items-center gap-1.5'>
+              {hasEstimate && <EstimateBadge window={window} size='sm' />}
+              {hasMore && (
+                <QuotaMorePopover windows={hidden} size='sm'>
+                  <button
+                    type='button'
+                    aria-label={t('quota.capsule.more')}
+                    className='bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground rounded-sm px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-colors'
+                  >
+                    +{hidden.length}
+                  </button>
+                </QuotaMorePopover>
+              )}
+            </div>
           ) : (
-            <span key={`more-${window.id}`} />
+            <span key={`${window.id}-trailing`} />
           ),
         ];
       })}

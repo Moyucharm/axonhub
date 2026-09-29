@@ -7,13 +7,22 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Backend estimates are attached per window, independent of provider.
-const EstimateBadge = memo(function EstimateBadge({ window, size = 'md' }: { window: QuotaWindowItem; size?: CapsuleSize }) {
+export const EstimateBadge = memo(function EstimateBadge({
+  window,
+  size = 'md',
+  className,
+}: {
+  window: QuotaWindowItem;
+  size?: CapsuleSize;
+  className?: string;
+}) {
   if (window.estimatedLimitUSD == null) return null;
   return (
     <span
       className={cn(
-        'bg-foreground/5 text-muted-foreground shrink-0 rounded-sm px-1.5 font-medium tabular-nums',
-        size === 'sm' ? 'text-[9px]' : 'text-[10px]'
+        'bg-foreground/5 text-muted-foreground inline-flex shrink-0 items-center rounded-full px-2 py-0.5 font-medium tabular-nums',
+        size === 'sm' ? 'text-[10px]' : 'text-xs',
+        className
       )}
       title={window.estimatedCostUSD != null ? `≈ ${formatQuotaUSD(window.estimatedCostUSD)} used` : undefined}
     >
