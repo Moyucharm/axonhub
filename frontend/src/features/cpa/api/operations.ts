@@ -14,6 +14,11 @@ export const CREDENTIAL_FIELDS = `
     items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource }
     resetCredits { id title resetType grantedAt expiresAt }
     resetCreditsFailed
+    claudeReset {
+      eligible ineligibleReason atLimit nextGrantID weeklyResetsAt cooldownUntil
+      grants { id label resetsTotal resetsLeft startsAt endsAt clears paused usableNow useRequiresLimit uncertain retryUntil }
+    }
+    claudeResetFailed
   }
 `;
 
@@ -51,5 +56,10 @@ export const TOGGLE_CREDENTIAL =
 export const RESET_CODEX_CREDENTIAL = `
   mutation ResetCPACodexCredential($credentialID: Int!, $creditID: String!) {
     resetCPACodexCredential(credentialID: $credentialID, creditID: $creditID)
+  }
+`;
+export const RESET_CLAUDE_CREDENTIAL = `
+  mutation ResetCPAClaudeCredential($credentialID: Int!, $grantID: String!) {
+    resetCPAClaudeCredential(credentialID: $credentialID, grantID: $grantID) { result uncertain retryUntil }
   }
 `;

@@ -78,6 +78,14 @@ func (r *mutationResolver) ResetCPACodexCredential(ctx context.Context, credenti
 	return r.cpaService.ResetCodexCredential(ctx, credentialID, creditID)
 }
 
+// ResetCPAClaudeCredential is the resolver for the resetCPAClaudeCredential field.
+func (r *mutationResolver) ResetCPAClaudeCredential(ctx context.Context, credentialID int, grantID string) (*biz.CPAClaudeResetOutcome, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {
+		return nil, fmt.Errorf("permission denied: requires write:settings scope")
+	}
+	return r.cpaService.ResetClaudeCredential(ctx, credentialID, grantID)
+}
+
 // CpaInstances is the resolver for the cpaInstances field.
 func (r *queryResolver) CpaInstances(ctx context.Context) ([]*biz.CPAInstanceView, error) {
 	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {

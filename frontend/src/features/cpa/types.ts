@@ -142,10 +142,53 @@ export interface CPAQuotaResetCredit {
   expiresAt?: string | null;
 }
 
+export interface CPAClaudeResetGrant {
+  id: string;
+  label: string;
+  resetsTotal: number;
+  resetsLeft: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  clears: string[];
+  paused: boolean;
+  usableNow: boolean;
+  useRequiresLimit: boolean;
+  uncertain: boolean;
+  retryUntil?: string | null;
+}
+
+export interface CPAClaudeReset {
+  eligible: boolean;
+  ineligibleReason: string;
+  atLimit: boolean;
+  nextGrantID: string;
+  weeklyResetsAt?: string | null;
+  cooldownUntil?: string | null;
+  grants: CPAClaudeResetGrant[];
+}
+
+export type CPAClaudeResetResult =
+  | 'reset'
+  | 'already_used'
+  | 'not_limited'
+  | 'cooldown'
+  | 'ineligible'
+  | 'unavailable'
+  | 'rate_limited'
+  | 'auth_error';
+
+export interface CPAClaudeResetOutcome {
+  result?: CPAClaudeResetResult | null;
+  uncertain: boolean;
+  retryUntil?: string | null;
+}
+
 export interface CPAQuotaSnapshot {
   items: CPAQuotaItem[];
   resetCredits: CPAQuotaResetCredit[];
   resetCreditsFailed: boolean;
+  claudeReset?: CPAClaudeReset | null;
+  claudeResetFailed: boolean;
 }
 
 export interface CPAInstanceInput {

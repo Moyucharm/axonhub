@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	claudeUsageURL   = "https://api.anthropic.com/api/oauth/usage"
-	claudeProfileURL = "https://api.anthropic.com/api/oauth/profile"
+	// cedar_ember=1 adds the reset-grant block to the same usage read, so grants
+	// ride along with quota without a second call to this rate-limited endpoint.
+	claudeUsageURL   = claudeAPIOrigin + "/api/oauth/usage?cedar_ember=1"
+	claudeProfileURL = claudeAPIOrigin + "/api/oauth/profile"
 )
 
 type claudeQuotaAdapter struct{}
@@ -20,11 +22,7 @@ type claudeQuotaAdapter struct{}
 func (claudeQuotaAdapter) Provider() string { return "claude" }
 
 func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
-	headers := map[string]string{
-		"Authorization":  "Bearer $TOKEN$",
-		"Content-Type":   "application/json",
-		"anthropic-beta": "oauth-2025-04-20",
-	}
+	headers := claudeRequestHeaders()
 	var usage map[string]any
 	if _, err := callJSON(ctx, client, ProviderCall{
 		AuthIndex: input.AuthIndex,
@@ -119,10 +117,18 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 		planType = resolveClaudePlan(profile, planType)
 	}
 
+	snapshot := objects.CPAQuotaSnapshot{Items: items}
+	// A malformed or missing grant block must not fail quota, but it stays
+	// visible as a failure instead of looking like "no grants".
+	if status, ok := ParseClaudeReset(firstValue(usage, "cedar_ember")); ok {
+		snapshot.ClaudeReset = status
+	} else {
+		snapshot.ClaudeResetFailed = true
+	}
 	return QuotaResult{
 		State:    objects.CPAQuotaStateSuccess,
 		PlanType: planType,
-		Snapshot: objects.CPAQuotaSnapshot{Items: items},
+		Snapshot: snapshot,
 	}, nil
 }
 

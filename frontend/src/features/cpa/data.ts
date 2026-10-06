@@ -27,4 +27,5 @@ export {
   useToggleCPACredential,
   useRefreshCPACredential,
   useResetCPACodexCredential,
+  useResetCPAClaudeCredential,
 } from './api/mutations';

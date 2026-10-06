@@ -278,6 +278,8 @@ func (svc *CPAService) refreshCredentialOutcome(ctx context.Context, client cpac
 			persisted, persistErr := svc.repository.applyQuotaOutcomeWithLease(ctx, outcome, claim.token, claim.revision)
 			if persistErr == nil {
 				leaseReleased = true
+				// A fresh grant read can prove an open Claude claim was spent.
+				svc.settleClaudeResetAttempts(ctx, persisted.credential)
 				return persisted
 			}
 			// A late owner must never overwrite a newer owner's result. Prefer the

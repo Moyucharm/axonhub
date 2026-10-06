@@ -12,9 +12,9 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelprice"
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
@@ -139,48 +139,6 @@ func init() {
 	apikeyprofiletemplateDescProfile := apikeyprofiletemplateFields[3].Descriptor()
 	// apikeyprofiletemplate.DefaultProfile holds the default value on creation for the profile field.
 	apikeyprofiletemplate.DefaultProfile = apikeyprofiletemplateDescProfile.Default.(*objects.APIKeyProfile)
-	cpacodexresetattemptMixin := schema.CPACodexResetAttempt{}.Mixin()
-	cpacodexresetattempt.Policy = privacy.NewPolicies(schema.CPACodexResetAttempt{})
-	cpacodexresetattempt.Hooks[0] = func(next ent.Mutator) ent.Mutator {
-		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-			if err := cpacodexresetattempt.Policy.EvalMutation(ctx, m); err != nil {
-				return nil, err
-			}
-			return next.Mutate(ctx, m)
-		})
-	}
-	cpacodexresetattemptMixinFields0 := cpacodexresetattemptMixin[0].Fields()
-	_ = cpacodexresetattemptMixinFields0
-	cpacodexresetattemptFields := schema.CPACodexResetAttempt{}.Fields()
-	_ = cpacodexresetattemptFields
-	// cpacodexresetattemptDescCreatedAt is the schema descriptor for created_at field.
-	cpacodexresetattemptDescCreatedAt := cpacodexresetattemptMixinFields0[0].Descriptor()
-	// cpacodexresetattempt.DefaultCreatedAt holds the default value on creation for the created_at field.
-	cpacodexresetattempt.DefaultCreatedAt = cpacodexresetattemptDescCreatedAt.Default.(func() time.Time)
-	// cpacodexresetattemptDescUpdatedAt is the schema descriptor for updated_at field.
-	cpacodexresetattemptDescUpdatedAt := cpacodexresetattemptMixinFields0[1].Descriptor()
-	// cpacodexresetattempt.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	cpacodexresetattempt.DefaultUpdatedAt = cpacodexresetattemptDescUpdatedAt.Default.(func() time.Time)
-	// cpacodexresetattempt.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	cpacodexresetattempt.UpdateDefaultUpdatedAt = cpacodexresetattemptDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// cpacodexresetattemptDescCreditKey is the schema descriptor for credit_key field.
-	cpacodexresetattemptDescCreditKey := cpacodexresetattemptFields[0].Descriptor()
-	// cpacodexresetattempt.CreditKeyValidator is a validator for the "credit_key" field. It is called by the builders before save.
-	cpacodexresetattempt.CreditKeyValidator = func() func(string) error {
-		validators := cpacodexresetattemptDescCreditKey.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(credit_key string) error {
-			for _, fn := range fns {
-				if err := fn(credit_key); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
 	cpacredentialMixin := schema.CPACredential{}.Mixin()
 	cpacredential.Policy = privacy.NewPolicies(schema.CPACredential{})
 	cpacredential.Hooks[0] = func(next ent.Mutator) ent.Mutator {
@@ -441,6 +399,60 @@ func init() {
 	cpainstanceDescServerBuildDate := cpainstanceFields[18].Descriptor()
 	// cpainstance.DefaultServerBuildDate holds the default value on creation for the server_build_date field.
 	cpainstance.DefaultServerBuildDate = cpainstanceDescServerBuildDate.Default.(string)
+	cparesetattemptMixin := schema.CPAResetAttempt{}.Mixin()
+	cparesetattempt.Policy = privacy.NewPolicies(schema.CPAResetAttempt{})
+	cparesetattempt.Hooks[0] = func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if err := cparesetattempt.Policy.EvalMutation(ctx, m); err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
+	cparesetattemptMixinFields0 := cparesetattemptMixin[0].Fields()
+	_ = cparesetattemptMixinFields0
+	cparesetattemptFields := schema.CPAResetAttempt{}.Fields()
+	_ = cparesetattemptFields
+	// cparesetattemptDescCreatedAt is the schema descriptor for created_at field.
+	cparesetattemptDescCreatedAt := cparesetattemptMixinFields0[0].Descriptor()
+	// cparesetattempt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cparesetattempt.DefaultCreatedAt = cparesetattemptDescCreatedAt.Default.(func() time.Time)
+	// cparesetattemptDescUpdatedAt is the schema descriptor for updated_at field.
+	cparesetattemptDescUpdatedAt := cparesetattemptMixinFields0[1].Descriptor()
+	// cparesetattempt.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cparesetattempt.DefaultUpdatedAt = cparesetattemptDescUpdatedAt.Default.(func() time.Time)
+	// cparesetattempt.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cparesetattempt.UpdateDefaultUpdatedAt = cparesetattemptDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// cparesetattemptDescCreditKey is the schema descriptor for credit_key field.
+	cparesetattemptDescCreditKey := cparesetattemptFields[1].Descriptor()
+	// cparesetattempt.CreditKeyValidator is a validator for the "credit_key" field. It is called by the builders before save.
+	cparesetattempt.CreditKeyValidator = func() func(string) error {
+		validators := cparesetattemptDescCreditKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(credit_key string) error {
+			for _, fn := range fns {
+				if err := fn(credit_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// cparesetattemptDescRequestID is the schema descriptor for request_id field.
+	cparesetattemptDescRequestID := cparesetattemptFields[4].Descriptor()
+	// cparesetattempt.DefaultRequestID holds the default value on creation for the request_id field.
+	cparesetattempt.DefaultRequestID = cparesetattemptDescRequestID.Default.(string)
+	// cparesetattempt.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	cparesetattempt.RequestIDValidator = cparesetattemptDescRequestID.Validators[0].(func(string) error)
+	// cparesetattemptDescGrantID is the schema descriptor for grant_id field.
+	cparesetattemptDescGrantID := cparesetattemptFields[5].Descriptor()
+	// cparesetattempt.DefaultGrantID holds the default value on creation for the grant_id field.
+	cparesetattempt.DefaultGrantID = cparesetattemptDescGrantID.Default.(string)
+	// cparesetattempt.GrantIDValidator is a validator for the "grant_id" field. It is called by the builders before save.
+	cparesetattempt.GrantIDValidator = cparesetattemptDescGrantID.Validators[0].(func(string) error)
 	channelMixin := schema.Channel{}.Mixin()
 	channel.Policy = privacy.NewPolicies(schema.Channel{})
 	channel.Hooks[0] = func(next ent.Mutator) ent.Mutator {

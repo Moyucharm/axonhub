@@ -33,6 +33,60 @@ type CPAQuotaSnapshot struct {
 	// ResetCreditsFailed marks a refresh whose card read failed while quota
 	// succeeded, so the UI never renders a failed read as "no cards".
 	ResetCreditsFailed bool `json:"reset_credits_failed,omitempty"`
+	// ClaudeReset mirrors Claude's cedar_ember reset-grant block read with the
+	// quota. Like ResetCredits it is display data; every claim re-reads live.
+	ClaudeReset *CPAClaudeReset `json:"claude_reset,omitempty"`
+	// ClaudeResetFailed marks a refresh whose reset-grant block was malformed
+	// while quota succeeded, so the UI never renders it as "no grants".
+	ClaudeResetFailed bool `json:"claude_reset_failed,omitempty"`
+}
+
+// CPAClaudeReset is the parsed cedar_ember status of one Claude account.
+type CPAClaudeReset struct {
+	Eligible         bool                  `json:"eligible"`
+	IneligibleReason string                `json:"ineligible_reason,omitempty"`
+	AtLimit          bool                  `json:"at_limit,omitempty"`
+	NextGrantID      string                `json:"next_grant_id,omitempty"`
+	WeeklyResetsAt   *time.Time            `json:"weekly_resets_at,omitempty"`
+	CooldownUntil    *time.Time            `json:"cooldown_until,omitempty"`
+	Grants           []CPAClaudeResetGrant `json:"grants,omitempty"`
+}
+
+// CPAClaudeResetGrant is one reset grant. Uncertain and RetryUntil are filled
+// per read from the local claim journal and are never persisted.
+type CPAClaudeResetGrant struct {
+	ID               string     `json:"id"`
+	Label            string     `json:"label,omitempty"`
+	ResetsTotal      int        `json:"resets_total"`
+	ResetsLeft       int        `json:"resets_left"`
+	StartsAt         *time.Time `json:"starts_at,omitempty"`
+	EndsAt           *time.Time `json:"ends_at,omitempty"`
+	Clears           []string   `json:"clears,omitempty"`
+	Paused           bool       `json:"paused,omitempty"`
+	UsableNow        bool       `json:"usable_now,omitempty"`
+	UseRequiresLimit bool       `json:"use_requires_limit,omitempty"`
+	Uncertain        bool       `json:"-"`
+	RetryUntil       *time.Time `json:"-"`
+}
+
+// CPAClaudeResetResult is a settled answer of the Claude reset claim endpoint,
+// plus the two HTTP refusals that prove nothing was spent.
+type CPAClaudeResetResult string
+
+const (
+	CPAClaudeResetResultReset       CPAClaudeResetResult = "reset"
+	CPAClaudeResetResultAlreadyUsed CPAClaudeResetResult = "already_used"
+	CPAClaudeResetResultNotLimited  CPAClaudeResetResult = "not_limited"
+	CPAClaudeResetResultCooldown    CPAClaudeResetResult = "cooldown"
+	CPAClaudeResetResultIneligible  CPAClaudeResetResult = "ineligible"
+	CPAClaudeResetResultUnavailable CPAClaudeResetResult = "unavailable"
+	CPAClaudeResetResultRateLimited CPAClaudeResetResult = "rate_limited"
+	CPAClaudeResetResultAuthError   CPAClaudeResetResult = "auth_error"
+)
+
+// Spent reports whether the result proves the grant use was consumed.
+func (result CPAClaudeResetResult) Spent() bool {
+	return result == CPAClaudeResetResultReset || result == CPAClaudeResetResultAlreadyUsed
 }
 
 // CPAQuotaResetCredit is one provider reset card usable for a quota reset.

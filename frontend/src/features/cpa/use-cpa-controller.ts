@@ -12,9 +12,10 @@ import {
   useRefreshCPAInstance,
   useToggleCPACredential,
   useResetCPACodexCredential,
+  useResetCPAClaudeCredential,
 } from './data';
 import type { CPAInstance } from './types';
-import type { CPACodexResetConfirmation } from './components/confirmation-dialogs';
+import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation } from './components/confirmation-dialogs';
 import { useCPAFilters } from './use-cpa-filters';
 import { useCPAPagination } from './use-cpa-pagination';
 
@@ -38,6 +39,8 @@ export function useCPAController() {
   }>();
   const [resettingCredential, setResettingCredential] = useState<CPACodexResetConfirmation>();
   const resetSubmissionInFlight = useRef(false);
+  const [claudeResettingCredential, setClaudeResettingCredential] = useState<CPAClaudeResetConfirmation>();
+  const claudeResetSubmissionInFlight = useRef(false);
   const [activeRefreshInstanceId, setActiveRefreshInstanceId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -45,6 +48,7 @@ export function useCPAController() {
     if (selectedInstanceID && !instances.some((instance) => instance.id === selectedInstanceID)) {
       setExpanded(new Set());
       setResettingCredential(undefined);
+      setClaudeResettingCredential(undefined);
       setSelectedInstanceID(instances[0]?.id);
     }
   }, [instances, selectedInstanceID]);
@@ -84,6 +88,7 @@ export function useCPAController() {
   const toggleCredential = useToggleCPACredential();
   const deleteInstance = useDeleteCPAInstance();
   const resetCredential = useResetCPACodexCredential();
+  const claudeResetCredential = useResetCPAClaudeCredential();
   const refreshProgress = useCPARefreshProgress(activeRefreshInstanceId);
   const credentials = credentialsQuery.data?.edges.map((edge) => edge.node) ?? [];
   const stats = overviewQuery.data?.stats;
@@ -92,6 +97,7 @@ export function useCPAController() {
     if (id === selectedInstanceID) return;
     setExpanded(new Set());
     setResettingCredential(undefined);
+    setClaudeResettingCredential(undefined);
     setSelectedInstanceID(id);
   };
 
@@ -118,6 +124,12 @@ export function useCPAController() {
     if (resetSubmissionInFlight.current) return;
     resetCredential.reset();
     setResettingCredential(confirmation);
+  };
+
+  const requestClaudeResetCredential = (confirmation: CPAClaudeResetConfirmation) => {
+    if (claudeResetSubmissionInFlight.current) return;
+    claudeResetCredential.reset();
+    setClaudeResettingCredential(confirmation);
   };
 
   const refreshSelectedScope = () => {
@@ -163,6 +175,20 @@ export function useCPAController() {
     }
   };
 
+  const confirmClaudeResetCredential = async () => {
+    if (!claudeResettingCredential || claudeResetSubmissionInFlight.current || claudeResetCredential.isError) return;
+    const confirmation = claudeResettingCredential;
+    claudeResetSubmissionInFlight.current = true;
+    try {
+      await claudeResetCredential.mutateAsync({ credentialID: confirmation.credentialID, grantID: confirmation.grantID });
+      setClaudeResettingCredential((current) => (current === confirmation ? undefined : current));
+    } catch {
+      // Leave the frozen grant in the dialog; the hook reports the error.
+    } finally {
+      claudeResetSubmissionInFlight.current = false;
+    }
+  };
+
   return {
     canWrite,
     instancesQuery,
@@ -193,6 +219,8 @@ export function useCPAController() {
     setTogglingCredential,
     resettingCredential,
     setResettingCredential,
+    claudeResettingCredential,
+    setClaudeResettingCredential,
     overviewQuery,
     providerCounts,
     providers,
@@ -206,6 +234,7 @@ export function useCPAController() {
     deleteInstance,
     refreshProgress,
     resetCredential,
+    claudeResetCredential,
     showRefreshProgress: Boolean(refreshProgress.data?.running),
     resetPagination,
     selectInstance,
@@ -216,6 +245,8 @@ export function useCPAController() {
     confirmToggleCredential,
     confirmResetCredential,
     requestResetCredential,
+    confirmClaudeResetCredential,
+    requestClaudeResetCredential,
     setPageSize,
     supportedQuotaProviders: SUPPORTED_QUOTA_PROVIDERS,
   };

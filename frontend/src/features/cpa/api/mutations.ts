@@ -7,6 +7,7 @@ import {
   CREATE_INSTANCE,
   DELETE_INSTANCE,
   REFRESH_CREDENTIAL,
+  RESET_CLAUDE_CREDENTIAL,
   RESET_CODEX_CREDENTIAL,
   REFRESH_INSTANCE,
   TOGGLE_CREDENTIAL,
@@ -16,6 +17,7 @@ import type {
   CPAInstance,
   CPAInstanceInput,
   CPACredential,
+  CPAClaudeResetOutcome,
   CPARefreshResult,
 } from '../types';
 
@@ -190,6 +192,37 @@ export function useResetCPACodexCredential() {
       queryClient.invalidateQueries({ queryKey: ['cpa', 'credentials'] });
       queryClient.invalidateQueries({ queryKey: ['cpa', 'overview'] });
       toast.success(t('cpa.reset.success'));
+    },
+  });
+}
+
+export function useResetCPAClaudeCredential() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    mutationFn: async ({ credentialID, grantID }: { credentialID: number; grantID: string }) => {
+      try {
+        const data = await graphqlRequest<{ resetCPAClaudeCredential: CPAClaudeResetOutcome }>(RESET_CLAUDE_CREDENTIAL, {
+          credentialID,
+          grantID,
+        });
+        return data.resetCPAClaudeCredential;
+      } catch (error) {
+        handleError(error, { context: t('cpa.claudeReset.failure') });
+        throw error;
+      }
+    },
+    onSuccess: (outcome) => {
+      queryClient.invalidateQueries({ queryKey: ['cpa', 'credentials'] });
+      queryClient.invalidateQueries({ queryKey: ['cpa', 'overview'] });
+      if (outcome.uncertain) {
+        toast.warning(t('cpa.claudeReset.uncertain'));
+      } else if (outcome.result === 'reset' || outcome.result === 'already_used') {
+        toast.success(t(`cpa.claudeReset.result.${outcome.result}`));
+      } else if (outcome.result) {
+        toast.info(t(`cpa.claudeReset.result.${outcome.result}`));
+      }
     },
   });
 }

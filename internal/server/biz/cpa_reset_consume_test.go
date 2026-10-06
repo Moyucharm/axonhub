@@ -11,7 +11,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -108,10 +108,10 @@ func TestCPACodexResetAllowsSuccessorAfterClaimedCard(t *testing.T) {
 		SetQuotaContext(objects.CPAQuotaContext{CodexAccountID: "account-a"}).
 		SaveX(ctx)
 	// A claimed earliest card must not keep its successor permanently rejected.
-	client.CPACodexResetAttempt.Create().
+	client.CPAResetAttempt.Create().
 		SetCreditKey(codexCreditKey("account-a", "first")).
 		SetCredentialID(credential.ID).
-		SetState(cpacodexresetattempt.StateUncertain).
+		SetState(cparesetattempt.StateUncertain).
 		SaveX(ctx)
 	svc.connections.openInstanceClient = func(context.Context, *ent.CPAInstance) (cpaclient.ManagementClient, error) {
 		return cpaclient.NewClient(cpaclient.Config{BaseURL: server.URL, ManagementSecret: "secret"})

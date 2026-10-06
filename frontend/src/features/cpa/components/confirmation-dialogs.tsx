@@ -56,6 +56,48 @@ export function CPACodexResetDialog({ confirmation, pending, failed, onOpenChang
   );
 }
 
+export interface CPAClaudeResetConfirmation {
+  credentialID: number;
+  grantID: string;
+  displayName: string;
+  label: string;
+  endsAt?: string | null;
+  retry: boolean;
+}
+
+interface CPAClaudeResetDialogProps {
+  confirmation?: CPAClaudeResetConfirmation;
+  pending: boolean;
+  failed: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}
+
+export function CPAClaudeResetDialog({ confirmation, pending, failed, onOpenChange, onConfirm }: CPAClaudeResetDialogProps) {
+  const { t } = useTranslation();
+  const endsAt = confirmation?.endsAt ? new Date(confirmation.endsAt).toLocaleString() : '—';
+  const params = { name: confirmation?.displayName, label: confirmation?.label, endsAt };
+  return (
+    <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => !pending && onOpenChange(open)}>
+      <AlertDialogContent data-testid='cpa-claude-reset-confirmation'>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{confirmation?.retry ? t('cpa.claudeReset.retryTitle') : t('cpa.claudeReset.confirmTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {confirmation?.retry ? t('cpa.claudeReset.retryDescription', params) : t('cpa.claudeReset.confirmDescription', params)}
+          </AlertDialogDescription>
+          {failed && <p className='text-destructive mt-2'>{t('cpa.claudeReset.failure')}</p>}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{t('common.buttons.cancel')}</AlertDialogCancel>
+          <Button data-testid='cpa-claude-reset-confirm' onClick={onConfirm} disabled={pending || failed}>
+            {confirmation?.retry ? t('cpa.claudeReset.retry') : t('cpa.claudeReset.use')}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 interface CPACredentialToggleDialogProps {
   confirmation?: CPAToggleConfirmation;
   pending: boolean;

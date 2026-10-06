@@ -1,6 +1,6 @@
-// Dev-only visual harness for the CPA credential table (quota cells and the
-// Codex reset-credit panel). Not referenced by the app: open
-// /__quota_preview__.html with the dev server to inspect the rendering.
+// Dev-only visual harness for the CPA credential table (quota cells, the Codex
+// reset-credit panel and the Claude reset-grant panel). Not referenced by the
+// app: open /__quota_preview__.html with the dev server to inspect the rendering.
 import { StrictMode, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router';
@@ -8,7 +8,7 @@ import { ThemeProvider } from './context/theme-context';
 import './index.css';
 import './lib/i18n';
 import { CPACredentialTable } from './features/cpa/components/credential-table';
-import type { CPACredential, CPAQuotaItem, CPAQuotaResetCredit, CPAQuotaState } from './features/cpa/types';
+import type { CPAClaudeReset, CPACredential, CPAQuotaItem, CPAQuotaResetCredit, CPAQuotaState } from './features/cpa/types';
 
 const at = (hours: number) => new Date(Date.now() + hours * 3600_000).toISOString();
 
@@ -26,7 +26,7 @@ function credential(
   planType: string,
   items: CPAQuotaItem[],
   resetCredits: CPAQuotaResetCredit[] = [],
-  state: { quotaState?: CPAQuotaState; resetCreditsFailed?: boolean } = {}
+  state: { quotaState?: CPAQuotaState; resetCreditsFailed?: boolean; claudeReset?: CPAClaudeReset; claudeResetFailed?: boolean } = {}
 ): CPACredential {
   return {
     id,
@@ -43,7 +43,13 @@ function credential(
     priority: 0,
     planType,
     quotaState: state.quotaState ?? 'success',
-    quotaData: { items, resetCredits, resetCreditsFailed: state.resetCreditsFailed ?? false },
+    quotaData: {
+      items,
+      resetCredits,
+      resetCreditsFailed: state.resetCreditsFailed ?? false,
+      claudeReset: state.claudeReset ?? null,
+      claudeResetFailed: state.claudeResetFailed ?? false,
+    },
     quotaLastAttemptAt: at(-0.1),
     quotaLastSuccessAt: at(-0.1),
     quotaLastFailureAt: null,
@@ -109,11 +115,80 @@ const credentials: CPACredential[] = [
     ],
     { quotaState: 'error', resetCreditsFailed: true }
   ),
+  credential(
+    5,
+    'claude',
+    'claude-preview@example.com',
+    'pro',
+    [item({ id: 'five-hour', label: '5 hour', usedPercent: 4, remainingPercent: 96, periodSeconds: 18000, resetAt: at(4) })],
+    [],
+    {
+      claudeReset: {
+        eligible: true,
+        ineligibleReason: '',
+        atLimit: false,
+        nextGrantID: 'opus55-launch-promax-20260921',
+        weeklyResetsAt: at(120),
+        cooldownUntil: null,
+        grants: [
+          {
+            id: 'opus55-launch-promax-20260921',
+            label: 'Claude Opus 5.5 launch: one usage-limit reset for Pro and Max',
+            resetsTotal: 1,
+            resetsLeft: 1,
+            startsAt: at(-340),
+            endsAt: at(390),
+            clears: ['five_hour', 'seven_day', 'seven_day_overage_included'],
+            paused: false,
+            usableNow: true,
+            useRequiresLimit: false,
+            uncertain: false,
+            retryUntil: null,
+          },
+        ],
+      },
+    }
+  ),
+  credential(
+    6,
+    'claude',
+    'claude-retry@example.com',
+    'max',
+    [item({ id: 'five-hour', label: '5 hour', usedPercent: 100, remainingPercent: 0, periodSeconds: 18000, resetAt: at(2) })],
+    [],
+    {
+      claudeReset: {
+        eligible: true,
+        ineligibleReason: '',
+        atLimit: true,
+        nextGrantID: 'limit-pack',
+        cooldownUntil: null,
+        grants: [
+          {
+            id: 'limit-pack',
+            label: 'Limit pack',
+            resetsTotal: 3,
+            resetsLeft: 2,
+            endsAt: at(48),
+            clears: ['five_hour'],
+            paused: false,
+            usableNow: true,
+            useRequiresLimit: true,
+            uncertain: true,
+            retryUntil: at(0.1),
+          },
+        ],
+      },
+    }
+  ),
+  credential(7, 'claude', 'claude-ineligible@example.com', 'pro', [], [], {
+    claudeReset: { eligible: false, ineligibleReason: 'surface', atLimit: false, nextGrantID: '', grants: [] },
+  }),
 ];
 
 function Preview() {
   const noop = () => {};
-  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([1, 2, 3, 4]));
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([1, 2, 3, 4, 5, 6, 7]));
   return (
     <div className='bg-background flex h-screen flex-col gap-4 p-6'>
       <CPACredentialTable
@@ -126,6 +201,7 @@ function Preview() {
         canWrite
         instanceEnabled
         resetPending={false}
+        claudeResetPending={false}
         refreshPending={false}
         togglePending={false}
         locale='zh-CN'
@@ -143,6 +219,7 @@ function Preview() {
         onRefreshCredential={noop}
         onRequestToggle={noop}
         onRequestReset={noop}
+        onRequestClaudeReset={noop}
         onNextPage={noop}
         onPreviousPage={noop}
         onPageSizeChange={noop}

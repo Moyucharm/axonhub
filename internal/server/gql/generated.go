@@ -360,6 +360,37 @@ type ComplexityRoot struct {
 		Updated  func(childComplexity int) int
 	}
 
+	CPAClaudeReset struct {
+		AtLimit          func(childComplexity int) int
+		CooldownUntil    func(childComplexity int) int
+		Eligible         func(childComplexity int) int
+		Grants           func(childComplexity int) int
+		IneligibleReason func(childComplexity int) int
+		NextGrantID      func(childComplexity int) int
+		WeeklyResetsAt   func(childComplexity int) int
+	}
+
+	CPAClaudeResetGrant struct {
+		Clears           func(childComplexity int) int
+		EndsAt           func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Label            func(childComplexity int) int
+		Paused           func(childComplexity int) int
+		ResetsLeft       func(childComplexity int) int
+		ResetsTotal      func(childComplexity int) int
+		RetryUntil       func(childComplexity int) int
+		StartsAt         func(childComplexity int) int
+		Uncertain        func(childComplexity int) int
+		UsableNow        func(childComplexity int) int
+		UseRequiresLimit func(childComplexity int) int
+	}
+
+	CPAClaudeResetOutcome struct {
+		Result     func(childComplexity int) int
+		RetryUntil func(childComplexity int) int
+		Uncertain  func(childComplexity int) int
+	}
+
 	CPACredentialConnection struct {
 		Edges      func(childComplexity int) int
 		PageInfo   func(childComplexity int) int
@@ -481,6 +512,8 @@ type ComplexityRoot struct {
 	}
 
 	CPAQuotaSnapshot struct {
+		ClaudeReset        func(childComplexity int) int
+		ClaudeResetFailed  func(childComplexity int) int
 		Items              func(childComplexity int) int
 		ResetCredits       func(childComplexity int) int
 		ResetCreditsFailed func(childComplexity int) int
@@ -1261,6 +1294,7 @@ type ComplexityRoot struct {
 		RefreshProvidersCatalog               func(childComplexity int) int
 		RemoveChannelAPIKeys                  func(childComplexity int, channelID objects.GUID, keys []string) int
 		RemoveUserFromProject                 func(childComplexity int, input RemoveUserFromProjectInput) int
+		ResetCPAClaudeCredential              func(childComplexity int, credentialID int, grantID string) int
 		ResetCPACodexCredential               func(childComplexity int, credentialID int, creditID string) int
 		ResetChannelQuotaNow                  func(childComplexity int, channelID objects.GUID) int
 		Restore                               func(childComplexity int, file graphql.Upload, input backup.RestoreOptions) int
@@ -2607,6 +2641,7 @@ type MutationResolver interface {
 	RefreshCPACredential(ctx context.Context, credentialID int) (*biz.CPACredentialView, error)
 	ToggleCPACredential(ctx context.Context, credentialID int, disabled bool) (*biz.CPACredentialView, error)
 	ResetCPACodexCredential(ctx context.Context, credentialID int, creditID string) (bool, error)
+	ResetCPAClaudeCredential(ctx context.Context, credentialID int, grantID string) (*biz.CPAClaudeResetOutcome, error)
 }
 type OIDCIdentityResolver interface {
 	ID(ctx context.Context, obj *ent.OIDCIdentity) (*objects.GUID, error)
@@ -3814,6 +3849,141 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.BulkUpdateChannelOrderingResult.Updated(childComplexity), true
 
+	case "CPAClaudeReset.atLimit":
+		if e.complexity.CPAClaudeReset.AtLimit == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.AtLimit(childComplexity), true
+	case "CPAClaudeReset.cooldownUntil":
+		if e.complexity.CPAClaudeReset.CooldownUntil == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.CooldownUntil(childComplexity), true
+	case "CPAClaudeReset.eligible":
+		if e.complexity.CPAClaudeReset.Eligible == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.Eligible(childComplexity), true
+	case "CPAClaudeReset.grants":
+		if e.complexity.CPAClaudeReset.Grants == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.Grants(childComplexity), true
+	case "CPAClaudeReset.ineligibleReason":
+		if e.complexity.CPAClaudeReset.IneligibleReason == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.IneligibleReason(childComplexity), true
+	case "CPAClaudeReset.nextGrantID":
+		if e.complexity.CPAClaudeReset.NextGrantID == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.NextGrantID(childComplexity), true
+	case "CPAClaudeReset.weeklyResetsAt":
+		if e.complexity.CPAClaudeReset.WeeklyResetsAt == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeReset.WeeklyResetsAt(childComplexity), true
+
+	case "CPAClaudeResetGrant.clears":
+		if e.complexity.CPAClaudeResetGrant.Clears == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.Clears(childComplexity), true
+	case "CPAClaudeResetGrant.endsAt":
+		if e.complexity.CPAClaudeResetGrant.EndsAt == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.EndsAt(childComplexity), true
+	case "CPAClaudeResetGrant.id":
+		if e.complexity.CPAClaudeResetGrant.ID == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.ID(childComplexity), true
+	case "CPAClaudeResetGrant.label":
+		if e.complexity.CPAClaudeResetGrant.Label == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.Label(childComplexity), true
+	case "CPAClaudeResetGrant.paused":
+		if e.complexity.CPAClaudeResetGrant.Paused == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.Paused(childComplexity), true
+	case "CPAClaudeResetGrant.resetsLeft":
+		if e.complexity.CPAClaudeResetGrant.ResetsLeft == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.ResetsLeft(childComplexity), true
+	case "CPAClaudeResetGrant.resetsTotal":
+		if e.complexity.CPAClaudeResetGrant.ResetsTotal == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.ResetsTotal(childComplexity), true
+	case "CPAClaudeResetGrant.retryUntil":
+		if e.complexity.CPAClaudeResetGrant.RetryUntil == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.RetryUntil(childComplexity), true
+	case "CPAClaudeResetGrant.startsAt":
+		if e.complexity.CPAClaudeResetGrant.StartsAt == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.StartsAt(childComplexity), true
+	case "CPAClaudeResetGrant.uncertain":
+		if e.complexity.CPAClaudeResetGrant.Uncertain == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.Uncertain(childComplexity), true
+	case "CPAClaudeResetGrant.usableNow":
+		if e.complexity.CPAClaudeResetGrant.UsableNow == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.UsableNow(childComplexity), true
+	case "CPAClaudeResetGrant.useRequiresLimit":
+		if e.complexity.CPAClaudeResetGrant.UseRequiresLimit == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetGrant.UseRequiresLimit(childComplexity), true
+
+	case "CPAClaudeResetOutcome.result":
+		if e.complexity.CPAClaudeResetOutcome.Result == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetOutcome.Result(childComplexity), true
+	case "CPAClaudeResetOutcome.retryUntil":
+		if e.complexity.CPAClaudeResetOutcome.RetryUntil == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetOutcome.RetryUntil(childComplexity), true
+	case "CPAClaudeResetOutcome.uncertain":
+		if e.complexity.CPAClaudeResetOutcome.Uncertain == nil {
+			break
+		}
+
+		return e.complexity.CPAClaudeResetOutcome.Uncertain(childComplexity), true
+
 	case "CPACredentialConnection.edges":
 		if e.complexity.CPACredentialConnection.Edges == nil {
 			break
@@ -4364,6 +4534,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CPAQuotaResetCredit.Title(childComplexity), true
 
+	case "CPAQuotaSnapshot.claudeReset":
+		if e.complexity.CPAQuotaSnapshot.ClaudeReset == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaSnapshot.ClaudeReset(childComplexity), true
+	case "CPAQuotaSnapshot.claudeResetFailed":
+		if e.complexity.CPAQuotaSnapshot.ClaudeResetFailed == nil {
+			break
+		}
+
+		return e.complexity.CPAQuotaSnapshot.ClaudeResetFailed(childComplexity), true
 	case "CPAQuotaSnapshot.items":
 		if e.complexity.CPAQuotaSnapshot.Items == nil {
 			break
@@ -7807,6 +7989,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveUserFromProject(childComplexity, args["input"].(RemoveUserFromProjectInput)), true
+	case "Mutation.resetCPAClaudeCredential":
+		if e.complexity.Mutation.ResetCPAClaudeCredential == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetCPAClaudeCredential_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ResetCPAClaudeCredential(childComplexity, args["credentialID"].(int), args["grantID"].(string)), true
 	case "Mutation.resetCPACodexCredential":
 		if e.complexity.Mutation.ResetCPACodexCredential == nil {
 			break
@@ -14547,6 +14740,22 @@ func (ec *executionContext) field_Mutation_removeUserFromProject_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetCPAClaudeCredential_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "credentialID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["credentialID"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "grantID", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["grantID"] = arg1
 	return args, nil
 }
 
@@ -22220,6 +22429,670 @@ func (ec *executionContext) fieldContext_BulkUpdateChannelOrderingResult_channel
 	return fc, nil
 }
 
+func (ec *executionContext) _CPAClaudeReset_eligible(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_eligible,
+		func(ctx context.Context) (any, error) {
+			return obj.Eligible, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_eligible(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_ineligibleReason(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_ineligibleReason,
+		func(ctx context.Context) (any, error) {
+			return obj.IneligibleReason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_ineligibleReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_atLimit(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_atLimit,
+		func(ctx context.Context) (any, error) {
+			return obj.AtLimit, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_atLimit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_nextGrantID(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_nextGrantID,
+		func(ctx context.Context) (any, error) {
+			return obj.NextGrantID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_nextGrantID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_weeklyResetsAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_weeklyResetsAt,
+		func(ctx context.Context) (any, error) {
+			return obj.WeeklyResetsAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_weeklyResetsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_cooldownUntil(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_cooldownUntil,
+		func(ctx context.Context) (any, error) {
+			return obj.CooldownUntil, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_cooldownUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeReset_grants(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeReset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeReset_grants,
+		func(ctx context.Context) (any, error) {
+			return obj.Grants, nil
+		},
+		nil,
+		ec.marshalNCPAClaudeResetGrant2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetGrantᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeReset_grants(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeReset",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPAClaudeResetGrant_id(ctx, field)
+			case "label":
+				return ec.fieldContext_CPAClaudeResetGrant_label(ctx, field)
+			case "resetsTotal":
+				return ec.fieldContext_CPAClaudeResetGrant_resetsTotal(ctx, field)
+			case "resetsLeft":
+				return ec.fieldContext_CPAClaudeResetGrant_resetsLeft(ctx, field)
+			case "startsAt":
+				return ec.fieldContext_CPAClaudeResetGrant_startsAt(ctx, field)
+			case "endsAt":
+				return ec.fieldContext_CPAClaudeResetGrant_endsAt(ctx, field)
+			case "clears":
+				return ec.fieldContext_CPAClaudeResetGrant_clears(ctx, field)
+			case "paused":
+				return ec.fieldContext_CPAClaudeResetGrant_paused(ctx, field)
+			case "usableNow":
+				return ec.fieldContext_CPAClaudeResetGrant_usableNow(ctx, field)
+			case "useRequiresLimit":
+				return ec.fieldContext_CPAClaudeResetGrant_useRequiresLimit(ctx, field)
+			case "uncertain":
+				return ec.fieldContext_CPAClaudeResetGrant_uncertain(ctx, field)
+			case "retryUntil":
+				return ec.fieldContext_CPAClaudeResetGrant_retryUntil(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAClaudeResetGrant", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_id(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_label(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_label,
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_resetsTotal(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_resetsTotal,
+		func(ctx context.Context) (any, error) {
+			return obj.ResetsTotal, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_resetsTotal(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_resetsLeft(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_resetsLeft,
+		func(ctx context.Context) (any, error) {
+			return obj.ResetsLeft, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_resetsLeft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_startsAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_startsAt,
+		func(ctx context.Context) (any, error) {
+			return obj.StartsAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_startsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_endsAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_endsAt,
+		func(ctx context.Context) (any, error) {
+			return obj.EndsAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_endsAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_clears(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_clears,
+		func(ctx context.Context) (any, error) {
+			return obj.Clears, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_clears(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_paused(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_paused,
+		func(ctx context.Context) (any, error) {
+			return obj.Paused, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_paused(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_usableNow(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_usableNow,
+		func(ctx context.Context) (any, error) {
+			return obj.UsableNow, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_usableNow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_useRequiresLimit(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_useRequiresLimit,
+		func(ctx context.Context) (any, error) {
+			return obj.UseRequiresLimit, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_useRequiresLimit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_uncertain(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_uncertain,
+		func(ctx context.Context) (any, error) {
+			return obj.Uncertain, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_uncertain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetGrant_retryUntil(ctx context.Context, field graphql.CollectedField, obj *objects.CPAClaudeResetGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetGrant_retryUntil,
+		func(ctx context.Context) (any, error) {
+			return obj.RetryUntil, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetGrant_retryUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetGrant",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetOutcome_result(ctx context.Context, field graphql.CollectedField, obj *biz.CPAClaudeResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetOutcome_result,
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		ec.marshalOCPAClaudeResetResult2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetResult,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetOutcome_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type CPAClaudeResetResult does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetOutcome_uncertain(ctx context.Context, field graphql.CollectedField, obj *biz.CPAClaudeResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetOutcome_uncertain,
+		func(ctx context.Context) (any, error) {
+			return obj.Uncertain, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetOutcome_uncertain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAClaudeResetOutcome_retryUntil(ctx context.Context, field graphql.CollectedField, obj *biz.CPAClaudeResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAClaudeResetOutcome_retryUntil,
+		func(ctx context.Context) (any, error) {
+			return obj.RetryUntil, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAClaudeResetOutcome_retryUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAClaudeResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPACredentialConnection_edges(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22960,6 +23833,10 @@ func (ec *executionContext) fieldContext_CPAManagedCredential_quotaData(_ contex
 				return ec.fieldContext_CPAQuotaSnapshot_resetCredits(ctx, field)
 			case "resetCreditsFailed":
 				return ec.fieldContext_CPAQuotaSnapshot_resetCreditsFailed(ctx, field)
+			case "claudeReset":
+				return ec.fieldContext_CPAQuotaSnapshot_claudeReset(ctx, field)
+			case "claudeResetFailed":
+				return ec.fieldContext_CPAQuotaSnapshot_claudeResetFailed(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAQuotaSnapshot", field.Name)
 		},
@@ -25045,6 +25922,80 @@ func (ec *executionContext) _CPAQuotaSnapshot_resetCreditsFailed(ctx context.Con
 }
 
 func (ec *executionContext) fieldContext_CPAQuotaSnapshot_resetCreditsFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaSnapshot_claudeReset(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaSnapshot_claudeReset,
+		func(ctx context.Context) (any, error) {
+			return obj.ClaudeReset, nil
+		},
+		nil,
+		ec.marshalOCPAClaudeReset2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeReset,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaSnapshot_claudeReset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAQuotaSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eligible":
+				return ec.fieldContext_CPAClaudeReset_eligible(ctx, field)
+			case "ineligibleReason":
+				return ec.fieldContext_CPAClaudeReset_ineligibleReason(ctx, field)
+			case "atLimit":
+				return ec.fieldContext_CPAClaudeReset_atLimit(ctx, field)
+			case "nextGrantID":
+				return ec.fieldContext_CPAClaudeReset_nextGrantID(ctx, field)
+			case "weeklyResetsAt":
+				return ec.fieldContext_CPAClaudeReset_weeklyResetsAt(ctx, field)
+			case "cooldownUntil":
+				return ec.fieldContext_CPAClaudeReset_cooldownUntil(ctx, field)
+			case "grants":
+				return ec.fieldContext_CPAClaudeReset_grants(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAClaudeReset", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAQuotaSnapshot_claudeResetFailed(ctx context.Context, field graphql.CollectedField, obj *objects.CPAQuotaSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAQuotaSnapshot_claudeResetFailed,
+		func(ctx context.Context) (any, error) {
+			return obj.ClaudeResetFailed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAQuotaSnapshot_claudeResetFailed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "CPAQuotaSnapshot",
 		Field:      field,
@@ -45990,6 +46941,55 @@ func (ec *executionContext) fieldContext_Mutation_resetCPACodexCredential(ctx co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_resetCPACodexCredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resetCPAClaudeCredential(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_resetCPAClaudeCredential,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ResetCPAClaudeCredential(ctx, fc.Args["credentialID"].(int), fc.Args["grantID"].(string))
+		},
+		nil,
+		ec.marshalNCPAClaudeResetOutcome2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAClaudeResetOutcome,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_resetCPAClaudeCredential(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "result":
+				return ec.fieldContext_CPAClaudeResetOutcome_result(ctx, field)
+			case "uncertain":
+				return ec.fieldContext_CPAClaudeResetOutcome_uncertain(ctx, field)
+			case "retryUntil":
+				return ec.fieldContext_CPAClaudeResetOutcome_retryUntil(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAClaudeResetOutcome", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetCPAClaudeCredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -101402,6 +102402,197 @@ func (ec *executionContext) _BulkUpdateChannelOrderingResult(ctx context.Context
 	return out
 }
 
+var cPAClaudeResetImplementors = []string{"CPAClaudeReset"}
+
+func (ec *executionContext) _CPAClaudeReset(ctx context.Context, sel ast.SelectionSet, obj *objects.CPAClaudeReset) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAClaudeResetImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAClaudeReset")
+		case "eligible":
+			out.Values[i] = ec._CPAClaudeReset_eligible(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ineligibleReason":
+			out.Values[i] = ec._CPAClaudeReset_ineligibleReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "atLimit":
+			out.Values[i] = ec._CPAClaudeReset_atLimit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextGrantID":
+			out.Values[i] = ec._CPAClaudeReset_nextGrantID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "weeklyResetsAt":
+			out.Values[i] = ec._CPAClaudeReset_weeklyResetsAt(ctx, field, obj)
+		case "cooldownUntil":
+			out.Values[i] = ec._CPAClaudeReset_cooldownUntil(ctx, field, obj)
+		case "grants":
+			out.Values[i] = ec._CPAClaudeReset_grants(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPAClaudeResetGrantImplementors = []string{"CPAClaudeResetGrant"}
+
+func (ec *executionContext) _CPAClaudeResetGrant(ctx context.Context, sel ast.SelectionSet, obj *objects.CPAClaudeResetGrant) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAClaudeResetGrantImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAClaudeResetGrant")
+		case "id":
+			out.Values[i] = ec._CPAClaudeResetGrant_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._CPAClaudeResetGrant_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetsTotal":
+			out.Values[i] = ec._CPAClaudeResetGrant_resetsTotal(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetsLeft":
+			out.Values[i] = ec._CPAClaudeResetGrant_resetsLeft(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startsAt":
+			out.Values[i] = ec._CPAClaudeResetGrant_startsAt(ctx, field, obj)
+		case "endsAt":
+			out.Values[i] = ec._CPAClaudeResetGrant_endsAt(ctx, field, obj)
+		case "clears":
+			out.Values[i] = ec._CPAClaudeResetGrant_clears(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "paused":
+			out.Values[i] = ec._CPAClaudeResetGrant_paused(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "usableNow":
+			out.Values[i] = ec._CPAClaudeResetGrant_usableNow(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "useRequiresLimit":
+			out.Values[i] = ec._CPAClaudeResetGrant_useRequiresLimit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uncertain":
+			out.Values[i] = ec._CPAClaudeResetGrant_uncertain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "retryUntil":
+			out.Values[i] = ec._CPAClaudeResetGrant_retryUntil(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPAClaudeResetOutcomeImplementors = []string{"CPAClaudeResetOutcome"}
+
+func (ec *executionContext) _CPAClaudeResetOutcome(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAClaudeResetOutcome) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAClaudeResetOutcomeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAClaudeResetOutcome")
+		case "result":
+			out.Values[i] = ec._CPAClaudeResetOutcome_result(ctx, field, obj)
+		case "uncertain":
+			out.Values[i] = ec._CPAClaudeResetOutcome_uncertain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "retryUntil":
+			out.Values[i] = ec._CPAClaudeResetOutcome_retryUntil(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPACredentialConnectionImplementors = []string{"CPACredentialConnection"}
 
 func (ec *executionContext) _CPACredentialConnection(ctx context.Context, sel ast.SelectionSet, obj *biz.CPACredentialConnection) graphql.Marshaler {
@@ -102171,6 +103362,13 @@ func (ec *executionContext) _CPAQuotaSnapshot(ctx context.Context, sel ast.Selec
 			}
 		case "resetCreditsFailed":
 			out.Values[i] = ec._CPAQuotaSnapshot_resetCreditsFailed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "claudeReset":
+			out.Values[i] = ec._CPAQuotaSnapshot_claudeReset(ctx, field, obj)
+		case "claudeResetFailed":
+			out.Values[i] = ec._CPAQuotaSnapshot_claudeResetFailed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -109341,6 +110539,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "resetCPACodexCredential":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_resetCPACodexCredential(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetCPAClaudeCredential":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetCPAClaudeCredential(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -122300,6 +123505,68 @@ func (ec *executionContext) marshalNBulkUpdateChannelOrderingResult2ᚖgithubᚗ
 	return ec._BulkUpdateChannelOrderingResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCPAClaudeResetGrant2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetGrant(ctx context.Context, sel ast.SelectionSet, v objects.CPAClaudeResetGrant) graphql.Marshaler {
+	return ec._CPAClaudeResetGrant(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPAClaudeResetGrant2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetGrantᚄ(ctx context.Context, sel ast.SelectionSet, v []objects.CPAClaudeResetGrant) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPAClaudeResetGrant2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetGrant(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCPAClaudeResetOutcome2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAClaudeResetOutcome(ctx context.Context, sel ast.SelectionSet, v biz.CPAClaudeResetOutcome) graphql.Marshaler {
+	return ec._CPAClaudeResetOutcome(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPAClaudeResetOutcome2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAClaudeResetOutcome(ctx context.Context, sel ast.SelectionSet, v *biz.CPAClaudeResetOutcome) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAClaudeResetOutcome(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNCPAConnectionStatus2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAConnectionStatus(ctx context.Context, v any) (biz.CPAConnectionStatus, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := biz.CPAConnectionStatus(tmp)
@@ -129424,6 +130691,32 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) marshalOCPAClaudeReset2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeReset(ctx context.Context, sel ast.SelectionSet, v *objects.CPAClaudeReset) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CPAClaudeReset(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOCPAClaudeResetResult2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetResult(ctx context.Context, v any) (*objects.CPAClaudeResetResult, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := objects.CPAClaudeResetResult(tmp)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOCPAClaudeResetResult2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPAClaudeResetResult(ctx context.Context, sel ast.SelectionSet, v *objects.CPAClaudeResetResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(string(*v))
 	return res
 }
 

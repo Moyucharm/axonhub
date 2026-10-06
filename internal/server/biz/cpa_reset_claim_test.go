@@ -90,9 +90,9 @@ func TestCPACodexResetCancelledWhileWaitingForPermitKeepsCreditAvailable(t *test
 	defer cancel()
 	require.Error(t, svc.consumeCodexResetCredit(waitCtx, management, credential, "first"))
 	require.Zero(t, posts)
-	require.Zero(t, client.CPACodexResetAttempt.Query().CountX(ctx))
+	require.Zero(t, client.CPAResetAttempt.Query().CountX(ctx))
 	limiter.Release(maxCPAInstanceConcurrency)
 	require.NoError(t, svc.consumeCodexResetCredit(ctx, management, credential, "first"))
 	require.Equal(t, 1, posts)
-	require.Equal(t, "redeemed", string(client.CPACodexResetAttempt.Query().OnlyX(ctx).State))
+	require.Equal(t, "redeemed", string(client.CPAResetAttempt.Query().OnlyX(ctx).State))
 }

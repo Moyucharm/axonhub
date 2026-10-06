@@ -75,10 +75,66 @@ type CPAQuotaResetCredit {
   expiresAt: Time
 }
 
+type CPAClaudeResetGrant {
+  id: String!
+  label: String!
+  resetsTotal: Int!
+  resetsLeft: Int!
+  startsAt: Time
+  endsAt: Time
+  clears: [String!]!
+  paused: Boolean!
+  usableNow: Boolean!
+  useRequiresLimit: Boolean!
+  """
+  A local claim on this grant has an unknown remote outcome.
+  """
+  uncertain: Boolean!
+  """
+  Deadline for retrying the uncertain claim with its original request ID; null once expired.
+  """
+  retryUntil: Time
+}
+
+type CPAClaudeReset {
+  eligible: Boolean!
+  ineligibleReason: String!
+  atLimit: Boolean!
+  nextGrantID: String!
+  weeklyResetsAt: Time
+  cooldownUntil: Time
+  grants: [CPAClaudeResetGrant!]!
+}
+
+enum CPAClaudeResetResult {
+  reset
+  already_used
+  not_limited
+  cooldown
+  ineligible
+  unavailable
+  rate_limited
+  auth_error
+}
+
+type CPAClaudeResetOutcome {
+  """
+  Settled provider answer; null when the outcome is unknown.
+  """
+  result: CPAClaudeResetResult
+  """
+  The grant may have been spent; retry only with the original request.
+  """
+  uncertain: Boolean!
+  retryUntil: Time
+}
+
 type CPAQuotaSnapshot {
   items: [CPAQuotaItem!]!
   resetCredits: [CPAQuotaResetCredit!]!
   resetCreditsFailed: Boolean!
+  claudeReset: CPAClaudeReset
+  claudeResetFailed: Boolean!
 }
 
 type CPAManagedCredential {
@@ -219,4 +275,5 @@ extend type Mutation {
   refreshCPACredential(credentialID: Int!): CPAManagedCredential!
   toggleCPACredential(credentialID: Int!, disabled: Boolean!): CPAManagedCredential!
   resetCPACodexCredential(credentialID: Int!, creditID: String!): Boolean!
+  resetCPAClaudeCredential(credentialID: Int!, grantID: String!): CPAClaudeResetOutcome!
 }

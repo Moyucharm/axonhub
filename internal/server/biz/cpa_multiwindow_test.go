@@ -251,7 +251,7 @@ func TestApplyQuotaEstimateEstimatesClaudeWindows(t *testing.T) {
 		client.CPACredential.UpdateOneID(credential.ID).SetQuotaData(snapshot).ExecX(ctx)
 	}
 	proxy := &cpaTestManagementClient{callProvider: func(_ context.Context, call cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
-		if strings.HasSuffix(call.URL, "/oauth/usage") {
+		if strings.Contains(call.URL, "/oauth/usage") {
 			body := fmt.Sprintf(`{"five_hour":{"utilization":14,"resets_at":%q},"seven_day":{"utilization":24,"resets_at":%q}}`,
 				fiveHourReset.Format(time.RFC3339), weeklyReset.Format(time.RFC3339))
 			return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(body)}, nil

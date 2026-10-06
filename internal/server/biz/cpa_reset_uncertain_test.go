@@ -9,7 +9,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -41,7 +41,7 @@ func TestCPACodexResetUncertainNeverReposts(t *testing.T) {
 	_, err = svc.ResetCodexCredential(ctx, credential.ID, "first")
 	require.Error(t, err)
 	require.Equal(t, 1, posts)
-	require.Equal(t, cpacodexresetattempt.StateUncertain, client.CPACodexResetAttempt.Query().OnlyX(ctx).State)
+	require.Equal(t, cparesetattempt.StateUncertain, client.CPAResetAttempt.Query().OnlyX(ctx).State)
 	// The display path hides the card whose consume outcome is unknown.
 	connection, err := svc.QueryCredentials(ctx, QueryCPACredentialsInput{InstanceID: instance.ID, First: 10})
 	require.NoError(t, err)

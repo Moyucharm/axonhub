@@ -94,28 +94,6 @@ var (
 			},
 		},
 	}
-	// CpaCodexResetAttemptsColumns holds the columns for the "cpa_codex_reset_attempts" table.
-	CpaCodexResetAttemptsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
-		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
-		{Name: "credit_key", Type: field.TypeString, Size: 64},
-		{Name: "credential_id", Type: field.TypeInt},
-		{Name: "state", Type: field.TypeEnum, Enums: []string{"pending", "redeemed", "uncertain"}, Default: "pending"},
-	}
-	// CpaCodexResetAttemptsTable holds the schema information for the "cpa_codex_reset_attempts" table.
-	CpaCodexResetAttemptsTable = &schema.Table{
-		Name:       "cpa_codex_reset_attempts",
-		Columns:    CpaCodexResetAttemptsColumns,
-		PrimaryKey: []*schema.Column{CpaCodexResetAttemptsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "cpa_codex_reset_attempts_by_credit_key",
-				Unique:  true,
-				Columns: []*schema.Column{CpaCodexResetAttemptsColumns[3]},
-			},
-		},
-	}
 	// CpaCredentialsColumns holds the columns for the "cpa_credentials" table.
 	CpaCredentialsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -284,6 +262,37 @@ var (
 				Name:    "cpainstance_enabled_auto_manage_enabled_next_disabled_patrol_at",
 				Unique:  false,
 				Columns: []*schema.Column{CpaInstancesColumns[6], CpaInstancesColumns[13], CpaInstancesColumns[18]},
+			},
+		},
+	}
+	// CpaResetAttemptsColumns holds the columns for the "cpa_reset_attempts" table.
+	CpaResetAttemptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "provider", Type: field.TypeEnum, Enums: []string{"codex", "claude"}, Default: "codex"},
+		{Name: "credit_key", Type: field.TypeString, Size: 64},
+		{Name: "credential_id", Type: field.TypeInt},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"pending", "redeemed", "uncertain"}, Default: "pending"},
+		{Name: "request_id", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "grant_id", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "resets_left", Type: field.TypeInt, Nullable: true},
+	}
+	// CpaResetAttemptsTable holds the schema information for the "cpa_reset_attempts" table.
+	CpaResetAttemptsTable = &schema.Table{
+		Name:       "cpa_reset_attempts",
+		Columns:    CpaResetAttemptsColumns,
+		PrimaryKey: []*schema.Column{CpaResetAttemptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "cpa_reset_attempts_by_credit_key",
+				Unique:  true,
+				Columns: []*schema.Column{CpaResetAttemptsColumns[4]},
+			},
+			{
+				Name:    "cpa_reset_attempts_by_credential_id",
+				Unique:  false,
+				Columns: []*schema.Column{CpaResetAttemptsColumns[5]},
 			},
 		},
 	}
@@ -1283,9 +1292,9 @@ var (
 	Tables = []*schema.Table{
 		APIKeysTable,
 		APIKeyProfileTemplatesTable,
-		CpaCodexResetAttemptsTable,
 		CpaCredentialsTable,
 		CpaInstancesTable,
+		CpaResetAttemptsTable,
 		ChannelsTable,
 		ChannelModelPricesTable,
 		ChannelModelPriceVersionsTable,

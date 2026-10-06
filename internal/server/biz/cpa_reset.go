@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -57,8 +57,8 @@ func (svc *CPAService) claimedCodexCreditKeys(ctx context.Context, keys []string
 	claimed := make(map[string]bool, len(keys))
 	for start := 0; start < len(keys); start += 400 {
 		end := min(start+400, len(keys))
-		rows, err := svc.entFromContext(ctx).CPACodexResetAttempt.Query().
-			Where(cpacodexresetattempt.CreditKeyIn(keys[start:end]...)).All(ctx)
+		rows, err := svc.entFromContext(ctx).CPAResetAttempt.Query().
+			Where(cparesetattempt.CreditKeyIn(keys[start:end]...)).All(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("check claimed Codex reset credits: %w", err)
 		}
@@ -147,8 +147,8 @@ func (svc *CPAService) consumeCodexResetCredit(ctx context.Context, client cpacl
 		return err
 	}
 	key := codexCreditKey(credential.QuotaContext.CodexAccountID, creditID)
-	attempt, err := svc.entFromContext(ctx).CPACodexResetAttempt.Create().
-		SetCreditKey(key).SetCredentialID(credential.ID).Save(ctx)
+	attempt, err := svc.entFromContext(ctx).CPAResetAttempt.Create().
+		SetProvider(cparesetattempt.ProviderCodex).SetCreditKey(key).SetCredentialID(credential.ID).Save(ctx)
 	if ent.IsConstraintError(err) {
 		return fmt.Errorf("Codex reset credit was already attempted")
 	}
@@ -156,12 +156,12 @@ func (svc *CPAService) consumeCodexResetCredit(ctx context.Context, client cpacl
 		return fmt.Errorf("claim Codex reset credit: %w", err)
 	}
 	consumeErr := cpaclient.ConsumeCodexResetCredit(ctx, client, credential.AuthIndex, credential.QuotaContext.CodexAccountID, creditID, uuid.NewString())
-	state := cpacodexresetattempt.StateRedeemed
+	state := cparesetattempt.StateRedeemed
 	if consumeErr != nil {
-		state = cpacodexresetattempt.StateUncertain
+		state = cparesetattempt.StateUncertain
 	}
 	// The pending unique row still blocks retries if this update fails.
-	_, updateErr := svc.entFromContext(ctx).CPACodexResetAttempt.UpdateOneID(attempt.ID).SetState(state).Save(ctx)
+	_, updateErr := svc.entFromContext(ctx).CPAResetAttempt.UpdateOneID(attempt.ID).SetState(state).Save(ctx)
 	if consumeErr != nil || updateErr != nil {
 		log.Warn(ctx, "CPA Codex reset outcome uncertain", log.Int("credential_id", credential.ID), log.Cause(consumeErr), log.Any("state_update_error", updateErr))
 		return fmt.Errorf("Codex reset outcome uncertain; check provider before any further action")

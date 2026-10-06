@@ -113,6 +113,18 @@ models:
   CPAQuotaResetCredit:
     model:
       - github.com/looplj/axonhub/internal/objects.CPAQuotaResetCredit
+  CPAClaudeReset:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAClaudeReset
+  CPAClaudeResetGrant:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAClaudeResetGrant
+  CPAClaudeResetResult:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPAClaudeResetResult
+  CPAClaudeResetOutcome:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAClaudeResetOutcome
   CPACredentialConnection:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPACredentialConnection

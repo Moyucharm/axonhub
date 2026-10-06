@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw, Ticket } from 'lucide-react';
+import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw, RotateCcw, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -14,8 +14,9 @@ import { planLabel, providerLabel } from '../labels';
 import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
+import { ClaudeResetGrants, claudeResetAction, claudeResetConfirmation, claudeResetIsCurrent, claudeResetRemaining } from './claude-reset-grants';
 import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming, resetCreditsAreCurrent } from './codex-reset-credits';
-import type { CPACodexResetConfirmation } from './confirmation-dialogs';
+import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
 
 const MotionExpandedRow = motion.create(TableRow);
@@ -30,6 +31,7 @@ interface CPACredentialTableProps {
   canWrite: boolean;
   instanceEnabled: boolean;
   resetPending: boolean;
+  claudeResetPending: boolean;
   refreshPending: boolean;
   togglePending: boolean;
   locale: string;
@@ -37,6 +39,7 @@ interface CPACredentialTableProps {
   onRefreshCredential: (id: number) => void;
   onRequestToggle: (credential: CPACredential) => void;
   onRequestReset: (confirmation: CPACodexResetConfirmation) => void;
+  onRequestClaudeReset: (confirmation: CPAClaudeResetConfirmation) => void;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (size: number) => void;
@@ -155,6 +158,72 @@ function CredentialResetBubble({
   );
 }
 
+function ClaudeResetBubble({
+  credential,
+  canWrite,
+  instanceEnabled,
+  resetPending,
+  locale,
+  onRequestReset,
+}: {
+  credential: CPACredential;
+  canWrite: boolean;
+  instanceEnabled: boolean;
+  resetPending: boolean;
+  locale: string;
+  onRequestReset: (confirmation: CPAClaudeResetConfirmation) => void;
+}) {
+  const { t } = useTranslation();
+  const status = credential.quotaData.claudeReset;
+  // Follows the expanded panel: stale or failed reads never offer an action.
+  if (!claudeResetIsCurrent(credential) || !status?.eligible) return null;
+  const remaining = claudeResetRemaining(status);
+  const action = claudeResetAction(status);
+  if (remaining === 0 && !action?.retry) return null;
+  const canUse = canWrite && instanceEnabled && !resetPending && Boolean(action) && !action?.blocker;
+  const ends = action ? resetCreditTiming(action.grant.endsAt, locale) : null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type='button'
+          data-testid={`cpa-claude-reset-bubble-${credential.id}`}
+          disabled={!canUse}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (action) onRequestReset(claudeResetConfirmation(credential, action));
+          }}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums transition-colors',
+            action?.retry
+              ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400'
+              : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:bg-orange-500/20 dark:text-orange-400 dark:hover:bg-orange-500/30',
+            !canUse && 'cursor-not-allowed opacity-60'
+          )}
+          aria-label={t('cpa.claudeReset.remaining', { count: remaining })}
+        >
+          <RotateCcw className='h-3 w-3' />
+          <span>{remaining}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side='top' className='w-fit space-y-1 p-2.5 text-xs text-background shadow-md'>
+        <div className='flex items-center justify-between gap-4 font-semibold'>
+          <span>{t('cpa.claudeReset.remaining', { count: remaining })}</span>
+          {canUse && (
+            <span className='text-[10px] font-normal text-background/70'>
+              {action?.retry ? t('cpa.claudeReset.retry') : t('cpa.claudeReset.use')}
+            </span>
+          )}
+        </div>
+        {action && <p className='text-background/80'>{action.grant.label || action.grant.id}</p>}
+        {ends && <p className='text-background/70'>{t('cpa.claudeReset.ends', { time: `${ends.absolute} (${ends.relative})` })}</p>}
+        {action?.blocker && <p className='text-background/70'>{t(`cpa.claudeReset.blocker.${action.blocker}`, { time: '—' })}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function CPACredentialTable({
   credentials,
   pageInfo,
@@ -165,6 +234,7 @@ export function CPACredentialTable({
   canWrite,
   instanceEnabled,
   resetPending,
+  claudeResetPending,
   refreshPending,
   togglePending,
   locale,
@@ -172,6 +242,7 @@ export function CPACredentialTable({
   onRefreshCredential,
   onRequestToggle,
   onRequestReset,
+  onRequestClaudeReset,
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
@@ -255,6 +326,14 @@ export function CPACredentialTable({
                             resetPending={resetPending}
                             locale={locale}
                             onRequestReset={onRequestReset}
+                          />
+                          <ClaudeResetBubble
+                            credential={credential}
+                            canWrite={canWrite}
+                            instanceEnabled={instanceEnabled}
+                            resetPending={claudeResetPending}
+                            locale={locale}
+                            onRequestReset={onRequestClaudeReset}
                           />
                         </div>
                       </TableCell>
@@ -392,6 +471,16 @@ export function CPACredentialTable({
                                     resetPending={resetPending}
                                     locale={locale}
                                     onRequestReset={onRequestReset}
+                                  />
+                                )}
+                                {credential.provider === 'claude' && (
+                                  <ClaudeResetGrants
+                                    credential={credential}
+                                    canWrite={canWrite}
+                                    instanceEnabled={instanceEnabled}
+                                    resetPending={claudeResetPending}
+                                    locale={locale}
+                                    onRequestReset={onRequestClaudeReset}
                                   />
                                 )}
                               </div>

@@ -88,6 +88,6 @@ func TestCPACodexAutoResetConsumesOnlyExpiringCredits(t *testing.T) {
 	// A repeated cycle cannot spend the same card twice.
 	svc.autoResetCodexInstance(ctx, instance)
 	require.Equal(t, []string{"29", "30"}, posted)
-	require.Len(t, client.CPACodexResetAttempt.Query().AllX(ctx), 2)
+	require.Len(t, client.CPAResetAttempt.Query().AllX(ctx), 2)
 	require.Equal(t, string(objects.CPAQuotaStateSuccess), client.CPACredential.GetX(ctx, credential.ID).QuotaState)
 }

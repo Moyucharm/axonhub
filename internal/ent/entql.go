@@ -10,9 +10,9 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
@@ -90,24 +90,6 @@ var schemaGraph = func() *sqlgraph.Schema {
 	}
 	graph.Nodes[2] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
-			Table:   cpacodexresetattempt.Table,
-			Columns: cpacodexresetattempt.Columns,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: cpacodexresetattempt.FieldID,
-			},
-		},
-		Type: "CPACodexResetAttempt",
-		Fields: map[string]*sqlgraph.FieldSpec{
-			cpacodexresetattempt.FieldCreatedAt:    {Type: field.TypeTime, Column: cpacodexresetattempt.FieldCreatedAt},
-			cpacodexresetattempt.FieldUpdatedAt:    {Type: field.TypeTime, Column: cpacodexresetattempt.FieldUpdatedAt},
-			cpacodexresetattempt.FieldCreditKey:    {Type: field.TypeString, Column: cpacodexresetattempt.FieldCreditKey},
-			cpacodexresetattempt.FieldCredentialID: {Type: field.TypeInt, Column: cpacodexresetattempt.FieldCredentialID},
-			cpacodexresetattempt.FieldState:        {Type: field.TypeEnum, Column: cpacodexresetattempt.FieldState},
-		},
-	}
-	graph.Nodes[3] = &sqlgraph.Node{
-		NodeSpec: sqlgraph.NodeSpec{
 			Table:   cpacredential.Table,
 			Columns: cpacredential.Columns,
 			ID: &sqlgraph.FieldSpec{
@@ -153,7 +135,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpacredential.FieldQuotaObserved:         {Type: field.TypeJSON, Column: cpacredential.FieldQuotaObserved},
 		},
 	}
-	graph.Nodes[4] = &sqlgraph.Node{
+	graph.Nodes[3] = &sqlgraph.Node{
 		NodeSpec: sqlgraph.NodeSpec{
 			Table:   cpainstance.Table,
 			Columns: cpainstance.Columns,
@@ -189,6 +171,28 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpainstance.FieldLastSyncSuccessAt:             {Type: field.TypeTime, Column: cpainstance.FieldLastSyncSuccessAt},
 			cpainstance.FieldLastErrorAt:                   {Type: field.TypeTime, Column: cpainstance.FieldLastErrorAt},
 			cpainstance.FieldLastError:                     {Type: field.TypeString, Column: cpainstance.FieldLastError},
+		},
+	}
+	graph.Nodes[4] = &sqlgraph.Node{
+		NodeSpec: sqlgraph.NodeSpec{
+			Table:   cparesetattempt.Table,
+			Columns: cparesetattempt.Columns,
+			ID: &sqlgraph.FieldSpec{
+				Type:   field.TypeInt,
+				Column: cparesetattempt.FieldID,
+			},
+		},
+		Type: "CPAResetAttempt",
+		Fields: map[string]*sqlgraph.FieldSpec{
+			cparesetattempt.FieldCreatedAt:    {Type: field.TypeTime, Column: cparesetattempt.FieldCreatedAt},
+			cparesetattempt.FieldUpdatedAt:    {Type: field.TypeTime, Column: cparesetattempt.FieldUpdatedAt},
+			cparesetattempt.FieldProvider:     {Type: field.TypeEnum, Column: cparesetattempt.FieldProvider},
+			cparesetattempt.FieldCreditKey:    {Type: field.TypeString, Column: cparesetattempt.FieldCreditKey},
+			cparesetattempt.FieldCredentialID: {Type: field.TypeInt, Column: cparesetattempt.FieldCredentialID},
+			cparesetattempt.FieldState:        {Type: field.TypeEnum, Column: cparesetattempt.FieldState},
+			cparesetattempt.FieldRequestID:    {Type: field.TypeString, Column: cparesetattempt.FieldRequestID},
+			cparesetattempt.FieldGrantID:      {Type: field.TypeString, Column: cparesetattempt.FieldGrantID},
+			cparesetattempt.FieldResetsLeft:   {Type: field.TypeInt, Column: cparesetattempt.FieldResetsLeft},
 		},
 	}
 	graph.Nodes[5] = &sqlgraph.Node{
@@ -1805,71 +1809,6 @@ func (f *APIKeyProfileTemplateFilter) WhereHasProjectWith(preds ...predicate.Pro
 }
 
 // addPredicate implements the predicateAdder interface.
-func (_q *CPACodexResetAttemptQuery) addPredicate(pred func(s *sql.Selector)) {
-	_q.predicates = append(_q.predicates, pred)
-}
-
-// Filter returns a Filter implementation to apply filters on the CPACodexResetAttemptQuery builder.
-func (_q *CPACodexResetAttemptQuery) Filter() *CPACodexResetAttemptFilter {
-	return &CPACodexResetAttemptFilter{config: _q.config, predicateAdder: _q}
-}
-
-// addPredicate implements the predicateAdder interface.
-func (m *CPACodexResetAttemptMutation) addPredicate(pred func(s *sql.Selector)) {
-	m.predicates = append(m.predicates, pred)
-}
-
-// Filter returns an entql.Where implementation to apply filters on the CPACodexResetAttemptMutation builder.
-func (m *CPACodexResetAttemptMutation) Filter() *CPACodexResetAttemptFilter {
-	return &CPACodexResetAttemptFilter{config: m.config, predicateAdder: m}
-}
-
-// CPACodexResetAttemptFilter provides a generic filtering capability at runtime for CPACodexResetAttemptQuery.
-type CPACodexResetAttemptFilter struct {
-	predicateAdder
-	config
-}
-
-// Where applies the entql predicate on the query filter.
-func (f *CPACodexResetAttemptFilter) Where(p entql.P) {
-	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[2].Type, p, s); err != nil {
-			s.AddError(err)
-		}
-	})
-}
-
-// WhereID applies the entql int predicate on the id field.
-func (f *CPACodexResetAttemptFilter) WhereID(p entql.IntP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldID))
-}
-
-// WhereCreatedAt applies the entql time.Time predicate on the created_at field.
-func (f *CPACodexResetAttemptFilter) WhereCreatedAt(p entql.TimeP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldCreatedAt))
-}
-
-// WhereUpdatedAt applies the entql time.Time predicate on the updated_at field.
-func (f *CPACodexResetAttemptFilter) WhereUpdatedAt(p entql.TimeP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldUpdatedAt))
-}
-
-// WhereCreditKey applies the entql string predicate on the credit_key field.
-func (f *CPACodexResetAttemptFilter) WhereCreditKey(p entql.StringP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldCreditKey))
-}
-
-// WhereCredentialID applies the entql int predicate on the credential_id field.
-func (f *CPACodexResetAttemptFilter) WhereCredentialID(p entql.IntP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldCredentialID))
-}
-
-// WhereState applies the entql string predicate on the state field.
-func (f *CPACodexResetAttemptFilter) WhereState(p entql.StringP) {
-	f.Where(p.Field(cpacodexresetattempt.FieldState))
-}
-
-// addPredicate implements the predicateAdder interface.
 func (_q *CPACredentialQuery) addPredicate(pred func(s *sql.Selector)) {
 	_q.predicates = append(_q.predicates, pred)
 }
@@ -1898,7 +1837,7 @@ type CPACredentialFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *CPACredentialFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[3].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[2].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2122,7 +2061,7 @@ type CPAInstanceFilter struct {
 // Where applies the entql predicate on the query filter.
 func (f *CPAInstanceFilter) Where(p entql.P) {
 	f.addPredicate(func(s *sql.Selector) {
-		if err := schemaGraph.EvalP(schemaGraph.Nodes[4].Type, p, s); err != nil {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[3].Type, p, s); err != nil {
 			s.AddError(err)
 		}
 	})
@@ -2270,6 +2209,91 @@ func (f *CPAInstanceFilter) WhereHasCredentialsWith(preds ...predicate.CPACreden
 			p(s)
 		}
 	})))
+}
+
+// addPredicate implements the predicateAdder interface.
+func (_q *CPAResetAttemptQuery) addPredicate(pred func(s *sql.Selector)) {
+	_q.predicates = append(_q.predicates, pred)
+}
+
+// Filter returns a Filter implementation to apply filters on the CPAResetAttemptQuery builder.
+func (_q *CPAResetAttemptQuery) Filter() *CPAResetAttemptFilter {
+	return &CPAResetAttemptFilter{config: _q.config, predicateAdder: _q}
+}
+
+// addPredicate implements the predicateAdder interface.
+func (m *CPAResetAttemptMutation) addPredicate(pred func(s *sql.Selector)) {
+	m.predicates = append(m.predicates, pred)
+}
+
+// Filter returns an entql.Where implementation to apply filters on the CPAResetAttemptMutation builder.
+func (m *CPAResetAttemptMutation) Filter() *CPAResetAttemptFilter {
+	return &CPAResetAttemptFilter{config: m.config, predicateAdder: m}
+}
+
+// CPAResetAttemptFilter provides a generic filtering capability at runtime for CPAResetAttemptQuery.
+type CPAResetAttemptFilter struct {
+	predicateAdder
+	config
+}
+
+// Where applies the entql predicate on the query filter.
+func (f *CPAResetAttemptFilter) Where(p entql.P) {
+	f.addPredicate(func(s *sql.Selector) {
+		if err := schemaGraph.EvalP(schemaGraph.Nodes[4].Type, p, s); err != nil {
+			s.AddError(err)
+		}
+	})
+}
+
+// WhereID applies the entql int predicate on the id field.
+func (f *CPAResetAttemptFilter) WhereID(p entql.IntP) {
+	f.Where(p.Field(cparesetattempt.FieldID))
+}
+
+// WhereCreatedAt applies the entql time.Time predicate on the created_at field.
+func (f *CPAResetAttemptFilter) WhereCreatedAt(p entql.TimeP) {
+	f.Where(p.Field(cparesetattempt.FieldCreatedAt))
+}
+
+// WhereUpdatedAt applies the entql time.Time predicate on the updated_at field.
+func (f *CPAResetAttemptFilter) WhereUpdatedAt(p entql.TimeP) {
+	f.Where(p.Field(cparesetattempt.FieldUpdatedAt))
+}
+
+// WhereProvider applies the entql string predicate on the provider field.
+func (f *CPAResetAttemptFilter) WhereProvider(p entql.StringP) {
+	f.Where(p.Field(cparesetattempt.FieldProvider))
+}
+
+// WhereCreditKey applies the entql string predicate on the credit_key field.
+func (f *CPAResetAttemptFilter) WhereCreditKey(p entql.StringP) {
+	f.Where(p.Field(cparesetattempt.FieldCreditKey))
+}
+
+// WhereCredentialID applies the entql int predicate on the credential_id field.
+func (f *CPAResetAttemptFilter) WhereCredentialID(p entql.IntP) {
+	f.Where(p.Field(cparesetattempt.FieldCredentialID))
+}
+
+// WhereState applies the entql string predicate on the state field.
+func (f *CPAResetAttemptFilter) WhereState(p entql.StringP) {
+	f.Where(p.Field(cparesetattempt.FieldState))
+}
+
+// WhereRequestID applies the entql string predicate on the request_id field.
+func (f *CPAResetAttemptFilter) WhereRequestID(p entql.StringP) {
+	f.Where(p.Field(cparesetattempt.FieldRequestID))
+}
+
+// WhereGrantID applies the entql string predicate on the grant_id field.
+func (f *CPAResetAttemptFilter) WhereGrantID(p entql.StringP) {
+	f.Where(p.Field(cparesetattempt.FieldGrantID))
+}
+
+// WhereResetsLeft applies the entql int predicate on the resets_left field.
+func (f *CPAResetAttemptFilter) WhereResetsLeft(p entql.IntP) {
+	f.Where(p.Field(cparesetattempt.FieldResetsLeft))
 }
 
 // addPredicate implements the predicateAdder interface.

@@ -1425,7 +1425,7 @@ func TestCPAEstimateEligibilityAndLegacyView(t *testing.T) {
 		require.Nil(t, item.EstimatedCostUSD, item.ID)
 	}
 	require.True(t, snapshot.Items[0].EstimateEligible)
-	client.CPACodexResetAttempt.Create().SetCreditKey(codexCreditKey("", "first")).SetCredentialID(credential.ID).SaveX(ctx)
+	client.CPAResetAttempt.Create().SetCreditKey(codexCreditKey("", "first")).SetCredentialID(credential.ID).SaveX(ctx)
 	require.NoError(t, svc.filterClaimedResetCredits(ctx, view))
 	require.Equal(t, "second", view.QuotaData.ResetCredits[0].ID)
 	require.Equal(t, "first", loaded.QuotaData.ResetCredits[0].ID)

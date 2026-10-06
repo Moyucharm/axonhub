@@ -22,9 +22,9 @@ import (
 	"github.com/looplj/axonhub/internal/ent/channelmodelpriceversion"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
-	"github.com/looplj/axonhub/internal/ent/cpacodexresetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cpainstance"
+	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/datastorage"
 	"github.com/looplj/axonhub/internal/ent/invitation"
@@ -55,12 +55,12 @@ type Client struct {
 	APIKey *APIKeyClient
 	// APIKeyProfileTemplate is the client for interacting with the APIKeyProfileTemplate builders.
 	APIKeyProfileTemplate *APIKeyProfileTemplateClient
-	// CPACodexResetAttempt is the client for interacting with the CPACodexResetAttempt builders.
-	CPACodexResetAttempt *CPACodexResetAttemptClient
 	// CPACredential is the client for interacting with the CPACredential builders.
 	CPACredential *CPACredentialClient
 	// CPAInstance is the client for interacting with the CPAInstance builders.
 	CPAInstance *CPAInstanceClient
+	// CPAResetAttempt is the client for interacting with the CPAResetAttempt builders.
+	CPAResetAttempt *CPAResetAttemptClient
 	// Channel is the client for interacting with the Channel builders.
 	Channel *ChannelClient
 	// ChannelModelPrice is the client for interacting with the ChannelModelPrice builders.
@@ -124,9 +124,9 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIKey = NewAPIKeyClient(c.config)
 	c.APIKeyProfileTemplate = NewAPIKeyProfileTemplateClient(c.config)
-	c.CPACodexResetAttempt = NewCPACodexResetAttemptClient(c.config)
 	c.CPACredential = NewCPACredentialClient(c.config)
 	c.CPAInstance = NewCPAInstanceClient(c.config)
+	c.CPAResetAttempt = NewCPAResetAttemptClient(c.config)
 	c.Channel = NewChannelClient(c.config)
 	c.ChannelModelPrice = NewChannelModelPriceClient(c.config)
 	c.ChannelModelPriceVersion = NewChannelModelPriceVersionClient(c.config)
@@ -245,9 +245,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:                   cfg,
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyProfileTemplate:    NewAPIKeyProfileTemplateClient(cfg),
-		CPACodexResetAttempt:     NewCPACodexResetAttemptClient(cfg),
 		CPACredential:            NewCPACredentialClient(cfg),
 		CPAInstance:              NewCPAInstanceClient(cfg),
+		CPAResetAttempt:          NewCPAResetAttemptClient(cfg),
 		Channel:                  NewChannelClient(cfg),
 		ChannelModelPrice:        NewChannelModelPriceClient(cfg),
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
@@ -293,9 +293,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:                   cfg,
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyProfileTemplate:    NewAPIKeyProfileTemplateClient(cfg),
-		CPACodexResetAttempt:     NewCPACodexResetAttemptClient(cfg),
 		CPACredential:            NewCPACredentialClient(cfg),
 		CPAInstance:              NewCPAInstanceClient(cfg),
+		CPAResetAttempt:          NewCPAResetAttemptClient(cfg),
 		Channel:                  NewChannelClient(cfg),
 		ChannelModelPrice:        NewChannelModelPriceClient(cfg),
 		ChannelModelPriceVersion: NewChannelModelPriceVersionClient(cfg),
@@ -349,8 +349,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIKey, c.APIKeyProfileTemplate, c.CPACodexResetAttempt, c.CPACredential,
-		c.CPAInstance, c.Channel, c.ChannelModelPrice, c.ChannelModelPriceVersion,
+		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance,
+		c.CPAResetAttempt, c.Channel, c.ChannelModelPrice, c.ChannelModelPriceVersion,
 		c.ChannelOverrideTemplate, c.ChannelProbe, c.CpaUsageEvent, c.DataStorage,
 		c.Invitation, c.Model, c.OIDCIdentity, c.Project, c.Prompt,
 		c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request, c.RequestExecution,
@@ -365,8 +365,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIKey, c.APIKeyProfileTemplate, c.CPACodexResetAttempt, c.CPACredential,
-		c.CPAInstance, c.Channel, c.ChannelModelPrice, c.ChannelModelPriceVersion,
+		c.APIKey, c.APIKeyProfileTemplate, c.CPACredential, c.CPAInstance,
+		c.CPAResetAttempt, c.Channel, c.ChannelModelPrice, c.ChannelModelPriceVersion,
 		c.ChannelOverrideTemplate, c.ChannelProbe, c.CpaUsageEvent, c.DataStorage,
 		c.Invitation, c.Model, c.OIDCIdentity, c.Project, c.Prompt,
 		c.PromptProtectionRule, c.ProviderQuotaStatus, c.Request, c.RequestExecution,
@@ -384,12 +384,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIKey.mutate(ctx, m)
 	case *APIKeyProfileTemplateMutation:
 		return c.APIKeyProfileTemplate.mutate(ctx, m)
-	case *CPACodexResetAttemptMutation:
-		return c.CPACodexResetAttempt.mutate(ctx, m)
 	case *CPACredentialMutation:
 		return c.CPACredential.mutate(ctx, m)
 	case *CPAInstanceMutation:
 		return c.CPAInstance.mutate(ctx, m)
+	case *CPAResetAttemptMutation:
+		return c.CPAResetAttempt.mutate(ctx, m)
 	case *ChannelMutation:
 		return c.Channel.mutate(ctx, m)
 	case *ChannelModelPriceMutation:
@@ -777,140 +777,6 @@ func (c *APIKeyProfileTemplateClient) mutate(ctx context.Context, m *APIKeyProfi
 	}
 }
 
-// CPACodexResetAttemptClient is a client for the CPACodexResetAttempt schema.
-type CPACodexResetAttemptClient struct {
-	config
-}
-
-// NewCPACodexResetAttemptClient returns a client for the CPACodexResetAttempt from the given config.
-func NewCPACodexResetAttemptClient(c config) *CPACodexResetAttemptClient {
-	return &CPACodexResetAttemptClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `cpacodexresetattempt.Hooks(f(g(h())))`.
-func (c *CPACodexResetAttemptClient) Use(hooks ...Hook) {
-	c.hooks.CPACodexResetAttempt = append(c.hooks.CPACodexResetAttempt, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `cpacodexresetattempt.Intercept(f(g(h())))`.
-func (c *CPACodexResetAttemptClient) Intercept(interceptors ...Interceptor) {
-	c.inters.CPACodexResetAttempt = append(c.inters.CPACodexResetAttempt, interceptors...)
-}
-
-// Create returns a builder for creating a CPACodexResetAttempt entity.
-func (c *CPACodexResetAttemptClient) Create() *CPACodexResetAttemptCreate {
-	mutation := newCPACodexResetAttemptMutation(c.config, OpCreate)
-	return &CPACodexResetAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of CPACodexResetAttempt entities.
-func (c *CPACodexResetAttemptClient) CreateBulk(builders ...*CPACodexResetAttemptCreate) *CPACodexResetAttemptCreateBulk {
-	return &CPACodexResetAttemptCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *CPACodexResetAttemptClient) MapCreateBulk(slice any, setFunc func(*CPACodexResetAttemptCreate, int)) *CPACodexResetAttemptCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &CPACodexResetAttemptCreateBulk{err: fmt.Errorf("calling to CPACodexResetAttemptClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*CPACodexResetAttemptCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &CPACodexResetAttemptCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for CPACodexResetAttempt.
-func (c *CPACodexResetAttemptClient) Update() *CPACodexResetAttemptUpdate {
-	mutation := newCPACodexResetAttemptMutation(c.config, OpUpdate)
-	return &CPACodexResetAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *CPACodexResetAttemptClient) UpdateOne(_m *CPACodexResetAttempt) *CPACodexResetAttemptUpdateOne {
-	mutation := newCPACodexResetAttemptMutation(c.config, OpUpdateOne, withCPACodexResetAttempt(_m))
-	return &CPACodexResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *CPACodexResetAttemptClient) UpdateOneID(id int) *CPACodexResetAttemptUpdateOne {
-	mutation := newCPACodexResetAttemptMutation(c.config, OpUpdateOne, withCPACodexResetAttemptID(id))
-	return &CPACodexResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for CPACodexResetAttempt.
-func (c *CPACodexResetAttemptClient) Delete() *CPACodexResetAttemptDelete {
-	mutation := newCPACodexResetAttemptMutation(c.config, OpDelete)
-	return &CPACodexResetAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *CPACodexResetAttemptClient) DeleteOne(_m *CPACodexResetAttempt) *CPACodexResetAttemptDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *CPACodexResetAttemptClient) DeleteOneID(id int) *CPACodexResetAttemptDeleteOne {
-	builder := c.Delete().Where(cpacodexresetattempt.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &CPACodexResetAttemptDeleteOne{builder}
-}
-
-// Query returns a query builder for CPACodexResetAttempt.
-func (c *CPACodexResetAttemptClient) Query() *CPACodexResetAttemptQuery {
-	return &CPACodexResetAttemptQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeCPACodexResetAttempt},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a CPACodexResetAttempt entity by its id.
-func (c *CPACodexResetAttemptClient) Get(ctx context.Context, id int) (*CPACodexResetAttempt, error) {
-	return c.Query().Where(cpacodexresetattempt.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *CPACodexResetAttemptClient) GetX(ctx context.Context, id int) *CPACodexResetAttempt {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *CPACodexResetAttemptClient) Hooks() []Hook {
-	hooks := c.hooks.CPACodexResetAttempt
-	return append(hooks[:len(hooks):len(hooks)], cpacodexresetattempt.Hooks[:]...)
-}
-
-// Interceptors returns the client interceptors.
-func (c *CPACodexResetAttemptClient) Interceptors() []Interceptor {
-	return c.inters.CPACodexResetAttempt
-}
-
-func (c *CPACodexResetAttemptClient) mutate(ctx context.Context, m *CPACodexResetAttemptMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&CPACodexResetAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&CPACodexResetAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&CPACodexResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&CPACodexResetAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown CPACodexResetAttempt mutation op: %q", m.Op())
-	}
-}
-
 // CPACredentialClient is a client for the CPACredential schema.
 type CPACredentialClient struct {
 	config
@@ -1208,6 +1074,140 @@ func (c *CPAInstanceClient) mutate(ctx context.Context, m *CPAInstanceMutation) 
 		return (&CPAInstanceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CPAInstance mutation op: %q", m.Op())
+	}
+}
+
+// CPAResetAttemptClient is a client for the CPAResetAttempt schema.
+type CPAResetAttemptClient struct {
+	config
+}
+
+// NewCPAResetAttemptClient returns a client for the CPAResetAttempt from the given config.
+func NewCPAResetAttemptClient(c config) *CPAResetAttemptClient {
+	return &CPAResetAttemptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cparesetattempt.Hooks(f(g(h())))`.
+func (c *CPAResetAttemptClient) Use(hooks ...Hook) {
+	c.hooks.CPAResetAttempt = append(c.hooks.CPAResetAttempt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cparesetattempt.Intercept(f(g(h())))`.
+func (c *CPAResetAttemptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CPAResetAttempt = append(c.inters.CPAResetAttempt, interceptors...)
+}
+
+// Create returns a builder for creating a CPAResetAttempt entity.
+func (c *CPAResetAttemptClient) Create() *CPAResetAttemptCreate {
+	mutation := newCPAResetAttemptMutation(c.config, OpCreate)
+	return &CPAResetAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CPAResetAttempt entities.
+func (c *CPAResetAttemptClient) CreateBulk(builders ...*CPAResetAttemptCreate) *CPAResetAttemptCreateBulk {
+	return &CPAResetAttemptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CPAResetAttemptClient) MapCreateBulk(slice any, setFunc func(*CPAResetAttemptCreate, int)) *CPAResetAttemptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CPAResetAttemptCreateBulk{err: fmt.Errorf("calling to CPAResetAttemptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CPAResetAttemptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CPAResetAttemptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CPAResetAttempt.
+func (c *CPAResetAttemptClient) Update() *CPAResetAttemptUpdate {
+	mutation := newCPAResetAttemptMutation(c.config, OpUpdate)
+	return &CPAResetAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CPAResetAttemptClient) UpdateOne(_m *CPAResetAttempt) *CPAResetAttemptUpdateOne {
+	mutation := newCPAResetAttemptMutation(c.config, OpUpdateOne, withCPAResetAttempt(_m))
+	return &CPAResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CPAResetAttemptClient) UpdateOneID(id int) *CPAResetAttemptUpdateOne {
+	mutation := newCPAResetAttemptMutation(c.config, OpUpdateOne, withCPAResetAttemptID(id))
+	return &CPAResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CPAResetAttempt.
+func (c *CPAResetAttemptClient) Delete() *CPAResetAttemptDelete {
+	mutation := newCPAResetAttemptMutation(c.config, OpDelete)
+	return &CPAResetAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CPAResetAttemptClient) DeleteOne(_m *CPAResetAttempt) *CPAResetAttemptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CPAResetAttemptClient) DeleteOneID(id int) *CPAResetAttemptDeleteOne {
+	builder := c.Delete().Where(cparesetattempt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CPAResetAttemptDeleteOne{builder}
+}
+
+// Query returns a query builder for CPAResetAttempt.
+func (c *CPAResetAttemptClient) Query() *CPAResetAttemptQuery {
+	return &CPAResetAttemptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCPAResetAttempt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CPAResetAttempt entity by its id.
+func (c *CPAResetAttemptClient) Get(ctx context.Context, id int) (*CPAResetAttempt, error) {
+	return c.Query().Where(cparesetattempt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CPAResetAttemptClient) GetX(ctx context.Context, id int) *CPAResetAttempt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CPAResetAttemptClient) Hooks() []Hook {
+	hooks := c.hooks.CPAResetAttempt
+	return append(hooks[:len(hooks):len(hooks)], cparesetattempt.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *CPAResetAttemptClient) Interceptors() []Interceptor {
+	return c.inters.CPAResetAttempt
+}
+
+func (c *CPAResetAttemptClient) mutate(ctx context.Context, m *CPAResetAttemptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CPAResetAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CPAResetAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CPAResetAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CPAResetAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CPAResetAttempt mutation op: %q", m.Op())
 	}
 }
 
@@ -5401,7 +5401,7 @@ func (c *UserRoleClient) mutate(ctx context.Context, m *UserRoleMutation) (Value
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIKey, APIKeyProfileTemplate, CPACodexResetAttempt, CPACredential, CPAInstance,
+		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, CPAResetAttempt,
 		Channel, ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
 		ChannelProbe, CpaUsageEvent, DataStorage, Invitation, Model, OIDCIdentity,
 		Project, Prompt, PromptProtectionRule, ProviderQuotaStatus, Request,
@@ -5409,7 +5409,7 @@ type (
 		UserRole []ent.Hook
 	}
 	inters struct {
-		APIKey, APIKeyProfileTemplate, CPACodexResetAttempt, CPACredential, CPAInstance,
+		APIKey, APIKeyProfileTemplate, CPACredential, CPAInstance, CPAResetAttempt,
 		Channel, ChannelModelPrice, ChannelModelPriceVersion, ChannelOverrideTemplate,
 		ChannelProbe, CpaUsageEvent, DataStorage, Invitation, Model, OIDCIdentity,
 		Project, Prompt, PromptProtectionRule, ProviderQuotaStatus, Request,

@@ -81,7 +81,9 @@ func NewEntClient(cfg Config) *ent.Client {
 		if err != nil {
 			panic(err)
 		}
-
+		if err := migrateLegacyCPACodexResetAttempts(migrationCtx, dbDialect, masterDB); err != nil {
+			panic(err)
+		}
 		migrator := datamigrate.NewMigrator(client)
 		if err := migrator.Run(migrationCtx); err != nil {
 			panic(err)

@@ -184,6 +184,9 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 	if err := svc.filterClaimedResetCredits(ctx, views...); err != nil {
 		return nil, err
 	}
+	if err := svc.decorateClaudeResetViews(ctx, views...); err != nil {
+		return nil, err
+	}
 	pageInfo := &CPAPageInfo{
 		HasPreviousPage: hasPreviousPage,
 		HasNextPage:     hasNextPage,
@@ -341,10 +344,14 @@ func (svc *CPAService) providerOverviewAggregate(ctx context.Context, instanceID
 	return result, nil
 }
 
-// credentialView builds the API view and hides already-claimed reset cards.
+// credentialView builds the API view, hides already-claimed reset cards and
+// overlays local Claude reset claims.
 func (svc *CPAService) credentialView(ctx context.Context, instance *ent.CPAInstance, credential *ent.CPACredential) (*CPACredentialView, error) {
 	view := buildCPACredentialView(instance, credential, svc.now())
 	if err := svc.filterClaimedResetCredits(ctx, view); err != nil {
+		return nil, err
+	}
+	if err := svc.decorateClaudeResetViews(ctx, view); err != nil {
 		return nil, err
 	}
 	return view, nil
