@@ -22,10 +22,15 @@ import (
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
-// claudeResetRetryWindow bounds how long an uncertain claim may be retried with
-// its original request ID. Afterwards the grant use stays locked until a quota
+// claudeResetRetryWindow bounds how long an open claim may be retried with its
+// original request ID. Afterwards the grant use stays locked until a quota
 // refresh proves it was spent.
 const claudeResetRetryWindow = 10 * time.Minute
+
+// claudeResetRecordTimeout bounds the state write that follows a claim POST. The
+// request context may already be cancelled, so the recorded answer gets its own
+// bounded context instead of dying with the request.
+const claudeResetRecordTimeout = 5 * time.Second
 
 // claudeResetAutoWindow is the lead time within which an expiring grant is
 // used automatically.
@@ -48,8 +53,11 @@ func claudeResetKey(organization, grantID string, resetsLeft int) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// claudeResetRetryUntil returns the deadline for retrying an open claim. A
+// pending row means its state write was lost with the request, so it stays
+// retryable too: the provider deduplicates the original request ID.
 func claudeResetRetryUntil(attempt *ent.CPAResetAttempt, now time.Time) *time.Time {
-	if attempt.State != cparesetattempt.StateUncertain {
+	if attempt.State == cparesetattempt.StateRedeemed {
 		return nil
 	}
 	deadline := attempt.CreatedAt.Add(claudeResetRetryWindow)
@@ -111,15 +119,20 @@ func (svc *CPAService) sendClaudeClaim(ctx context.Context, client cpaclient.Man
 // A refusal on a retry cannot prove the earlier ambiguous claim did not spend.
 func (svc *CPAService) recordClaudeClaim(ctx context.Context, attempt *ent.CPAResetAttempt, result objects.CPAClaudeResetResult, claimErr error, retry bool) (*CPAClaudeResetOutcome, error) {
 	client := svc.entFromContext(ctx).CPAResetAttempt
+	// The claim POST may have been sent, so the recorded answer must outlive the
+	// request: writing it with a cancelled context would leave the row pending
+	// and unreachable for the retry this result promises.
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), claudeResetRecordTimeout)
+	defer cancel()
 	switch {
 	case claimErr == nil && result.Spent():
-		if _, err := client.UpdateOneID(attempt.ID).SetState(cparesetattempt.StateRedeemed).Save(ctx); err != nil {
+		if _, err := client.UpdateOneID(attempt.ID).SetState(cparesetattempt.StateRedeemed).Save(writeCtx); err != nil {
 			// The pending row keeps blocking the use until a refresh settles it.
 			log.Warn(ctx, "CPA Claude reset state update failed", log.Int("credential_id", attempt.CredentialID), log.Cause(err))
 		}
 		return &CPAClaudeResetOutcome{Result: &result}, nil
 	case claimErr == nil && !retry:
-		if err := client.DeleteOneID(attempt.ID).Exec(ctx); err != nil {
+		if err := client.DeleteOneID(attempt.ID).Exec(writeCtx); err != nil {
 			log.Warn(ctx, "CPA Claude reset claim release failed", log.Int("credential_id", attempt.CredentialID), log.Cause(err))
 		}
 		return &CPAClaudeResetOutcome{Result: &result}, nil
@@ -127,7 +140,7 @@ func (svc *CPAService) recordClaudeClaim(ctx context.Context, attempt *ent.CPARe
 		return &CPAClaudeResetOutcome{Result: &result, Uncertain: true, RetryUntil: claudeResetRetryUntil(attempt, svc.now())}, nil
 	case errors.Is(claimErr, cpaclient.ErrClaudeResetOutcomeUnknown):
 		if attempt.State != cparesetattempt.StateUncertain {
-			updated, err := client.UpdateOneID(attempt.ID).SetState(cparesetattempt.StateUncertain).Save(ctx)
+			updated, err := client.UpdateOneID(attempt.ID).SetState(cparesetattempt.StateUncertain).Save(writeCtx)
 			if err != nil {
 				log.Warn(ctx, "CPA Claude reset state update failed", log.Int("credential_id", attempt.CredentialID), log.Cause(err))
 				return &CPAClaudeResetOutcome{Uncertain: true}, nil
@@ -139,7 +152,7 @@ func (svc *CPAService) recordClaudeClaim(ctx context.Context, attempt *ent.CPARe
 	default:
 		// The claim was rejected before it was sent.
 		if !retry {
-			if err := client.DeleteOneID(attempt.ID).Exec(ctx); err != nil {
+			if err := client.DeleteOneID(attempt.ID).Exec(writeCtx); err != nil {
 				log.Warn(ctx, "CPA Claude reset claim release failed", log.Int("credential_id", attempt.CredentialID), log.Cause(err))
 			}
 		}
@@ -158,13 +171,19 @@ func (svc *CPAService) claimClaudeReset(ctx context.Context, client cpaclient.Ma
 		return nil, err
 	}
 	now := svc.now()
+	// A use that already has a local claim record is invisible to selection, so
+	// a grant locked by an open claim cannot keep its successors rejected.
+	unclaimed, err := svc.unclaimedClaudeResetGrants(ctx, credential.ID, status)
+	if err != nil {
+		return nil, err
+	}
 	// The confirmation freezes one grant ID; a stale request must never claim a
 	// different grant than the one the provider would use next.
-	selected := cpaclient.SelectClaudeResetGrant(status, now)
+	selected := cpaclient.SelectClaudeResetGrant(unclaimed, now)
 	if selected == nil || selected.ID != grantID {
 		blocker := cpaclient.ClaudeResetBlocker(status, grantID, now)
 		if blocker == "" {
-			blocker = "not_next_grant"
+			blocker = "already_claimed"
 		}
 		return nil, fmt.Errorf("Claude reset grant is not claimable (%s)", blocker)
 	}
@@ -208,13 +227,60 @@ func (svc *CPAService) retryClaudeReset(ctx context.Context, client cpaclient.Ma
 	return svc.recordClaudeClaim(ctx, attempt, result, claimErr, true)
 }
 
+// unclaimedClaudeResetGrants drops grants whose use already has a claim record
+// for the same remaining count. The claim paths select against this list so a
+// grant locked by an open claim cannot keep its successors rejected; the unique
+// credit key on insert stays the concurrency gate. A spent use lowers
+// resets_left, so it never hides the next use of the same grant.
+func (svc *CPAService) unclaimedClaudeResetGrants(ctx context.Context, credentialID int, status *objects.CPAClaudeReset) (*objects.CPAClaudeReset, error) {
+	if status == nil || len(status.Grants) == 0 {
+		return status, nil
+	}
+	attempts, err := svc.entFromContext(ctx).CPAResetAttempt.Query().
+		Where(
+			cparesetattempt.ProviderEQ(cparesetattempt.ProviderClaude),
+			cparesetattempt.CredentialIDEQ(credentialID),
+		).
+		Select(cparesetattempt.FieldGrantID, cparesetattempt.FieldResetsLeft).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("check claimed Claude reset grants: %w", err)
+	}
+	if len(attempts) == 0 {
+		return status, nil
+	}
+	type grantUse struct {
+		grantID    string
+		resetsLeft int
+	}
+	claimed := make(map[grantUse]bool, len(attempts))
+	for _, attempt := range attempts {
+		if attempt.ResetsLeft == nil {
+			continue
+		}
+		claimed[grantUse{grantID: attempt.GrantID, resetsLeft: *attempt.ResetsLeft}] = true
+	}
+	filtered := *status
+	filtered.Grants = make([]objects.CPAClaudeResetGrant, 0, len(status.Grants))
+	for _, grant := range status.Grants {
+		if claimed[grantUse{grantID: grant.ID, resetsLeft: grant.ResetsLeft}] {
+			continue
+		}
+		filtered.Grants = append(filtered.Grants, grant)
+	}
+	return &filtered, nil
+}
+
+// openClaudeResetAttempt finds the claim of one grant use that is still open for
+// a retry: its answer was never recorded, either because it is unknown or
+// because the state write itself was lost with the request.
 func (svc *CPAService) openClaudeResetAttempt(ctx context.Context, credentialID int, grantID string) (*ent.CPAResetAttempt, error) {
 	attempt, err := svc.entFromContext(ctx).CPAResetAttempt.Query().
 		Where(
 			cparesetattempt.ProviderEQ(cparesetattempt.ProviderClaude),
 			cparesetattempt.CredentialIDEQ(credentialID),
 			cparesetattempt.GrantIDEQ(grantID),
-			cparesetattempt.StateEQ(cparesetattempt.StateUncertain),
+			cparesetattempt.StateIn(cparesetattempt.StatePending, cparesetattempt.StateUncertain),
 		).
 		Order(cparesetattempt.ByCreatedAt(sql.OrderDesc())).
 		First(ctx)
@@ -222,7 +288,7 @@ func (svc *CPAService) openClaudeResetAttempt(ctx context.Context, credentialID 
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("check uncertain Claude reset claims: %w", err)
+		return nil, fmt.Errorf("check open Claude reset claims: %w", err)
 	}
 	return attempt, nil
 }
@@ -381,23 +447,16 @@ func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *en
 		if strings.TrimSpace(credential.AuthIndex) == "" || credential.QuotaState != string(objects.CPAQuotaStateSuccess) {
 			continue
 		}
-		grant := cpaclient.SelectClaudeResetGrant(credential.QuotaData.ClaudeReset, now)
-		if grant == nil || grant.EndsAt == nil || grant.EndsAt.After(deadline) {
-			continue
-		}
-		// An open or settled claim for this use would only burn live reads
-		// before the unique claim rejects it.
-		claimed, err := svc.entFromContext(ctx).CPAResetAttempt.Query().Where(
-			cparesetattempt.ProviderEQ(cparesetattempt.ProviderClaude),
-			cparesetattempt.CredentialIDEQ(credential.ID),
-			cparesetattempt.GrantIDEQ(grant.ID),
-			cparesetattempt.ResetsLeftEQ(grant.ResetsLeft),
-		).Exist(ctx)
+		// A grant whose use already has a claim record only burns live reads
+		// before the unique claim rejects it, and it must not hide its
+		// successors either.
+		unclaimed, err := svc.unclaimedClaudeResetGrants(ctx, credential.ID, credential.QuotaData.ClaudeReset)
 		if err != nil {
 			log.Warn(ctx, "CPA Claude auto reset claim lookup failed", log.Int("credential_id", credential.ID), log.Cause(err))
 			continue
 		}
-		if claimed {
+		grant := cpaclient.SelectClaudeResetGrant(unclaimed, now)
+		if grant == nil || grant.EndsAt == nil || grant.EndsAt.After(deadline) {
 			continue
 		}
 		if client == nil {

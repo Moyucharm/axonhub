@@ -24,11 +24,16 @@ const claudeTestOrganization = "dd7c7225-448e-4700-8e74-8dc46986bcb1"
 // claudeResetProvider simulates the Claude account behind CPA: each spent use
 // lowers resets_left, and a repeated request ID is deduplicated.
 type claudeResetProvider struct {
-	resetsLeft  int
-	endsAt      time.Time
-	requireLim  bool
+	resetsLeft int
+	endsAt     time.Time
+	requireLim bool
+	// grants, when set, replaces the single-grant usage block; nextGrantID
+	// defaults to that block's "launch" grant.
+	grants      string
+	nextGrantID string
 	claimReply  func(requestID string) (*cpaclient.ProviderCallResult, error)
 	posts       []string
+	claims      []string
 	spentByID   map[string]bool
 	usageCalled int
 }
@@ -42,8 +47,16 @@ func (p *claudeResetProvider) call(_ context.Context, call cpaclient.ProviderCal
 		return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"organization":{"uuid":"` + claudeTestOrganization + `"}}`)}, nil
 	case strings.Contains(call.URL, "/api/oauth/usage"):
 		p.usageCalled++
-		body := fmt.Sprintf(`{"five_hour":{"utilization":4,"resets_at":"2099-01-01T00:00:00Z"},"cedar_ember":{"eligible":true,"at_limit":false,"next_grant_id":"launch","grants":[{"id":"launch","label":"Launch","resets_total":2,"resets_left":%d,"ends_at":%q,"clears":["five_hour","seven_day"],"paused":false,"usable_now":true,"use_requires_limit":%t}]}}`,
-			p.resetsLeft, p.endsAt.Format(time.RFC3339), p.requireLim)
+		grants := p.grants
+		if grants == "" {
+			grants = fmt.Sprintf(`[{"id":"launch","label":"Launch","resets_total":2,"resets_left":%d,"ends_at":%q,"clears":["five_hour","seven_day"],"paused":false,"usable_now":true,"use_requires_limit":%t}]`,
+				p.resetsLeft, p.endsAt.Format(time.RFC3339), p.requireLim)
+		}
+		next := p.nextGrantID
+		if next == "" {
+			next = "launch"
+		}
+		body := fmt.Sprintf(`{"five_hour":{"utilization":4,"resets_at":"2099-01-01T00:00:00Z"},"cedar_ember":{"eligible":true,"at_limit":false,"next_grant_id":%q,"grants":%s}}`, next, grants)
 		return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(body)}, nil
 	case strings.HasSuffix(call.URL, "/api/organizations/"+claudeTestOrganization+"/reset_rate_limits"):
 		var payload struct {
@@ -51,10 +64,11 @@ func (p *claudeResetProvider) call(_ context.Context, call cpaclient.ProviderCal
 			GrantID   string `json:"grant_id"`
 			RequestID string `json:"request_id"`
 		}
-		if err := json.Unmarshal([]byte(call.Body), &payload); err != nil || payload.Program != "cedar_ember" || payload.GrantID != "launch" {
+		if err := json.Unmarshal([]byte(call.Body), &payload); err != nil || payload.Program != "cedar_ember" {
 			return nil, fmt.Errorf("unexpected claim body %q", call.Body)
 		}
 		p.posts = append(p.posts, payload.RequestID)
+		p.claims = append(p.claims, payload.GrantID)
 		if p.claimReply != nil {
 			return p.claimReply(payload.RequestID)
 		}
@@ -222,4 +236,75 @@ func TestCPAClaudeAutoResetUsesOnlyExpiringGrants(t *testing.T) {
 	require.Len(t, provider.posts, 1)
 	svc.autoResetClaudeInstance(ctx, instance)
 	require.Len(t, provider.posts, 1)
+}
+
+func TestCPAClaudeResetClaimsAnotherGrantWhileNextIsOpen(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	provider := &claudeResetProvider{
+		nextGrantID: "launch",
+		grants: `[{"id":"launch","label":"Launch","resets_total":2,"resets_left":2,"ends_at":"2099-01-01T00:00:00Z","clears":["five_hour"],"paused":false,"usable_now":true,"use_requires_limit":false},` +
+			`{"id":"beta","label":"Beta","resets_total":1,"resets_left":1,"ends_at":"2099-01-01T00:00:00Z","clears":["seven_day"],"paused":false,"usable_now":true,"use_requires_limit":false}]`,
+	}
+	ctx, _, svc, _, credential := newClaudeResetFixture(t, "claude_reset_next_open", &now, provider)
+
+	// The next grant's claim is lost in flight, so its use stays open.
+	provider.claimReply = func(string) (*cpaclient.ProviderCallResult, error) { return nil, errors.New("tunnel dropped") }
+	_, err := svc.ResetClaudeCredential(ctx, credential.ID, "launch")
+	require.NoError(t, err)
+	require.Equal(t, []string{"launch"}, provider.claims)
+
+	// An open claim on the next grant must not keep the other grant rejected.
+	provider.claimReply = nil
+	outcome, err := svc.ResetClaudeCredential(ctx, credential.ID, "beta")
+	require.NoError(t, err)
+	require.Equal(t, objects.CPAClaudeResetResultReset, *outcome.Result)
+	require.Equal(t, []string{"launch", "beta"}, provider.claims)
+}
+
+func TestCPAClaudeResetRetriesClaimLeftPendingByItsRequest(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	provider := &claudeResetProvider{resetsLeft: 2, endsAt: now.Add(48 * time.Hour)}
+	ctx, client, svc, instance, credential := newClaudeResetFixture(t, "claude_reset_pending", &now, provider)
+
+	// A claim whose POST was issued but whose state write died with its request
+	// stays pending; it must still retry with its original request ID.
+	const requestID = "11111111-2222-3333-4444-555555555555"
+	client.CPAResetAttempt.Create().
+		SetProvider(cparesetattempt.ProviderClaude).
+		SetCreatedAt(now).
+		SetCreditKey(claudeResetKey(claudeTestOrganization, "launch", 2)).
+		SetCredentialID(credential.ID).
+		SetRequestID(requestID).
+		SetGrantID("launch").
+		SetResetsLeft(2).
+		SaveX(ctx)
+
+	outcome, err := svc.ResetClaudeCredential(ctx, credential.ID, "launch")
+	require.NoError(t, err)
+	require.Equal(t, objects.CPAClaudeResetResultReset, *outcome.Result)
+	require.Equal(t, []string{requestID}, provider.posts)
+	require.Equal(t, 1, claudeGrantView(t, ctx, svc, instance.ID).ResetsLeft)
+}
+
+func TestCPAClaudeResetKeepsClaimOpenWhenRequestIsCancelled(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	provider := &claudeResetProvider{resetsLeft: 2, endsAt: now.Add(48 * time.Hour)}
+	ctx, client, svc, _, credential := newClaudeResetFixture(t, "claude_reset_cancelled", &now, provider)
+
+	// The client disconnects while the claim is in flight.
+	claimCtx, cancel := context.WithCancel(ctx)
+	provider.claimReply = func(string) (*cpaclient.ProviderCallResult, error) {
+		cancel()
+		return nil, errors.New("tunnel dropped")
+	}
+	outcome, err := svc.ResetClaudeCredential(claimCtx, credential.ID, "launch")
+	require.NoError(t, err)
+	require.True(t, outcome.Uncertain)
+	require.NotNil(t, outcome.RetryUntil)
+
+	// The recorded answer must not die with the cancelled request, otherwise the
+	// promised retry finds nothing to resume.
+	attempt := client.CPAResetAttempt.Query().OnlyX(ctx)
+	require.Equal(t, cparesetattempt.StateUncertain, attempt.State)
+	require.NotNil(t, attempt.ResetsLeft)
 }

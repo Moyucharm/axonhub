@@ -75,7 +75,10 @@ export function ClaudeResetGrants({ credential, canWrite, instanceEnabled, reset
   const status = credential.quotaData.claudeReset;
 
   if (!claudeResetIsCurrent(credential) || !status) {
-    if (!credential.quotaData.claudeResetFailed) return null;
+    // A failed refresh keeps the previous snapshot, so a status that is present
+    // but not current is stale: report the read failure instead of hiding the
+    // panel as if the account had no grants.
+    if (!status && !credential.quotaData.claudeResetFailed) return null;
     return (
       <p data-testid={`cpa-claude-reset-failed-${credential.id}`} className='text-muted-foreground mt-4 text-sm'>
         {t('cpa.claudeReset.readFailed')}
