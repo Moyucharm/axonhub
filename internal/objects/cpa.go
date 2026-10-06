@@ -61,6 +61,11 @@ type CPAQuotaItem struct {
 	// EstimateEligible marks a full-credential spending window. Old JSON lacks
 	// this field and is not eligible until the next successful refresh.
 	EstimateEligible bool `json:"estimate_eligible,omitempty"`
+	// DisplayOnly marks an item that is shown but never gates availability:
+	// a model-scoped sub-limit or a spending balance that does not stop the
+	// credential from serving. Old JSON lacks the field and keeps gating until
+	// the next successful refresh.
+	DisplayOnly bool `json:"display_only,omitempty"`
 
 	// EstimatedLimitUSD is the estimated total quota value derived from the
 	// locally observed cost and percentage delta.

@@ -175,15 +175,11 @@ func numberValue(value any) *float64 {
 		}
 		number = parsed
 	case string:
-		trimmed := strings.TrimSpace(strings.TrimSuffix(typed, "%"))
-		parsed, err := strconv.ParseFloat(trimmed, 64)
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
 		if err != nil {
 			return nil
 		}
 		number = parsed
-		if strings.HasSuffix(strings.TrimSpace(typed), "%") {
-			number /= 100
-		}
 	default:
 		return nil
 	}
@@ -200,49 +196,44 @@ func clampPercent(value float64) float64 {
 	return value
 }
 
-// percentPointersFromUsed normalizes a provider-reported usage figure into
-// 0-100 percent values (used/remaining). The input is a heuristic: values at or
-// below 1 are treated as 0-1 fractions (0.25 -> 25%), anything larger is
-// treated as an already-scaled percent. Use percentPointersFromScaledUsed when
-// the provider contract explicitly reports a 0-100 percentage.
-func percentPointersFromUsed(value any) (*float64, *float64) {
-	used := numberValue(value)
-	if used == nil {
-		return nil, nil
+// shareValue reads a usage share expressed on the provider's declared scale:
+// 100 for 0-100 percentages, 1 for 0-1 fractions. A "45%" string is always a
+// 0-100 figure and is converted into the declared scale. The scale is never
+// inferred from the magnitude: 1 on the percent scale is 1%, not 100%.
+func shareValue(value any, scale float64) *float64 {
+	if text, ok := value.(string); ok {
+		if number, found := strings.CutSuffix(strings.TrimSpace(text), "%"); found {
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(number), 64)
+			if err != nil {
+				return nil
+			}
+			scaled := parsed * scale / 100
+			return &scaled
+		}
 	}
-	usedValue := *used
-	if usedValue <= 1 {
-		usedValue *= 100
-	}
-	return percentPointersFromUsedValue(usedValue)
+	return numberValue(value)
 }
 
-// percentPointersFromScaledUsed accepts an explicit 0-100 used percentage.
-// In particular, Codex wham used_percent=1 means 1%, not the fraction 100%.
+// percentPointersFromScaledUsed reads a used share on the 0-100 scale, e.g.
+// Claude utilization, Codex used_percent and xAI usagePercent.
 func percentPointersFromScaledUsed(value any) (*float64, *float64) {
-	used := numberValue(value)
+	used := shareValue(value, 100)
 	if used == nil {
 		return nil, nil
 	}
-	return percentPointersFromUsedValue(*used)
-}
-
-func percentPointersFromUsedValue(usedValue float64) (*float64, *float64) {
-	usedValue = clampPercent(usedValue)
+	usedValue := clampPercent(*used)
 	remainingValue := 100 - usedValue
 	return &usedValue, &remainingValue
 }
 
+// percentPointersFromRemainingFraction reads a remaining share on the 0-1
+// scale, e.g. Antigravity remainingFraction.
 func percentPointersFromRemainingFraction(value any) (*float64, *float64) {
-	remaining := numberValue(value)
+	remaining := shareValue(value, 1)
 	if remaining == nil {
 		return nil, nil
 	}
-	remainingValue := *remaining
-	if remainingValue <= 1 {
-		remainingValue *= 100
-	}
-	remainingValue = clampPercent(remainingValue)
+	remainingValue := clampPercent(*remaining * 100)
 	usedValue := 100 - remainingValue
 	return &usedValue, &remainingValue
 }

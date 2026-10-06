@@ -77,7 +77,7 @@ func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) [
 	}
 	items := make([]objects.CPAQuotaItem, 0, 4)
 	period := asMap(firstValue(config, "currentPeriod", "current_period"))
-	used, remaining := percentPointersFromUsed(firstValue(config, "creditUsagePercent", "credit_usage_percent"))
+	used, remaining := percentPointersFromScaledUsed(firstValue(config, "creditUsagePercent", "credit_usage_percent"))
 	if used != nil {
 		items = append(items, objects.CPAQuotaItem{
 			ID:               prefix + "-credits",
@@ -91,7 +91,7 @@ func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) [
 	}
 	for index, productRaw := range asSlice(firstValue(config, "productUsage", "product_usage")) {
 		product := asMap(productRaw)
-		usedPercent, remainingPercent := percentPointersFromUsed(firstValue(product, "usagePercent", "usage_percent"))
+		usedPercent, remainingPercent := percentPointersFromScaledUsed(firstValue(product, "usagePercent", "usage_percent"))
 		if usedPercent == nil {
 			continue
 		}
@@ -112,14 +112,23 @@ func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) [
 
 	monthlyLimit := centValue(firstValue(config, "monthlyLimit", "monthly_limit"))
 	usedAmount := centValue(firstValue(config, "used"))
+	onDemandCap := centValue(firstValue(config, "onDemandCap", "on_demand_cap"))
+	billingReset := parseTimeValue(firstValue(config, "billingPeriodEnd", "billing_period_end"), time.Now().UTC())
 	if monthlyLimit != nil || usedAmount != nil {
-		var remainingAmount *float64
-		var usedPercent, remainingPercent *float64
-		if monthlyLimit != nil && usedAmount != nil {
-			value := *monthlyLimit - *usedAmount
+		// Spending past the included monthly limit is billed on demand, so the
+		// included row counts at most the limit; the overflow belongs to the
+		// on-demand row below.
+		includedUsed := usedAmount
+		if usedAmount != nil && monthlyLimit != nil && *monthlyLimit > 0 && *usedAmount > *monthlyLimit {
+			value := *monthlyLimit
+			includedUsed = &value
+		}
+		var remainingAmount, usedPercent, remainingPercent *float64
+		if monthlyLimit != nil && includedUsed != nil {
+			value := *monthlyLimit - *includedUsed
 			remainingAmount = &value
 			if *monthlyLimit > 0 {
-				usedValue := clampPercent((*usedAmount / *monthlyLimit) * 100)
+				usedValue := clampPercent((*includedUsed / *monthlyLimit) * 100)
 				remainingValue := 100 - usedValue
 				usedPercent, remainingPercent = &usedValue, &remainingValue
 			}
@@ -129,13 +138,47 @@ func xaiBillingItems(prefix string, payload map[string]any, periodSeconds int) [
 			Label:            "Monthly balance",
 			UsedPercent:      usedPercent,
 			RemainingPercent: remainingPercent,
-			Used:             usedAmount,
+			Used:             includedUsed,
 			Limit:            monthlyLimit,
 			Remaining:        remainingAmount,
 			Unit:             "cents",
-			ResetAt: parseTimeValue(firstValue(config,
-				"billingPeriodEnd", "billing_period_end"), time.Now().UTC()),
-			PeriodSeconds: &periodSeconds,
+			ResetAt:          billingReset,
+			PeriodSeconds:    &periodSeconds,
+			// With an on-demand cap the account keeps serving after the
+			// included limit is spent; only the on-demand row gates then.
+			DisplayOnly: onDemandCap != nil && *onDemandCap > 0,
+		})
+	}
+	if onDemandCap != nil {
+		onDemandUsed := centValue(firstValue(config, "onDemandUsed", "on_demand_used"))
+		if onDemandUsed == nil && usedAmount != nil && monthlyLimit != nil {
+			value := 0.0
+			if *usedAmount > *monthlyLimit {
+				value = *usedAmount - *monthlyLimit
+			}
+			onDemandUsed = &value
+		}
+		var remainingAmount, usedPercent, remainingPercent *float64
+		if onDemandUsed != nil {
+			value := *onDemandCap - *onDemandUsed
+			remainingAmount = &value
+			if *onDemandCap > 0 {
+				usedValue := clampPercent((*onDemandUsed / *onDemandCap) * 100)
+				remainingValue := 100 - usedValue
+				usedPercent, remainingPercent = &usedValue, &remainingValue
+			}
+		}
+		items = append(items, objects.CPAQuotaItem{
+			ID:               prefix + "-on-demand",
+			Label:            "On-demand",
+			UsedPercent:      usedPercent,
+			RemainingPercent: remainingPercent,
+			Used:             onDemandUsed,
+			Limit:            onDemandCap,
+			Remaining:        remainingAmount,
+			Unit:             "cents",
+			ResetAt:          billingReset,
+			PeriodSeconds:    &periodSeconds,
 		})
 	}
 	return items

@@ -41,7 +41,7 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 		case payload.URL == codexResetCreditsURL:
 			body = `{"credits":[{"id":"credit-a","status":"available","expires_at":"2030-01-01T00:00:00Z"}]}`
 		case payload.URL == claudeUsageURL:
-			body = `{"five_hour":{"utilization":0.25,"resets_at":"2030-01-01T00:00:00Z"},"seven_day":{"utilization":0.35,"resets_at":"2030-01-07T00:00:00Z"},"seven_day_opus":{"utilization":0.4,"resets_at":"2030-01-07T00:00:00Z"}}`
+			body = `{"five_hour":{"utilization":25,"resets_at":"2030-01-01T00:00:00Z"},"seven_day":{"utilization":1,"resets_at":"2030-01-07T00:00:00Z"},"seven_day_opus":{"utilization":100,"resets_at":"2030-01-07T00:00:00Z"},"extra_usage":{"is_enabled":true,"used_credits":500,"monthly_limit":500,"utilization":100}}`
 		case payload.URL == claudeProfileURL:
 			body = `{"account":{"has_claude_pro":true}}`
 		case payload.URL == kimiUsageURL:
@@ -111,15 +111,31 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 			if input.Provider == "claude" {
 				// Model-scoped sub-limits must stay display-only: their percentage
 				// cannot be paired with the credential-wide cost aggregate.
-				var opus *objects.CPAQuotaItem
+				var opus, weekly, extra *objects.CPAQuotaItem
 				for index := range result.Snapshot.Items {
-					if result.Snapshot.Items[index].ID == "seven-day-opus" {
+					switch result.Snapshot.Items[index].ID {
+					case "seven-day-opus":
 						opus = &result.Snapshot.Items[index]
-						break
+					case "seven-day":
+						weekly = &result.Snapshot.Items[index]
+					case "extra-usage":
+						extra = &result.Snapshot.Items[index]
 					}
 				}
-				if opus == nil || opus.UsedPercent == nil || opus.ResetAt == nil || opus.PeriodSeconds != nil {
+				if opus == nil || opus.UsedPercent == nil || opus.ResetAt == nil || opus.PeriodSeconds != nil || !opus.DisplayOnly {
 					t.Fatalf("claude seven-day-opus must stay display-only: %#v", opus)
+				}
+				// Spent extra usage is pay-as-you-go overflow; plan windows still serve.
+				if extra == nil || extra.Remaining == nil || *extra.Remaining != 0 || !extra.DisplayOnly {
+					t.Fatalf("claude extra-usage must stay display-only: %#v", extra)
+				}
+				if weekly == nil || weekly.DisplayOnly {
+					t.Fatalf("claude seven-day must gate availability: %#v", weekly)
+				}
+				// utilization is a 0-100 percentage: 1 means 1% used, never exhausted.
+				if weekly == nil || weekly.UsedPercent == nil || weekly.RemainingPercent == nil ||
+					*weekly.UsedPercent != 1 || *weekly.RemainingPercent != 99 {
+					t.Fatalf("claude seven-day utilization=1 must be 1%% used: %#v", weekly)
 				}
 			}
 		})
@@ -197,35 +213,43 @@ func TestResolveAntigravityPlan(t *testing.T) {
 	}
 }
 
-func TestPercentNormalizationAcceptsFractionsAndPercentStrings(t *testing.T) {
+func TestShareNormalizationUsesDeclaredScale(t *testing.T) {
 	t.Parallel()
 
-	used, remaining := percentPointersFromUsed("45%")
-	if used == nil || remaining == nil || *used != 45 || *remaining != 55 {
-		t.Fatalf("unexpected percent string normalization: used=%v remaining=%v", used, remaining)
-	}
-	used, remaining = percentPointersFromUsed(0.25)
-	if used == nil || remaining == nil || *used != 25 || *remaining != 75 {
-		t.Fatalf("unexpected fraction normalization: used=%v remaining=%v", used, remaining)
-	}
-}
-
-func TestScaledPercentNormalizationDoesNotTreatOneAsFraction(t *testing.T) {
-	t.Parallel()
-
+	// 0-100 scale: 1 is 1%, never the fraction 100%.
 	for _, tt := range []struct {
 		input         any
 		wantUsed      float64
 		wantRemaining float64
 	}{
 		{input: 0, wantUsed: 0, wantRemaining: 100},
+		{input: 0.5, wantUsed: 0.5, wantRemaining: 99.5},
 		{input: 1, wantUsed: 1, wantRemaining: 99},
 		{input: 25, wantUsed: 25, wantRemaining: 75},
 		{input: 100, wantUsed: 100, wantRemaining: 0},
+		{input: "45%", wantUsed: 45, wantRemaining: 55},
+		{input: "1", wantUsed: 1, wantRemaining: 99},
 	} {
 		used, remaining := percentPointersFromScaledUsed(tt.input)
 		if used == nil || remaining == nil || *used != tt.wantUsed || *remaining != tt.wantRemaining {
 			t.Fatalf("scaled percent %v: used=%v remaining=%v", tt.input, used, remaining)
+		}
+	}
+
+	// 0-1 scale: 1 is fully remaining, "45%" is 0.45.
+	for _, tt := range []struct {
+		input         any
+		wantUsed      float64
+		wantRemaining float64
+	}{
+		{input: 0, wantUsed: 100, wantRemaining: 0},
+		{input: 0.25, wantUsed: 75, wantRemaining: 25},
+		{input: 1, wantUsed: 0, wantRemaining: 100},
+		{input: "45%", wantUsed: 55, wantRemaining: 45},
+	} {
+		used, remaining := percentPointersFromRemainingFraction(tt.input)
+		if used == nil || remaining == nil || *used != tt.wantUsed || *remaining != tt.wantRemaining {
+			t.Fatalf("remaining fraction %v: used=%v remaining=%v", tt.input, used, remaining)
 		}
 	}
 }
@@ -342,7 +366,7 @@ func TestXAIBillingProductAndBalancePeriods(t *testing.T) {
 	const period = 30 * 24 * 60 * 60
 	items := xaiBillingItems("monthly", map[string]any{"config": map[string]any{
 		"currentPeriod": map[string]any{"end": "2030-01-07T00:00:00Z"},
-		"productUsage":  []any{map[string]any{"product": "grok", "usagePercent": 25}},
+		"productUsage":  []any{map[string]any{"product": "grok", "usagePercent": 1}},
 		"monthlyLimit":  100, "used": 25,
 		"billingPeriodEnd": "2030-01-07T00:00:00Z",
 	}}, period)
@@ -356,5 +380,59 @@ func TestXAIBillingProductAndBalancePeriods(t *testing.T) {
 	}
 	if items[0].ID != "monthly-product-1" || items[1].ID != "monthly-monthly-balance" {
 		t.Fatalf("unexpected xAI item identities: %s, %s", items[0].ID, items[1].ID)
+	}
+	// usagePercent is a 0-100 percentage: 1 means 1% used, never exhausted.
+	if *items[0].UsedPercent != 1 || items[0].RemainingPercent == nil || *items[0].RemainingPercent != 99 {
+		t.Fatalf("xAI usagePercent=1 must be 1%% used: %#v", items[0])
+	}
+}
+
+func TestXAIMonthlyOverflowMovesToOnDemand(t *testing.T) {
+	t.Parallel()
+	const period = 30 * 24 * 60 * 60
+	find := func(items []objects.CPAQuotaItem, id string) *objects.CPAQuotaItem {
+		for index := range items {
+			if items[index].ID == id {
+				return &items[index]
+			}
+		}
+		t.Fatalf("missing xAI item %s in %#v", id, items)
+		return nil
+	}
+
+	// Included limit spent, on-demand cap still has room: the account serves,
+	// so only the on-demand row gates and it carries the overflow.
+	items := xaiBillingItems("monthly", map[string]any{"config": map[string]any{
+		"monthlyLimit": map[string]any{"val": 1000}, "used": map[string]any{"val": 1300},
+		"onDemandCap": map[string]any{"val": 2000},
+	}}, period)
+	balance, onDemand := find(items, "monthly-monthly-balance"), find(items, "monthly-on-demand")
+	if !balance.DisplayOnly || *balance.UsedPercent != 100 || *balance.Used != 1000 || *balance.Remaining != 0 {
+		t.Fatalf("included balance must cap at the limit and stay display-only: %#v", balance)
+	}
+	if onDemand.DisplayOnly || *onDemand.Used != 300 || *onDemand.UsedPercent != 15 || *onDemand.Remaining != 1700 {
+		t.Fatalf("on-demand row must carry the overflow: %#v", onDemand)
+	}
+
+	// An explicit onDemandUsed wins over the derived overflow, and a spent
+	// on-demand cap still gates.
+	items = xaiBillingItems("monthly", map[string]any{"config": map[string]any{
+		"monthlyLimit": 1000, "used": 1300, "onDemandCap": 2000, "onDemandUsed": 2000,
+	}}, period)
+	if onDemand = find(items, "monthly-on-demand"); *onDemand.UsedPercent != 100 || onDemand.DisplayOnly {
+		t.Fatalf("spent on-demand cap must gate: %#v", onDemand)
+	}
+
+	// Without an on-demand cap the included limit is the hard ceiling.
+	items = xaiBillingItems("monthly", map[string]any{"config": map[string]any{
+		"monthlyLimit": 1000, "used": 1000,
+	}}, period)
+	if balance = find(items, "monthly-monthly-balance"); balance.DisplayOnly || *balance.UsedPercent != 100 {
+		t.Fatalf("included balance must gate without on-demand cap: %#v", balance)
+	}
+	for _, item := range items {
+		if item.ID == "monthly-on-demand" {
+			t.Fatalf("no on-demand row expected without a cap: %#v", items)
+		}
 	}
 }

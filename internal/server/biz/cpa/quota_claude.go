@@ -38,11 +38,11 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 	now := time.Now().UTC()
 	items := make([]objects.CPAQuotaItem, 0, 8)
 	// period marks a window whose utilization covers the credential's whole
-	// usage, the precondition for the local amount estimate: the estimate
-	// divides the cost aggregated over every model by this window's percentage
-	// delta. Model- or app-scoped sub-limits keep period unset and stay
-	// display-only, otherwise a subset percentage would be applied to the full
-	// credential cost.
+	// usage. Only those windows gate availability and feed the local amount
+	// estimate, which divides the cost aggregated over every model by the
+	// window's percentage delta. Model- or app-scoped sub-limits keep period
+	// unset and stay display-only: exhausting one only blocks its own scope,
+	// and a subset percentage cannot be applied to the full credential cost.
 	windows := []struct {
 		key    string
 		label  string
@@ -61,7 +61,9 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 		if len(window) == 0 {
 			continue
 		}
-		used, remaining := percentPointersFromUsed(firstValue(window, "utilization"))
+		// Claude's oauth/usage reports utilization as a 0-100 percentage, so
+		// utilization=1 means 1%; the fraction heuristic would read it as 100%.
+		used, remaining := percentPointersFromScaledUsed(firstValue(window, "utilization"))
 		item := objects.CPAQuotaItem{
 			ID:               strings.ReplaceAll(windowInfo.key, "_", "-"),
 			Label:            windowInfo.label,
@@ -73,6 +75,8 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 			period := windowInfo.period
 			item.PeriodSeconds = &period
 			item.EstimateEligible = true
+		} else {
+			item.DisplayOnly = true
 		}
 		items = append(items, item)
 	}
@@ -80,12 +84,14 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 	if extra := asMap(firstValue(usage, "extra_usage", "extraUsage")); len(extra) > 0 {
 		used := numberValue(firstValue(extra, "used_credits", "usedCredits"))
 		limit := numberValue(firstValue(extra, "monthly_limit", "monthlyLimit"))
-		usedPercent, remainingPercent := percentPointersFromUsed(firstValue(extra, "utilization"))
+		usedPercent, remainingPercent := percentPointersFromScaledUsed(firstValue(extra, "utilization"))
 		var remaining *float64
 		if used != nil && limit != nil {
 			value := *limit - *used
 			remaining = &value
 		}
+		// Extra usage is pay-as-you-go spending on top of the plan windows;
+		// running out of it never blocks requests the plan still covers.
 		items = append(items, objects.CPAQuotaItem{
 			ID:               "extra-usage",
 			Label:            "Extra usage",
@@ -95,6 +101,7 @@ func (claudeQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, in
 			Limit:            limit,
 			Remaining:        remaining,
 			Unit:             "credits",
+			DisplayOnly:      true,
 		})
 	}
 	if len(items) == 0 {

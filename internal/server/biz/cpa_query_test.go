@@ -180,6 +180,16 @@ func TestCPAQuotaCooldownCombinations(t *testing.T) {
 			cooling:   true,
 			wantUntil: &soon,
 		},
+		{
+			// Model sub-limits and spending balances are shown but never gate:
+			// an exhausted one must not cool down a credential with plan room.
+			name: "display-only items never cool down",
+			items: []objects.CPAQuotaItem{
+				{ID: "seven-day-opus", UsedPercent: &used, ResetAt: &later, DisplayOnly: true},
+				{ID: "extra-usage", UsedPercent: &used, DisplayOnly: true},
+			},
+			cooling: false,
+		},
 	}
 
 	for _, tt := range tests {

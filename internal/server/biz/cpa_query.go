@@ -484,7 +484,7 @@ func cpaQuotaCooldownDetailFor(snapshot objects.CPAQuotaSnapshot, now time.Time,
 	var exhaustedItem *objects.CPAQuotaItem
 	for i := range snapshot.Items {
 		item := &snapshot.Items[i]
-		if ignoreFiveHour && cpaQuotaItemIsFiveHour(*item) {
+		if item.DisplayOnly || (ignoreFiveHour && cpaQuotaItemIsFiveHour(*item)) {
 			continue
 		}
 		if !cpaQuotaItemExhausted(*item) {
