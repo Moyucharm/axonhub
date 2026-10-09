@@ -67,6 +67,7 @@ type TransformOptions {
 type SyncChannelModelsPayload {
   channelID: ID!
   supportedModels: [String!]!
+  manualModels: [String!]!
 }
 
 input ReasoningEffortMappingInput {
@@ -112,6 +113,24 @@ input ChannelEndpointInput {
 input SaveChannelEndpointsInput {
   channelID: ID!
   endpoints: [ChannelEndpointInput!]!
+}
+
+# DetectChannelEndpoints probes the upstream for the relay protocols a channel
+# can expose (chat completions, responses, messages) without persisting them.
+input DetectChannelEndpointsInput {
+  channelID: ID!
+  model: String
+}
+
+type DetectedChannelEndpoint {
+  apiFormat: String!
+  supported: Boolean!
+  statusCode: Int
+  reason: String!
+}
+
+type DetectChannelEndpointsPayload {
+  endpoints: [DetectedChannelEndpoint!]!
 }
 
 input ProxyConfigInput {
@@ -173,12 +192,22 @@ input CommandCodeQuotaSettingsInput {
   authCookie: String
 }
 
+type OllamaQuotaSettings {
+  authCookie: String
+}
+
+input OllamaQuotaSettingsInput {
+  authCookie: String
+}
+
 type ChannelProviderQuotaSettings {
   commandCode: CommandCodeQuotaSettings
+  ollama: OllamaQuotaSettings
 }
 
 input ChannelProviderQuotaSettingsInput {
   commandCode: CommandCodeQuotaSettingsInput
+  ollama: OllamaQuotaSettingsInput
 }
 
 type ChannelSettings {
@@ -201,6 +230,14 @@ type ChannelSettings {
   codexSimulation: CodexSimulationSettings
   modelProtocols: [ModelProtocol!]
   providerQuota: ChannelProviderQuotaSettings @goField(forceResolver: true)
+  quotaRoutingMode: ChannelQuotaRoutingMode
+}
+
+enum ChannelQuotaRoutingMode {
+  INHERIT
+  IGNORE_QUOTA
+  REMOVE_ON_EXHAUSTED
+  BACKPRESSURE
 }
 
 enum CodexSimulationPreset {
@@ -371,6 +408,7 @@ input ChannelSettingsInput {
   codexSimulation: CodexSimulationSettingsInput
   modelProtocols: [ModelProtocolInput!]
   providerQuota: ChannelProviderQuotaSettingsInput
+  quotaRoutingMode: ChannelQuotaRoutingMode
 }
 
 input ChannelRateLimitInput {
@@ -1043,6 +1081,7 @@ type Mutation {
   bulkCreateChannels(input: BulkCreateChannelsInput!): [Channel!]!
   updateChannel(id: ID!, input: UpdateChannelInput!): Channel!
   saveChannelEndpoints(input: SaveChannelEndpointsInput!): Channel!
+  detectChannelEndpoints(input: DetectChannelEndpointsInput!): DetectChannelEndpointsPayload!
   updateChannelStatus(id: ID!, status: ChannelStatus!): Channel!
   recoverChannelCooldown(channelID: ID!): Boolean!
   randomizeChannelCodexSimulation(id: ID!): Channel!
@@ -1052,6 +1091,9 @@ type Mutation {
   bulkEnableChannels(ids: [ID!]!): Boolean!
   bulkRecoverChannels(ids: [ID!]!): Boolean!
   bulkDeleteChannels(ids: [ID!]!): Boolean!
+  bulkAddChannelTags(ids: [ID!]!, tags: [String!]!): Boolean!
+  bulkRemoveChannelTags(ids: [ID!]!, tags: [String!]!): Boolean!
+  bulkManageChannelTags(ids: [ID!]!, addTags: [String!]!, removeTags: [String!]!): Boolean!
   testChannel(input: TestChannelInput!): TestChannelPayload!
   testChannelAPIKeys(channelID: ID!, modelID: String): TestChannelAPIKeysPayload!
   testChannelAPIKey(channelID: ID!, key: String!, modelID: String): TestAPIKeyResult!

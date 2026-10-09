@@ -201,7 +201,10 @@ func TestTypeSafeSystemOneEndpointUsesCustomBaseURLAndPath(t *testing.T) {
 		Model:       "jev-1.13.0",
 		RequestType: llm.RequestTypeSystemOne,
 		APIFormat:   llm.APIFormatTypeSafeSystemOne,
-		SystemOne:   &llm.SystemOneRequest{Body: []byte(`{"model":"jev-latest","state":"x","questions":{"ok":{"type":"noul","instructions":"OK?"}}}`)},
+		SystemOne: &llm.SystemOneRequest{
+			State:     "x",
+			Questions: map[string]llm.SystemOneQuestion{"ok": {Type: "noul", Instructions: "OK?"}},
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://api.typesafe.ai/v1/systemone", request.URL)

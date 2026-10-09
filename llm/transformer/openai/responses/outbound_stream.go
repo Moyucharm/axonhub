@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -31,7 +32,9 @@ func (t *OutboundTransformer) TransformStream(
 	req *httpclient.Request,
 	stream streams.Stream[*httpclient.StreamEvent],
 ) (streams.Stream[*llm.Response], error) {
-	return streams.NoNil(newResponsesOutboundStream(stream)), nil
+	return streams.MapErr(streams.NoNil(newResponsesOutboundStream(stream)), func(resp *llm.Response) (*llm.Response, error) {
+		return mapResponseFunctionNames(resp, true), nil
+	}), nil
 }
 
 // responsesOutboundStream wraps a stream and maintains state during processing.
@@ -48,6 +51,9 @@ type responsesOutboundStream struct {
 	// and whether the unified DONE marker has already been emitted.
 	responseCompleted bool
 	doneEmitted       bool
+	// completedByProviderDone marks a compatible-gateway [DONE] completion. The
+	// source must still be drained so a late transport error is not masked.
+	completedByProviderDone bool
 }
 
 // outboundStreamState holds the state for a streaming session.
@@ -73,6 +79,7 @@ type outboundStreamState struct {
 	// Transformer metadata tracking
 	transformerMetadata        map[string]any
 	transformerMetadataEmitted bool
+	responseHeaders            http.Header
 }
 
 func newResponsesOutboundStream(stream streams.Stream[*httpclient.StreamEvent]) *responsesOutboundStream {
@@ -132,6 +139,18 @@ func (s *responsesOutboundStream) Next() bool {
 	s.eventQueue = nil
 	s.queueIndex = 0
 
+	// The terminal event contains the final outcome and any usage. Once its
+	// queued chunks are drained, finish without reading a later transport error.
+	// A provider [DONE] is not a semantic terminal, so keep draining the source.
+	if s.responseCompleted && !s.completedByProviderDone {
+		if !s.doneEmitted {
+			s.doneEmitted = true
+			s.enqueue(llm.DoneResponse)
+			return true
+		}
+		return false
+	}
+
 	// Try to get the next chunk from source
 	if !s.stream.Next() {
 		if s.stream.Err() != nil || s.err != nil {
@@ -172,7 +191,13 @@ func (s *responsesOutboundStream) Next() bool {
 //
 //nolint:maintidx,gocognit // It is complex and hard to split.
 func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamEvent) error {
-	if event == nil || len(event.Data) == 0 {
+	if event == nil {
+		return nil
+	}
+	if len(event.Headers) > 0 {
+		s.state.responseHeaders = event.Headers.Clone()
+	}
+	if len(event.Data) == 0 {
 		return nil
 	}
 
@@ -189,6 +214,7 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 				PreviousResponseID: s.state.previousResponseID,
 			}
 			s.markSuccessfulCompletion(resp)
+			s.completedByProviderDone = true
 			s.enqueue(resp)
 		}
 		return nil
@@ -200,6 +226,9 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 	err := json.Unmarshal(event.Data, &streamEvent)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal responses api stream event: %w", err)
+	}
+	if streamEvent.Type == "" && event.Type == string(StreamEventTypeResponseMetadata) {
+		streamEvent.Type = StreamEventTypeResponseMetadata
 	}
 
 	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
@@ -213,6 +242,20 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		Model:              s.state.responseModel,
 		Created:            s.state.created,
 		PreviousResponseID: s.state.previousResponseID,
+	}
+	if len(s.state.responseHeaders) > 0 {
+		resp.TransformerMetadata = map[string]any{
+			responseHeadersTransformerMetadataKey: s.state.responseHeaders.Clone(),
+		}
+	}
+
+	if streamEvent.Type == StreamEventTypeResponseMetadata {
+		if resp.TransformerMetadata == nil {
+			resp.TransformerMetadata = make(map[string]any)
+		}
+		resp.TransformerMetadata[responseMetadataTransformerMetadataKey] = json.RawMessage(append([]byte(nil), event.Data...))
+		s.enqueue(resp)
+		return nil
 	}
 
 	//nolint:exhaustive //Only process events we care about.
@@ -494,19 +537,22 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		}
 
 	case StreamEventTypeCustomToolCallInputDone:
-		// Custom tool call input completed - update state but don't emit an event
-		if streamEvent.ItemID != nil {
-			callID, ok := s.state.itemToCallID[*streamEvent.ItemID]
-			if !ok {
-				callID = *streamEvent.ItemID
-			}
-
-			if tc, ok := s.state.toolCalls[callID]; ok {
-				tc.ResponseCustomToolCall.Input = streamEvent.Input
-			}
+		if streamEvent.ItemID == nil {
+			return nil // Intentionally skip an unassociated final input.
 		}
 
-		return nil // Intentionally skip this event
+		callID, ok := s.state.itemToCallID[*streamEvent.ItemID]
+		if !ok {
+			callID = *streamEvent.ItemID
+		}
+
+		emitted, err := s.reconcileCustomToolCallInput(resp, callID, streamEvent.Input)
+		if err != nil {
+			return err
+		}
+		if !emitted {
+			return nil
+		}
 
 	case StreamEventTypeContentPartAdded:
 		// Content part added - skip, no meaningful content to emit
@@ -561,6 +607,27 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 	case StreamEventTypeOutputItemDone:
 		if streamEvent.Item == nil {
 			return nil // Intentionally skip this event
+		}
+		if streamEvent.Item.Type == "custom_tool_call" {
+			callID := streamEvent.Item.CallID
+			if callID == "" {
+				callID = s.state.itemToCallID[streamEvent.Item.ID]
+				if callID == "" {
+					callID = streamEvent.Item.ID
+				}
+			}
+			if streamEvent.Item.Input == nil {
+				return nil // Intentionally skip an item without a final input.
+			}
+
+			emitted, err := s.reconcileCustomToolCallInput(resp, callID, *streamEvent.Item.Input)
+			if err != nil {
+				return err
+			}
+			if !emitted {
+				return nil
+			}
+			break
 		}
 		if streamEvent.Item.Type == "compaction" || streamEvent.Item.Type == "compaction_summary" {
 			resp.Choices = []llm.Choice{{
@@ -666,25 +733,6 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 			}
 		}
 
-		// Second event: usage (if available)
-		if streamEvent.Response != nil && streamEvent.Response.Usage != nil {
-			s.state.usage = streamEvent.Response.Usage.ToUsage()
-			usageResp := &llm.Response{
-				Object:             "chat.completion.chunk",
-				ID:                 s.state.responseID,
-				Model:              s.state.responseModel,
-				Created:            s.state.created,
-				PreviousResponseID: s.state.previousResponseID,
-				Choices:            []llm.Choice{},
-				Usage:              s.state.usage,
-			}
-
-			s.enqueue(resp)
-			s.enqueue(usageResp)
-
-			return nil
-		}
-
 	case StreamEventTypeResponseFailed:
 		if s.responseCompleted {
 			return nil
@@ -706,6 +754,10 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		// Response incomplete (e.g., max tokens)
 		s.responseCompleted = true
 		finishReason := "length"
+		if streamEvent.Response != nil && streamEvent.Response.IncompleteDetails != nil &&
+			streamEvent.Response.IncompleteDetails.Reason == "content_filter" {
+			finishReason = "content_filter"
+		}
 		resp.Choices = []llm.Choice{
 			{
 				Index:        0,
@@ -791,9 +843,85 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 		return nil // Intentionally skip this event
 	}
 
+	if s.responseCompleted && streamEvent.Response != nil &&
+		(streamEvent.Response.Error != nil || streamEvent.Response.IncompleteDetails != nil) {
+		if resp.TransformerMetadata == nil {
+			resp.TransformerMetadata = make(map[string]any)
+		}
+		resp.TransformerMetadata[responsesTerminalDetailsTransformerMetadataKey] = responsesTerminalDetails{
+			Error:             streamEvent.Response.Error,
+			IncompleteDetails: streamEvent.Response.IncompleteDetails,
+		}
+	}
+
 	s.enqueue(resp)
 
+	// Preserve usage on every terminal outcome, after its finish_reason chunk.
+	if s.responseCompleted && streamEvent.Response != nil && streamEvent.Response.Usage != nil {
+		s.state.usage = streamEvent.Response.Usage.ToUsage()
+		s.enqueue(&llm.Response{
+			Object:             "chat.completion.chunk",
+			ID:                 s.state.responseID,
+			Model:              s.state.responseModel,
+			Created:            s.state.created,
+			PreviousResponseID: s.state.previousResponseID,
+			Choices:            []llm.Choice{},
+			Usage:              s.state.usage,
+		})
+	}
+
 	return nil
+}
+
+func (s *responsesOutboundStream) reconcileCustomToolCallInput(
+	resp *llm.Response,
+	callID string,
+	finalInput string,
+) (bool, error) {
+	tc, ok := s.state.toolCalls[callID]
+	if !ok || tc.ResponseCustomToolCall == nil {
+		return false, nil
+	}
+	if finalInput == "" {
+		return false, nil // An empty final event must not overwrite accumulated deltas.
+	}
+
+	forwardedInput := tc.ResponseCustomToolCall.Input
+	missingInput := ""
+	switch {
+	case forwardedInput == "":
+		missingInput = finalInput
+	case strings.HasPrefix(finalInput, forwardedInput):
+		missingInput = strings.TrimPrefix(finalInput, forwardedInput)
+	default:
+		return false, fmt.Errorf("custom tool call input mismatch for call_id %q", callID)
+	}
+
+	tc.ResponseCustomToolCall.Input = finalInput
+	if missingInput == "" {
+		return false, nil
+	}
+
+	resp.Choices = []llm.Choice{
+		{
+			Index: 0,
+			Delta: &llm.Message{
+				ToolCalls: []llm.ToolCall{
+					{
+						Index: s.state.toolCallIndex[callID],
+						Type:  llm.ToolTypeResponsesCustomTool,
+						ResponseCustomToolCall: &llm.ResponseCustomToolCall{
+							CallID: callID,
+							Name:   tc.ResponseCustomToolCall.Name,
+							Input:  missingInput,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return true, nil
 }
 
 func equalJSONValues(left, right string) bool {
@@ -843,6 +971,10 @@ func (s *responsesOutboundStream) Current() *llm.Response {
 func (s *responsesOutboundStream) Err() error {
 	if s.err != nil {
 		return s.err
+	}
+
+	if s.responseCompleted && !s.completedByProviderDone {
+		return nil
 	}
 
 	return s.stream.Err()

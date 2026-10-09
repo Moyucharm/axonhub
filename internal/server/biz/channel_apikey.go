@@ -576,7 +576,7 @@ func (svc *ChannelService) ResetAPIKeyFailure(ctx context.Context, channelID int
 }
 
 func (svc *ChannelService) resetAPIKeyFailure(ctx context.Context, channelID int, key string) error {
-	if key == "" || svc.db == nil {
+	if key == "" || svc.AbstractService == nil || svc.db == nil {
 		return nil
 	}
 

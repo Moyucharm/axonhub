@@ -88,6 +88,20 @@ func (_c *RequestExecutionCreate) SetNillableChannelID(v *int) *RequestExecution
 	return _c
 }
 
+// SetChannelAPIKeyIndex sets the "channel_api_key_index" field.
+func (_c *RequestExecutionCreate) SetChannelAPIKeyIndex(v int) *RequestExecutionCreate {
+	_c.mutation.SetChannelAPIKeyIndex(v)
+	return _c
+}
+
+// SetNillableChannelAPIKeyIndex sets the "channel_api_key_index" field if the given value is not nil.
+func (_c *RequestExecutionCreate) SetNillableChannelAPIKeyIndex(v *int) *RequestExecutionCreate {
+	if v != nil {
+		_c.SetChannelAPIKeyIndex(*v)
+	}
+	return _c
+}
+
 // SetDataStorageID sets the "data_storage_id" field.
 func (_c *RequestExecutionCreate) SetDataStorageID(v int) *RequestExecutionCreate {
 	_c.mutation.SetDataStorageID(v)
@@ -122,6 +136,20 @@ func (_c *RequestExecutionCreate) SetModelID(v string) *RequestExecutionCreate {
 	return _c
 }
 
+// SetUpstreamModelID sets the "upstream_model_id" field.
+func (_c *RequestExecutionCreate) SetUpstreamModelID(v string) *RequestExecutionCreate {
+	_c.mutation.SetUpstreamModelID(v)
+	return _c
+}
+
+// SetNillableUpstreamModelID sets the "upstream_model_id" field if the given value is not nil.
+func (_c *RequestExecutionCreate) SetNillableUpstreamModelID(v *string) *RequestExecutionCreate {
+	if v != nil {
+		_c.SetUpstreamModelID(*v)
+	}
+	return _c
+}
+
 // SetFormat sets the "format" field.
 func (_c *RequestExecutionCreate) SetFormat(v string) *RequestExecutionCreate {
 	_c.mutation.SetFormat(v)
@@ -150,9 +178,29 @@ func (_c *RequestExecutionCreate) SetNillableReasoningEffort(v *string) *Request
 	return _c
 }
 
+// SetChannelAPIKeySuffix sets the "channel_api_key_suffix" field.
+func (_c *RequestExecutionCreate) SetChannelAPIKeySuffix(v string) *RequestExecutionCreate {
+	_c.mutation.SetChannelAPIKeySuffix(v)
+	return _c
+}
+
+// SetNillableChannelAPIKeySuffix sets the "channel_api_key_suffix" field if the given value is not nil.
+func (_c *RequestExecutionCreate) SetNillableChannelAPIKeySuffix(v *string) *RequestExecutionCreate {
+	if v != nil {
+		_c.SetChannelAPIKeySuffix(*v)
+	}
+	return _c
+}
+
 // SetRequestBody sets the "request_body" field.
 func (_c *RequestExecutionCreate) SetRequestBody(v objects.JSONRawMessage) *RequestExecutionCreate {
 	_c.mutation.SetRequestBody(v)
+	return _c
+}
+
+// SetResponseHeaders sets the "response_headers" field.
+func (_c *RequestExecutionCreate) SetResponseHeaders(v objects.JSONRawMessage) *RequestExecutionCreate {
+	_c.mutation.SetResponseHeaders(v)
 	return _c
 }
 
@@ -292,20 +340,6 @@ func (_c *RequestExecutionCreate) SetNillablePassThroughApplied(v *bool) *Reques
 	return _c
 }
 
-// SetResponseModel sets the "response_model" field.
-func (_c *RequestExecutionCreate) SetResponseModel(v string) *RequestExecutionCreate {
-	_c.mutation.SetResponseModel(v)
-	return _c
-}
-
-// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
-func (_c *RequestExecutionCreate) SetNillableResponseModel(v *string) *RequestExecutionCreate {
-	if v != nil {
-		_c.SetResponseModel(*v)
-	}
-	return _c
-}
-
 // SetRequest sets the "request" edge to the Request entity.
 func (_c *RequestExecutionCreate) SetRequest(v *Request) *RequestExecutionCreate {
 	return _c.SetRequestID(v.ID)
@@ -401,6 +435,11 @@ func (_c *RequestExecutionCreate) check() error {
 	if _, ok := _c.mutation.Format(); !ok {
 		return &ValidationError{Name: "format", err: errors.New(`ent: missing required field "RequestExecution.format"`)}
 	}
+	if v, ok := _c.mutation.ChannelAPIKeySuffix(); ok {
+		if err := requestexecution.ChannelAPIKeySuffixValidator(v); err != nil {
+			return &ValidationError{Name: "channel_api_key_suffix", err: fmt.Errorf(`ent: validator failed for field "RequestExecution.channel_api_key_suffix": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.RequestBody(); !ok {
 		return &ValidationError{Name: "request_body", err: errors.New(`ent: missing required field "RequestExecution.request_body"`)}
 	}
@@ -460,6 +499,10 @@ func (_c *RequestExecutionCreate) createSpec() (*RequestExecution, *sqlgraph.Cre
 		_spec.SetField(requestexecution.FieldProjectID, field.TypeInt, value)
 		_node.ProjectID = value
 	}
+	if value, ok := _c.mutation.ChannelAPIKeyIndex(); ok {
+		_spec.SetField(requestexecution.FieldChannelAPIKeyIndex, field.TypeInt, value)
+		_node.ChannelAPIKeyIndex = &value
+	}
 	if value, ok := _c.mutation.ExternalID(); ok {
 		_spec.SetField(requestexecution.FieldExternalID, field.TypeString, value)
 		_node.ExternalID = value
@@ -467,6 +510,10 @@ func (_c *RequestExecutionCreate) createSpec() (*RequestExecution, *sqlgraph.Cre
 	if value, ok := _c.mutation.ModelID(); ok {
 		_spec.SetField(requestexecution.FieldModelID, field.TypeString, value)
 		_node.ModelID = value
+	}
+	if value, ok := _c.mutation.UpstreamModelID(); ok {
+		_spec.SetField(requestexecution.FieldUpstreamModelID, field.TypeString, value)
+		_node.UpstreamModelID = value
 	}
 	if value, ok := _c.mutation.Format(); ok {
 		_spec.SetField(requestexecution.FieldFormat, field.TypeString, value)
@@ -476,9 +523,17 @@ func (_c *RequestExecutionCreate) createSpec() (*RequestExecution, *sqlgraph.Cre
 		_spec.SetField(requestexecution.FieldReasoningEffort, field.TypeString, value)
 		_node.ReasoningEffort = &value
 	}
+	if value, ok := _c.mutation.ChannelAPIKeySuffix(); ok {
+		_spec.SetField(requestexecution.FieldChannelAPIKeySuffix, field.TypeString, value)
+		_node.ChannelAPIKeySuffix = &value
+	}
 	if value, ok := _c.mutation.RequestBody(); ok {
 		_spec.SetField(requestexecution.FieldRequestBody, field.TypeJSON, value)
 		_node.RequestBody = value
+	}
+	if value, ok := _c.mutation.ResponseHeaders(); ok {
+		_spec.SetField(requestexecution.FieldResponseHeaders, field.TypeJSON, value)
+		_node.ResponseHeaders = value
 	}
 	if value, ok := _c.mutation.ResponseBody(); ok {
 		_spec.SetField(requestexecution.FieldResponseBody, field.TypeJSON, value)
@@ -527,10 +582,6 @@ func (_c *RequestExecutionCreate) createSpec() (*RequestExecution, *sqlgraph.Cre
 	if value, ok := _c.mutation.PassThroughApplied(); ok {
 		_spec.SetField(requestexecution.FieldPassThroughApplied, field.TypeBool, value)
 		_node.PassThroughApplied = value
-	}
-	if value, ok := _c.mutation.ResponseModel(); ok {
-		_spec.SetField(requestexecution.FieldResponseModel, field.TypeString, value)
-		_node.ResponseModel = value
 	}
 	if nodes := _c.mutation.RequestIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -662,6 +713,42 @@ func (u *RequestExecutionUpsert) UpdateExternalID() *RequestExecutionUpsert {
 // ClearExternalID clears the value of the "external_id" field.
 func (u *RequestExecutionUpsert) ClearExternalID() *RequestExecutionUpsert {
 	u.SetNull(requestexecution.FieldExternalID)
+	return u
+}
+
+// SetUpstreamModelID sets the "upstream_model_id" field.
+func (u *RequestExecutionUpsert) SetUpstreamModelID(v string) *RequestExecutionUpsert {
+	u.Set(requestexecution.FieldUpstreamModelID, v)
+	return u
+}
+
+// UpdateUpstreamModelID sets the "upstream_model_id" field to the value that was provided on create.
+func (u *RequestExecutionUpsert) UpdateUpstreamModelID() *RequestExecutionUpsert {
+	u.SetExcluded(requestexecution.FieldUpstreamModelID)
+	return u
+}
+
+// ClearUpstreamModelID clears the value of the "upstream_model_id" field.
+func (u *RequestExecutionUpsert) ClearUpstreamModelID() *RequestExecutionUpsert {
+	u.SetNull(requestexecution.FieldUpstreamModelID)
+	return u
+}
+
+// SetResponseHeaders sets the "response_headers" field.
+func (u *RequestExecutionUpsert) SetResponseHeaders(v objects.JSONRawMessage) *RequestExecutionUpsert {
+	u.Set(requestexecution.FieldResponseHeaders, v)
+	return u
+}
+
+// UpdateResponseHeaders sets the "response_headers" field to the value that was provided on create.
+func (u *RequestExecutionUpsert) UpdateResponseHeaders() *RequestExecutionUpsert {
+	u.SetExcluded(requestexecution.FieldResponseHeaders)
+	return u
+}
+
+// ClearResponseHeaders clears the value of the "response_headers" field.
+func (u *RequestExecutionUpsert) ClearResponseHeaders() *RequestExecutionUpsert {
+	u.SetNull(requestexecution.FieldResponseHeaders)
 	return u
 }
 
@@ -875,24 +962,6 @@ func (u *RequestExecutionUpsert) UpdatePassThroughApplied() *RequestExecutionUps
 	return u
 }
 
-// SetResponseModel sets the "response_model" field.
-func (u *RequestExecutionUpsert) SetResponseModel(v string) *RequestExecutionUpsert {
-	u.Set(requestexecution.FieldResponseModel, v)
-	return u
-}
-
-// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
-func (u *RequestExecutionUpsert) UpdateResponseModel() *RequestExecutionUpsert {
-	u.SetExcluded(requestexecution.FieldResponseModel)
-	return u
-}
-
-// ClearResponseModel clears the value of the "response_model" field.
-func (u *RequestExecutionUpsert) ClearResponseModel() *RequestExecutionUpsert {
-	u.SetNull(requestexecution.FieldResponseModel)
-	return u
-}
-
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -916,6 +985,9 @@ func (u *RequestExecutionUpsertOne) UpdateNewValues() *RequestExecutionUpsertOne
 		if _, exists := u.create.mutation.ChannelID(); exists {
 			s.SetIgnore(requestexecution.FieldChannelID)
 		}
+		if _, exists := u.create.mutation.ChannelAPIKeyIndex(); exists {
+			s.SetIgnore(requestexecution.FieldChannelAPIKeyIndex)
+		}
 		if _, exists := u.create.mutation.DataStorageID(); exists {
 			s.SetIgnore(requestexecution.FieldDataStorageID)
 		}
@@ -927,6 +999,9 @@ func (u *RequestExecutionUpsertOne) UpdateNewValues() *RequestExecutionUpsertOne
 		}
 		if _, exists := u.create.mutation.ReasoningEffort(); exists {
 			s.SetIgnore(requestexecution.FieldReasoningEffort)
+		}
+		if _, exists := u.create.mutation.ChannelAPIKeySuffix(); exists {
+			s.SetIgnore(requestexecution.FieldChannelAPIKeySuffix)
 		}
 		if _, exists := u.create.mutation.RequestBody(); exists {
 			s.SetIgnore(requestexecution.FieldRequestBody)
@@ -997,6 +1072,48 @@ func (u *RequestExecutionUpsertOne) UpdateExternalID() *RequestExecutionUpsertOn
 func (u *RequestExecutionUpsertOne) ClearExternalID() *RequestExecutionUpsertOne {
 	return u.Update(func(s *RequestExecutionUpsert) {
 		s.ClearExternalID()
+	})
+}
+
+// SetUpstreamModelID sets the "upstream_model_id" field.
+func (u *RequestExecutionUpsertOne) SetUpstreamModelID(v string) *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetUpstreamModelID(v)
+	})
+}
+
+// UpdateUpstreamModelID sets the "upstream_model_id" field to the value that was provided on create.
+func (u *RequestExecutionUpsertOne) UpdateUpstreamModelID() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateUpstreamModelID()
+	})
+}
+
+// ClearUpstreamModelID clears the value of the "upstream_model_id" field.
+func (u *RequestExecutionUpsertOne) ClearUpstreamModelID() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearUpstreamModelID()
+	})
+}
+
+// SetResponseHeaders sets the "response_headers" field.
+func (u *RequestExecutionUpsertOne) SetResponseHeaders(v objects.JSONRawMessage) *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetResponseHeaders(v)
+	})
+}
+
+// UpdateResponseHeaders sets the "response_headers" field to the value that was provided on create.
+func (u *RequestExecutionUpsertOne) UpdateResponseHeaders() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateResponseHeaders()
+	})
+}
+
+// ClearResponseHeaders clears the value of the "response_headers" field.
+func (u *RequestExecutionUpsertOne) ClearResponseHeaders() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearResponseHeaders()
 	})
 }
 
@@ -1245,27 +1362,6 @@ func (u *RequestExecutionUpsertOne) UpdatePassThroughApplied() *RequestExecution
 	})
 }
 
-// SetResponseModel sets the "response_model" field.
-func (u *RequestExecutionUpsertOne) SetResponseModel(v string) *RequestExecutionUpsertOne {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.SetResponseModel(v)
-	})
-}
-
-// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
-func (u *RequestExecutionUpsertOne) UpdateResponseModel() *RequestExecutionUpsertOne {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.UpdateResponseModel()
-	})
-}
-
-// ClearResponseModel clears the value of the "response_model" field.
-func (u *RequestExecutionUpsertOne) ClearResponseModel() *RequestExecutionUpsertOne {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.ClearResponseModel()
-	})
-}
-
 // Exec executes the query.
 func (u *RequestExecutionUpsertOne) Exec(ctx context.Context) error {
 	if len(u.create.conflict) == 0 {
@@ -1454,6 +1550,9 @@ func (u *RequestExecutionUpsertBulk) UpdateNewValues() *RequestExecutionUpsertBu
 			if _, exists := b.mutation.ChannelID(); exists {
 				s.SetIgnore(requestexecution.FieldChannelID)
 			}
+			if _, exists := b.mutation.ChannelAPIKeyIndex(); exists {
+				s.SetIgnore(requestexecution.FieldChannelAPIKeyIndex)
+			}
 			if _, exists := b.mutation.DataStorageID(); exists {
 				s.SetIgnore(requestexecution.FieldDataStorageID)
 			}
@@ -1465,6 +1564,9 @@ func (u *RequestExecutionUpsertBulk) UpdateNewValues() *RequestExecutionUpsertBu
 			}
 			if _, exists := b.mutation.ReasoningEffort(); exists {
 				s.SetIgnore(requestexecution.FieldReasoningEffort)
+			}
+			if _, exists := b.mutation.ChannelAPIKeySuffix(); exists {
+				s.SetIgnore(requestexecution.FieldChannelAPIKeySuffix)
 			}
 			if _, exists := b.mutation.RequestBody(); exists {
 				s.SetIgnore(requestexecution.FieldRequestBody)
@@ -1536,6 +1638,48 @@ func (u *RequestExecutionUpsertBulk) UpdateExternalID() *RequestExecutionUpsertB
 func (u *RequestExecutionUpsertBulk) ClearExternalID() *RequestExecutionUpsertBulk {
 	return u.Update(func(s *RequestExecutionUpsert) {
 		s.ClearExternalID()
+	})
+}
+
+// SetUpstreamModelID sets the "upstream_model_id" field.
+func (u *RequestExecutionUpsertBulk) SetUpstreamModelID(v string) *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetUpstreamModelID(v)
+	})
+}
+
+// UpdateUpstreamModelID sets the "upstream_model_id" field to the value that was provided on create.
+func (u *RequestExecutionUpsertBulk) UpdateUpstreamModelID() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateUpstreamModelID()
+	})
+}
+
+// ClearUpstreamModelID clears the value of the "upstream_model_id" field.
+func (u *RequestExecutionUpsertBulk) ClearUpstreamModelID() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearUpstreamModelID()
+	})
+}
+
+// SetResponseHeaders sets the "response_headers" field.
+func (u *RequestExecutionUpsertBulk) SetResponseHeaders(v objects.JSONRawMessage) *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetResponseHeaders(v)
+	})
+}
+
+// UpdateResponseHeaders sets the "response_headers" field to the value that was provided on create.
+func (u *RequestExecutionUpsertBulk) UpdateResponseHeaders() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateResponseHeaders()
+	})
+}
+
+// ClearResponseHeaders clears the value of the "response_headers" field.
+func (u *RequestExecutionUpsertBulk) ClearResponseHeaders() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearResponseHeaders()
 	})
 }
 
@@ -1781,27 +1925,6 @@ func (u *RequestExecutionUpsertBulk) SetPassThroughApplied(v bool) *RequestExecu
 func (u *RequestExecutionUpsertBulk) UpdatePassThroughApplied() *RequestExecutionUpsertBulk {
 	return u.Update(func(s *RequestExecutionUpsert) {
 		s.UpdatePassThroughApplied()
-	})
-}
-
-// SetResponseModel sets the "response_model" field.
-func (u *RequestExecutionUpsertBulk) SetResponseModel(v string) *RequestExecutionUpsertBulk {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.SetResponseModel(v)
-	})
-}
-
-// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
-func (u *RequestExecutionUpsertBulk) UpdateResponseModel() *RequestExecutionUpsertBulk {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.UpdateResponseModel()
-	})
-}
-
-// ClearResponseModel clears the value of the "response_model" field.
-func (u *RequestExecutionUpsertBulk) ClearResponseModel() *RequestExecutionUpsertBulk {
-	return u.Update(func(s *RequestExecutionUpsert) {
-		s.ClearResponseModel()
 	})
 }
 

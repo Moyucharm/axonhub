@@ -8,12 +8,12 @@
 
 | 项目 | 值 |
 |---|---|
-| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/beta10-20260913`） |
+| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/beta11-20261009`） |
 | 官方仓库 | `https://github.com/looplj/axonhub.git` |
-| 对比基准 | 官方最新发行 tag `v1.0.0-beta10`（`939b2bc0`，2026-09-06） |
-| 当前发行基线提交 | `939b2bc0` fix(frontend): preserve channel form focus and onboarding dismissal (#2411) |
+| 对比基准 | 官方最新发行 tag `v1.0.0-beta11`（`b8bb3421`，2026-10-08） |
+| 当前发行基线提交 | `b8bb3421` fix(channels): 修复 System One 渠道与 API key 的测试格式 (#2607) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta10+azusa.v0.6.6`（本次创建 tag 并发布镜像） |
+| 本分支版本号 | `v1.0.0-beta11+azusa.v0.1` |
 
 ### 更新本文件的方法
 
@@ -133,6 +133,25 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **生成与迁移**：以合并后的 Ent/GraphQL 源 schema 重新生成代码，保留 CPA 实体、自用渠道字段、beta9 一次性迁移标记和 legacy 渠道类型归一化，同时吸收 beta10 的 schema default 过滤与索引修复。
 - **无广告硬约束**：`atlascloud`、`qiniu`、`qiniu_anthropic`、`fenno` 不进入 Ent/GraphQL/前端可选枚举，不恢复其图标和文案；仅保留旧数据库/备份兼容映射与回归测试。README 不恢复赞助横幅，官方 `docker-unstable.yml` 也不恢复。
 
+### 2.8 2026-10-09 对齐官方 v1.0.0-beta11
+
+**来源**：官方发行 tag `v1.0.0-beta11@b8bb3421`（相对 beta10 共 138 个提交）；集成方式为先在 `merge/beta11-base` 上 `git revert ad5b5eec`（#2453），再把它合入 `merge/beta11-20261009`。不跟进 `beta11..unstable`。
+
+重叠项取舍（2026-10-09 用户确认）：
+
+1. **System One（#2524/#2607 ↔ 3.14）**：采用上游类型化协议（`state`/`questions`/`answers`）、`typesafe` 渠道类型、默认模型与渠道测试格式；`RequestTypeSystemOne` 统一为 `systemone`。**放宽**上游「该格式只能给 typesafe 渠道」的限制：任意渠道仍可挂 Jev 兼容的 `typesafe/systemone` 端点（后端 `validateEndpointsForChannelType` 与前端 `getConfigurableApiFormatsForChannelType`）。删除自用 `llm/system_one.go` 与透传 transformer。
+2. **上游自报模型（#2509/#2533 ↔ `dec1c5b4`）**：请求执行改用上游 `upstream_model_id` 与 `llm/modelname`；删除自用 `request_executions.response_model`、`PersistenceState.UpstreamResponseModel`、流式捕获中间件及请求列表里的宽松比较徽标（改用上游审计图标）。**保留** CPA 请求监控的模型不一致提示（`cpa_usage_events.response_model`、`UpstreamModelHint`、`model-mismatch.ts`）。
+3. **自动禁用（#2453 ↔ 2.1/2.2/3.11）**：整体不引入（已 revert）；保留自用 Key Pool、全局 `AutoDisableChannel`/`AutoDisableAPIKey`、持久化失败计数、渠道冷却与单一归属。今后同步上游时该区域会持续冲突。
+4. **额度路由（#2448/#2562）**：采用上游三模式两阶段路由与一次性设置迁移，删除旧 `quota_enforcement_settings` 前端；自用 `WithChannelCooldownFilterSelector` 保留在额度闸门之前。
+5. **重试（#2469/#2478 ↔ 3.1）**：采用上游；Key Pool 多 key 重试分支同时识别 HTTP 429 状态码，`RetryCount` 总请求数语义不变。
+6. **Cline（#2495 ↔ 3.21）**：按 2026-09-30 决定采用上游，清理 `598fc29e` 的检查器、估算金额、绿色进度条覆盖、类型与 i18n。
+7. **额度显示（#2419/#2417/#2612 ↔ 3.10/3.22）**：渠道额度采用上游归一化与统一进度条；CPA 胶囊组件与估算不受影响。渠道名列同时显示上游额度路由图标与自用冷却/Key Pool 徽标。
+8. **执行密钥（#2480/#2550）**：采用上游；请求详情页在自用 3.15 结构（`last: 20`、全局 execution ID 选择、空状态判断）中加入密钥后缀/序号、上游模型审计与执行级响应头。
+9. **Responses 流**：采用上游终止/响应头/自定义工具改动，保留自用兼容网关 `[DONE]` 成功终止；新增 `completedByProviderDone`，使该终止后仍继续消费源流，迟到的传输错误不被吞掉（同时满足上游 `ProviderDoneBeforeSemanticTerminalPreservesLateSourceError` 与自用 provider-DONE 测试）。
+10. **其他**：侧边栏改为上游 `config/nav-items.ts`，补回 CPA 菜单；管理端 GraphQL 迁到上游 `adminGraphqlGroup` 并保留 `LLMRequestTimeout` 硬上限；广告渠道（`qiniu*`/`fenno`/`atlascloud`）继续排除；`resetChannelFailure`/`resetAPIKeyFailure` 对未注入 `AbstractService` 的服务实例直接返回。
+- **待办**：#2542 页面标题栏响应式按用户要求单独处理（CPA 页迁移到 `PageHeader`）。
+- **验证**：`go build ./...`、`go vet`、`go test ./internal/...` 与 `llm` 模块测试通过；前端 `node --test` 294 项通过；`tsc` 在改动区域无新增错误（仓库原有大量既存类型错误）。
+
 ## 3. 自用修改 — 小修改
 
 ### 3.1 Key Pool RetryCount 语义调整（`91de02a2`）
@@ -239,6 +258,8 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 ### 3.14 TypeSafe System One（Jev）端点（`1ca05f9f`）
 
+> **2026-10-09 beta11 起已被上游 #2524 取代**：协议改为上游类型化实现，仅保留「任意渠道可挂 `typesafe/systemone` 端点」这一放宽，见 2.8 节第 1 条。下文为历史记录。
+
 - 新增 `typesafe/systemone` 渠道格式与公开端点 `POST /v1/systemone`，把 TypeSafe System One 原生评估协议（`state` + 类型化 `questions` → 结构化判定与概率）作为一等请求类型接入路由、transformer、pass-through、trace 与用量统计。
 - `state`、`questions`、答案与未知扩展字段保持不透明透传，仅按模型映射改写顶层 `model`；上游以渠道 API Key 走 Bearer 认证，TypeSafe 的 input/output token 计入统一用量模型。
 - System One 必须命中显式配置的端点，绝不回退到 chat / responses / messages；协议为非流式，流式请求被拒绝；该端点按非消息形处理，不创建对话 trace。
@@ -306,6 +327,8 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **不单独修改版本号**：纯 CI 守卫，不改变任何产物内容，随下次自用发布带上（同 3.16 的处理方式）。
 
 ### 3.21 Cline 配额刷新不再扫描消费账本（`598fc29e`）
+
+> **2026-10-09 beta11 起已按决定改用上游 #2495**，本节自用实现已清理，见 2.8 节第 6 条。下文为历史记录。
 
 - **限流修复**：Cline Pass 配额检查保留用户身份、套餐阈值、余额和 `/api/v1/users/me/plan/usage-limits` 请求；不再分页读取 `/api/v1/users/{id}/usages`。原流程会在已获取官方 5h/7d/30d 比例后因账本 429 使整次刷新失败、旧快照继续显示。改动仅作用于 Cline quota checker，不改对话转发、其他提供商或 GraphQL mutation 契约。
 - **数据来源与缺失语义**：窗口使用比例、状态和重置时间以官方 usage-limits 为准；官方字段不完整时保持未知，不再用账本补算。套餐 `/plans` 仍提供各窗口的成本上限，余额独立展示。停止拉账本后不再提供精确已用金额、credits、账本条数及 `usage_fetch` 元数据；无账本数据不能写成零成本。

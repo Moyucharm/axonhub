@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -58,11 +60,9 @@ func (c *AntigravityQuotaChecker) CheckQuota(ctx context.Context, ch *ent.Channe
 		WithURL(antigravityQuotaURL).
 		WithBearerToken(accessToken).
 		WithHeader("Content-Type", "application/json").
-		WithHeader("User-Agent", antigravity.GetUserAgent()).
-		WithHeader("X-Client-Name", "antigravity").
-		WithHeader("X-Client-Version", antigravity.GetVersion()).
 		WithBody(body).
 		Build()
+	antigravity.SetClientHeaders(request.Headers)
 
 	response, err := httpClient.Do(ctx, request)
 	if err != nil {
@@ -135,11 +135,21 @@ func parseAntigravityQuota(body []byte) (QuotaData, error) {
 	}
 
 	models := make(map[string]any, len(response.Models))
+	limits := make([]QuotaLimitStatus, 0, len(response.Models))
 	maxRemaining := 0.0
 	var nextResetAt *time.Time
 
-	for modelID, model := range response.Models {
+	modelIDs := make([]string, 0, len(response.Models))
+	for modelID := range response.Models {
+		modelIDs = append(modelIDs, modelID)
+	}
+	sort.Strings(modelIDs)
+	for _, modelID := range modelIDs {
+		model := response.Models[modelID]
 		if model.IsInternal || model.QuotaInfo == nil || model.QuotaInfo.RemainingFraction == nil {
+			continue
+		}
+		if math.IsNaN(*model.QuotaInfo.RemainingFraction) || math.IsInf(*model.QuotaInfo.RemainingFraction, 0) || *model.QuotaInfo.RemainingFraction < 0 {
 			continue
 		}
 
@@ -161,6 +171,7 @@ func parseAntigravityQuota(body []byte) (QuotaData, error) {
 			modelData["resetAt"] = resetAt.Format(time.RFC3339)
 		}
 		models[modelID] = modelData
+		limits = append(limits, NewTokenLimitStatus(status, usageRatio, resetAt).WithWindow(modelID, 0))
 	}
 
 	if len(models) == 0 {
@@ -168,13 +179,14 @@ func parseAntigravityQuota(body []byte) (QuotaData, error) {
 	}
 	overallStatus := antigravityQuotaStatus(1 - maxRemaining)
 
-	return QuotaData{
+	return NormalizeQuotaData(QuotaData{
 		Status:       overallStatus,
 		ProviderType: "antigravity",
 		RawData:      map[string]any{"models": models},
 		NextResetAt:  nextResetAt,
 		Ready:        IsReadyStatus(overallStatus),
-	}, nil
+		Limits:       limits,
+	}), nil
 }
 
 func antigravityQuotaStatus(usageRatio float64) string {

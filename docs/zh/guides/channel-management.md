@@ -245,6 +245,15 @@ https://custom-gateway.example.com/api##
 - 各渠道类型自带默认端点（如智谱提供 `openai/chat_completions`、`zhipu_anthropic` 提供 `anthropic/messages`），自定义端点可补充其他格式或覆盖同名格式。
 - Jev 使用非聊天协议 `typesafe/systemone`。请显式添加该格式，Base URL 使用 `https://api.typesafe.ai/v1`，path 可选 `/systemone`；System One 请求不会回退到 chat 端点。
 
+### 端点自动探测
+
+**端点** 对话框可以探测上游是否支持三种透传协议（`openai/chat_completions`、`openai/responses`、`anthropic/messages`）；若渠道三者都支持，基本可以让所有客户端协议原生透传。
+
+- 在 **当前端点** 区域点击 **自动探测**，后端会用渠道的 Base URL、凭证和默认测试模型，对每种协议发送一次轻量探测请求。
+- 探测到支持的协议会自动加入自定义端点列表（不会自动保存，确认后点击 **保存** 生效）。
+- 上游返回非 `404`/`405` 即视为该路由存在；`401`/`403` 归类为鉴权失败，`5xx` 或连接失败归类为错误。
+- 渠道列表的 **端点** 列用四个图标展示已配置的透传协议（包括原生 Gemini Contents 端点）：已配置高亮，未配置置灰。
+
 ### 模型协议覆盖（ModelProtocols）
 
 在 **模型协议覆盖** 区块为单个模型强制可用的出站协议：

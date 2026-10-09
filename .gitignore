@@ -8,6 +8,7 @@
 !*.*
 !Makefile
 !LICENSE
+!/NOTICE
 !Dockerfile
 !VERSION
 
@@ -172,3 +173,8 @@ config.schema.json
 # Local planning/working documents
 .agent/
 deploy_dev.sh
+
+docs/superpowers/
+docs/superpowers/**
+superpowers/
+superpowers/**

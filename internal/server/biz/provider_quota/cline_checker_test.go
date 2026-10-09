@@ -93,14 +93,14 @@ func TestParseClineUsageLimits_EmptyResetOnlyMeansInactiveAtZeroUsage(t *testing
 	require.Equal(t, clineOfficialResetStateUnavailable, limits["last30d"].ResetState)
 }
 
-func TestBuildClineQuotaData_OfficialValuesDriveStatusAndResetWithoutLedgerCost(t *testing.T) {
-	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+func TestBuildClineQuotaData_OfficialValuesDriveStatusAndResetWhileCostRemainsExact(t *testing.T) {
+	now := time.Date(2099, 7, 14, 12, 0, 0, 0, time.UTC)
 	fiveHourRatio := 0.20
 	weeklyRatio := 0.90
 	monthlyRatio := 0.40
-	fiveHourReset := time.Date(2026, 7, 14, 14, 0, 0, 0, time.UTC)
-	weeklyReset := time.Date(2026, 7, 17, 2, 56, 47, 0, time.UTC)
-	monthlyReset := time.Date(2026, 8, 1, 11, 13, 17, 0, time.UTC)
+	fiveHourReset := time.Date(2099, 7, 14, 14, 0, 0, 0, time.UTC)
+	weeklyReset := time.Date(2099, 7, 17, 2, 56, 47, 0, time.UTC)
+	monthlyReset := time.Date(2099, 8, 1, 11, 13, 17, 0, time.UTC)
 
 	quota := buildClineQuotaData(
 		now,
@@ -112,6 +112,8 @@ func TestBuildClineQuotaData_OfficialValuesDriveStatusAndResetWithoutLedgerCost(
 		},
 		nil,
 		nil,
+		[]clineUsageItem{{CreatedAt: "2099-07-14T11:00:00Z", CostUSD: 50, CreditsUsed: 7, AIModelTypeName: "cline-pass"}},
+		clineUsageFetchMeta{Pages: 1, ItemsSeen: 1},
 		map[string]clineOfficialWindowLimit{
 			"last5h":  {UsageRatio: &fiveHourRatio, NextResetAt: &fiveHourReset},
 			"last7d":  {UsageRatio: &weeklyRatio, NextResetAt: &weeklyReset},
@@ -136,17 +138,49 @@ func TestBuildClineQuotaData_OfficialValuesDriveStatusAndResetWithoutLedgerCost(
 
 	windows := quota.RawData["windows"].(map[string]any)
 	weekly := windows["last7d"].(map[string]any)
+	require.Equal(t, int64(50), weekly["used_cost_units"])
 	require.Equal(t, int64(100), weekly["limit_cost_units"])
-	require.NotContains(t, weekly, "used_cost_units")
-	require.NotContains(t, weekly, "remaining_cost_units")
-	require.NotContains(t, weekly, "credits_used")
+	require.Equal(t, int64(50), weekly["remaining_cost_units"])
+	require.Equal(t, int64(7), weekly["credits_used"])
 	require.InDelta(t, 0.90, weekly["usage_ratio"].(float64), 0.000001)
 	require.InDelta(t, 90.0, weekly["usage_percent"].(float64), 0.000001)
-	require.NotContains(t, weekly, "cost_usage_ratio")
-	require.Equal(t, clineWindowSourceUnavailable, weekly["cost_source"])
+	require.InDelta(t, 0.50, weekly["cost_usage_ratio"].(float64), 0.000001)
+	require.InDelta(t, 50.0, weekly["cost_usage_percent"].(float64), 0.000001)
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, weekly["usage_source"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, weekly["reset_source"])
 	require.Equal(t, weeklyReset.Format(time.RFC3339), weekly["next_reset_at"])
+}
+
+func TestBuildClineWindow_UsesOfficialBucketBoundaryAndFiltersDirectUsage(t *testing.T) {
+	now := time.Date(2026, 8, 1, 16, 0, 0, 0, time.UTC)
+	resetAt := time.Date(2026, 8, 31, 15, 12, 9, 0, time.UTC)
+	usageRatio := 0.01
+
+	window := buildClineWindow(
+		now,
+		"last30d",
+		30*24*time.Hour,
+		100,
+		[]clineUsageItem{
+			{CreatedAt: "2026-08-01T15:12:08.917369Z", CostUSD: 10, AIModelTypeName: "cline-pass"},
+			{CreatedAt: "2026-08-01T15:30:00Z", CostUSD: 20, AIModelTypeName: "cline-pass"},
+			{CreatedAt: "2026-08-01T15:40:00Z", CostUSD: 30, AIModelTypeName: "openai"},
+			{CreatedAt: "2026-07-31T15:30:00Z", CostUSD: 40, AIModelTypeName: "cline-pass"},
+		},
+		false,
+		clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt},
+	)
+
+	require.Equal(t, clineWindowStateActive, window.state)
+	require.True(t, window.costAvailable)
+	require.Equal(t, int64(30), window.usedUnits)
+	require.Equal(t, 2, window.itemsCount)
+	require.NotNil(t, window.windowStartAt)
+	require.Equal(t, "2026-08-01T15:12:09Z", window.windowStartAt.Format(time.RFC3339))
+	require.NotNil(t, window.costStartAt)
+	require.Equal(t, "2026-08-01T15:12:08Z", window.costStartAt.Format(time.RFC3339))
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, window.costSource)
+	require.Equal(t, resetAt, *window.nextResetAt)
 }
 
 func TestBuildClineWindow_ZeroPercentWithResetRemainsActive(t *testing.T) {
@@ -154,11 +188,24 @@ func TestBuildClineWindow_ZeroPercentWithResetRemainsActive(t *testing.T) {
 	resetAt := time.Date(2026, 8, 2, 2, 45, 10, 0, time.UTC)
 	usageRatio := 0.0
 
-	window := buildClineWindow(now, "last5h", 5*time.Hour, 1_000_000_000, clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt})
+	window := buildClineWindow(
+		now,
+		"last5h",
+		5*time.Hour,
+		1_000_000_000,
+		[]clineUsageItem{{
+			CreatedAt:       "2026-08-01T21:45:10.443078Z",
+			CostUSD:         1232,
+			AIModelTypeName: "cline-pass",
+		}},
+		false,
+		clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt},
+	)
 
 	require.Equal(t, clineWindowStateActive, window.state)
 	require.True(t, window.active)
-	require.Equal(t, clineWindowSourceUnavailable, window.costSource)
+	require.True(t, window.costAvailable)
+	require.Equal(t, int64(1232), window.usedUnits)
 	require.Equal(t, resetAt, *window.nextResetAt)
 }
 
@@ -179,40 +226,132 @@ func TestBuildClineWindow_UsesOfficialBoundaryForEveryDuration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resetAt := now.Add(tt.duration / 2)
 			expectedStart := resetAt.Add(-tt.duration)
-			window := buildClineWindow(now, tt.name, tt.duration, 100, clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt})
-			require.Equal(t, expectedStart, *window.windowStartAt)
+			window := buildClineWindow(
+				now,
+				tt.name,
+				tt.duration,
+				100,
+				[]clineUsageItem{
+					{CreatedAt: expectedStart.Add(-time.Minute).Format(time.RFC3339Nano), CostUSD: 90, AIModelTypeName: "cline-pass"},
+					{CreatedAt: expectedStart.Add(time.Minute).Format(time.RFC3339Nano), CostUSD: 10, AIModelTypeName: "cline-pass"},
+				},
+				false,
+				clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt},
+			)
+
+			require.True(t, window.costAvailable)
+			require.Equal(t, int64(10), window.usedUnits)
+			require.Equal(t, 1, window.itemsCount)
 		})
 	}
 }
 
-func TestBuildClineWindow_OfficialInactiveWindow(t *testing.T) {
+func TestBuildClineWindow_UnclassifiedCurrentUsageHidesCost(t *testing.T) {
+	now := time.Date(2026, 8, 1, 16, 0, 0, 0, time.UTC)
+	resetAt := now.Add(4 * time.Hour)
+	usageRatio := 0.1
+
+	window := buildClineWindow(
+		now,
+		"last5h",
+		5*time.Hour,
+		100,
+		[]clineUsageItem{{CreatedAt: now.Add(-time.Hour).Format(time.RFC3339Nano), CostUSD: 10}},
+		false,
+		clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt},
+	)
+
+	require.Equal(t, clineWindowStateActive, window.state)
+	require.False(t, window.costAvailable)
+	require.Equal(t, clineWindowSourceUnavailable, window.costSource)
+	require.Zero(t, window.usedUnits)
+	require.InDelta(t, 0.1, *window.usageRatio, 0.000001)
+}
+
+func TestBuildClineWindow_OfficialInactiveWindowIgnoresRecentHistory(t *testing.T) {
 	now := time.Date(2026, 8, 1, 20, 41, 30, 0, time.UTC)
 	usageRatio := 0.0
 
-	window := buildClineWindow(now, "last5h", 5*time.Hour, 100, clineOfficialWindowLimit{
-		UsageRatio: &usageRatio,
-		ResetState: clineOfficialResetStateInactive,
-	})
+	window := buildClineWindow(
+		now,
+		"last5h",
+		5*time.Hour,
+		100,
+		[]clineUsageItem{{
+			CreatedAt:       "2026-08-01T16:31:16Z",
+			CostUSD:         80,
+			AIModelTypeName: "cline-pass",
+		}},
+		false,
+		clineOfficialWindowLimit{
+			UsageRatio: &usageRatio,
+			ResetState: clineOfficialResetStateInactive,
+		},
+	)
 
 	require.Equal(t, clineWindowStateInactive, window.state)
 	require.False(t, window.active)
-	require.Equal(t, clineWindowSourceUnavailable, window.costSource)
+	require.True(t, window.costAvailable)
+	require.Zero(t, window.itemsCount)
+	require.Zero(t, window.usedUnits)
 	require.Nil(t, window.nextResetAt)
-	require.Equal(t, clineWindowSourceOfficialUsageLimits, window.resetSource)
+	require.Equal(t, clineWindowSourceOfficialNoActiveWindow, window.costSource)
+	require.NotNil(t, window.costUsageRatio)
+	require.Zero(t, *window.costUsageRatio)
 }
 
-func TestBuildClineWindow_StaleOfficialResetIsInvalid(t *testing.T) {
+func TestBuildClineWindow_StaleOfficialResetDoesNotFallBackToRollingEstimate(t *testing.T) {
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	staleReset := now.Add(-2 * time.Hour)
 	usageRatio := 0.5
 
-	window := buildClineWindow(now, "last5h", 5*time.Hour, 100, clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &staleReset})
+	window := buildClineWindow(
+		now,
+		"last5h",
+		5*time.Hour,
+		100,
+		[]clineUsageItem{{
+			CreatedAt:       now.Add(-time.Hour).Format(time.RFC3339),
+			CostUSD:         50,
+			AIModelTypeName: "cline-pass",
+		}},
+		false,
+		clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &staleReset},
+	)
 
 	require.Equal(t, clineWindowStateInvalid, window.state)
+	require.False(t, window.costAvailable)
+	require.Zero(t, window.usedUnits)
 	require.Nil(t, window.nextResetAt)
 	require.Equal(t, clineWindowSourceUnavailable, window.costSource)
 	require.Equal(t, clineWindowSourceUnavailable, window.resetSource)
 	require.InDelta(t, 0.5, *window.usageRatio, 0.000001)
+}
+
+func TestBuildClineWindow_TruncatedUsageHistoryKeepsOfficialStatusButHidesCost(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	resetAt := now.Add(4 * time.Hour)
+	usageRatio := 0.25
+
+	window := buildClineWindow(
+		now,
+		"last5h",
+		5*time.Hour,
+		100,
+		[]clineUsageItem{{
+			CreatedAt:       now.Add(-time.Hour).Format(time.RFC3339),
+			CostUSD:         25,
+			AIModelTypeName: "cline-pass",
+		}},
+		true,
+		clineOfficialWindowLimit{UsageRatio: &usageRatio, NextResetAt: &resetAt},
+	)
+
+	require.Equal(t, clineWindowStateActive, window.state)
+	require.False(t, window.costAvailable)
+	require.Equal(t, clineWindowSourceUnavailable, window.costSource)
+	require.InDelta(t, 0.25, *window.usageRatio, 0.000001)
+	require.Equal(t, resetAt, *window.nextResetAt)
 }
 
 func TestCline_CheckQuota_HappyPathPassOnly(t *testing.T) {
@@ -266,6 +405,18 @@ func TestCline_CheckQuota_HappyPathPassOnly(t *testing.T) {
 						]
 					}
 				}`), nil
+			case 5:
+				require.Equal(t, "GET", req.Method)
+				require.Equal(t, "/api/v1/users/user_test/usages", req.URL.Path)
+				require.Equal(t, "200", req.URL.Query().Get("limit"))
+				return jsonResponse(http.StatusOK, `{
+					"data": {
+						"items": [
+							{"createdAt":"2026-07-07T10:18:10Z","costUsd":462,"creditsUsed":0,"aiModelTypeName":"cline-pass"},
+							{"createdAt":"2026-07-02T10:31:31Z","costUsd":497184013,"creditsUsed":0,"aiModelTypeName":"cline-pass"}
+						]
+					}
+				}`), nil
 			default:
 				t.Fatalf("unexpected Cline quota request %d to %s", requestCount, req.URL.String())
 				return nil, nil
@@ -290,7 +441,7 @@ func TestCline_CheckQuota_HappyPathPassOnly(t *testing.T) {
 	require.True(t, quota.Ready)
 	require.Equal(t, "cline", quota.ProviderType)
 	require.Len(t, quota.Limits, 3)
-	require.Equal(t, 4, requestCount)
+	require.Equal(t, 5, requestCount)
 
 	raw := quota.RawData
 	require.Equal(t, "cline_pass_only", raw["model_scope"])
@@ -302,9 +453,9 @@ func TestCline_CheckQuota_HappyPathPassOnly(t *testing.T) {
 	last7d := windows["last7d"].(map[string]any)
 	require.InDelta(t, 0.79, last7d["usage_ratio"].(float64), 0.000001)
 	require.InDelta(t, 79.0, last7d["usage_percent"].(float64), 0.0001)
-	require.NotContains(t, last7d, "used_cost_units")
-	require.NotContains(t, last7d, "cost_usage_ratio")
-	require.Equal(t, clineWindowSourceUnavailable, last7d["cost_source"])
+	require.Equal(t, int64(462), last7d["used_cost_units"])
+	require.InDelta(t, 0.0000001848, last7d["cost_usage_ratio"].(float64), 0.0000000001)
+	require.InDelta(t, 0.00001848, last7d["cost_usage_percent"].(float64), 0.00000001)
 	require.Equal(t, "2026-07-14T10:18:10Z", last7d["next_reset_at"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, last7d["usage_source"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, last7d["reset_source"])
@@ -440,7 +591,7 @@ func TestCline_CheckQuota_UsageLimitsNonNotFoundErrorsRemainFailures(t *testing.
 }
 
 func TestCline_CheckQuota_UsageLimitsFailureReturnsSafeError(t *testing.T) {
-	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2099, 7, 7, 12, 0, 0, 0, time.UTC)
 	requestCount := 0
 	httpClient := httpclient.NewHttpClientWithClient(&http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -487,7 +638,7 @@ func TestCline_CheckQuota_UsageLimitsFailureReturnsSafeError(t *testing.T) {
 	assertClineErrorOmitsSensitiveValues(t, err.Error())
 }
 
-func TestCline_CheckQuota_PartialUsageLimitsKeepMissingFieldsUnknown(t *testing.T) {
+func TestCline_CheckQuota_PartialUsageLimitsFallbackIsPerFieldAndPerWindow(t *testing.T) {
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	requestCount := 0
 	httpClient := httpclient.NewHttpClientWithClient(&http.Client{
@@ -502,6 +653,8 @@ func TestCline_CheckQuota_PartialUsageLimitsKeepMissingFieldsUnknown(t *testing.
 				return jsonResponse(http.StatusOK, `{"data":{"balance":1000}}`), nil
 			case 4:
 				return jsonResponse(http.StatusOK, `{"data":{"limits":[{"type":"five_hour","percentUsed":80},{"type":"weekly","resetsAt":"2026-07-17T02:56:47Z"},{"type":"unrecognized","percentUsed":99}]}}`), nil
+			case 5:
+				return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-07-14T11:00:00Z","costUsd":50,"creditsUsed":3,"aiModelTypeName":"cline-pass"}]}}`), nil
 			default:
 				t.Fatalf("unexpected request %d", requestCount)
 				return nil, nil
@@ -519,7 +672,6 @@ func TestCline_CheckQuota_PartialUsageLimitsKeepMissingFieldsUnknown(t *testing.
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 4, requestCount)
 	windows := quota.RawData["windows"].(map[string]any)
 	fiveHour := windows["last5h"].(map[string]any)
 	weekly := windows["last7d"].(map[string]any)
@@ -532,10 +684,10 @@ func TestCline_CheckQuota_PartialUsageLimitsKeepMissingFieldsUnknown(t *testing.
 	require.NotContains(t, fiveHour, "next_reset_at")
 	require.NotContains(t, fiveHour, "used_cost_units")
 
-	require.NotContains(t, weekly, "usage_ratio")
-	require.Equal(t, clineWindowSourceUnavailable, weekly["usage_source"])
+	require.InDelta(t, 0.25, weekly["usage_ratio"].(float64), 0.000001)
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, weekly["usage_source"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, weekly["reset_source"])
-	require.Equal(t, clineWindowSourceUnavailable, weekly["cost_source"])
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, weekly["cost_source"])
 	require.Equal(t, "2026-07-17T02:56:47Z", weekly["next_reset_at"])
 
 	require.NotContains(t, monthly, "usage_ratio")
@@ -565,6 +717,8 @@ func TestCline_CheckQuota_MalformedUsageLimitFieldsPreserveOtherOfficialValues(t
 				return jsonResponse(http.StatusOK, `{"data":{"balance":1000}}`), nil
 			case 4:
 				return jsonResponse(http.StatusOK, `{"data":{"limits":[{"type":"five_hour","percentUsed":"unknown","resetsAt":"2026-07-14T15:00:00Z"},{"type":"weekly","percentUsed":90,"resetsAt":123},{"type":"monthly","percentUsed":40,"resetsAt":"2026-08-01T11:13:17Z"},false]}}`), nil
+			case 5:
+				return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-07-14T11:00:00Z","costUsd":50,"creditsUsed":3,"aiModelTypeName":"cline-pass"}]}}`), nil
 			default:
 				t.Fatalf("unexpected request %d", requestCount)
 				return nil, nil
@@ -582,16 +736,15 @@ func TestCline_CheckQuota_MalformedUsageLimitFieldsPreserveOtherOfficialValues(t
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 4, requestCount)
 	windows := quota.RawData["windows"].(map[string]any)
 	fiveHour := windows["last5h"].(map[string]any)
 	weekly := windows["last7d"].(map[string]any)
 	monthly := windows["last30d"].(map[string]any)
 
-	require.NotContains(t, fiveHour, "usage_ratio")
-	require.Equal(t, clineWindowSourceUnavailable, fiveHour["usage_source"])
+	require.InDelta(t, 0.5, fiveHour["usage_ratio"].(float64), 0.000001)
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, fiveHour["usage_source"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, fiveHour["reset_source"])
-	require.Equal(t, clineWindowSourceUnavailable, fiveHour["cost_source"])
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, fiveHour["cost_source"])
 	require.Equal(t, "2026-07-14T15:00:00Z", fiveHour["next_reset_at"])
 
 	require.InDelta(t, 0.9, weekly["usage_ratio"].(float64), 0.000001)
@@ -603,7 +756,7 @@ func TestCline_CheckQuota_MalformedUsageLimitFieldsPreserveOtherOfficialValues(t
 	require.InDelta(t, 0.4, monthly["usage_ratio"].(float64), 0.000001)
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, monthly["usage_source"])
 	require.Equal(t, clineWindowSourceOfficialUsageLimits, monthly["reset_source"])
-	require.Equal(t, clineWindowSourceUnavailable, monthly["cost_source"])
+	require.Equal(t, clineWindowSourceOfficialWindowLedger, monthly["cost_source"])
 	require.Equal(t, "2026-08-01T11:13:17Z", monthly["next_reset_at"])
 
 	fetch := quota.RawData["usage_limits_fetch"].(map[string]any)
@@ -656,6 +809,8 @@ func TestCline_CheckQuota_WarningAtEightyPercent(t *testing.T) {
 		clineInferenceCapThreshold{Last5HoursUsageCostUSDPerUser: 100, Last7DaysUsageCostUSDPerUser: 1000, Last30DaysUsageCostUSDPerUser: 2000},
 		nil,
 		nil,
+		nil,
+		clineUsageFetchMeta{},
 		map[string]clineOfficialWindowLimit{
 			"last5h": {UsageRatio: &usageRatio, ResetState: clineOfficialResetStateInactive},
 		},
@@ -675,6 +830,8 @@ func TestCline_CheckQuota_ExhaustedWhenPassOnly(t *testing.T) {
 		clineInferenceCapThreshold{Last5HoursUsageCostUSDPerUser: 100, Last7DaysUsageCostUSDPerUser: 1000, Last30DaysUsageCostUSDPerUser: 2000},
 		nil,
 		nil,
+		nil,
+		clineUsageFetchMeta{},
 		map[string]clineOfficialWindowLimit{
 			"last5h": {UsageRatio: &usageRatio, ResetState: clineOfficialResetStateInactive},
 		},
@@ -686,7 +843,7 @@ func TestCline_CheckQuota_ExhaustedWhenPassOnly(t *testing.T) {
 }
 
 func TestCline_CheckQuota_MixedScopeDoesNotExhaustWholeChannelFromPassPool(t *testing.T) {
-	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2099, 7, 7, 12, 0, 0, 0, time.UTC)
 	officialRatio := 1.0
 	zeroRatio := 0.0
 	fiveHourReset := now.Add(4 * time.Hour)
@@ -700,6 +857,8 @@ func TestCline_CheckQuota_MixedScopeDoesNotExhaustWholeChannelFromPassPool(t *te
 		},
 		nil,
 		nil,
+		[]clineUsageItem{{CreatedAt: "2099-07-07T11:00:00Z", CostUSD: 1, AIModelTypeName: "cline-pass"}},
+		clineUsageFetchMeta{Pages: 1, ItemsSeen: 1},
 		map[string]clineOfficialWindowLimit{
 			"last5h":  {UsageRatio: &officialRatio, NextResetAt: &fiveHourReset},
 			"last7d":  {UsageRatio: &zeroRatio, ResetState: clineOfficialResetStateInactive},
@@ -722,6 +881,11 @@ func TestCline_CheckQuota_MixedScopeDoesNotExhaustWholeChannelFromPassPool(t *te
 		if limit.Type != QuotaLimitTypeToken {
 			continue
 		}
+		if limit.Window == QuotaWindow5h {
+			require.Equal(t, "exhausted", limit.Status)
+			require.False(t, limit.Ready)
+			continue
+		}
 		require.NotEqual(t, "exhausted", limit.Status)
 		require.True(t, limit.Ready)
 	}
@@ -729,7 +893,7 @@ func TestCline_CheckQuota_MixedScopeDoesNotExhaustWholeChannelFromPassPool(t *te
 	windows := quota.RawData["windows"].(map[string]any)
 	fiveHour := windows["last5h"].(map[string]any)
 	require.InDelta(t, 1.0, fiveHour["usage_ratio"].(float64), 0.000001)
-	require.NotContains(t, fiveHour, "cost_usage_ratio")
+	require.InDelta(t, 0.01, fiveHour["cost_usage_ratio"].(float64), 0.000001)
 }
 
 func TestCline_CheckQuota_DirectOnlyUsesBalanceInformationally(t *testing.T) {
@@ -826,7 +990,7 @@ func TestCline_GetJSON_NonHTTPFailuresOmitSensitiveValues(t *testing.T) {
 	}
 }
 
-func TestCline_CheckQuota_UsageLimitsTransportErrorOmitsSensitiveValues(t *testing.T) {
+func TestCline_CheckQuota_UsageTransportErrorIsNonFatalAndOmitsSensitiveValues(t *testing.T) {
 	requestCount := 0
 	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requestCount++
@@ -838,6 +1002,10 @@ func TestCline_CheckQuota_UsageLimitsTransportErrorOmitsSensitiveValues(t *testi
 		case 3:
 			return jsonResponse(http.StatusOK, `{"data":{"balance":497582}}`), nil
 		case 4:
+			return jsonResponse(http.StatusOK, `{"data":{"limits":[{"type":"five_hour","percentUsed":1,"resetsAt":"2026-07-07T16:00:00Z"},{"type":"weekly","percentUsed":1,"resetsAt":"2026-07-14T11:00:00Z"},{"type":"monthly","percentUsed":1,"resetsAt":"2026-08-06T11:00:00Z"}]}}`), nil
+		case 5:
+			return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-07-07T11:00:00Z","costUsd":1,"aiModelTypeName":"cline-pass"}],"nextToken":"cursor_sensitive_456"}}`), nil
+		case 6:
 			return nil, fmt.Errorf("dial to %s failed with api key sk-sensitive-test-key for person@example.test account acct_sensitive_456 generation gen_sensitive_789 payment_id pay_sensitive_000", req.URL.String())
 		default:
 			t.Fatalf("unexpected Cline quota request %d", requestCount)
@@ -848,7 +1016,7 @@ func TestCline_CheckQuota_UsageLimitsTransportErrorOmitsSensitiveValues(t *testi
 	checker := NewClineQuotaChecker(httpClient)
 	checker.now = func() time.Time { return time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC) }
 
-	_, err := checker.CheckQuota(context.Background(), &ent.Channel{
+	quota, err := checker.CheckQuota(context.Background(), &ent.Channel{
 		Type:            channel.TypeCline,
 		BaseURL:         "https://api.cline.bot/v1",
 		SupportedModels: []string{"cline-pass/deepseek-v4-flash"},
@@ -856,8 +1024,77 @@ func TestCline_CheckQuota_UsageLimitsTransportErrorOmitsSensitiveValues(t *testi
 			APIKey: "sk-sensitive-test-key",
 		},
 	})
-	require.Error(t, err)
-	assertClineErrorOmitsSensitiveValues(t, err.Error())
+
+	// A ledger transport error must not fail the quota check: the official
+	// usage-limits response already drives the reported windows.
+	require.NoError(t, err)
+	require.Equal(t, "available", quota.Status)
+	require.True(t, quota.Ready)
+
+	usageFetch := quota.RawData["usage_fetch"].(map[string]any)
+	require.Equal(t, true, usageFetch["ledger_unavailable"])
+	require.Equal(t, clineLedgerErrorTransport, usageFetch["ledger_error_code"])
+
+	encoded, err := json.Marshal(quota.RawData)
+	require.NoError(t, err)
+	assertClineErrorOmitsSensitiveValues(t, string(encoded))
+}
+
+func TestCline_CheckQuota_UsageLedgerRateLimitedKeepsOfficialWindows(t *testing.T) {
+	now := time.Date(2026, 7, 7, 10, 30, 0, 0, time.UTC)
+	requestCount := 0
+
+	httpClient := httpclient.NewHttpClientWithClient(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requestCount++
+			switch requestCount {
+			case 1:
+				return jsonResponse(http.StatusOK, `{"data":{"id":"user_test"}}`), nil
+			case 2:
+				return jsonResponse(http.StatusOK, `{"data":[{"type":"individual","interval":"Monthly","isActive":true,"entitlements":{"cline_pass":{"enabled":true,"inferenceCapThreshold":{"last5HoursUsageCostUSDPerUser":1000000000,"last7daysUsageCostUSDPerUser":2500000000,"last30daysUsageCostUSDPerUser":5000000000}}}}]}`), nil
+			case 3:
+				return jsonResponse(http.StatusOK, `{"data":{"balance":497582}}`), nil
+			case 4:
+				return jsonResponse(http.StatusOK, `{"data":{"limits":[{"type":"five_hour","percentUsed":10,"resetsAt":"2026-07-07T14:00:00Z"},{"type":"weekly","percentUsed":79,"resetsAt":"2026-07-14T10:18:10Z"},{"type":"monthly","percentUsed":49,"resetsAt":"2026-08-01T11:13:17Z"}]}}`), nil
+			case 5:
+				require.Equal(t, "/api/v1/users/user_test/usages", req.URL.Path)
+				require.Equal(t, "200", req.URL.Query().Get("limit"))
+				return jsonResponse(http.StatusTooManyRequests, `{"error":"rate limited"}`), nil
+			default:
+				t.Fatalf("unexpected Cline quota request %d", requestCount)
+				return nil, nil
+			}
+		}),
+	})
+
+	checker := NewClineQuotaChecker(httpClient)
+	checker.now = func() time.Time { return now }
+
+	quota, err := checker.CheckQuota(context.Background(), &ent.Channel{
+		Type:            channel.TypeCline,
+		BaseURL:         "https://api.cline.bot/v1",
+		SupportedModels: []string{"cline-pass/deepseek-v4-flash"},
+		Credentials:     objects.ChannelCredentials{APIKey: "test-api-key"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "available", quota.Status)
+	require.True(t, quota.Ready)
+	require.Len(t, quota.Limits, 3)
+
+	raw := quota.RawData
+	usageFetch := raw["usage_fetch"].(map[string]any)
+	require.Equal(t, true, usageFetch["ledger_unavailable"])
+	require.Equal(t, clineLedgerErrorRateLimited, usageFetch["ledger_error_code"])
+
+	windows := raw["windows"].(map[string]any)
+	last7d := windows["last7d"].(map[string]any)
+	require.InDelta(t, 0.79, last7d["usage_ratio"].(float64), 0.000001)
+	require.InDelta(t, 79.0, last7d["usage_percent"].(float64), 0.0001)
+	require.Equal(t, clineWindowSourceOfficialUsageLimits, last7d["usage_source"])
+	require.Equal(t, clineWindowSourceUnavailable, last7d["cost_source"])
+	require.NotContains(t, last7d, "used_cost_units")
+	require.NotContains(t, last7d, "cost_usage_ratio")
 }
 
 func TestCline_CheckQuota_APIKeysFallbackSkipsBlankEntries(t *testing.T) {
@@ -889,6 +1126,50 @@ func TestBuildClineQuotaURL(t *testing.T) {
 			require.Equal(t, tt.expected, buildClineQuotaURL(tt.baseURL, tt.path, nil))
 		})
 	}
+}
+
+func TestCline_FetchUsageItems_MultiplePages(t *testing.T) {
+	requestCount := 0
+	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			require.Empty(t, req.URL.Query().Get("cursor"))
+			return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-07-07T11:00:00Z","costUsd":1}],"nextToken":"cursor_2"}}`), nil
+		case 2:
+			require.Equal(t, "cursor_2", req.URL.Query().Get("cursor"))
+			return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-06-01T11:00:00Z","costUsd":2}]}}`), nil
+		default:
+			t.Fatalf("unexpected page request %d", requestCount)
+			return nil, nil
+		}
+	})})
+
+	checker := NewClineQuotaChecker(httpClient)
+	checker.now = func() time.Time { return time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC) }
+
+	items, meta, err := checker.fetchUsageItems(context.Background(), httpClient, "https://api.cline.bot/v1", "user_test", "key")
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	require.Equal(t, 2, meta.Pages)
+	require.Equal(t, 2, meta.ItemsSeen)
+	require.False(t, meta.Truncated)
+}
+
+func TestCline_FetchUsageItems_ReturnsTruncatedItemsWhenPaginationDoesNotReachBoundary(t *testing.T) {
+	httpClient := httpclient.NewHttpClientWithClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, `{"data":{"items":[{"createdAt":"2026-07-07T11:00:00Z","costUsd":1}],"nextToken":"still_more"}}`), nil
+	})})
+
+	checker := NewClineQuotaChecker(httpClient)
+	checker.now = func() time.Time { return time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC) }
+
+	items, meta, err := checker.fetchUsageItems(context.Background(), httpClient, "https://api.cline.bot/v1", "user_test", "key")
+	require.NoError(t, err)
+	require.Len(t, items, clineMaxUsagePages)
+	require.True(t, meta.Truncated)
+	require.Equal(t, clineMaxUsagePages, meta.Pages)
+	require.Equal(t, clineMaxUsagePages, meta.ItemsSeen)
 }
 
 func jsonResponse(status int, body string) *http.Response {

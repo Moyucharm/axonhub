@@ -7,13 +7,14 @@ import (
 	"github.com/looplj/axonhub/internal/server/biz"
 	"github.com/looplj/axonhub/internal/server/orchestrator"
 	"github.com/looplj/axonhub/llm/httpclient"
-	typesafetransformer "github.com/looplj/axonhub/llm/transformer/typesafe"
+	"github.com/looplj/axonhub/llm/transformer/typesafe"
 )
 
 type TypeSafeHandlersParams struct {
 	fx.In
 
 	ChannelService              *biz.ChannelService
+	ModelService                *biz.ModelService
 	DefaultSelector             *orchestrator.DefaultSelector
 	RequestService              *biz.RequestService
 	SystemService               *biz.SystemService
@@ -39,7 +40,7 @@ func NewTypeSafeHandlers(params TypeSafeHandlersParams) *TypeSafeHandlers {
 				params.DefaultSelector,
 				params.RequestService,
 				params.HttpClient,
-				typesafetransformer.NewInboundTransformer(),
+				typesafe.NewSystemOneInboundTransformer(),
 				params.SystemService,
 				params.UsageLogService,
 				params.PromptService,
@@ -53,6 +54,7 @@ func NewTypeSafeHandlers(params TypeSafeHandlersParams) *TypeSafeHandlers {
 	}
 }
 
+// SystemOne handles native TypeSafe System One requests.
 func (h *TypeSafeHandlers) SystemOne(c *gin.Context) {
 	h.SystemOneHandlers.ChatCompletion(c)
 }

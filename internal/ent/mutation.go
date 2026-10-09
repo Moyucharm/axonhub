@@ -23221,6 +23221,8 @@ type RequestMutation struct {
 	id                                *int
 	created_at                        *time.Time
 	updated_at                        *time.Time
+	user_id                           *int
+	adduser_id                        *int
 	source                            *request.Source
 	model_id                          *string
 	reasoning_effort                  *string
@@ -23229,6 +23231,8 @@ type RequestMutation struct {
 	appendrequest_headers             objects.JSONRawMessage
 	request_body                      *objects.JSONRawMessage
 	appendrequest_body                objects.JSONRawMessage
+	response_headers                  *objects.JSONRawMessage
+	appendresponse_headers            objects.JSONRawMessage
 	response_body                     *objects.JSONRawMessage
 	appendresponse_body               objects.JSONRawMessage
 	response_chunks                   *[]objects.JSONRawMessage
@@ -23237,6 +23241,7 @@ type RequestMutation struct {
 	status                            *request.Status
 	stream                            *bool
 	client_ip                         *string
+	user_agent                        *string
 	metrics_latency_ms                *int64
 	addmetrics_latency_ms             *int64
 	metrics_first_token_latency_ms    *int64
@@ -23487,6 +23492,76 @@ func (m *RequestMutation) APIKeyIDCleared() bool {
 func (m *RequestMutation) ResetAPIKeyID() {
 	m.api_key = nil
 	delete(m.clearedFields, request.FieldAPIKeyID)
+}
+
+// SetUserID sets the "user_id" field.
+func (m *RequestMutation) SetUserID(i int) {
+	m.user_id = &i
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *RequestMutation) UserID() (r int, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Request entity.
+// If the Request object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMutation) OldUserID(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds i to the "user_id" field.
+func (m *RequestMutation) AddUserID(i int) {
+	if m.adduser_id != nil {
+		*m.adduser_id += i
+	} else {
+		m.adduser_id = &i
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *RequestMutation) AddedUserID() (r int, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (m *RequestMutation) ClearUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	m.clearedFields[request.FieldUserID] = struct{}{}
+}
+
+// UserIDCleared returns if the "user_id" field was cleared in this mutation.
+func (m *RequestMutation) UserIDCleared() bool {
+	_, ok := m.clearedFields[request.FieldUserID]
+	return ok
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *RequestMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	delete(m.clearedFields, request.FieldUserID)
 }
 
 // SetProjectID sets the "project_id" field.
@@ -23896,6 +23971,71 @@ func (m *RequestMutation) ResetRequestBody() {
 	m.appendrequest_body = nil
 }
 
+// SetResponseHeaders sets the "response_headers" field.
+func (m *RequestMutation) SetResponseHeaders(orm objects.JSONRawMessage) {
+	m.response_headers = &orm
+	m.appendresponse_headers = nil
+}
+
+// ResponseHeaders returns the value of the "response_headers" field in the mutation.
+func (m *RequestMutation) ResponseHeaders() (r objects.JSONRawMessage, exists bool) {
+	v := m.response_headers
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseHeaders returns the old "response_headers" field's value of the Request entity.
+// If the Request object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMutation) OldResponseHeaders(ctx context.Context) (v objects.JSONRawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseHeaders is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseHeaders requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseHeaders: %w", err)
+	}
+	return oldValue.ResponseHeaders, nil
+}
+
+// AppendResponseHeaders adds orm to the "response_headers" field.
+func (m *RequestMutation) AppendResponseHeaders(orm objects.JSONRawMessage) {
+	m.appendresponse_headers = append(m.appendresponse_headers, orm...)
+}
+
+// AppendedResponseHeaders returns the list of values that were appended to the "response_headers" field in this mutation.
+func (m *RequestMutation) AppendedResponseHeaders() (objects.JSONRawMessage, bool) {
+	if len(m.appendresponse_headers) == 0 {
+		return nil, false
+	}
+	return m.appendresponse_headers, true
+}
+
+// ClearResponseHeaders clears the value of the "response_headers" field.
+func (m *RequestMutation) ClearResponseHeaders() {
+	m.response_headers = nil
+	m.appendresponse_headers = nil
+	m.clearedFields[request.FieldResponseHeaders] = struct{}{}
+}
+
+// ResponseHeadersCleared returns if the "response_headers" field was cleared in this mutation.
+func (m *RequestMutation) ResponseHeadersCleared() bool {
+	_, ok := m.clearedFields[request.FieldResponseHeaders]
+	return ok
+}
+
+// ResetResponseHeaders resets all changes to the "response_headers" field.
+func (m *RequestMutation) ResetResponseHeaders() {
+	m.response_headers = nil
+	m.appendresponse_headers = nil
+	delete(m.clearedFields, request.FieldResponseHeaders)
+}
+
 // SetResponseBody sets the "response_body" field.
 func (m *RequestMutation) SetResponseBody(orm objects.JSONRawMessage) {
 	m.response_body = &orm
@@ -24230,6 +24370,42 @@ func (m *RequestMutation) OldClientIP(ctx context.Context) (v string, err error)
 // ResetClientIP resets all changes to the "client_ip" field.
 func (m *RequestMutation) ResetClientIP() {
 	m.client_ip = nil
+}
+
+// SetUserAgent sets the "user_agent" field.
+func (m *RequestMutation) SetUserAgent(s string) {
+	m.user_agent = &s
+}
+
+// UserAgent returns the value of the "user_agent" field in the mutation.
+func (m *RequestMutation) UserAgent() (r string, exists bool) {
+	v := m.user_agent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserAgent returns the old "user_agent" field's value of the Request entity.
+// If the Request object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestMutation) OldUserAgent(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserAgent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserAgent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserAgent: %w", err)
+	}
+	return oldValue.UserAgent, nil
+}
+
+// ResetUserAgent resets all changes to the "user_agent" field.
+func (m *RequestMutation) ResetUserAgent() {
+	m.user_agent = nil
 }
 
 // SetMetricsLatencyMs sets the "metrics_latency_ms" field.
@@ -24923,7 +25099,7 @@ func (m *RequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RequestMutation) Fields() []string {
-	fields := make([]string, 0, 26)
+	fields := make([]string, 0, 29)
 	if m.created_at != nil {
 		fields = append(fields, request.FieldCreatedAt)
 	}
@@ -24932,6 +25108,9 @@ func (m *RequestMutation) Fields() []string {
 	}
 	if m.api_key != nil {
 		fields = append(fields, request.FieldAPIKeyID)
+	}
+	if m.user_id != nil {
+		fields = append(fields, request.FieldUserID)
 	}
 	if m.project != nil {
 		fields = append(fields, request.FieldProjectID)
@@ -24960,6 +25139,9 @@ func (m *RequestMutation) Fields() []string {
 	if m.request_body != nil {
 		fields = append(fields, request.FieldRequestBody)
 	}
+	if m.response_headers != nil {
+		fields = append(fields, request.FieldResponseHeaders)
+	}
 	if m.response_body != nil {
 		fields = append(fields, request.FieldResponseBody)
 	}
@@ -24980,6 +25162,9 @@ func (m *RequestMutation) Fields() []string {
 	}
 	if m.client_ip != nil {
 		fields = append(fields, request.FieldClientIP)
+	}
+	if m.user_agent != nil {
+		fields = append(fields, request.FieldUserAgent)
 	}
 	if m.metrics_latency_ms != nil {
 		fields = append(fields, request.FieldMetricsLatencyMs)
@@ -25016,6 +25201,8 @@ func (m *RequestMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case request.FieldAPIKeyID:
 		return m.APIKeyID()
+	case request.FieldUserID:
+		return m.UserID()
 	case request.FieldProjectID:
 		return m.ProjectID()
 	case request.FieldTraceID:
@@ -25034,6 +25221,8 @@ func (m *RequestMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestHeaders()
 	case request.FieldRequestBody:
 		return m.RequestBody()
+	case request.FieldResponseHeaders:
+		return m.ResponseHeaders()
 	case request.FieldResponseBody:
 		return m.ResponseBody()
 	case request.FieldResponseChunks:
@@ -25048,6 +25237,8 @@ func (m *RequestMutation) Field(name string) (ent.Value, bool) {
 		return m.Stream()
 	case request.FieldClientIP:
 		return m.ClientIP()
+	case request.FieldUserAgent:
+		return m.UserAgent()
 	case request.FieldMetricsLatencyMs:
 		return m.MetricsLatencyMs()
 	case request.FieldMetricsFirstTokenLatencyMs:
@@ -25077,6 +25268,8 @@ func (m *RequestMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldUpdatedAt(ctx)
 	case request.FieldAPIKeyID:
 		return m.OldAPIKeyID(ctx)
+	case request.FieldUserID:
+		return m.OldUserID(ctx)
 	case request.FieldProjectID:
 		return m.OldProjectID(ctx)
 	case request.FieldTraceID:
@@ -25095,6 +25288,8 @@ func (m *RequestMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldRequestHeaders(ctx)
 	case request.FieldRequestBody:
 		return m.OldRequestBody(ctx)
+	case request.FieldResponseHeaders:
+		return m.OldResponseHeaders(ctx)
 	case request.FieldResponseBody:
 		return m.OldResponseBody(ctx)
 	case request.FieldResponseChunks:
@@ -25109,6 +25304,8 @@ func (m *RequestMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldStream(ctx)
 	case request.FieldClientIP:
 		return m.OldClientIP(ctx)
+	case request.FieldUserAgent:
+		return m.OldUserAgent(ctx)
 	case request.FieldMetricsLatencyMs:
 		return m.OldMetricsLatencyMs(ctx)
 	case request.FieldMetricsFirstTokenLatencyMs:
@@ -25152,6 +25349,13 @@ func (m *RequestMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAPIKeyID(v)
+		return nil
+	case request.FieldUserID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
 		return nil
 	case request.FieldProjectID:
 		v, ok := value.(int)
@@ -25216,6 +25420,13 @@ func (m *RequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRequestBody(v)
 		return nil
+	case request.FieldResponseHeaders:
+		v, ok := value.(objects.JSONRawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseHeaders(v)
+		return nil
 	case request.FieldResponseBody:
 		v, ok := value.(objects.JSONRawMessage)
 		if !ok {
@@ -25264,6 +25475,13 @@ func (m *RequestMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClientIP(v)
+		return nil
+	case request.FieldUserAgent:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserAgent(v)
 		return nil
 	case request.FieldMetricsLatencyMs:
 		v, ok := value.(int64)
@@ -25322,6 +25540,9 @@ func (m *RequestMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *RequestMutation) AddedFields() []string {
 	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, request.FieldUserID)
+	}
 	if m.addmetrics_latency_ms != nil {
 		fields = append(fields, request.FieldMetricsLatencyMs)
 	}
@@ -25342,6 +25563,8 @@ func (m *RequestMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *RequestMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case request.FieldUserID:
+		return m.AddedUserID()
 	case request.FieldMetricsLatencyMs:
 		return m.AddedMetricsLatencyMs()
 	case request.FieldMetricsFirstTokenLatencyMs:
@@ -25359,6 +25582,13 @@ func (m *RequestMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *RequestMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case request.FieldUserID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
 	case request.FieldMetricsLatencyMs:
 		v, ok := value.(int64)
 		if !ok {
@@ -25398,6 +25628,9 @@ func (m *RequestMutation) ClearedFields() []string {
 	if m.FieldCleared(request.FieldAPIKeyID) {
 		fields = append(fields, request.FieldAPIKeyID)
 	}
+	if m.FieldCleared(request.FieldUserID) {
+		fields = append(fields, request.FieldUserID)
+	}
 	if m.FieldCleared(request.FieldTraceID) {
 		fields = append(fields, request.FieldTraceID)
 	}
@@ -25409,6 +25642,9 @@ func (m *RequestMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(request.FieldRequestHeaders) {
 		fields = append(fields, request.FieldRequestHeaders)
+	}
+	if m.FieldCleared(request.FieldResponseHeaders) {
+		fields = append(fields, request.FieldResponseHeaders)
 	}
 	if m.FieldCleared(request.FieldResponseBody) {
 		fields = append(fields, request.FieldResponseBody)
@@ -25457,6 +25693,9 @@ func (m *RequestMutation) ClearField(name string) error {
 	case request.FieldAPIKeyID:
 		m.ClearAPIKeyID()
 		return nil
+	case request.FieldUserID:
+		m.ClearUserID()
+		return nil
 	case request.FieldTraceID:
 		m.ClearTraceID()
 		return nil
@@ -25468,6 +25707,9 @@ func (m *RequestMutation) ClearField(name string) error {
 		return nil
 	case request.FieldRequestHeaders:
 		m.ClearRequestHeaders()
+		return nil
+	case request.FieldResponseHeaders:
+		m.ClearResponseHeaders()
 		return nil
 	case request.FieldResponseBody:
 		m.ClearResponseBody()
@@ -25516,6 +25758,9 @@ func (m *RequestMutation) ResetField(name string) error {
 	case request.FieldAPIKeyID:
 		m.ResetAPIKeyID()
 		return nil
+	case request.FieldUserID:
+		m.ResetUserID()
+		return nil
 	case request.FieldProjectID:
 		m.ResetProjectID()
 		return nil
@@ -25543,6 +25788,9 @@ func (m *RequestMutation) ResetField(name string) error {
 	case request.FieldRequestBody:
 		m.ResetRequestBody()
 		return nil
+	case request.FieldResponseHeaders:
+		m.ResetResponseHeaders()
+		return nil
 	case request.FieldResponseBody:
 		m.ResetResponseBody()
 		return nil
@@ -25563,6 +25811,9 @@ func (m *RequestMutation) ResetField(name string) error {
 		return nil
 	case request.FieldClientIP:
 		m.ResetClientIP()
+		return nil
+	case request.FieldUserAgent:
+		m.ResetUserAgent()
 		return nil
 	case request.FieldMetricsLatencyMs:
 		m.ResetMetricsLatencyMs()
@@ -25799,12 +26050,18 @@ type RequestExecutionMutation struct {
 	updated_at                        *time.Time
 	project_id                        *int
 	addproject_id                     *int
+	channel_api_key_index             *int
+	addchannel_api_key_index          *int
 	external_id                       *string
 	model_id                          *string
+	upstream_model_id                 *string
 	format                            *string
 	reasoning_effort                  *string
+	channel_api_key_suffix            *string
 	request_body                      *objects.JSONRawMessage
 	appendrequest_body                objects.JSONRawMessage
+	response_headers                  *objects.JSONRawMessage
+	appendresponse_headers            objects.JSONRawMessage
 	response_body                     *objects.JSONRawMessage
 	appendresponse_body               objects.JSONRawMessage
 	response_chunks                   *[]objects.JSONRawMessage
@@ -25824,7 +26081,6 @@ type RequestExecutionMutation struct {
 	appendrequest_headers             objects.JSONRawMessage
 	request_url                       *string
 	pass_through_applied              *bool
-	response_model                    *string
 	clearedFields                     map[string]struct{}
 	request                           *int
 	clearedrequest                    bool
@@ -26148,6 +26404,76 @@ func (m *RequestExecutionMutation) ResetChannelID() {
 	delete(m.clearedFields, requestexecution.FieldChannelID)
 }
 
+// SetChannelAPIKeyIndex sets the "channel_api_key_index" field.
+func (m *RequestExecutionMutation) SetChannelAPIKeyIndex(i int) {
+	m.channel_api_key_index = &i
+	m.addchannel_api_key_index = nil
+}
+
+// ChannelAPIKeyIndex returns the value of the "channel_api_key_index" field in the mutation.
+func (m *RequestExecutionMutation) ChannelAPIKeyIndex() (r int, exists bool) {
+	v := m.channel_api_key_index
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelAPIKeyIndex returns the old "channel_api_key_index" field's value of the RequestExecution entity.
+// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestExecutionMutation) OldChannelAPIKeyIndex(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelAPIKeyIndex is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelAPIKeyIndex requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelAPIKeyIndex: %w", err)
+	}
+	return oldValue.ChannelAPIKeyIndex, nil
+}
+
+// AddChannelAPIKeyIndex adds i to the "channel_api_key_index" field.
+func (m *RequestExecutionMutation) AddChannelAPIKeyIndex(i int) {
+	if m.addchannel_api_key_index != nil {
+		*m.addchannel_api_key_index += i
+	} else {
+		m.addchannel_api_key_index = &i
+	}
+}
+
+// AddedChannelAPIKeyIndex returns the value that was added to the "channel_api_key_index" field in this mutation.
+func (m *RequestExecutionMutation) AddedChannelAPIKeyIndex() (r int, exists bool) {
+	v := m.addchannel_api_key_index
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearChannelAPIKeyIndex clears the value of the "channel_api_key_index" field.
+func (m *RequestExecutionMutation) ClearChannelAPIKeyIndex() {
+	m.channel_api_key_index = nil
+	m.addchannel_api_key_index = nil
+	m.clearedFields[requestexecution.FieldChannelAPIKeyIndex] = struct{}{}
+}
+
+// ChannelAPIKeyIndexCleared returns if the "channel_api_key_index" field was cleared in this mutation.
+func (m *RequestExecutionMutation) ChannelAPIKeyIndexCleared() bool {
+	_, ok := m.clearedFields[requestexecution.FieldChannelAPIKeyIndex]
+	return ok
+}
+
+// ResetChannelAPIKeyIndex resets all changes to the "channel_api_key_index" field.
+func (m *RequestExecutionMutation) ResetChannelAPIKeyIndex() {
+	m.channel_api_key_index = nil
+	m.addchannel_api_key_index = nil
+	delete(m.clearedFields, requestexecution.FieldChannelAPIKeyIndex)
+}
+
 // SetDataStorageID sets the "data_storage_id" field.
 func (m *RequestExecutionMutation) SetDataStorageID(i int) {
 	m.data_storage = &i
@@ -26282,6 +26608,55 @@ func (m *RequestExecutionMutation) ResetModelID() {
 	m.model_id = nil
 }
 
+// SetUpstreamModelID sets the "upstream_model_id" field.
+func (m *RequestExecutionMutation) SetUpstreamModelID(s string) {
+	m.upstream_model_id = &s
+}
+
+// UpstreamModelID returns the value of the "upstream_model_id" field in the mutation.
+func (m *RequestExecutionMutation) UpstreamModelID() (r string, exists bool) {
+	v := m.upstream_model_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamModelID returns the old "upstream_model_id" field's value of the RequestExecution entity.
+// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestExecutionMutation) OldUpstreamModelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamModelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamModelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamModelID: %w", err)
+	}
+	return oldValue.UpstreamModelID, nil
+}
+
+// ClearUpstreamModelID clears the value of the "upstream_model_id" field.
+func (m *RequestExecutionMutation) ClearUpstreamModelID() {
+	m.upstream_model_id = nil
+	m.clearedFields[requestexecution.FieldUpstreamModelID] = struct{}{}
+}
+
+// UpstreamModelIDCleared returns if the "upstream_model_id" field was cleared in this mutation.
+func (m *RequestExecutionMutation) UpstreamModelIDCleared() bool {
+	_, ok := m.clearedFields[requestexecution.FieldUpstreamModelID]
+	return ok
+}
+
+// ResetUpstreamModelID resets all changes to the "upstream_model_id" field.
+func (m *RequestExecutionMutation) ResetUpstreamModelID() {
+	m.upstream_model_id = nil
+	delete(m.clearedFields, requestexecution.FieldUpstreamModelID)
+}
+
 // SetFormat sets the "format" field.
 func (m *RequestExecutionMutation) SetFormat(s string) {
 	m.format = &s
@@ -26367,6 +26742,55 @@ func (m *RequestExecutionMutation) ResetReasoningEffort() {
 	delete(m.clearedFields, requestexecution.FieldReasoningEffort)
 }
 
+// SetChannelAPIKeySuffix sets the "channel_api_key_suffix" field.
+func (m *RequestExecutionMutation) SetChannelAPIKeySuffix(s string) {
+	m.channel_api_key_suffix = &s
+}
+
+// ChannelAPIKeySuffix returns the value of the "channel_api_key_suffix" field in the mutation.
+func (m *RequestExecutionMutation) ChannelAPIKeySuffix() (r string, exists bool) {
+	v := m.channel_api_key_suffix
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelAPIKeySuffix returns the old "channel_api_key_suffix" field's value of the RequestExecution entity.
+// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestExecutionMutation) OldChannelAPIKeySuffix(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelAPIKeySuffix is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelAPIKeySuffix requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelAPIKeySuffix: %w", err)
+	}
+	return oldValue.ChannelAPIKeySuffix, nil
+}
+
+// ClearChannelAPIKeySuffix clears the value of the "channel_api_key_suffix" field.
+func (m *RequestExecutionMutation) ClearChannelAPIKeySuffix() {
+	m.channel_api_key_suffix = nil
+	m.clearedFields[requestexecution.FieldChannelAPIKeySuffix] = struct{}{}
+}
+
+// ChannelAPIKeySuffixCleared returns if the "channel_api_key_suffix" field was cleared in this mutation.
+func (m *RequestExecutionMutation) ChannelAPIKeySuffixCleared() bool {
+	_, ok := m.clearedFields[requestexecution.FieldChannelAPIKeySuffix]
+	return ok
+}
+
+// ResetChannelAPIKeySuffix resets all changes to the "channel_api_key_suffix" field.
+func (m *RequestExecutionMutation) ResetChannelAPIKeySuffix() {
+	m.channel_api_key_suffix = nil
+	delete(m.clearedFields, requestexecution.FieldChannelAPIKeySuffix)
+}
+
 // SetRequestBody sets the "request_body" field.
 func (m *RequestExecutionMutation) SetRequestBody(orm objects.JSONRawMessage) {
 	m.request_body = &orm
@@ -26416,6 +26840,71 @@ func (m *RequestExecutionMutation) AppendedRequestBody() (objects.JSONRawMessage
 func (m *RequestExecutionMutation) ResetRequestBody() {
 	m.request_body = nil
 	m.appendrequest_body = nil
+}
+
+// SetResponseHeaders sets the "response_headers" field.
+func (m *RequestExecutionMutation) SetResponseHeaders(orm objects.JSONRawMessage) {
+	m.response_headers = &orm
+	m.appendresponse_headers = nil
+}
+
+// ResponseHeaders returns the value of the "response_headers" field in the mutation.
+func (m *RequestExecutionMutation) ResponseHeaders() (r objects.JSONRawMessage, exists bool) {
+	v := m.response_headers
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseHeaders returns the old "response_headers" field's value of the RequestExecution entity.
+// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestExecutionMutation) OldResponseHeaders(ctx context.Context) (v objects.JSONRawMessage, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseHeaders is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseHeaders requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseHeaders: %w", err)
+	}
+	return oldValue.ResponseHeaders, nil
+}
+
+// AppendResponseHeaders adds orm to the "response_headers" field.
+func (m *RequestExecutionMutation) AppendResponseHeaders(orm objects.JSONRawMessage) {
+	m.appendresponse_headers = append(m.appendresponse_headers, orm...)
+}
+
+// AppendedResponseHeaders returns the list of values that were appended to the "response_headers" field in this mutation.
+func (m *RequestExecutionMutation) AppendedResponseHeaders() (objects.JSONRawMessage, bool) {
+	if len(m.appendresponse_headers) == 0 {
+		return nil, false
+	}
+	return m.appendresponse_headers, true
+}
+
+// ClearResponseHeaders clears the value of the "response_headers" field.
+func (m *RequestExecutionMutation) ClearResponseHeaders() {
+	m.response_headers = nil
+	m.appendresponse_headers = nil
+	m.clearedFields[requestexecution.FieldResponseHeaders] = struct{}{}
+}
+
+// ResponseHeadersCleared returns if the "response_headers" field was cleared in this mutation.
+func (m *RequestExecutionMutation) ResponseHeadersCleared() bool {
+	_, ok := m.clearedFields[requestexecution.FieldResponseHeaders]
+	return ok
+}
+
+// ResetResponseHeaders resets all changes to the "response_headers" field.
+func (m *RequestExecutionMutation) ResetResponseHeaders() {
+	m.response_headers = nil
+	m.appendresponse_headers = nil
+	delete(m.clearedFields, requestexecution.FieldResponseHeaders)
 }
 
 // SetResponseBody sets the "response_body" field.
@@ -27099,55 +27588,6 @@ func (m *RequestExecutionMutation) ResetPassThroughApplied() {
 	m.pass_through_applied = nil
 }
 
-// SetResponseModel sets the "response_model" field.
-func (m *RequestExecutionMutation) SetResponseModel(s string) {
-	m.response_model = &s
-}
-
-// ResponseModel returns the value of the "response_model" field in the mutation.
-func (m *RequestExecutionMutation) ResponseModel() (r string, exists bool) {
-	v := m.response_model
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldResponseModel returns the old "response_model" field's value of the RequestExecution entity.
-// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *RequestExecutionMutation) OldResponseModel(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldResponseModel is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldResponseModel requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldResponseModel: %w", err)
-	}
-	return oldValue.ResponseModel, nil
-}
-
-// ClearResponseModel clears the value of the "response_model" field.
-func (m *RequestExecutionMutation) ClearResponseModel() {
-	m.response_model = nil
-	m.clearedFields[requestexecution.FieldResponseModel] = struct{}{}
-}
-
-// ResponseModelCleared returns if the "response_model" field was cleared in this mutation.
-func (m *RequestExecutionMutation) ResponseModelCleared() bool {
-	_, ok := m.clearedFields[requestexecution.FieldResponseModel]
-	return ok
-}
-
-// ResetResponseModel resets all changes to the "response_model" field.
-func (m *RequestExecutionMutation) ResetResponseModel() {
-	m.response_model = nil
-	delete(m.clearedFields, requestexecution.FieldResponseModel)
-}
-
 // ClearRequest clears the "request" edge to the Request entity.
 func (m *RequestExecutionMutation) ClearRequest() {
 	m.clearedrequest = true
@@ -27263,7 +27703,7 @@ func (m *RequestExecutionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RequestExecutionMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 27)
 	if m.created_at != nil {
 		fields = append(fields, requestexecution.FieldCreatedAt)
 	}
@@ -27279,6 +27719,9 @@ func (m *RequestExecutionMutation) Fields() []string {
 	if m.channel != nil {
 		fields = append(fields, requestexecution.FieldChannelID)
 	}
+	if m.channel_api_key_index != nil {
+		fields = append(fields, requestexecution.FieldChannelAPIKeyIndex)
+	}
 	if m.data_storage != nil {
 		fields = append(fields, requestexecution.FieldDataStorageID)
 	}
@@ -27288,14 +27731,23 @@ func (m *RequestExecutionMutation) Fields() []string {
 	if m.model_id != nil {
 		fields = append(fields, requestexecution.FieldModelID)
 	}
+	if m.upstream_model_id != nil {
+		fields = append(fields, requestexecution.FieldUpstreamModelID)
+	}
 	if m.format != nil {
 		fields = append(fields, requestexecution.FieldFormat)
 	}
 	if m.reasoning_effort != nil {
 		fields = append(fields, requestexecution.FieldReasoningEffort)
 	}
+	if m.channel_api_key_suffix != nil {
+		fields = append(fields, requestexecution.FieldChannelAPIKeySuffix)
+	}
 	if m.request_body != nil {
 		fields = append(fields, requestexecution.FieldRequestBody)
+	}
+	if m.response_headers != nil {
+		fields = append(fields, requestexecution.FieldResponseHeaders)
 	}
 	if m.response_body != nil {
 		fields = append(fields, requestexecution.FieldResponseBody)
@@ -27333,9 +27785,6 @@ func (m *RequestExecutionMutation) Fields() []string {
 	if m.pass_through_applied != nil {
 		fields = append(fields, requestexecution.FieldPassThroughApplied)
 	}
-	if m.response_model != nil {
-		fields = append(fields, requestexecution.FieldResponseModel)
-	}
 	return fields
 }
 
@@ -27354,18 +27803,26 @@ func (m *RequestExecutionMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestID()
 	case requestexecution.FieldChannelID:
 		return m.ChannelID()
+	case requestexecution.FieldChannelAPIKeyIndex:
+		return m.ChannelAPIKeyIndex()
 	case requestexecution.FieldDataStorageID:
 		return m.DataStorageID()
 	case requestexecution.FieldExternalID:
 		return m.ExternalID()
 	case requestexecution.FieldModelID:
 		return m.ModelID()
+	case requestexecution.FieldUpstreamModelID:
+		return m.UpstreamModelID()
 	case requestexecution.FieldFormat:
 		return m.Format()
 	case requestexecution.FieldReasoningEffort:
 		return m.ReasoningEffort()
+	case requestexecution.FieldChannelAPIKeySuffix:
+		return m.ChannelAPIKeySuffix()
 	case requestexecution.FieldRequestBody:
 		return m.RequestBody()
+	case requestexecution.FieldResponseHeaders:
+		return m.ResponseHeaders()
 	case requestexecution.FieldResponseBody:
 		return m.ResponseBody()
 	case requestexecution.FieldResponseChunks:
@@ -27390,8 +27847,6 @@ func (m *RequestExecutionMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestURL()
 	case requestexecution.FieldPassThroughApplied:
 		return m.PassThroughApplied()
-	case requestexecution.FieldResponseModel:
-		return m.ResponseModel()
 	}
 	return nil, false
 }
@@ -27411,18 +27866,26 @@ func (m *RequestExecutionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldRequestID(ctx)
 	case requestexecution.FieldChannelID:
 		return m.OldChannelID(ctx)
+	case requestexecution.FieldChannelAPIKeyIndex:
+		return m.OldChannelAPIKeyIndex(ctx)
 	case requestexecution.FieldDataStorageID:
 		return m.OldDataStorageID(ctx)
 	case requestexecution.FieldExternalID:
 		return m.OldExternalID(ctx)
 	case requestexecution.FieldModelID:
 		return m.OldModelID(ctx)
+	case requestexecution.FieldUpstreamModelID:
+		return m.OldUpstreamModelID(ctx)
 	case requestexecution.FieldFormat:
 		return m.OldFormat(ctx)
 	case requestexecution.FieldReasoningEffort:
 		return m.OldReasoningEffort(ctx)
+	case requestexecution.FieldChannelAPIKeySuffix:
+		return m.OldChannelAPIKeySuffix(ctx)
 	case requestexecution.FieldRequestBody:
 		return m.OldRequestBody(ctx)
+	case requestexecution.FieldResponseHeaders:
+		return m.OldResponseHeaders(ctx)
 	case requestexecution.FieldResponseBody:
 		return m.OldResponseBody(ctx)
 	case requestexecution.FieldResponseChunks:
@@ -27447,8 +27910,6 @@ func (m *RequestExecutionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldRequestURL(ctx)
 	case requestexecution.FieldPassThroughApplied:
 		return m.OldPassThroughApplied(ctx)
-	case requestexecution.FieldResponseModel:
-		return m.OldResponseModel(ctx)
 	}
 	return nil, fmt.Errorf("unknown RequestExecution field %s", name)
 }
@@ -27493,6 +27954,13 @@ func (m *RequestExecutionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetChannelID(v)
 		return nil
+	case requestexecution.FieldChannelAPIKeyIndex:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelAPIKeyIndex(v)
+		return nil
 	case requestexecution.FieldDataStorageID:
 		v, ok := value.(int)
 		if !ok {
@@ -27514,6 +27982,13 @@ func (m *RequestExecutionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetModelID(v)
 		return nil
+	case requestexecution.FieldUpstreamModelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamModelID(v)
+		return nil
 	case requestexecution.FieldFormat:
 		v, ok := value.(string)
 		if !ok {
@@ -27528,12 +28003,26 @@ func (m *RequestExecutionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetReasoningEffort(v)
 		return nil
+	case requestexecution.FieldChannelAPIKeySuffix:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelAPIKeySuffix(v)
+		return nil
 	case requestexecution.FieldRequestBody:
 		v, ok := value.(objects.JSONRawMessage)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRequestBody(v)
+		return nil
+	case requestexecution.FieldResponseHeaders:
+		v, ok := value.(objects.JSONRawMessage)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseHeaders(v)
 		return nil
 	case requestexecution.FieldResponseBody:
 		v, ok := value.(objects.JSONRawMessage)
@@ -27619,13 +28108,6 @@ func (m *RequestExecutionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetPassThroughApplied(v)
 		return nil
-	case requestexecution.FieldResponseModel:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetResponseModel(v)
-		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution field %s", name)
 }
@@ -27636,6 +28118,9 @@ func (m *RequestExecutionMutation) AddedFields() []string {
 	var fields []string
 	if m.addproject_id != nil {
 		fields = append(fields, requestexecution.FieldProjectID)
+	}
+	if m.addchannel_api_key_index != nil {
+		fields = append(fields, requestexecution.FieldChannelAPIKeyIndex)
 	}
 	if m.addresponse_status_code != nil {
 		fields = append(fields, requestexecution.FieldResponseStatusCode)
@@ -27659,6 +28144,8 @@ func (m *RequestExecutionMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case requestexecution.FieldProjectID:
 		return m.AddedProjectID()
+	case requestexecution.FieldChannelAPIKeyIndex:
+		return m.AddedChannelAPIKeyIndex()
 	case requestexecution.FieldResponseStatusCode:
 		return m.AddedResponseStatusCode()
 	case requestexecution.FieldMetricsLatencyMs:
@@ -27682,6 +28169,13 @@ func (m *RequestExecutionMutation) AddField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddProjectID(v)
+		return nil
+	case requestexecution.FieldChannelAPIKeyIndex:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddChannelAPIKeyIndex(v)
 		return nil
 	case requestexecution.FieldResponseStatusCode:
 		v, ok := value.(int)
@@ -27722,14 +28216,26 @@ func (m *RequestExecutionMutation) ClearedFields() []string {
 	if m.FieldCleared(requestexecution.FieldChannelID) {
 		fields = append(fields, requestexecution.FieldChannelID)
 	}
+	if m.FieldCleared(requestexecution.FieldChannelAPIKeyIndex) {
+		fields = append(fields, requestexecution.FieldChannelAPIKeyIndex)
+	}
 	if m.FieldCleared(requestexecution.FieldDataStorageID) {
 		fields = append(fields, requestexecution.FieldDataStorageID)
 	}
 	if m.FieldCleared(requestexecution.FieldExternalID) {
 		fields = append(fields, requestexecution.FieldExternalID)
 	}
+	if m.FieldCleared(requestexecution.FieldUpstreamModelID) {
+		fields = append(fields, requestexecution.FieldUpstreamModelID)
+	}
 	if m.FieldCleared(requestexecution.FieldReasoningEffort) {
 		fields = append(fields, requestexecution.FieldReasoningEffort)
+	}
+	if m.FieldCleared(requestexecution.FieldChannelAPIKeySuffix) {
+		fields = append(fields, requestexecution.FieldChannelAPIKeySuffix)
+	}
+	if m.FieldCleared(requestexecution.FieldResponseHeaders) {
+		fields = append(fields, requestexecution.FieldResponseHeaders)
 	}
 	if m.FieldCleared(requestexecution.FieldResponseBody) {
 		fields = append(fields, requestexecution.FieldResponseBody)
@@ -27758,9 +28264,6 @@ func (m *RequestExecutionMutation) ClearedFields() []string {
 	if m.FieldCleared(requestexecution.FieldRequestURL) {
 		fields = append(fields, requestexecution.FieldRequestURL)
 	}
-	if m.FieldCleared(requestexecution.FieldResponseModel) {
-		fields = append(fields, requestexecution.FieldResponseModel)
-	}
 	return fields
 }
 
@@ -27778,14 +28281,26 @@ func (m *RequestExecutionMutation) ClearField(name string) error {
 	case requestexecution.FieldChannelID:
 		m.ClearChannelID()
 		return nil
+	case requestexecution.FieldChannelAPIKeyIndex:
+		m.ClearChannelAPIKeyIndex()
+		return nil
 	case requestexecution.FieldDataStorageID:
 		m.ClearDataStorageID()
 		return nil
 	case requestexecution.FieldExternalID:
 		m.ClearExternalID()
 		return nil
+	case requestexecution.FieldUpstreamModelID:
+		m.ClearUpstreamModelID()
+		return nil
 	case requestexecution.FieldReasoningEffort:
 		m.ClearReasoningEffort()
+		return nil
+	case requestexecution.FieldChannelAPIKeySuffix:
+		m.ClearChannelAPIKeySuffix()
+		return nil
+	case requestexecution.FieldResponseHeaders:
+		m.ClearResponseHeaders()
 		return nil
 	case requestexecution.FieldResponseBody:
 		m.ClearResponseBody()
@@ -27814,9 +28329,6 @@ func (m *RequestExecutionMutation) ClearField(name string) error {
 	case requestexecution.FieldRequestURL:
 		m.ClearRequestURL()
 		return nil
-	case requestexecution.FieldResponseModel:
-		m.ClearResponseModel()
-		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution nullable field %s", name)
 }
@@ -27840,6 +28352,9 @@ func (m *RequestExecutionMutation) ResetField(name string) error {
 	case requestexecution.FieldChannelID:
 		m.ResetChannelID()
 		return nil
+	case requestexecution.FieldChannelAPIKeyIndex:
+		m.ResetChannelAPIKeyIndex()
+		return nil
 	case requestexecution.FieldDataStorageID:
 		m.ResetDataStorageID()
 		return nil
@@ -27849,14 +28364,23 @@ func (m *RequestExecutionMutation) ResetField(name string) error {
 	case requestexecution.FieldModelID:
 		m.ResetModelID()
 		return nil
+	case requestexecution.FieldUpstreamModelID:
+		m.ResetUpstreamModelID()
+		return nil
 	case requestexecution.FieldFormat:
 		m.ResetFormat()
 		return nil
 	case requestexecution.FieldReasoningEffort:
 		m.ResetReasoningEffort()
 		return nil
+	case requestexecution.FieldChannelAPIKeySuffix:
+		m.ResetChannelAPIKeySuffix()
+		return nil
 	case requestexecution.FieldRequestBody:
 		m.ResetRequestBody()
+		return nil
+	case requestexecution.FieldResponseHeaders:
+		m.ResetResponseHeaders()
 		return nil
 	case requestexecution.FieldResponseBody:
 		m.ResetResponseBody()
@@ -27893,9 +28417,6 @@ func (m *RequestExecutionMutation) ResetField(name string) error {
 		return nil
 	case requestexecution.FieldPassThroughApplied:
 		m.ResetPassThroughApplied()
-		return nil
-	case requestexecution.FieldResponseModel:
-		m.ResetResponseModel()
 		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution field %s", name)

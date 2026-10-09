@@ -188,8 +188,8 @@ type ChannelService struct {
 	// If not set (0), uses defaultPerformanceWindowSize (600 seconds = 10 minutes)
 	perfWindowSeconds int64
 
-	// channelPerfMetrics stores the performance metrics for each channel
-	// protected by channelPerfMetricsLock
+	// channelPerfMetricsLock protects map lookups and publication only.
+	// Each channelMetrics protects its own mutable state with its mu.
 	channelPerfMetrics     map[int]*channelMetrics
 	channelPerfMetricsLock sync.RWMutex
 
@@ -1477,7 +1477,7 @@ func (svc *ChannelService) recoverChannelCooldown(ctx context.Context, id int) (
 
 func isZenmuxChannelType(channelType channel.Type) bool {
 	switch channelType {
-	case channel.TypeZenmux, channel.TypeZenmuxResponses, channel.TypeZenmuxAnthropic, channel.TypeZenmuxGemini:
+	case channel.TypeZenmux, channel.TypeZenmuxResponses, channel.TypeZenmuxAnthropic, channel.TypeZenmuxGemini, channel.TypeZenmuxVideo:
 		return true
 	default:
 		return false

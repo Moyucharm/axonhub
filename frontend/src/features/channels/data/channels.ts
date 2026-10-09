@@ -34,6 +34,8 @@ import {
   testChannelAPIKeysPayloadSchema,
   TestAPIKeyResult,
   testAPIKeyResultSchema,
+  DetectedChannelEndpoint,
+  detectedChannelEndpointSchema,
 } from './schema';
 
 const QUERY_CHANNEL_NAMES_QUERY = `
@@ -120,6 +122,7 @@ const CREATE_CHANNEL_MUTATION = `
         hideOriginalModels
         hideMappedModels
         lowercaseModelId
+        quotaRoutingMode
         proxy {
           type
           url
@@ -147,6 +150,9 @@ const CREATE_CHANNEL_MUTATION = `
         }
         providerQuota {
           commandCode {
+            authCookie
+          }
+          ollama {
             authCookie
           }
         }
@@ -224,6 +230,7 @@ const DUPLICATE_CHANNEL_MUTATION = `
         hideOriginalModels
         hideMappedModels
         lowercaseModelId
+        quotaRoutingMode
         proxy {
           type
           url
@@ -251,6 +258,9 @@ const DUPLICATE_CHANNEL_MUTATION = `
         }
         providerQuota {
           commandCode {
+            authCookie
+          }
+          ollama {
             authCookie
           }
         }
@@ -328,6 +338,7 @@ const BULK_CREATE_CHANNELS_MUTATION = `
         hideOriginalModels
         hideMappedModels
         lowercaseModelId
+        quotaRoutingMode
         proxy {
           type
           url
@@ -355,6 +366,9 @@ const BULK_CREATE_CHANNELS_MUTATION = `
         }
         providerQuota {
           commandCode {
+            authCookie
+          }
+          ollama {
             authCookie
           }
         }
@@ -443,6 +457,7 @@ const UPDATE_CHANNEL_MUTATION = `
         hideOriginalModels
         hideMappedModels
         lowercaseModelId
+        quotaRoutingMode
         bodyOverrideOperations {
           op
           path
@@ -513,6 +528,9 @@ const UPDATE_CHANNEL_MUTATION = `
         }
         providerQuota {
           commandCode {
+            authCookie
+          }
+          ollama {
             authCookie
           }
         }
@@ -605,6 +623,12 @@ const BULK_DELETE_CHANNELS_MUTATION = `
   }
 `;
 
+const BULK_MANAGE_CHANNEL_TAGS_MUTATION = `
+  mutation BulkManageChannelTags($ids: [ID!]!, $addTags: [String!]!, $removeTags: [String!]!) {
+    bulkManageChannelTags(ids: $ids, addTags: $addTags, removeTags: $removeTags)
+  }
+`;
+
 const SAVE_CHANNEL_ENDPOINTS_MUTATION = `
   mutation SaveChannelEndpoints($input: SaveChannelEndpointsInput!) {
     saveChannelEndpoints(input: $input) {
@@ -634,6 +658,19 @@ const TEST_CHANNEL_MUTATION = `
       success
       error
       message
+    }
+  }
+`;
+
+const DETECT_CHANNEL_ENDPOINTS_MUTATION = `
+  mutation DetectChannelEndpoints($input: DetectChannelEndpointsInput!) {
+    detectChannelEndpoints(input: $input) {
+      endpoints {
+        apiFormat
+        supported
+        statusCode
+        reason
+      }
     }
   }
 `;
@@ -732,6 +769,7 @@ const BULK_IMPORT_CHANNELS_MUTATION = `
           hideOriginalModels
           hideMappedModels
           lowercaseModelId
+          quotaRoutingMode
           transformOptions {
             forceArrayInstructions
             forceArrayInputs
@@ -752,6 +790,9 @@ const BULK_IMPORT_CHANNELS_MUTATION = `
           }
           providerQuota {
             commandCode {
+              authCookie
+            }
+            ollama {
               authCookie
             }
           }
@@ -1021,6 +1062,7 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
           hideOriginalModels
           hideMappedModels
           lowercaseModelId
+          quotaRoutingMode
           transformOptions {
             forceArrayInstructions
             forceArrayInputs
@@ -1041,6 +1083,9 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
           }
           providerQuota {
             commandCode {
+              authCookie
+            }
+            ollama {
               authCookie
             }
           }
@@ -1104,12 +1149,47 @@ const ALL_CHANNEL_TAGS_QUERY = `
   }
 `;
 
+const SELECTED_CHANNEL_TAGS_QUERY = `
+  query SelectedChannelTags($input: QueryChannelInput!) {
+    queryChannels(input: $input) {
+      edges {
+        node {
+          id
+          tags
+        }
+      }
+    }
+  }
+`;
+
+const selectedChannelTagsResponseSchema = z.object({
+  queryChannels: z.object({
+    edges: z.array(
+      z.object({
+        node: z.object({
+          id: z.string(),
+          tags: z.array(z.string()).optional().nullable(),
+        }),
+      })
+    ),
+  }),
+});
+
 export type ChannelListColumnVisibility = Record<string, boolean>;
 
 export const DEFAULT_CHANNEL_COLUMN_VISIBILITY: ChannelListColumnVisibility = {
+  model: false,
   tags: false,
   proxy: false,
+  endpointProtocols: true,
 };
+
+const channelListColumnVisibilitySchema = z.record(z.string(), z.boolean());
+
+export function parseChannelColumnVisibility(value: unknown): ChannelListColumnVisibility {
+  const parsed = channelListColumnVisibilitySchema.safeParse(value);
+  return parsed.success ? { ...DEFAULT_CHANNEL_COLUMN_VISIBILITY, ...parsed.data, model: false } : DEFAULT_CHANNEL_COLUMN_VISIBILITY;
+}
 
 const CHANNEL_QUERY_FULL_NODE_SELECTION = `
           id
@@ -1172,6 +1252,7 @@ const CHANNEL_QUERY_FULL_NODE_SELECTION = `
             hideOriginalModels
             hideMappedModels
             lowercaseModelId
+            quotaRoutingMode
             bodyOverrideOperations {
               op
               path
@@ -1244,6 +1325,9 @@ const CHANNEL_QUERY_FULL_NODE_SELECTION = `
               commandCode {
                 authCookie
               }
+              ollama {
+                authCookie
+              }
             }
           }
           orderingWeight
@@ -1285,11 +1369,12 @@ const CHANNEL_QUERY_FULL_NODE_SELECTION = `
             ready
             quotaData
             providerType
+            accountKey
           }
 `;
 
 const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
-          id
+           id
           createdAt
           updatedAt
           type
@@ -1314,6 +1399,7 @@ const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
             expiresAt
           }
           settings {
+            quotaRoutingMode
             modelProtocols {
               model
               apiFormats
@@ -1323,6 +1409,18 @@ const CHANNEL_QUERY_LIST_NODE_BASE_SELECTION = `
           endpoints {
             apiFormat
           }
+`;
+
+const CHANNEL_QUERY_ROUTING_STATUS_SELECTION = `
+           settings {
+             quotaRoutingMode
+           }
+           providerQuotaStatus {
+             status
+             ready
+             quotaData
+             providerType
+           }
 `;
 
 const CHANNEL_QUERY_SUPPORTED_MODELS_SELECTION = `
@@ -1335,6 +1433,7 @@ const CHANNEL_QUERY_TAGS_SELECTION = `
 
 const CHANNEL_QUERY_PROXY_SELECTION = `
           settings {
+            quotaRoutingMode
             proxy {
               type
               url
@@ -1365,6 +1464,22 @@ const CHANNEL_QUERY_QUOTA_SELECTION = `
             ready
             quotaData
             providerType
+            accountKey
+          }
+`;
+
+const CHANNEL_QUERY_ENDPOINTS_SELECTION = `
+          defaultEndpoints {
+            apiFormat
+            path
+            baseURL
+            transport
+          }
+          endpoints {
+            apiFormat
+            path
+            baseURL
+            transport
           }
 `;
 
@@ -1377,12 +1492,14 @@ export function buildQueryChannelsQuery(columnVisibility?: ChannelListColumnVisi
     ? CHANNEL_QUERY_FULL_NODE_SELECTION
     : [
         CHANNEL_QUERY_LIST_NODE_BASE_SELECTION,
+        CHANNEL_QUERY_ROUTING_STATUS_SELECTION,
         isChannelColumnVisible(columnVisibility, 'supportedModels') ? CHANNEL_QUERY_SUPPORTED_MODELS_SELECTION : '',
         isChannelColumnVisible(columnVisibility, 'tags') ? CHANNEL_QUERY_TAGS_SELECTION : '',
         isChannelColumnVisible(columnVisibility, 'proxy') ? CHANNEL_QUERY_PROXY_SELECTION : '',
         isChannelColumnVisible(columnVisibility, 'orderingWeight') ? CHANNEL_QUERY_ORDERING_WEIGHT_SELECTION : '',
         isChannelColumnVisible(columnVisibility, 'health') ? CHANNEL_QUERY_HEALTH_SELECTION : '',
         isChannelColumnVisible(columnVisibility, 'quota') ? CHANNEL_QUERY_QUOTA_SELECTION : '',
+        isChannelColumnVisible(columnVisibility, 'endpointProtocols') ? CHANNEL_QUERY_ENDPOINTS_SELECTION : '',
       ].join('');
 
   return `
@@ -1488,6 +1605,8 @@ export function useQueryChannels(
     enabled: !options?.disableAutoFetch,
     queryKey: [
       'channels',
+      query,
+      queryInput,
       variables?.where,
       variables?.orderBy?.field,
       variables?.orderBy?.direction,
@@ -1772,6 +1891,35 @@ export function useSaveChannelEndpoints() {
   });
 }
 
+export interface DetectChannelEndpointsInput {
+  channelID: string;
+  model?: string;
+}
+
+/**
+ * Probes a channel upstream for the relay protocols it exposes. This is a
+ * read-only detection: nothing is persisted until the caller saves the
+ * detected endpoints.
+ */
+export function useDetectChannelEndpoints() {
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+
+  return useMutation({
+    mutationFn: async (input: DetectChannelEndpointsInput) => {
+      const data = await graphqlRequest<{ detectChannelEndpoints: { endpoints: DetectedChannelEndpoint[] } }>(
+        DETECT_CHANNEL_ENDPOINTS_MUTATION,
+        { input }
+      );
+
+      return (data.detectChannelEndpoints?.endpoints ?? []).map((endpoint) => detectedChannelEndpointSchema.parse(endpoint));
+    },
+    onError: (error) => {
+      handleError(error, { context: t('channels.endpoints.detect.title') });
+    },
+  });
+}
+
 export function useClearChannelErrorMessage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
@@ -1988,6 +2136,38 @@ export function useBulkDeleteChannels() {
   });
 }
 
+export function useBulkManageChannelTags() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+
+  return useMutation({
+    mutationFn: async ({ ids, addTags, removeTags }: { ids: string[]; addTags: string[]; removeTags: string[] }) => {
+      try {
+        const data = await graphqlRequest<{ bulkManageChannelTags: boolean }>(BULK_MANAGE_CHANNEL_TAGS_MUTATION, {
+          ids,
+          addTags,
+          removeTags,
+        });
+        return data.bulkManageChannelTags;
+      } catch (error) {
+        handleError(error, { context: 'Bulk Manage Channel Tags' });
+        throw error;
+      }
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['allChannelSummarys'] });
+      queryClient.invalidateQueries({ queryKey: ['allChannelTags'] });
+      queryClient.invalidateQueries({ queryKey: ['selectedChannelTags'] });
+      toast.success(t('channels.messages.bulkManageTagsSuccess', { count: variables.ids.length }));
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['selectedChannelTags'] });
+    },
+  });
+}
+
 interface TestChannelVariables {
   channelID: string;
   modelID?: string;
@@ -2180,6 +2360,7 @@ const SYNC_CHANNEL_MODELS_MUTATION = `
     syncChannelModels(channelID: $channelID, pattern: $pattern) {
       channelID
       supportedModels
+      manualModels
     }
   }
 `;
@@ -2187,6 +2368,7 @@ const SYNC_CHANNEL_MODELS_MUTATION = `
 const syncChannelModelsPayloadSchema = z.object({
   channelID: z.string(),
   supportedModels: z.array(z.string()),
+  manualModels: z.array(z.string()),
 });
 
 export function useSyncChannelModels() {
@@ -2320,6 +2502,35 @@ export function useAllChannelTags(projectId?: string | null) {
       }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useSelectedChannelTags(channelIDs: string[], options?: { enabled?: boolean }) {
+  const { handleError } = useErrorHandler();
+  const { t } = useTranslation();
+  const sortedChannelIDs = [...channelIDs].sort();
+
+  return useQuery({
+    queryKey: ['selectedChannelTags', sortedChannelIDs],
+    queryFn: async () => {
+      try {
+        const data = await graphqlRequest<unknown>(SELECTED_CHANNEL_TAGS_QUERY, {
+          input: {
+            first: sortedChannelIDs.length,
+            where: { idIn: sortedChannelIDs },
+          },
+        });
+        const parsed = selectedChannelTagsResponseSchema.parse(data);
+        return parsed.queryChannels.edges.map(({ node }) => ({
+          id: node.id,
+          tags: node.tags ?? [],
+        }));
+      } catch (error) {
+        handleError(error, t('common.errors.internalServerError'));
+        throw error;
+      }
+    },
+    enabled: options?.enabled !== false && sortedChannelIDs.length > 0,
   });
 }
 

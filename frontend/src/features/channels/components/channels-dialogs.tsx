@@ -9,6 +9,7 @@ import { ChannelsAvailabilityDialog } from './channels-availability-dialog';
 import { ChannelsBulkApplyTemplateDialog } from './channels-bulk-apply-template-dialog';
 import { ChannelsBulkArchiveDialog } from './channels-bulk-archive-dialog';
 import { ChannelsBulkClearTemplateDialog } from './channels-bulk-clear-template-dialog';
+import { ChannelsBulkManageTagsDialog } from './channels-bulk-manage-tags-dialog';
 import { ChannelsBulkDeleteDialog } from './channels-bulk-delete-dialog';
 import { ChannelsBulkDisableDialog } from './channels-bulk-disable-dialog';
 import { ChannelsBulkEnableDialog } from './channels-bulk-enable-dialog';
@@ -26,6 +27,7 @@ import { ChannelsProxyDialog } from './channels-proxy-dialog';
 import { ChannelsRateLimitDialog } from './channels-rate-limit-dialog';
 import { ChannelsStatusDialog } from './channels-status-dialog';
 import { ChannelsSystemSettingsDialog } from './channels-system-settings-dialog';
+import { ChannelsTemplateManagerDialog } from './channels-template-manager-dialog';
 import { ChannelsTestDialog } from './channels-test-dialog';
 import { ChannelsTestHistoryDrawer } from './channels-test-history-drawer';
 import { ChannelsTransformOptionsDialog } from './channels-transform-options-dialog';
@@ -53,6 +55,8 @@ export function ChannelsDialogs() {
     <>
       <ChannelsSystemSettingsDialog />
 
+      <ChannelsTemplateManagerDialog open={open === 'templates'} onOpenChange={(isOpen) => setOpen(isOpen ? 'templates' : null)} />
+
       <ChannelsActionDialog key='channel-add' open={open === 'add'} onOpenChange={(isOpen) => setOpen(isOpen ? 'add' : null)} />
 
       <ChannelsBulkArchiveDialog />
@@ -64,6 +68,8 @@ export function ChannelsDialogs() {
       <ChannelsBulkTestDialog />
 
       <ChannelsBulkDeleteDialog />
+
+      <ChannelsBulkManageTagsDialog />
 
       <ChannelsBulkApplyTemplateDialog
         open={open === 'bulkApplyTemplate'}

@@ -212,6 +212,7 @@ func TestInboundTransformer_TransformRequest(t *testing.T) {
 				namespaceTool := result.Tools[0]
 				require.Equal(t, "function", namespaceTool.Type)
 				require.Equal(t, "mcp__codebase_memory_mcp__list_projects", namespaceTool.Function.Name)
+				require.Equal(t, "mcp__codebase_memory_mcp", namespaceTool.Function.Namespace)
 				require.Equal(t, "List stored projects", namespaceTool.Function.Description)
 				require.JSONEq(t, `{"type":"object","properties":{}}`, string(namespaceTool.Function.Parameters))
 				require.NotNil(t, namespaceTool.Function.Strict)
@@ -520,6 +521,34 @@ func TestInboundTransformer_TransformRequest(t *testing.T) {
 				v, ok := result.TransformerMetadata["include"]
 				require.True(t, ok)
 				require.Equal(t, []string{"file_search_call.results", "reasoning.encrypted_content"}, v.([]string))
+			},
+		},
+		{
+			name: "request keeps additional_tools input item as a raw fragment",
+			httpReq: &httpclient.Request{
+				Body: []byte(`{
+					"model": "gpt-4o",
+					"input": [
+						{"type": "additional_tools", "tools": [{"type": "function", "name": "shell"}]},
+						{"type": "message", "role": "user", "content": "Hello"}
+					]
+				}`),
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *llm.Request) {
+				require.Len(t, result.Messages, 1)
+				require.Equal(t, "user", result.Messages[0].Role)
+				// The item has no counterpart in the unified request, so it is kept
+				// verbatim here and replayed only when the upstream speaks the
+				// private Codex protocol.
+				require.NotNil(t, result.ProviderExtensions)
+				require.NotNil(t, result.ProviderExtensions.OpenAIResponses)
+
+				fragments := result.ProviderExtensions.OpenAIResponses.Request.RawInputItems
+				require.Len(t, fragments, 1)
+				require.Equal(t, "additional_tools", fragments[0].Type)
+				require.Equal(t, 0, fragments[0].OriginalIndex)
+				require.Contains(t, string(fragments[0].Raw), `"shell"`)
 			},
 		},
 		{
@@ -1022,6 +1051,19 @@ func TestInboundTransformer_TransformResponse(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConvertToolsToLLM_Namespace(t *testing.T) {
+	tools, err := convertToolsToLLM([]Tool{
+		{Type: "namespace", Name: "mcp__context7", Tools: []Tool{{Type: "function", Name: "query_docs"}}},
+		{Type: "function", Name: "mcp__context7__query_docs"},
+	})
+	require.NoError(t, err)
+	require.Len(t, tools, 2)
+	require.Equal(t, "query_docs", tools[0].Function.Name)
+	require.Equal(t, "mcp__context7", tools[0].Function.Namespace)
+	require.Equal(t, "mcp__context7__query_docs", tools[1].Function.Name)
+	require.Empty(t, tools[1].Function.Namespace)
 }
 
 func TestConvertItemToMessage_Compaction(t *testing.T) {

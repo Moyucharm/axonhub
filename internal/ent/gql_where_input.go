@@ -6706,6 +6706,21 @@ type RequestWhereInput struct {
 	ClientIPEqualFold    *string  `json:"clientIPEqualFold,omitempty"`
 	ClientIPContainsFold *string  `json:"clientIPContainsFold,omitempty"`
 
+	// "user_agent" field predicates.
+	UserAgent             *string  `json:"userAgent,omitempty"`
+	UserAgentNEQ          *string  `json:"userAgentNEQ,omitempty"`
+	UserAgentIn           []string `json:"userAgentIn,omitempty"`
+	UserAgentNotIn        []string `json:"userAgentNotIn,omitempty"`
+	UserAgentGT           *string  `json:"userAgentGT,omitempty"`
+	UserAgentGTE          *string  `json:"userAgentGTE,omitempty"`
+	UserAgentLT           *string  `json:"userAgentLT,omitempty"`
+	UserAgentLTE          *string  `json:"userAgentLTE,omitempty"`
+	UserAgentContains     *string  `json:"userAgentContains,omitempty"`
+	UserAgentHasPrefix    *string  `json:"userAgentHasPrefix,omitempty"`
+	UserAgentHasSuffix    *string  `json:"userAgentHasSuffix,omitempty"`
+	UserAgentEqualFold    *string  `json:"userAgentEqualFold,omitempty"`
+	UserAgentContainsFold *string  `json:"userAgentContainsFold,omitempty"`
+
 	// "metrics_latency_ms" field predicates.
 	MetricsLatencyMs       *int64  `json:"metricsLatencyMs,omitempty"`
 	MetricsLatencyMsNEQ    *int64  `json:"metricsLatencyMsNEQ,omitempty"`
@@ -7280,6 +7295,45 @@ func (i *RequestWhereInput) P() (predicate.Request, error) {
 	if i.ClientIPContainsFold != nil {
 		predicates = append(predicates, request.ClientIPContainsFold(*i.ClientIPContainsFold))
 	}
+	if i.UserAgent != nil {
+		predicates = append(predicates, request.UserAgentEQ(*i.UserAgent))
+	}
+	if i.UserAgentNEQ != nil {
+		predicates = append(predicates, request.UserAgentNEQ(*i.UserAgentNEQ))
+	}
+	if len(i.UserAgentIn) > 0 {
+		predicates = append(predicates, request.UserAgentIn(i.UserAgentIn...))
+	}
+	if len(i.UserAgentNotIn) > 0 {
+		predicates = append(predicates, request.UserAgentNotIn(i.UserAgentNotIn...))
+	}
+	if i.UserAgentGT != nil {
+		predicates = append(predicates, request.UserAgentGT(*i.UserAgentGT))
+	}
+	if i.UserAgentGTE != nil {
+		predicates = append(predicates, request.UserAgentGTE(*i.UserAgentGTE))
+	}
+	if i.UserAgentLT != nil {
+		predicates = append(predicates, request.UserAgentLT(*i.UserAgentLT))
+	}
+	if i.UserAgentLTE != nil {
+		predicates = append(predicates, request.UserAgentLTE(*i.UserAgentLTE))
+	}
+	if i.UserAgentContains != nil {
+		predicates = append(predicates, request.UserAgentContains(*i.UserAgentContains))
+	}
+	if i.UserAgentHasPrefix != nil {
+		predicates = append(predicates, request.UserAgentHasPrefix(*i.UserAgentHasPrefix))
+	}
+	if i.UserAgentHasSuffix != nil {
+		predicates = append(predicates, request.UserAgentHasSuffix(*i.UserAgentHasSuffix))
+	}
+	if i.UserAgentEqualFold != nil {
+		predicates = append(predicates, request.UserAgentEqualFold(*i.UserAgentEqualFold))
+	}
+	if i.UserAgentContainsFold != nil {
+		predicates = append(predicates, request.UserAgentContainsFold(*i.UserAgentContainsFold))
+	}
 	if i.MetricsLatencyMs != nil {
 		predicates = append(predicates, request.MetricsLatencyMsEQ(*i.MetricsLatencyMs))
 	}
@@ -7719,6 +7773,23 @@ type RequestExecutionWhereInput struct {
 	ModelIDEqualFold    *string  `json:"modelIDEqualFold,omitempty"`
 	ModelIDContainsFold *string  `json:"modelIDContainsFold,omitempty"`
 
+	// "upstream_model_id" field predicates.
+	UpstreamModelID             *string  `json:"upstreamModelID,omitempty"`
+	UpstreamModelIDNEQ          *string  `json:"upstreamModelIDNEQ,omitempty"`
+	UpstreamModelIDIn           []string `json:"upstreamModelIDIn,omitempty"`
+	UpstreamModelIDNotIn        []string `json:"upstreamModelIDNotIn,omitempty"`
+	UpstreamModelIDGT           *string  `json:"upstreamModelIDGT,omitempty"`
+	UpstreamModelIDGTE          *string  `json:"upstreamModelIDGTE,omitempty"`
+	UpstreamModelIDLT           *string  `json:"upstreamModelIDLT,omitempty"`
+	UpstreamModelIDLTE          *string  `json:"upstreamModelIDLTE,omitempty"`
+	UpstreamModelIDContains     *string  `json:"upstreamModelIDContains,omitempty"`
+	UpstreamModelIDHasPrefix    *string  `json:"upstreamModelIDHasPrefix,omitempty"`
+	UpstreamModelIDHasSuffix    *string  `json:"upstreamModelIDHasSuffix,omitempty"`
+	UpstreamModelIDIsNil        bool     `json:"upstreamModelIDIsNil,omitempty"`
+	UpstreamModelIDNotNil       bool     `json:"upstreamModelIDNotNil,omitempty"`
+	UpstreamModelIDEqualFold    *string  `json:"upstreamModelIDEqualFold,omitempty"`
+	UpstreamModelIDContainsFold *string  `json:"upstreamModelIDContainsFold,omitempty"`
+
 	// "format" field predicates.
 	Format             *string  `json:"format,omitempty"`
 	FormatNEQ          *string  `json:"formatNEQ,omitempty"`
@@ -7846,23 +7917,6 @@ type RequestExecutionWhereInput struct {
 	// "pass_through_applied" field predicates.
 	PassThroughApplied    *bool `json:"passThroughApplied,omitempty"`
 	PassThroughAppliedNEQ *bool `json:"passThroughAppliedNEQ,omitempty"`
-
-	// "response_model" field predicates.
-	ResponseModel             *string  `json:"responseModel,omitempty"`
-	ResponseModelNEQ          *string  `json:"responseModelNEQ,omitempty"`
-	ResponseModelIn           []string `json:"responseModelIn,omitempty"`
-	ResponseModelNotIn        []string `json:"responseModelNotIn,omitempty"`
-	ResponseModelGT           *string  `json:"responseModelGT,omitempty"`
-	ResponseModelGTE          *string  `json:"responseModelGTE,omitempty"`
-	ResponseModelLT           *string  `json:"responseModelLT,omitempty"`
-	ResponseModelLTE          *string  `json:"responseModelLTE,omitempty"`
-	ResponseModelContains     *string  `json:"responseModelContains,omitempty"`
-	ResponseModelHasPrefix    *string  `json:"responseModelHasPrefix,omitempty"`
-	ResponseModelHasSuffix    *string  `json:"responseModelHasSuffix,omitempty"`
-	ResponseModelIsNil        bool     `json:"responseModelIsNil,omitempty"`
-	ResponseModelNotNil       bool     `json:"responseModelNotNil,omitempty"`
-	ResponseModelEqualFold    *string  `json:"responseModelEqualFold,omitempty"`
-	ResponseModelContainsFold *string  `json:"responseModelContainsFold,omitempty"`
 
 	// "request" edge predicates.
 	HasRequest     *bool                `json:"hasRequest,omitempty"`
@@ -8175,6 +8229,51 @@ func (i *RequestExecutionWhereInput) P() (predicate.RequestExecution, error) {
 	}
 	if i.ModelIDContainsFold != nil {
 		predicates = append(predicates, requestexecution.ModelIDContainsFold(*i.ModelIDContainsFold))
+	}
+	if i.UpstreamModelID != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDEQ(*i.UpstreamModelID))
+	}
+	if i.UpstreamModelIDNEQ != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDNEQ(*i.UpstreamModelIDNEQ))
+	}
+	if len(i.UpstreamModelIDIn) > 0 {
+		predicates = append(predicates, requestexecution.UpstreamModelIDIn(i.UpstreamModelIDIn...))
+	}
+	if len(i.UpstreamModelIDNotIn) > 0 {
+		predicates = append(predicates, requestexecution.UpstreamModelIDNotIn(i.UpstreamModelIDNotIn...))
+	}
+	if i.UpstreamModelIDGT != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDGT(*i.UpstreamModelIDGT))
+	}
+	if i.UpstreamModelIDGTE != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDGTE(*i.UpstreamModelIDGTE))
+	}
+	if i.UpstreamModelIDLT != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDLT(*i.UpstreamModelIDLT))
+	}
+	if i.UpstreamModelIDLTE != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDLTE(*i.UpstreamModelIDLTE))
+	}
+	if i.UpstreamModelIDContains != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDContains(*i.UpstreamModelIDContains))
+	}
+	if i.UpstreamModelIDHasPrefix != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDHasPrefix(*i.UpstreamModelIDHasPrefix))
+	}
+	if i.UpstreamModelIDHasSuffix != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDHasSuffix(*i.UpstreamModelIDHasSuffix))
+	}
+	if i.UpstreamModelIDIsNil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDIsNil())
+	}
+	if i.UpstreamModelIDNotNil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDNotNil())
+	}
+	if i.UpstreamModelIDEqualFold != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDEqualFold(*i.UpstreamModelIDEqualFold))
+	}
+	if i.UpstreamModelIDContainsFold != nil {
+		predicates = append(predicates, requestexecution.UpstreamModelIDContainsFold(*i.UpstreamModelIDContainsFold))
 	}
 	if i.Format != nil {
 		predicates = append(predicates, requestexecution.FormatEQ(*i.Format))
@@ -8493,51 +8592,6 @@ func (i *RequestExecutionWhereInput) P() (predicate.RequestExecution, error) {
 	}
 	if i.PassThroughAppliedNEQ != nil {
 		predicates = append(predicates, requestexecution.PassThroughAppliedNEQ(*i.PassThroughAppliedNEQ))
-	}
-	if i.ResponseModel != nil {
-		predicates = append(predicates, requestexecution.ResponseModelEQ(*i.ResponseModel))
-	}
-	if i.ResponseModelNEQ != nil {
-		predicates = append(predicates, requestexecution.ResponseModelNEQ(*i.ResponseModelNEQ))
-	}
-	if len(i.ResponseModelIn) > 0 {
-		predicates = append(predicates, requestexecution.ResponseModelIn(i.ResponseModelIn...))
-	}
-	if len(i.ResponseModelNotIn) > 0 {
-		predicates = append(predicates, requestexecution.ResponseModelNotIn(i.ResponseModelNotIn...))
-	}
-	if i.ResponseModelGT != nil {
-		predicates = append(predicates, requestexecution.ResponseModelGT(*i.ResponseModelGT))
-	}
-	if i.ResponseModelGTE != nil {
-		predicates = append(predicates, requestexecution.ResponseModelGTE(*i.ResponseModelGTE))
-	}
-	if i.ResponseModelLT != nil {
-		predicates = append(predicates, requestexecution.ResponseModelLT(*i.ResponseModelLT))
-	}
-	if i.ResponseModelLTE != nil {
-		predicates = append(predicates, requestexecution.ResponseModelLTE(*i.ResponseModelLTE))
-	}
-	if i.ResponseModelContains != nil {
-		predicates = append(predicates, requestexecution.ResponseModelContains(*i.ResponseModelContains))
-	}
-	if i.ResponseModelHasPrefix != nil {
-		predicates = append(predicates, requestexecution.ResponseModelHasPrefix(*i.ResponseModelHasPrefix))
-	}
-	if i.ResponseModelHasSuffix != nil {
-		predicates = append(predicates, requestexecution.ResponseModelHasSuffix(*i.ResponseModelHasSuffix))
-	}
-	if i.ResponseModelIsNil {
-		predicates = append(predicates, requestexecution.ResponseModelIsNil())
-	}
-	if i.ResponseModelNotNil {
-		predicates = append(predicates, requestexecution.ResponseModelNotNil())
-	}
-	if i.ResponseModelEqualFold != nil {
-		predicates = append(predicates, requestexecution.ResponseModelEqualFold(*i.ResponseModelEqualFold))
-	}
-	if i.ResponseModelContainsFold != nil {
-		predicates = append(predicates, requestexecution.ResponseModelContainsFold(*i.ResponseModelContainsFold))
 	}
 
 	if i.HasRequest != nil {

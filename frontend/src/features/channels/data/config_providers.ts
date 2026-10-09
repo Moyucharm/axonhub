@@ -35,6 +35,7 @@ import {
 } from '@lobehub/icons';
 import { CommandCodeIcon } from '../components/commandcode-icon';
 import { EvolinkIcon } from '../components/evolink-icon';
+import { TypeSafeIcon } from '../components/typesafe-icon';
 import { NanoGPTIcon } from '../components/nanogpt-icon';
 import { CHANNEL_CONFIGS } from './config_channels';
 import {
@@ -141,6 +142,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     color: 'bg-purple-100 text-purple-800 border-purple-200',
     channelTypes: ['jina'],
   },
+  typesafe: {
+    provider: 'typesafe',
+    icon: TypeSafeIcon,
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    channelTypes: ['typesafe'],
+  },
   xai: {
     provider: 'xai',
     icon: XAI,
@@ -205,7 +212,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     provider: 'bailian',
     icon: Bailian,
     color: 'bg-green-100 text-green-800 border-green-200',
-    channelTypes: ['bailian', 'bailian_anthropic'],
+    channelTypes: ['bailian', 'bailian_anthropic', 'bailian_responses'],
   },
   openrouter: {
     provider: 'openrouter',
@@ -289,7 +296,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     provider: 'zenmux',
     icon: ZenMux,
     color: 'bg-gray-100 text-gray-800 border-gray-200',
-    channelTypes: ['zenmux', 'zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini'],
+    channelTypes: ['zenmux', 'zenmux_responses', 'zenmux_anthropic', 'zenmux_gemini', 'zenmux_video'],
   },
   commandcode: {
     provider: 'commandcode',

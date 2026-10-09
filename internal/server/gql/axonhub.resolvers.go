@@ -50,7 +50,7 @@ func (r *channelResolver) DefaultEndpoints(ctx context.Context, obj *ent.Channel
 func (r *channelResolver) AllModelEntries(ctx context.Context, obj *ent.Channel) ([]*biz.ChannelModelEntry, error) {
 	ch := biz.Channel{Channel: obj}
 	entries := ch.GetModelEntries()
-	result := lo.Values(entries)
+	result := sortChannelModelEntries(lo.Values(entries))
 
 	return lo.ToSlicePtr(result), nil
 }
@@ -217,6 +217,11 @@ func (r *mutationResolver) SaveChannelEndpoints(ctx context.Context, input biz.S
 	return r.channelService.SaveChannelEndpoints(ctx, input)
 }
 
+// DetectChannelEndpoints is the resolver for the detectChannelEndpoints field.
+func (r *mutationResolver) DetectChannelEndpoints(ctx context.Context, input biz.DetectChannelEndpointsInput) (*biz.DetectChannelEndpointsPayload, error) {
+	return r.channelService.DetectChannelEndpoints(ctx, input)
+}
+
 // UpdateChannelStatus is the resolver for the updateChannelStatus field.
 func (r *mutationResolver) UpdateChannelStatus(ctx context.Context, id objects.GUID, status channel.Status) (*ent.Channel, error) {
 	return r.channelService.UpdateChannelStatus(ctx, id.ID, status)
@@ -298,6 +303,39 @@ func (r *mutationResolver) BulkDeleteChannels(ctx context.Context, ids []*object
 	channelIDs := objects.IntGuids(ids)
 
 	if err := r.channelService.BulkDeleteChannels(ctx, channelIDs); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// BulkAddChannelTags is the resolver for the bulkAddChannelTags field.
+func (r *mutationResolver) BulkAddChannelTags(ctx context.Context, ids []*objects.GUID, tags []string) (bool, error) {
+	channelIDs := objects.IntGuids(ids)
+
+	if err := r.channelService.BulkAddChannelTags(ctx, channelIDs, tags); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// BulkRemoveChannelTags is the resolver for the bulkRemoveChannelTags field.
+func (r *mutationResolver) BulkRemoveChannelTags(ctx context.Context, ids []*objects.GUID, tags []string) (bool, error) {
+	channelIDs := objects.IntGuids(ids)
+
+	if err := r.channelService.BulkRemoveChannelTags(ctx, channelIDs, tags); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// BulkManageChannelTags is the resolver for the bulkManageChannelTags field.
+func (r *mutationResolver) BulkManageChannelTags(ctx context.Context, ids []*objects.GUID, addTags []string, removeTags []string) (bool, error) {
+	channelIDs := objects.IntGuids(ids)
+
+	if err := r.channelService.BulkManageChannelTags(ctx, channelIDs, addTags, removeTags); err != nil {
 		return false, err
 	}
 
@@ -747,9 +785,17 @@ func (r *mutationResolver) SyncChannelModels(ctx context.Context, channelID obje
 		return nil, err
 	}
 
+	// manual_models is nullable in the schema; normalize nil so the non-null
+	// payload field never resolves to null.
+	manualModels := ch.ManualModels
+	if manualModels == nil {
+		manualModels = []string{}
+	}
+
 	return &SyncChannelModelsPayload{
 		ChannelID:       channelID,
 		SupportedModels: ch.SupportedModels,
+		ManualModels:    manualModels,
 	}, nil
 }
 

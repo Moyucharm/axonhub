@@ -55,8 +55,11 @@ type ChannelAutoCooledEvent struct {
 }
 
 type WebhookRenderContext struct {
-	Event      string `json:"event"`
-	Severity   string `json:"severity"`
+	Event    string `json:"event"`
+	Severity string `json:"severity"`
+
+	// OccurredAt is RFC3339 in the configured system timezone, so it carries that
+	// zone's offset rather than a trailing Z. It is set by notify.
 	OccurredAt string `json:"occurred_at"`
 
 	Channel struct {
@@ -97,9 +100,8 @@ func (n *WebhookNotifier) NotifyChannelAutoDisabled(ctx context.Context, event C
 	)
 
 	renderCtx := WebhookRenderContext{
-		Event:      EventChannelAutoDisabled,
-		Severity:   "warning",
-		OccurredAt: event.OccurredAt.UTC().Format(time.RFC3339),
+		Event:    EventChannelAutoDisabled,
+		Severity: "warning",
 	}
 	renderCtx.Channel.ID = event.ChannelID
 	renderCtx.Channel.Name = event.ChannelName
@@ -113,7 +115,7 @@ func (n *WebhookNotifier) NotifyChannelAutoDisabled(ctx context.Context, event C
 	renderCtx.Trigger.ActualCount = event.ActualCount
 	renderCtx.Trigger.Reason = event.Reason
 
-	n.notify(ctx, EventChannelAutoDisabled, renderCtx)
+	n.notify(ctx, EventChannelAutoDisabled, renderCtx, event.OccurredAt)
 }
 
 func (n *WebhookNotifier) NotifyChannelAutoCooled(ctx context.Context, event ChannelAutoCooledEvent) {
@@ -123,9 +125,8 @@ func (n *WebhookNotifier) NotifyChannelAutoCooled(ctx context.Context, event Cha
 	)
 
 	renderCtx := WebhookRenderContext{
-		Event:      EventChannelAutoCooled,
-		Severity:   "warning",
-		OccurredAt: event.OccurredAt.UTC().Format(time.RFC3339),
+		Event:    EventChannelAutoCooled,
+		Severity: "warning",
 	}
 	renderCtx.Channel.ID = event.ChannelID
 	renderCtx.Channel.Name = event.ChannelName
@@ -140,11 +141,23 @@ func (n *WebhookNotifier) NotifyChannelAutoCooled(ctx context.Context, event Cha
 	renderCtx.Trigger.Reason = event.Reason
 	renderCtx.Trigger.CooldownUntil = event.CooldownUntil.UTC().Format(time.RFC3339)
 
-	n.notify(ctx, EventChannelAutoCooled, renderCtx)
+	n.notify(ctx, EventChannelAutoCooled, renderCtx, event.OccurredAt)
 }
 
-func (n *WebhookNotifier) notify(ctx context.Context, eventName string, renderCtx WebhookRenderContext) {
-	ctx = authz.WithSystemBypass(ctx, "webhook-notifier")
+// notify renders and delivers one event to every subscribed target.
+//
+// occurredAt is formatted here rather than by the caller because resolving the
+// configured timezone reads system settings, which the ent privacy policy denies
+// on a context without a user. The system bypass below is what makes that read
+// succeed, so the formatting has to happen after it.
+func (n *WebhookNotifier) notify(
+	ctx context.Context,
+	eventName string,
+	renderCtx WebhookRenderContext,
+	occurredAt time.Time,
+) {
+	ctx = authz.WithSystemBypass(context.WithoutCancel(ctx), "webhook-notifier")
+	renderCtx.OccurredAt = occurredAt.In(n.SystemService.TimeLocation(ctx)).Format(time.RFC3339)
 	cfg := *n.SystemService.WebhookNotifierConfigOrDefault(ctx)
 	targets := n.selectTargets(cfg, eventName)
 

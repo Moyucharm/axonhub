@@ -144,7 +144,7 @@ func TestType_SupportsAnthropicNativeTools(t *testing.T) {
 		},
 		{
 			name: "deepseek_anthropic",
-			want: false,
+			want: true,
 		},
 		{
 			name: "moonshot_anthropic",

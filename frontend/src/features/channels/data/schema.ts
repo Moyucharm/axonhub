@@ -13,7 +13,7 @@ export const apiFormatSchema = z.enum([
   'zenmux/video',
   'openai/moderations',
   'openai/alpha_search',
-  'typesafe/systemone',
+  'openai/decisions',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',
@@ -24,6 +24,7 @@ export const apiFormatSchema = z.enum([
   'aisdk/datastream',
   'jina/rerank',
   'jina/embeddings',
+  'typesafe/systemone',
   'ollama/chat',
 ]);
 
@@ -39,7 +40,7 @@ export const configurableChannelEndpointApiFormats = [
   'zenmux/video',
   'openai/moderations',
   'openai/alpha_search',
-  'typesafe/systemone',
+  'openai/decisions',
   'openai/audio_speech',
   'openai/audio_transcriptions',
   'openai/audio_translations',
@@ -48,6 +49,7 @@ export const configurableChannelEndpointApiFormats = [
   'gemini/embeddings',
   'jina/rerank',
   'jina/embeddings',
+  'typesafe/systemone',
 ] as const;
 
 export const configurableChannelEndpointApiFormatSchema = z.enum(configurableChannelEndpointApiFormats);
@@ -60,6 +62,15 @@ export const channelEndpointSchema = z.object({
   transport: z.enum(['http', 'websocket']).optional().or(z.literal('')),
 });
 export type ChannelEndpoint = z.infer<typeof channelEndpointSchema>;
+
+// Channel endpoint auto-detection result
+export const detectedChannelEndpointSchema = z.object({
+  apiFormat: z.string().min(1),
+  supported: z.boolean(),
+  statusCode: z.number().int().optional().nullable(),
+  reason: z.string(),
+});
+export type DetectedChannelEndpoint = z.infer<typeof detectedChannelEndpointSchema>;
 
 // Channel Types
 export const channelTypeSchema = z.enum([
@@ -106,9 +117,11 @@ export const channelTypeSchema = z.enum([
   'burncloud',
   'modelscope',
   'bailian',
+  'bailian_responses',
   'bailian_anthropic',
   'moonshot_coding',
   'jina',
+  'typesafe',
   'github',
   'github_copilot',
   'claudecode',
@@ -129,6 +142,7 @@ export const channelTypeSchema = z.enum([
   'zenmux_responses',
   'zenmux_anthropic',
   'zenmux_gemini',
+  'zenmux_video',
   'commandcode',
   'commandcode_anthropic',
 ]);
@@ -325,8 +339,14 @@ export const commandCodeQuotaSettingsSchema = z.object({
 });
 export type CommandCodeQuotaSettings = z.infer<typeof commandCodeQuotaSettingsSchema>;
 
+export const ollamaQuotaSettingsSchema = z.object({
+  authCookie: z.string().optional().nullable(),
+});
+export type OllamaQuotaSettings = z.infer<typeof ollamaQuotaSettingsSchema>;
+
 export const channelProviderQuotaSettingsSchema = z.object({
   commandCode: commandCodeQuotaSettingsSchema.optional().nullable(),
+  ollama: ollamaQuotaSettingsSchema.optional().nullable(),
 });
 export type ChannelProviderQuotaSettings = z.infer<typeof channelProviderQuotaSettingsSchema>;
 
@@ -490,9 +510,11 @@ export const channelSettingsSchema = z.object({
   codexSimulation: codexSimulationSettingsSchema.optional().nullable(),
   modelProtocols: z.array(modelProtocolSchema).optional().nullable(),
   providerQuota: channelProviderQuotaSettingsSchema.optional().nullable(),
+  quotaRoutingMode: z.enum(['INHERIT', 'IGNORE_QUOTA', 'REMOVE_ON_EXHAUSTED', 'BACKPRESSURE']).optional(),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;
+export type ChannelQuotaRoutingMode = NonNullable<ChannelSettings['quotaRoutingMode']>;
 
 // Channel Model Entry
 export const channelModelEntrySchema = z.object({
@@ -552,6 +574,7 @@ export const providerQuotaStatusSchema = z.object({
   ready: z.boolean(),
   quotaData: z.record(z.string(), z.unknown()),
   providerType: z.string(),
+  accountKey: z.string().optional().nullable(),
 });
 export type ProviderQuotaStatus = z.infer<typeof providerQuotaStatusSchema>;
 

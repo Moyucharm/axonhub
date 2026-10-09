@@ -320,7 +320,7 @@ func summarizeChannelAutoActionReason(errorMessage string, statusCode int) strin
 }
 
 func (svc *ChannelService) resetChannelFailure(ctx context.Context, channelID int) error {
-	if svc.db == nil {
+	if svc.AbstractService == nil || svc.db == nil {
 		return nil
 	}
 

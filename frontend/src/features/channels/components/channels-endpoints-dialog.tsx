@@ -1,9 +1,14 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { AlertCircle, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
+import { Google } from '@lobehub/icons';
+import { AlertCircle, Check, ChevronDown, Loader2, Pencil, Plus, Radar, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -13,25 +18,82 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { AutoCompleteSelect } from '@/components/auto-complete-select';
-import { useUpdateChannelSettings } from '../data/channels';
+import { cn } from '@/lib/utils';
+import { useDetectChannelEndpoints, useUpdateChannelSettings } from '../data/channels';
 import { getAvailableProtocolFormats, getConfigurableApiFormatsForChannelType } from '../data/protocol-options';
 import {
   Channel,
   ChannelEndpoint,
+  DetectedChannelEndpoint,
   ModelProtocol,
   channelEndpointSchema,
   configurableChannelEndpointApiFormats,
   configurableChannelEndpointApiFormatSchema,
 } from '../data/schema';
+import {
+  RELAY_PROTOCOL_LABEL_KEYS,
+  getChannelRelayProtocols,
+  isRelayProtocol,
+  type RelayProtocol,
+} from '../data/relay-protocols';
+import { ChatProtocolIcon, MessagesProtocolIcon, ResponsesProtocolIcon } from './endpoint-protocol-icons';
+
+const RELAY_PROTOCOL_ICONS: Record<RelayProtocol, React.ComponentType<{ size?: number | string; className?: string }>> = {
+  'openai/chat_completions': ChatProtocolIcon,
+  'openai/responses': ResponsesProtocolIcon,
+  'anthropic/messages': MessagesProtocolIcon,
+  'gemini/contents': Google,
+};
+
+const RELAY_PROTOCOL_ACTIVE_CLASSES: Record<RelayProtocol, string> = {
+  'openai/chat_completions': 'border-sky-500/30 bg-sky-500/15 text-sky-600 dark:text-sky-400',
+  'openai/responses': 'border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  'anthropic/messages': 'border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  'gemini/contents': 'border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+};
+
+const DETECTION_REASON_KEYS: Record<string, string> = {
+  supported: 'channels.endpoints.detect.reasons.supported',
+  not_found: 'channels.endpoints.detect.reasons.notFound',
+  auth_error: 'channels.endpoints.detect.reasons.authError',
+  rate_limited: 'channels.endpoints.detect.reasons.rateLimited',
+  server_error: 'channels.endpoints.detect.reasons.serverError',
+  unreachable: 'channels.endpoints.detect.reasons.unreachable',
+  invalid_request: 'channels.endpoints.detect.reasons.invalidRequest',
+};
+
+function DetectionResultCard({ result }: { result: DetectedChannelEndpoint }) {
+  const { t } = useTranslation();
+
+  if (!isRelayProtocol(result.apiFormat)) {
+    return null;
+  }
+
+  const Icon = RELAY_PROTOCOL_ICONS[result.apiFormat];
+  const label = t(RELAY_PROTOCOL_LABEL_KEYS[result.apiFormat]);
+  const reasonKey = DETECTION_REASON_KEYS[result.reason] ?? DETECTION_REASON_KEYS.unreachable;
+
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs',
+        result.supported ? RELAY_PROTOCOL_ACTIVE_CLASSES[result.apiFormat] : 'border-border/60 bg-muted/40 text-muted-foreground'
+      )}
+    >
+      <Icon size={14} />
+      <span className='truncate font-medium'>{label}</span>
+      <span className='text-muted-foreground shrink-0'>
+        {result.supported ? t('channels.endpoints.detect.supported') : t(reasonKey)}
+        {!result.supported && result.statusCode ? ` (${result.statusCode})` : ''}
+      </span>
+    </div>
+  );
+}
 
 interface Props {
   channel: Channel;
@@ -150,6 +212,7 @@ function EndpointTable({
 export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) {
   const { t } = useTranslation();
   const updateChannelSettings = useUpdateChannelSettings();
+  const detectEndpoints = useDetectChannelEndpoints();
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null);
   const wasOpenRef = useRef(false);
 
@@ -165,13 +228,10 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
   const [editingProtocolModel, setEditingProtocolModel] = useState<string | null>(null);
   const [blockedEndpointRemoval, setBlockedEndpointRemoval] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detectionResults, setDetectionResults] = useState<DetectedChannelEndpoint[] | null>(null);
 
   const supportedModelOptions = useMemo(
-    () =>
-      Array.from(new Set([...channel.supportedModels, ...modelProtocols.map((mp) => mp.model)])).map((model) => ({
-        value: model,
-        label: model,
-      })),
+    () => Array.from(new Set([...channel.supportedModels, ...modelProtocols.map((mp) => mp.model)])).map((model) => ({ value: model, label: model })),
     [channel.supportedModels, modelProtocols]
   );
 
@@ -197,13 +257,13 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
     setEditingProtocolModel(null);
     setBlockedEndpointRemoval(null);
     setError(null);
+    setDetectionResults(null);
   }, [open, channel.endpoints, channel.settings]);
 
   const usedApiFormats = useMemo(() => new Set(endpoints.map((ep) => ep.apiFormat)), [endpoints]);
 
   const availableApiFormats = useMemo(
-    () =>
-      getConfigurableApiFormatsForChannelType(channel.type, configurableChannelEndpointApiFormats).filter((f) => !usedApiFormats.has(f)),
+    () => getConfigurableApiFormatsForChannelType(channel.type, configurableChannelEndpointApiFormats).filter((f) => !usedApiFormats.has(f)),
     [usedApiFormats, channel.type]
   );
 
@@ -259,6 +319,32 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
     },
     [defaultEndpoints, handleRemoveEndpoint, modelProtocols]
   );
+
+  const handleDetectEndpoints = useCallback(async () => {
+    setError(null);
+
+    try {
+      const results = await detectEndpoints.mutateAsync({ channelID: channel.id });
+      setDetectionResults(results);
+
+      // Add the supported relay protocols that the channel does not expose yet.
+      // Default endpoints are built-in and read-only, so only the override list
+      // is updated. The user still has to save to persist the change.
+      const available = getChannelRelayProtocols(defaultEndpoints, endpoints);
+      const additions = results
+        .filter((result) => result.supported && isRelayProtocol(result.apiFormat) && !available.has(result.apiFormat))
+        .map((result) => channelEndpointSchema.parse({ apiFormat: result.apiFormat }));
+
+      if (additions.length > 0) {
+        setEndpoints((prev) => {
+          const existing = new Set(prev.map((ep) => ep.apiFormat));
+          return [...prev, ...additions.filter((ep) => !existing.has(ep.apiFormat))];
+        });
+      }
+    } catch {
+      // error handled by the hook
+    }
+  }, [channel.id, defaultEndpoints, endpoints, detectEndpoints]);
 
   const availableProtocolFormats = useMemo(() => {
     return getAvailableProtocolFormats(defaultEndpoints, endpoints);
@@ -325,18 +411,15 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
     setError(null);
   }, []);
 
-  const handleRemoveModelProtocol = useCallback(
-    (model: string) => {
-      setModelProtocols((prev) => prev.filter((mp) => mp.model !== model));
-      if (editingProtocolModel === model) {
-        setEditingProtocolModel(null);
-        setNewProtocolModel('');
-        setNewProtocolFormats([]);
-      }
-      setError(null);
-    },
-    [editingProtocolModel]
-  );
+  const handleRemoveModelProtocol = useCallback((model: string) => {
+    setModelProtocols((prev) => prev.filter((mp) => mp.model !== model));
+    if (editingProtocolModel === model) {
+      setEditingProtocolModel(null);
+      setNewProtocolModel('');
+      setNewProtocolFormats([]);
+    }
+    setError(null);
+  }, [editingProtocolModel]);
 
   const handleToggleModelProtocol = useCallback((model: string, enabled: boolean) => {
     setModelProtocols((prev) => prev.map((mp) => (mp.model === model ? { ...mp, enabled } : mp)));
@@ -408,276 +491,299 @@ export function ChannelsEndpointsDialog({ channel, open, onOpenChange }: Props) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          ref={setDialogContentElement}
-          className='flex h-[90vh] max-h-[700px] w-full max-w-full flex-col overflow-hidden sm:max-w-4xl'
-        >
-          <DialogHeader className='shrink-0'>
-            <DialogTitle>{t('channels.endpoints.title')}</DialogTitle>
-            <DialogDescription>{channel.name}</DialogDescription>
-          </DialogHeader>
+      <DialogContent ref={setDialogContentElement} className='flex h-[90vh] max-h-[700px] w-full max-w-full flex-col overflow-hidden sm:max-w-4xl'>
+        <DialogHeader className='shrink-0'>
+          <DialogTitle>{t('channels.endpoints.title')}</DialogTitle>
+          <DialogDescription>{channel.name}</DialogDescription>
+        </DialogHeader>
 
-          <div className='min-h-0 flex-1 space-y-6 overflow-y-auto py-4'>
-            {/* Default endpoints */}
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <label className='text-sm font-medium'>{t('channels.endpoints.defaultEndpoints', 'Default endpoints')}</label>
-                {defaultEndpoints.length > 0 && (
-                  <span className='text-muted-foreground text-xs'>
-                    {t('channels.endpoints.resolvedCount', { count: defaultEndpoints.length })}
-                  </span>
-                )}
-              </div>
-              {defaultEndpoints.length === 0 ? (
-                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
-                  {t('channels.endpoints.noDefaultEndpoints', 'No default endpoints resolved for this channel type.')}
-                </div>
-              ) : (
-                <EndpointTable endpoints={defaultEndpoints} readOnly hideBaseURL />
+        <div className='min-h-0 flex-1 space-y-6 overflow-y-auto py-4'>
+          {/* Default endpoints */}
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between'>
+              <label className='text-sm font-medium'>{t('channels.endpoints.defaultEndpoints', 'Default endpoints')}</label>
+              {defaultEndpoints.length > 0 && (
+                <span className='text-muted-foreground text-xs'>
+                  {t('channels.endpoints.resolvedCount', { count: defaultEndpoints.length })}
+                </span>
               )}
             </div>
+            {defaultEndpoints.length === 0 ? (
+              <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
+                {t('channels.endpoints.noDefaultEndpoints', 'No default endpoints resolved for this channel type.')}
+              </div>
+            ) : (
+              <EndpointTable endpoints={defaultEndpoints} readOnly hideBaseURL />
+            )}
+          </div>
 
-            {/* Current configured endpoints */}
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <label className='text-sm font-medium'>{t('channels.endpoints.currentEndpoints')}</label>
+          {/* Current configured endpoints */}
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between gap-2'>
+              <label className='text-sm font-medium'>{t('channels.endpoints.currentEndpoints')}</label>
+              <div className='flex items-center gap-2'>
                 {endpoints.length > 0 && (
                   <span className='text-muted-foreground text-xs'>
                     {t('channels.endpoints.configuredCount', { count: endpoints.length })}
                   </span>
                 )}
-              </div>
-              {endpoints.length === 0 ? (
-                <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
-                  {t('channels.endpoints.noOverridesHint', 'No custom endpoint overrides configured.')}
-                </div>
-              ) : (
-                <EndpointTable endpoints={endpoints}>
-                  {(ep) => (
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      className='hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0'
-                      onClick={() => handleRequestRemoveEndpoint(ep.apiFormat)}
-                      aria-label={t('channels.endpoints.removeEndpoint', { apiFormat: ep.apiFormat })}
-                    >
-                      <X className='h-3.5 w-3.5' />
-                    </Button>
-                  )}
-                </EndpointTable>
-              )}
-            </div>
-
-            {/* Add new endpoint */}
-            <div className='space-y-3'>
-              <label className='text-sm font-medium'>{t('channels.endpoints.addEndpoint')}</label>
-              <div className='grid items-start gap-3 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,1.2fr)_minmax(14rem,1.2fr)_auto]'>
-                <div className='min-w-0 space-y-1'>
-                  <label htmlFor='endpoint-api-format' className='text-muted-foreground block text-xs'>
-                    {t('channels.endpoints.apiFormat')}
-                  </label>
-                  <Select value={newApiFormat} onValueChange={setNewApiFormat}>
-                    <SelectTrigger id='endpoint-api-format' className='w-full'>
-                      <SelectValue placeholder={t('channels.endpoints.apiFormat')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableApiFormats.length === 0 ? (
-                        <div className='text-muted-foreground px-2 py-4 text-center text-sm'>{t('channels.endpoints.allFormatsUsed')}</div>
-                      ) : (
-                        availableApiFormats.map((format) => (
-                          <SelectItem key={format} value={format}>
-                            {format}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='min-w-0 space-y-1'>
-                  <label htmlFor='endpoint-base-url' className='text-muted-foreground block text-xs'>
-                    {t('channels.endpoints.baseURL')}
-                  </label>
-                  <Input
-                    id='endpoint-base-url'
-                    placeholder={newApiFormat ? t('channels.endpoints.baseURLPlaceholder') : t('channels.endpoints.selectFormatFirst')}
-                    value={newBaseURL}
-                    onChange={(e) => setNewBaseURL(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={!newApiFormat}
-                    aria-describedby='endpoint-base-url-hint'
-                    className='disabled:opacity-50'
-                  />
-                  <p id='endpoint-base-url-hint' className='text-muted-foreground text-[11px] leading-4 break-words'>
-                    {t('channels.endpoints.baseURLHint')}
-                  </p>
-                </div>
-                <div className='min-w-0 space-y-1'>
-                  <label htmlFor='endpoint-path' className='text-muted-foreground block text-xs'>
-                    {t('channels.endpoints.path')}
-                  </label>
-                  <Input
-                    id='endpoint-path'
-                    placeholder={newApiFormat ? t('channels.endpoints.pathPlaceholder') : t('channels.endpoints.selectFormatFirst')}
-                    value={newPath}
-                    onChange={(e) => setNewPath(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={!newApiFormat}
-                    aria-describedby='endpoint-path-hint'
-                    className='disabled:opacity-50'
-                  />
-                  <p id='endpoint-path-hint' className='text-muted-foreground text-[11px] leading-4 break-words'>
-                    {t('channels.endpoints.pathHint')}
-                  </p>
-                </div>
                 <Button
                   type='button'
-                  variant='default'
-                  size='icon'
-                  onClick={handleAddEndpoint}
-                  disabled={!newApiFormat}
-                  className='shrink-0 justify-self-end md:mt-5 md:justify-self-auto'
-                  aria-label={t('channels.endpoints.addEndpoint')}
+                  variant='outline'
+                  size='sm'
+                  className='h-8'
+                  onClick={handleDetectEndpoints}
+                  disabled={detectEndpoints.isPending}
                 >
-                  <Plus className='h-4 w-4' />
+                  {detectEndpoints.isPending ? (
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                  ) : (
+                    <Radar className='mr-1.5 h-3.5 w-3.5' />
+                  )}
+                  {t(detectEndpoints.isPending ? 'channels.endpoints.detect.detecting' : 'channels.endpoints.detect.button')}
                 </Button>
               </div>
             </div>
-
-            {/* Model protocol overrides */}
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <label className='text-sm font-medium'>{t('channels.endpoints.modelProtocols.title')}</label>
-                {modelProtocols.length > 0 && (
-                  <span className='text-muted-foreground text-xs'>
-                    {t('channels.endpoints.modelProtocols.count', { count: modelProtocols.length })}
-                  </span>
-                )}
+            <p className='text-muted-foreground text-xs'>{t('channels.endpoints.detect.description')}</p>
+            {endpoints.length === 0 ? (
+              <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm'>
+                {t('channels.endpoints.noOverridesHint', 'No custom endpoint overrides configured.')}
               </div>
-              <p className='text-muted-foreground text-xs'>{t('channels.endpoints.modelProtocols.description')}</p>
-
-              <div className='grid items-start gap-3 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,1.2fr)_minmax(14rem,1.2fr)_auto]'>
-                <div className='min-w-0'>
-                  <AutoCompleteSelect
-                    selectedValue={newProtocolModel}
-                    onSelectedValueChange={setNewProtocolModel}
-                    items={availableModelOptions}
-                    placeholder={t('channels.endpoints.modelProtocols.modelPlaceholder')}
-                    emptyMessage={t(
-                      availableModelOptions.length === 0 && supportedModelOptions.length > 0
-                        ? 'channels.endpoints.modelProtocols.allModelsConfigured'
-                        : 'channels.endpoints.modelProtocols.noModelsAvailable'
-                    )}
-                    portalContainer={dialogContentElement}
-                  />
-                </div>
-                <div className='min-w-0 md:col-span-2'>
-                  <ProtocolFormatMultiSelect
-                    formats={availableProtocolFormats}
-                    selectedFormats={newProtocolFormats}
-                    onToggle={handleToggleProtocolFormat}
-                    placeholder={t('channels.endpoints.modelProtocols.formatsPlaceholder')}
-                    portalContainer={dialogContentElement}
-                  />
-                </div>
-                <div className='flex items-center gap-2 justify-self-end md:col-start-4 md:justify-self-auto'>
+            ) : (
+              <EndpointTable endpoints={endpoints}>
+                {(ep) => (
                   <Button
                     type='button'
-                    variant='default'
-                    size='icon'
-                    onClick={handleSaveModelProtocol}
-                    disabled={!newProtocolModel || newProtocolFormats.length === 0 || availableModelOptions.length === 0}
-                    className='shrink-0'
-                    aria-label={t(
-                      editingProtocolModel ? 'channels.endpoints.modelProtocols.save' : 'channels.endpoints.modelProtocols.add'
-                    )}
+                    variant='ghost'
+                    size='sm'
+                    className='hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0'
+                    onClick={() => handleRequestRemoveEndpoint(ep.apiFormat)}
+                    aria-label={t('channels.endpoints.removeEndpoint', { apiFormat: ep.apiFormat })}
                   >
-                    {editingProtocolModel ? <Check className='h-4 w-4' /> : <Plus className='h-4 w-4' />}
+                    <X className='h-3.5 w-3.5' />
                   </Button>
-                  {editingProtocolModel && (
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon'
-                      onClick={handleCancelEditModelProtocol}
-                      className='shrink-0'
-                      aria-label={t('channels.endpoints.modelProtocols.cancelEdit')}
-                    >
-                      <X className='h-4 w-4' />
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {modelProtocols.length === 0 ? (
-                <div className='text-muted-foreground rounded-lg border border-dashed p-3 text-center text-xs'>
-                  {t('channels.endpoints.modelProtocols.empty')}
-                </div>
-              ) : (
-                <div className='divide-y rounded-lg border'>
-                  {modelProtocols.map((mp) => (
-                    <div
-                      key={mp.model}
-                      className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${mp.enabled !== false ? '' : 'bg-muted/30 opacity-70'}`}
-                    >
-                      <div className='flex min-w-0 items-center gap-2'>
-                        <Switch
-                          checked={mp.enabled !== false}
-                          onCheckedChange={(checked) => handleToggleModelProtocol(mp.model, checked)}
-                          aria-label={t('channels.endpoints.modelProtocols.toggle', { model: mp.model })}
-                        />
-                        <span className='truncate font-mono text-xs'>{mp.model}</span>
-                      </div>
-                      <div className='flex flex-1 flex-wrap items-center justify-end gap-1.5'>
-                        {mp.apiFormats.map((format) => (
-                          <Badge key={format} variant='secondary' className='font-mono text-xs'>
-                            {format}
-                          </Badge>
-                        ))}
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='hover:bg-accent h-7 w-7 p-0'
-                          onClick={() => handleStartEditModelProtocol(mp)}
-                          aria-label={t('channels.endpoints.modelProtocols.edit', { model: mp.model })}
-                        >
-                          <Pencil className='h-3.5 w-3.5' />
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          className='hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0'
-                          onClick={() => handleRemoveModelProtocol(mp.model)}
-                          aria-label={t('channels.endpoints.modelProtocols.remove', { model: mp.model })}
-                        >
-                          <X className='h-3.5 w-3.5' />
-                        </Button>
-                      </div>
-                    </div>
+                )}
+              </EndpointTable>
+            )}
+            {detectionResults && (
+              <div className='bg-muted/20 space-y-2 rounded-lg border p-3'>
+                <p className='text-muted-foreground text-xs'>{t('channels.endpoints.detect.resultTitle')}</p>
+                <div className='flex flex-wrap gap-2'>
+                  {detectionResults.map((result) => (
+                    <DetectionResultCard key={result.apiFormat} result={result} />
                   ))}
                 </div>
-              )}
-            </div>
-
-            {error && (
-              <div className='text-destructive bg-destructive/10 flex items-center gap-2 rounded-md px-3 py-2 text-sm'>
-                <AlertCircle className='h-4 w-4 shrink-0' />
-                <span>{error}</span>
               </div>
             )}
           </div>
 
-          <DialogFooter className='shrink-0 border-t pt-4'>
-            <Button variant='outline' onClick={() => onOpenChange(false)}>
-              {t('common.buttons.cancel')}
-            </Button>
-            <Button onClick={handleSave} disabled={updateChannelSettings.isPending}>
-              {updateChannelSettings.isPending ? t('common.buttons.saving') : t('common.buttons.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+          {/* Add new endpoint */}
+          <div className='space-y-3'>
+            <label className='text-sm font-medium'>{t('channels.endpoints.addEndpoint')}</label>
+            <div className='grid items-start gap-3 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,1.2fr)_minmax(14rem,1.2fr)_auto]'>
+              <div className='min-w-0 space-y-1'>
+                <label htmlFor='endpoint-api-format' className='text-muted-foreground block text-xs'>
+                  {t('channels.endpoints.apiFormat')}
+                </label>
+                <Select value={newApiFormat} onValueChange={setNewApiFormat}>
+                  <SelectTrigger id='endpoint-api-format' className='w-full'>
+                    <SelectValue placeholder={t('channels.endpoints.apiFormat')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableApiFormats.length === 0 ? (
+                      <div className='text-muted-foreground px-2 py-4 text-center text-sm'>{t('channels.endpoints.allFormatsUsed')}</div>
+                    ) : (
+                      availableApiFormats.map((format) => (
+                        <SelectItem key={format} value={format}>
+                          {format}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='min-w-0 space-y-1'>
+                <label htmlFor='endpoint-base-url' className='text-muted-foreground block text-xs'>
+                  {t('channels.endpoints.baseURL')}
+                </label>
+                <Input
+                  id='endpoint-base-url'
+                  placeholder={newApiFormat ? t('channels.endpoints.baseURLPlaceholder') : t('channels.endpoints.selectFormatFirst')}
+                  value={newBaseURL}
+                  onChange={(e) => setNewBaseURL(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={!newApiFormat}
+                  aria-describedby='endpoint-base-url-hint'
+                  className='disabled:opacity-50'
+                />
+                <p id='endpoint-base-url-hint' className='text-muted-foreground text-[11px] leading-4 break-words'>
+                  {t('channels.endpoints.baseURLHint')}
+                </p>
+              </div>
+              <div className='min-w-0 space-y-1'>
+                <label htmlFor='endpoint-path' className='text-muted-foreground block text-xs'>
+                  {t('channels.endpoints.path')}
+                </label>
+                <Input
+                  id='endpoint-path'
+                  placeholder={newApiFormat ? t('channels.endpoints.pathPlaceholder') : t('channels.endpoints.selectFormatFirst')}
+                  value={newPath}
+                  onChange={(e) => setNewPath(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={!newApiFormat}
+                  aria-describedby='endpoint-path-hint'
+                  className='disabled:opacity-50'
+                />
+                <p id='endpoint-path-hint' className='text-muted-foreground text-[11px] leading-4 break-words'>
+                  {t('channels.endpoints.pathHint')}
+                </p>
+              </div>
+              <Button
+                type='button'
+                variant='default'
+                size='icon'
+                onClick={handleAddEndpoint}
+                disabled={!newApiFormat}
+                className='shrink-0 justify-self-end md:mt-5 md:justify-self-auto'
+                aria-label={t('channels.endpoints.addEndpoint')}
+              >
+                <Plus className='h-4 w-4' />
+              </Button>
+            </div>
+          </div>
+
+          {/* Model protocol overrides */}
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between'>
+              <label className='text-sm font-medium'>{t('channels.endpoints.modelProtocols.title')}</label>
+              {modelProtocols.length > 0 && (
+                <span className='text-muted-foreground text-xs'>
+                  {t('channels.endpoints.modelProtocols.count', { count: modelProtocols.length })}
+                </span>
+              )}
+            </div>
+            <p className='text-muted-foreground text-xs'>{t('channels.endpoints.modelProtocols.description')}</p>
+
+            <div className='grid items-start gap-3 md:grid-cols-[minmax(10rem,1fr)_minmax(14rem,1.2fr)_minmax(14rem,1.2fr)_auto]'>
+              <div className='min-w-0'>
+                <AutoCompleteSelect
+                  selectedValue={newProtocolModel}
+                  onSelectedValueChange={setNewProtocolModel}
+                  items={availableModelOptions}
+                  placeholder={t('channels.endpoints.modelProtocols.modelPlaceholder')}
+                  emptyMessage={t(
+                    availableModelOptions.length === 0 && supportedModelOptions.length > 0
+                      ? 'channels.endpoints.modelProtocols.allModelsConfigured'
+                      : 'channels.endpoints.modelProtocols.noModelsAvailable'
+                  )}
+                  portalContainer={dialogContentElement}
+                />
+              </div>
+              <div className='min-w-0 md:col-span-2'>
+                <ProtocolFormatMultiSelect
+                  formats={availableProtocolFormats}
+                  selectedFormats={newProtocolFormats}
+                  onToggle={handleToggleProtocolFormat}
+                  placeholder={t('channels.endpoints.modelProtocols.formatsPlaceholder')}
+                  portalContainer={dialogContentElement}
+                />
+              </div>
+              <div className='flex items-center gap-2 justify-self-end md:col-start-4 md:justify-self-auto'>
+                <Button
+                  type='button'
+                  variant='default'
+                  size='icon'
+                  onClick={handleSaveModelProtocol}
+                  disabled={!newProtocolModel || newProtocolFormats.length === 0 || availableModelOptions.length === 0}
+                  className='shrink-0'
+                  aria-label={t(editingProtocolModel ? 'channels.endpoints.modelProtocols.save' : 'channels.endpoints.modelProtocols.add')}
+                >
+                  {editingProtocolModel ? <Check className='h-4 w-4' /> : <Plus className='h-4 w-4' />}
+                </Button>
+                {editingProtocolModel && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    onClick={handleCancelEditModelProtocol}
+                    className='shrink-0'
+                    aria-label={t('channels.endpoints.modelProtocols.cancelEdit')}
+                  >
+                    <X className='h-4 w-4' />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {modelProtocols.length === 0 ? (
+              <div className='text-muted-foreground rounded-lg border border-dashed p-3 text-center text-xs'>
+                {t('channels.endpoints.modelProtocols.empty')}
+              </div>
+            ) : (
+              <div className='divide-y rounded-lg border'>
+                {modelProtocols.map((mp) => (
+                  <div
+                    key={mp.model}
+                    className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${mp.enabled !== false ? '' : 'bg-muted/30 opacity-70'}`}
+                  >
+                    <div className='flex min-w-0 items-center gap-2'>
+                      <Switch
+                        checked={mp.enabled !== false}
+                        onCheckedChange={(checked) => handleToggleModelProtocol(mp.model, checked)}
+                        aria-label={t('channels.endpoints.modelProtocols.toggle', { model: mp.model })}
+                      />
+                      <span className='truncate font-mono text-xs'>{mp.model}</span>
+                    </div>
+                    <div className='flex flex-1 flex-wrap items-center justify-end gap-1.5'>
+                      {mp.apiFormats.map((format) => (
+                        <Badge key={format} variant='secondary' className='font-mono text-xs'>
+                          {format}
+                        </Badge>
+                      ))}
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        className='hover:bg-accent h-7 w-7 p-0'
+                        onClick={() => handleStartEditModelProtocol(mp)}
+                        aria-label={t('channels.endpoints.modelProtocols.edit', { model: mp.model })}
+                      >
+                        <Pencil className='h-3.5 w-3.5' />
+                      </Button>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        className='hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0'
+                        onClick={() => handleRemoveModelProtocol(mp.model)}
+                        aria-label={t('channels.endpoints.modelProtocols.remove', { model: mp.model })}
+                      >
+                        <X className='h-3.5 w-3.5' />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className='text-destructive bg-destructive/10 flex items-center gap-2 rounded-md px-3 py-2 text-sm'>
+              <AlertCircle className='h-4 w-4 shrink-0' />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className='shrink-0 border-t pt-4'>
+          <Button variant='outline' onClick={() => onOpenChange(false)}>
+            {t('common.buttons.cancel')}
+          </Button>
+          <Button onClick={handleSave} disabled={updateChannelSettings.isPending}>
+            {updateChannelSettings.isPending ? t('common.buttons.saving') : t('common.buttons.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
       </Dialog>
       <AlertDialog
         open={blockedEndpointRemoval !== null}

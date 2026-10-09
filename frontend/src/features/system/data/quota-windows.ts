@@ -94,34 +94,15 @@ export function getClineUsagePercent(window?: ClineQuotaWindow): number {
   return window?.usage_percent ?? (window?.usage_ratio ?? 0) * 100;
 }
 
-
-export function formatClineEstimatedCost(window: ClineQuotaWindow, scale: number, t: TFunction, locale: string): string | null {
-  const ratio = window.usage_ratio ?? (window.usage_percent != null ? window.usage_percent / 100 : undefined);
-  if (!Number.isFinite(window.limit_cost_units) || window.limit_cost_units <= 0 || !Number.isFinite(scale) || scale <= 0 ||
-      ratio == null || !Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
-    return null;
-  }
-
-  const limit = window.limit_cost_units / scale;
-  const currencyLocale = locale.startsWith('zh') ? 'zh-CN' : 'en-US';
-  return t('quota.label.cline_estimated_cost', {
-    used: t('currencies.format', {
-      val: limit * ratio,
-      currency: 'USD',
-      locale: currencyLocale,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
-    limit: t('currencies.format', {
-      val: limit,
-      currency: 'USD',
-      locale: currencyLocale,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }),
+export function formatClineCost(units?: number, scale?: number, t?: TFunction, locale?: string): string {
+  if (units == null || !scale || !t) return '';
+  return t('currencies.format', {
+    val: units / scale,
+    currency: 'USD',
+    locale: locale?.startsWith('zh') ? 'zh-CN' : 'en-US',
+    minimumFractionDigits: 6,
   });
 }
-
 
 const getClaudeDurationPercent = (windowKey: string, resetTs?: number): number | undefined => {
   if (!resetTs) return undefined;
@@ -282,9 +263,10 @@ export function getChannelQuotaWindows(channel: ProviderQuotaChannel, t: TFuncti
         const hasUsagePercent = window.usage_percent != null || window.usage_ratio != null;
         if (!hasUsagePercent) continue;
         const durationPct = getClineDurationPercent(key, window);
-        const estimatedCost = formatClineEstimatedCost(window, qd.cost_scale, t, locale ?? 'en-US');
+        const used = formatClineCost(window.used_cost_units, qd.cost_scale, t, locale);
+        const limit = formatClineCost(window.limit_cost_units, qd.cost_scale, t, locale);
         const extras: string[] = [];
-        if (estimatedCost) extras.push(estimatedCost);
+        if (used && limit) extras.push(`${used} / ${limit}`);
         if (window.next_reset_at) extras.push(formatTimeToReset(window.next_reset_at, t));
         windows.push({
           id: `cline-${key}`,

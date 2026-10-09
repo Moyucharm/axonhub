@@ -80,6 +80,10 @@ type AnalyticsDimensionStat struct {
 	OutputTokens      int     `json:"outputTokens"`
 	TotalTokens       int     `json:"totalTokens"`
 	Cost              float64 `json:"cost"`
+	// Output token throughput in tokens per second, null when no valid latency metrics exist
+	TokensPerSecond *float64 `json:"tokensPerSecond,omitempty"`
+	// Average time to first token in milliseconds, null when no streaming request recorded a first token
+	TtftMs *float64 `json:"ttftMs,omitempty"`
 }
 
 // Filter input for analytics queries. All fields are optional and support multi-select.
@@ -453,6 +457,7 @@ type SignInPayload struct {
 type SyncChannelModelsPayload struct {
 	ChannelID       objects.GUID `json:"channelID"`
 	SupportedModels []string     `json:"supportedModels"`
+	ManualModels    []string     `json:"manualModels"`
 }
 
 type SystemModelSettingOnboarding struct {
@@ -615,10 +620,8 @@ type UpdateProviderQuotaCollectionSettingsInput struct {
 	Providers []*ProviderQuotaCollectionProviderInput `json:"providers,omitempty"`
 }
 
-type UpdateQuotaEnforcementSettingsInput struct {
-	Enabled           *bool                     `json:"enabled,omitempty"`
-	Mode              *biz.QuotaEnforcementMode `json:"mode,omitempty"`
-	AllowedChannelIDs []*objects.GUID           `json:"allowedChannelIDs,omitempty"`
+type UpdateQuotaRoutingSettingsInput struct {
+	DefaultMode *objects.QuotaRoutingMode `json:"defaultMode,omitempty"`
 }
 
 type UpdateSecuritySettingsInput struct {

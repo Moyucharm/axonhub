@@ -507,18 +507,25 @@ type ChannelSettings struct {
 	// options. Fields are sensitive (e.g. auth cookies) and only exposed to
 	// operators holding channel write permission.
 	ProviderQuota *ChannelProviderQuotaSettings `json:"providerQuota,omitempty"`
+
+	QuotaRoutingMode QuotaRoutingMode `json:"quotaRoutingMode,omitempty"`
 }
 
 // ChannelProviderQuotaSettings groups per-provider quota collection settings.
 type ChannelProviderQuotaSettings struct {
 	// CommandCode holds the quota collection settings for Command Code channels.
 	CommandCode *CommandCodeQuotaSettings `json:"commandCode,omitempty"`
+
+	// Ollama holds the quota collection settings for Ollama Cloud channels.
+	Ollama *OllamaQuotaSettings `json:"ollama,omitempty"`
 }
 
-// CommandCodeQuotaSettings holds the credentials used to query the Command Code
-// account quota. AuthCookie is the commandcode.ai session cookie (a
-// "__Secure-commandcode_prod_.session_token" style value) sent to the internal
-// billing endpoints.
+// CommandCodeQuotaSettings holds the fallback credential used to query the
+// Command Code account quota. Quota is normally read with the channel API key
+// (the /alpha/billing/* endpoints, the same key the official CLI uses);
+// AuthCookie is only used when that key cannot reach the billing API, and is
+// the commandcode.ai session cookie (a "__Secure-commandcode_prod_.session_token"
+// style value) sent to the Studio-wide internal billing endpoints.
 type CommandCodeQuotaSettings struct {
 	AuthCookie string `json:"authCookie,omitempty"`
 }
@@ -529,6 +536,21 @@ func (s CommandCodeQuotaSettings) String() string {
 		return "CommandCodeQuotaSettings{AuthCookie: \"\"}"
 	}
 	return "CommandCodeQuotaSettings{AuthCookie: <redacted>}"
+}
+
+// OllamaQuotaSettings holds the credentials used to query the Ollama Cloud
+// account quota. AuthCookie is the ollama.com Web session cookie (a
+// "__Secure-session=..." value) sent to the Plan & Billing settings page.
+type OllamaQuotaSettings struct {
+	AuthCookie string `json:"authCookie,omitempty"`
+}
+
+// String redacts the auth cookie so settings never leak it into logs.
+func (s OllamaQuotaSettings) String() string {
+	if s.AuthCookie == "" {
+		return "OllamaQuotaSettings{AuthCookie: \"\"}"
+	}
+	return "OllamaQuotaSettings{AuthCookie: <redacted>}"
 }
 
 type RetryableErrorPattern struct {

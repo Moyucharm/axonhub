@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { JsonViewer } from '@/components/json-tree-view';
 import { useGeneralSettings } from '@/features/system/data/system';
 import { getTokenFromStorage } from '@/stores/authStore';
+import { ensureFreshAccessToken } from '@/lib/auth-session';
 import { useUsageLogs } from '../data/usage-logs';
 import { type Request, useRequest, useRequestExecutions } from '../data';
 import { ChunksDialog } from './chunks-dialog';
@@ -26,6 +27,12 @@ import { parseRequestConversation } from '../utils/request-conversation';
 import { generateRequestCurl, generateExecutionCurl } from '../utils/curl-generator';
 import { formatJsonValue, hasRecordedJsonValue, selectExecution } from '../utils/execution-display';
 import { getVideoLastFrameURL, isVideoRequestFormat } from '../utils/video-display';
+import { getExecutionModelAuditVerdict, MODEL_AUDIT_VERDICT_CLASS } from '../utils/upstream-model-audit';
+
+// The detail page renders whole request and response payloads. Expanding every
+// level eagerly produces hundreds of thousands of characters of DOM for a large
+// conversation and freezes the page, so open only the first levels by default.
+const JSON_VIEWER_EXPAND_DEPTH = 2;
 
 interface RequestDetailContentProps {
   requestId: string;
@@ -162,7 +169,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
     const requestIdNumber = extractNumberID(request.id);
     if (!requestIdNumber) return null;
 
-    const token = getTokenFromStorage();
+    const token = await ensureFreshAccessToken();
     if (!token) {
       toast.error(t('common.errors.sessionExpiredSignIn'));
       return null;
@@ -555,7 +562,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                     </div>
                   </div>
                   <div className='bg-muted/20 h-[300px] w-full overflow-auto rounded-lg border p-4'>
-                    <JsonViewer data={request.requestHeaders} rootName='' defaultExpanded={true} expandDepth='all' hideArrayIndices={true} className='text-sm' />
+                    <JsonViewer data={request.requestHeaders} rootName='' defaultExpanded={true} expandDepth={JSON_VIEWER_EXPAND_DEPTH} hideArrayIndices={true} className='text-sm' />
                   </div>
                 </div>
               )}
@@ -588,13 +595,36 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                   <RequestConversationViewer body={request.requestBody} format={request.format} />
                 ) : (
                   <div className='bg-muted/20 h-[500px] w-full overflow-auto rounded-lg border p-4'>
-                    <JsonViewer data={request.requestBody} rootName='' defaultExpanded={true} expandDepth='all' hideArrayIndices={true} className='text-sm' />
+                    <JsonViewer data={request.requestBody} rootName='' defaultExpanded={true} expandDepth={JSON_VIEWER_EXPAND_DEPTH} hideArrayIndices={true} className='text-sm' />
                   </div>
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value='response' className='space-y-6 p-6'>
+              {request.responseHeaders && (
+                <div className='space-y-4'>
+                  <div className='flex items-center justify-between'>
+                    <h4 className='flex items-center gap-2 text-base font-semibold'>
+                      <FileText className='text-primary h-4 w-4' />
+                      {t('requests.columns.responseHeaders')}
+                    </h4>
+                    <div className='flex gap-2'>
+                      <Button variant='outline' size='sm' onClick={() => copyToClipboard(formatJson(request.responseHeaders))} className='hover:bg-primary hover:text-primary-foreground'>
+                        <Copy className='mr-2 h-4 w-4' />
+                        {t('requests.dialogs.jsonViewer.copy')}
+                      </Button>
+                      <Button variant='outline' size='sm' onClick={() => downloadFile(formatJson(request.responseHeaders), `response-headers-${request.id}.json`)} className='hover:bg-primary hover:text-primary-foreground'>
+                        <Download className='mr-2 h-4 w-4' />
+                        {t('requests.dialogs.jsonViewer.download')}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className='bg-muted/20 h-[240px] w-full overflow-auto rounded-lg border p-4'>
+                    <JsonViewer data={request.responseHeaders} rootName='' defaultExpanded={true} expandDepth='all' hideArrayIndices={true} className='text-sm' />
+                  </div>
+                </div>
+              )}
               <Tabs value={responseView} onValueChange={(v: any) => setResponseView(v)} className='w-full'>
                 <div className='flex flex-wrap items-center justify-between gap-4'>
                   <TabsList className='grid w-full grid-cols-2 sm:w-[300px]'>
@@ -730,7 +760,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                   <TabsContent value='json' className='mt-0 focus-visible:outline-none'>
                     {hasResponseBody ? (
                       <div className='bg-muted/20 h-[500px] w-full overflow-auto rounded-lg border p-4'>
-                        <JsonViewer data={request.responseBody} rootName='' defaultExpanded={true} expandDepth='all' hideArrayIndices={true} className='text-sm' />
+                        <JsonViewer data={request.responseBody} rootName='' defaultExpanded={true} expandDepth={JSON_VIEWER_EXPAND_DEPTH} hideArrayIndices={true} className='text-sm' />
                       </div>
                     ) : request.status === 'processing' ? (
                       <div className='bg-muted/20 flex h-[500px] w-full items-center justify-center rounded-lg border'>
@@ -774,6 +804,7 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                   if (!selected) return null;
 
                   const { execution: selectedExecution, index: selectedExecutionIndex } = selected;
+                  const modelVerdict = getExecutionModelAuditVerdict(selectedExecution, t);
                   const executionCount = executions.totalCount;
                   const visibleExecutionCount = visibleExecutions.length;
 
@@ -908,6 +939,35 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                               <p className='text-muted-foreground font-mono text-sm truncate'>
                                 {selectedExecution.channel?.name || t('requests.columns.unknown')}
                               </p>
+                              {(selectedExecution.channelAPIKeySuffix || selectedExecution.channelAPIKeyIndex != null) && (
+                                <div className='flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5'>
+                                  <Key className='h-3.5 w-3.5 shrink-0' />
+                                  <span>{t('requests.columns.upstreamApiKey')}</span>
+                                  {selectedExecution.channelAPIKeyIndex != null && (
+                                    <span className='font-mono'>key{selectedExecution.channelAPIKeyIndex}</span>
+                                  )}
+                                  {selectedExecution.channelAPIKeySuffix && (
+                                    <span className='font-mono'>••••{selectedExecution.channelAPIKeySuffix}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className='bg-background space-y-2 rounded-lg border p-3'>
+                              <span className='flex items-center gap-2 text-sm font-medium'>
+                                <Database className='text-primary h-4 w-4' />
+                                {t('requests.columns.modelId')}
+                              </span>
+                              <dl className='space-y-2 text-xs'>
+                                <div>
+                                  <dt className='text-muted-foreground'>{t('requests.detail.routedModel')}</dt>
+                                  <dd className='break-all font-mono'>{selectedExecution.modelID || t('requests.columns.unknown')}</dd>
+                                </div>
+                                <div>
+                                  <dt className='text-muted-foreground'>{t('requests.detail.upstreamModels')}</dt>
+                                  <dd className='break-all font-mono'>{selectedExecution.upstreamModelID || t('requests.columns.unknown')}</dd>
+                                </div>
+                              </dl>
+                              <p className={MODEL_AUDIT_VERDICT_CLASS[modelVerdict.tone]}>{modelVerdict.message}</p>
                             </div>
                             <div className='bg-background space-y-2 rounded-lg border p-3'>
                               <span className='flex items-center gap-2 text-sm font-medium'>
@@ -1014,6 +1074,51 @@ export function RequestDetailContent({ requestId, projectId, previewRequest, isP
                               <div className='bg-background max-h-[300px] w-full overflow-auto rounded-lg border p-3'>
                                 <JsonViewer
                                   data={selectedExecution.requestHeaders}
+                                  rootName=''
+                                  defaultExpanded={false}
+                                  hideArrayIndices={true}
+                                  className='text-xs'
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {hasRecordedJsonValue(selectedExecution.responseHeaders) && (
+                            <div className='space-y-3'>
+                              <div className='flex items-center justify-between'>
+                                <span className='flex items-center gap-2 text-sm font-semibold'>
+                                  <FileText className='text-primary h-4 w-4' />
+                                  {t('requests.columns.responseHeaders')}
+                                </span>
+                                <div className='flex gap-2'>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() => copyToClipboard(formatJson(selectedExecution.responseHeaders))}
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
+                                    <Copy className='mr-2 h-4 w-4' />
+                                    {t('requests.dialogs.jsonViewer.copy')}
+                                  </Button>
+                                  <Button
+                                    variant='outline'
+                                    size='sm'
+                                    onClick={() =>
+                                      downloadFile(
+                                        formatJson(selectedExecution.responseHeaders),
+                                        `execution-${selectedExecution.id}-response-headers.json`
+                                      )
+                                    }
+                                    className='hover:bg-primary hover:text-primary-foreground'
+                                  >
+                                    <Download className='mr-2 h-4 w-4' />
+                                    {t('requests.dialogs.jsonViewer.download')}
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className='bg-background max-h-[300px] w-full overflow-auto rounded-lg border p-3'>
+                                <JsonViewer
+                                  data={selectedExecution.responseHeaders}
                                   rootName=''
                                   defaultExpanded={false}
                                   hideArrayIndices={true}

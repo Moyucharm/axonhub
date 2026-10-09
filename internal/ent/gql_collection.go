@@ -3797,6 +3797,11 @@ func (_q *RequestQuery) collectField(ctx context.Context, oneNode bool, opCtx *g
 				selectedFields = append(selectedFields, request.FieldRequestBody)
 				fieldSeen[request.FieldRequestBody] = struct{}{}
 			}
+		case "responseHeaders":
+			if _, ok := fieldSeen[request.FieldResponseHeaders]; !ok {
+				selectedFields = append(selectedFields, request.FieldResponseHeaders)
+				fieldSeen[request.FieldResponseHeaders] = struct{}{}
+			}
 		case "responseBody":
 			if _, ok := fieldSeen[request.FieldResponseBody]; !ok {
 				selectedFields = append(selectedFields, request.FieldResponseBody)
@@ -3831,6 +3836,11 @@ func (_q *RequestQuery) collectField(ctx context.Context, oneNode bool, opCtx *g
 			if _, ok := fieldSeen[request.FieldClientIP]; !ok {
 				selectedFields = append(selectedFields, request.FieldClientIP)
 				fieldSeen[request.FieldClientIP] = struct{}{}
+			}
+		case "userAgent":
+			if _, ok := fieldSeen[request.FieldUserAgent]; !ok {
+				selectedFields = append(selectedFields, request.FieldUserAgent)
+				fieldSeen[request.FieldUserAgent] = struct{}{}
 			}
 		case "metricsLatencyMs":
 			if _, ok := fieldSeen[request.FieldMetricsLatencyMs]; !ok {
@@ -4021,6 +4031,11 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 				selectedFields = append(selectedFields, requestexecution.FieldChannelID)
 				fieldSeen[requestexecution.FieldChannelID] = struct{}{}
 			}
+		case "channelAPIKeyIndex":
+			if _, ok := fieldSeen[requestexecution.FieldChannelAPIKeyIndex]; !ok {
+				selectedFields = append(selectedFields, requestexecution.FieldChannelAPIKeyIndex)
+				fieldSeen[requestexecution.FieldChannelAPIKeyIndex] = struct{}{}
+			}
 		case "dataStorageID":
 			if _, ok := fieldSeen[requestexecution.FieldDataStorageID]; !ok {
 				selectedFields = append(selectedFields, requestexecution.FieldDataStorageID)
@@ -4036,6 +4051,11 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 				selectedFields = append(selectedFields, requestexecution.FieldModelID)
 				fieldSeen[requestexecution.FieldModelID] = struct{}{}
 			}
+		case "upstreamModelID":
+			if _, ok := fieldSeen[requestexecution.FieldUpstreamModelID]; !ok {
+				selectedFields = append(selectedFields, requestexecution.FieldUpstreamModelID)
+				fieldSeen[requestexecution.FieldUpstreamModelID] = struct{}{}
+			}
 		case "format":
 			if _, ok := fieldSeen[requestexecution.FieldFormat]; !ok {
 				selectedFields = append(selectedFields, requestexecution.FieldFormat)
@@ -4046,10 +4066,20 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 				selectedFields = append(selectedFields, requestexecution.FieldReasoningEffort)
 				fieldSeen[requestexecution.FieldReasoningEffort] = struct{}{}
 			}
+		case "channelAPIKeySuffix":
+			if _, ok := fieldSeen[requestexecution.FieldChannelAPIKeySuffix]; !ok {
+				selectedFields = append(selectedFields, requestexecution.FieldChannelAPIKeySuffix)
+				fieldSeen[requestexecution.FieldChannelAPIKeySuffix] = struct{}{}
+			}
 		case "requestBody":
 			if _, ok := fieldSeen[requestexecution.FieldRequestBody]; !ok {
 				selectedFields = append(selectedFields, requestexecution.FieldRequestBody)
 				fieldSeen[requestexecution.FieldRequestBody] = struct{}{}
+			}
+		case "responseHeaders":
+			if _, ok := fieldSeen[requestexecution.FieldResponseHeaders]; !ok {
+				selectedFields = append(selectedFields, requestexecution.FieldResponseHeaders)
+				fieldSeen[requestexecution.FieldResponseHeaders] = struct{}{}
 			}
 		case "responseBody":
 			if _, ok := fieldSeen[requestexecution.FieldResponseBody]; !ok {
@@ -4110,11 +4140,6 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 			if _, ok := fieldSeen[requestexecution.FieldPassThroughApplied]; !ok {
 				selectedFields = append(selectedFields, requestexecution.FieldPassThroughApplied)
 				fieldSeen[requestexecution.FieldPassThroughApplied] = struct{}{}
-			}
-		case "responseModel":
-			if _, ok := fieldSeen[requestexecution.FieldResponseModel]; !ok {
-				selectedFields = append(selectedFields, requestexecution.FieldResponseModel)
-				fieldSeen[requestexecution.FieldResponseModel] = struct{}{}
 			}
 		case "id":
 		case "__typename":

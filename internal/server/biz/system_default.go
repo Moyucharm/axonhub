@@ -147,9 +147,8 @@ var defaultVideoStorageSettings = VideoStorageSettings{
 	ScanLimit:           50,
 }
 
-var defaultQuotaEnforcementSettings = QuotaEnforcementSettings{
-	Enabled: false,
-	Mode:    QuotaEnforcementModeExhaustedOnly,
+var defaultQuotaRoutingSettings = QuotaRoutingSettings{
+	DefaultMode: objects.QuotaRoutingModeRemoveOnExhausted,
 }
 
 var defaultSecuritySettings = SecuritySettings{

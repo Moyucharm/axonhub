@@ -61,10 +61,6 @@ func hasMessageContent(msg *llm.Message) bool {
 		return true
 	}
 
-	if msg.Audio != nil {
-		return true
-	}
-
 	return false
 }
 
@@ -126,7 +122,11 @@ func hasResponseContent(resp *llm.Response) bool {
 		return true
 	}
 
-	if resp.SystemOne != nil && len(resp.SystemOne.Body) > 0 {
+	if resp.SystemOne != nil && len(resp.SystemOne.Answers) > 0 {
+		return true
+	}
+
+	if resp.Decisions != nil && len(resp.Decisions.Answers) > 0 {
 		return true
 	}
 
