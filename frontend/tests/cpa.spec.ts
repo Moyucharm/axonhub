@@ -293,7 +293,8 @@ test.describe('CPA critical paths', () => {
     ])
     await expect(editDialog).not.toBeVisible({ timeout: 15_000 })
 
-    await page.getByTestId('cpa-delete-instance').click()
+    await page.getByTestId('cpa-edit-instance').click()
+    await page.getByTestId('cpa-instance-dialog').getByTestId('cpa-delete-instance').click()
     await Promise.all([
       waitForGraphQLOperation(page, 'DeleteCPAInstance'),
       page.getByTestId('cpa-delete-confirm').click(),
@@ -409,8 +410,7 @@ test.describe('CPA critical paths', () => {
     await expect(dialog).not.toBeVisible()
     await page.getByTestId('cpa-edit-instance').click()
     await expect(dialog.getByTestId('cpa-auto-reset')).toHaveAttribute('data-state', 'unchecked')
-    await dialog.getByRole('button', { name: /Cancel|取消/ }).click()
-    await page.getByTestId('cpa-delete-instance').click()
+    await dialog.getByTestId('cpa-delete-instance').click()
     await page.getByTestId('cpa-delete-confirm').click()
     await expect(page.getByTestId('cpa-instance-select')).not.toContainText(instanceName)
   })

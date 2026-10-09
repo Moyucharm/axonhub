@@ -40,29 +40,8 @@ export const CPAProviderTabs = memo(function CPAProviderTabs({
 
   return (
     <div className='w-full shrink-0 overflow-hidden'>
-      <div ref={scrollRef} className='hide-scroll flex flex-nowrap items-center gap-2 overflow-x-auto scroll-smooth'>
-        <button
-          data-testid='cpa-provider-all'
-          type='button'
-          onClick={() => onProviderChange('all')}
-          className={cn(
-            'flex shrink-0 items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium whitespace-nowrap transition-all',
-            selectedProvider === 'all'
-              ? 'bg-primary text-primary-foreground shadow-primary/20 shadow-md'
-              : 'bg-card border-border text-foreground hover:border-primary hover:text-primary border'
-          )}
-        >
-          {t('cpa.tabs.all')}{' '}
-          <span
-            className={cn(
-              'bg-muted text-muted-foreground ml-1 rounded-full px-1.5 text-xs',
-              selectedProvider === 'all' && 'bg-primary-foreground/20 text-primary-foreground'
-            )}
-          >
-            {totalCount}
-          </span>
-        </button>
-        {providers.map((provider) => {
+      <div ref={scrollRef} className='hide-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto scroll-smooth'>
+        {['all', ...providers].map((provider) => {
           const Icon = getIcon(provider);
           const selected = selectedProvider === provider;
           return (
@@ -72,21 +51,21 @@ export const CPAProviderTabs = memo(function CPAProviderTabs({
               type='button'
               onClick={() => onProviderChange(provider)}
               className={cn(
-                'flex shrink-0 items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium whitespace-nowrap transition-all',
+                'flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium whitespace-nowrap transition-colors',
                 selected
-                  ? 'bg-primary text-primary-foreground shadow-primary/20 shadow-md'
-                  : 'bg-card border-border text-foreground hover:border-primary hover:text-primary border'
+                  ? 'bg-primary border-primary text-primary-foreground'
+                  : 'bg-card text-foreground hover:border-primary/60 hover:text-primary'
               )}
             >
-              {Icon && <Icon size={16} />}
-              {t(`cpa.providerLabels.${provider}`, { defaultValue: provider })}{' '}
+              {Icon && <Icon size={15} />}
+              {provider === 'all' ? t('cpa.tabs.all') : t(`cpa.providerLabels.${provider}`, { defaultValue: provider })}
               <span
                 className={cn(
-                  'bg-muted text-muted-foreground rounded-full px-1.5 text-xs',
-                  selected && 'bg-primary-foreground/20 text-primary-foreground'
+                  'rounded-full px-1.5 text-xs leading-5 tabular-nums',
+                  selected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
                 )}
               >
-                {countByProvider.get(provider) ?? 0}
+                {provider === 'all' ? totalCount : (countByProvider.get(provider) ?? 0)}
               </span>
             </button>
           );

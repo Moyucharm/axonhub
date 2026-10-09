@@ -89,38 +89,38 @@ export default function CPAManagement() {
   return (
     <>
       <Header fixed>
-        <div className='flex w-full flex-1 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-0'>
+        <div className='flex w-full flex-1 flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4'>
           <div className='min-w-0'>
             <h2 data-testid='cpa-page-title' className='text-xl font-bold tracking-tight'>
               {t('cpa.title')}
             </h2>
             <p className='text-muted-foreground text-sm'>{t('cpa.description')}</p>
           </div>
-          {canWrite && (
-            <Button data-testid='cpa-add-instance' className='space-x-1' onClick={openCreateDialog}>
-              <span>{t('cpa.instance.add')}</span>
-              <IconPlus size={18} />
-            </Button>
-          )}
+          <div className='flex flex-wrap items-center gap-2 md:justify-end'>
+            <CPAInstanceToolbar
+              instances={instances}
+              selectedInstanceID={selectedInstanceID}
+              selectedInstance={selectedInstance}
+              stats={stats}
+              canWrite={canWrite}
+              onSelect={selectInstance}
+              onEdit={(instance) => {
+                setEditingInstance(instance);
+                setDialogOpen(true);
+              }}
+            />
+            {canWrite && (
+              <Button data-testid='cpa-add-instance' className='space-x-1' onClick={openCreateDialog}>
+                <span>{t('cpa.instance.add')}</span>
+                <IconPlus size={18} />
+              </Button>
+            )}
+          </div>
         </div>
       </Header>
 
       <Main fixed>
         <div className='flex h-full flex-col gap-4 overflow-hidden'>
-          <CPAInstanceToolbar
-            instances={instances}
-            selectedInstanceID={selectedInstanceID}
-            selectedInstance={selectedInstance}
-            stats={stats}
-            canWrite={canWrite}
-            onSelect={selectInstance}
-            onEdit={(instance) => {
-              setEditingInstance(instance);
-              setDialogOpen(true);
-            }}
-            onDelete={setDeletingInstance}
-          />
-
           {instances.length === 0 && !instancesQuery.isLoading && (
             <div className='flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center'>
               <Server className='text-muted-foreground mb-4 h-10 w-10' />
@@ -135,26 +135,34 @@ export default function CPAManagement() {
             </div>
           )}
 
-
           {selectedInstance && (
             <Tabs
               value={activeTab}
               onValueChange={(value) => setActiveTab(value as 'credentials' | 'requests')}
-              className='flex min-h-0 flex-1 flex-col'
+              className='flex min-h-0 flex-1 flex-col gap-4'
             >
-              <TabsList>
-                <TabsTrigger value='credentials'>{t('cpa.views.credentials')}</TabsTrigger>
-                <TabsTrigger value='requests'>{t('cpa.views.requests')}</TabsTrigger>
-              </TabsList>
+              <div className='flex items-center gap-3'>
+                <div className='min-w-0 flex-1'>
+                  {activeTab === 'credentials' && (
+                    <CPAProviderTabs
+                      providers={providers}
+                      providerCounts={providerCounts}
+                      totalCount={stats?.total ?? 0}
+                      selectedProvider={provider}
+                      onProviderChange={changeProvider}
+                    />
+                  )}
+                </div>
+                <TabsList className='h-9 shrink-0 rounded-full border p-1'>
+                  <TabsTrigger value='credentials' className='rounded-full px-3.5'>
+                    {t('cpa.views.credentials')}
+                  </TabsTrigger>
+                  <TabsTrigger value='requests' className='rounded-full px-3.5'>
+                    {t('cpa.views.requests')}
+                  </TabsTrigger>
+                </TabsList>
+              </div>
               <TabsContent value='credentials' className='flex min-h-0 flex-col gap-4 overflow-hidden'>
-              <CPAProviderTabs
-                providers={providers}
-                providerCounts={providerCounts}
-                totalCount={stats?.total ?? 0}
-                selectedProvider={provider}
-                onProviderChange={changeProvider}
-              />
-
               <CPAToolbar
                 search={search}
                 onSearchChange={(value) => {
@@ -238,6 +246,7 @@ export default function CPAManagement() {
         instance={editingInstance}
         onOpenChange={setDialogOpen}
         onSaved={(instance) => setSelectedInstanceID(instance.id)}
+        onDelete={setDeletingInstance}
       />
       <CPACredentialToggleDialog
         confirmation={togglingCredential}

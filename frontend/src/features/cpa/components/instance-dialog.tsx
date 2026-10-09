@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,9 +23,10 @@ interface CPAInstanceDialogProps {
   instance?: CPAInstance;
   onOpenChange: (open: boolean) => void;
   onSaved: (instance: CPAInstance) => void;
+  onDelete: (instance: CPAInstance) => void;
 }
 
-export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPAInstanceDialogProps) {
+export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved, onDelete }: CPAInstanceDialogProps) {
   const { t } = useTranslation();
   const createMutation = useCreateCPAInstance();
   const updateMutation = useUpdateCPAInstance();
@@ -100,6 +102,21 @@ export function CPAInstanceDialog({ open, instance, onOpenChange, onSaved }: CPA
           </div>
 
           <DialogFooter className='mt-4 shrink-0'>
+            {instance && (
+              <Button
+                data-testid='cpa-delete-instance'
+                type='button'
+                variant='ghost'
+                className='text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto'
+                onClick={() => {
+                  onOpenChange(false);
+                  onDelete(instance);
+                }}
+              >
+                <Trash2 className='h-4 w-4' />
+                {t('common.buttons.delete')}
+              </Button>
+            )}
             <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
               {t('common.buttons.cancel')}
             </Button>
