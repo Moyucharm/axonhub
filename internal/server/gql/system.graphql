@@ -58,9 +58,14 @@ input CleanupOptionInput {
   cleanupDays: Int!
 }
 
+type AutoDisableChannelStatus {
+  status: Int!
+  times: Int!
+}
+
 type AutoDisableChannel {
   enabled: Boolean!
-  rules: [APIKeyAutoDisableRule!]!
+  statuses: [AutoDisableChannelStatus!]!
 }
 
 type AutoDisableAPIKeyStatus {
@@ -137,9 +142,14 @@ input UpstreamErrorPolicyInput {
   customMessage: String
 }
 
+input AutoDisableChannelStatusInput {
+  status: Int!
+  times: Int!
+}
+
 input AutoDisableChannelInput {
   enabled: Boolean
-  rules: [APIKeyAutoDisableRuleInput!]
+  statuses: [AutoDisableChannelStatusInput!]
 }
 
 input UpdateRetryPolicyInput {

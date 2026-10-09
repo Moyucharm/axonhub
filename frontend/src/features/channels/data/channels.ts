@@ -1,14 +1,12 @@
-import { useEffect } from 'react';
 import { z } from 'zod';
+import { useEffect } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphqlRequest } from '@/gql/graphql';
 import { pageInfoSchema } from '@/gql/pagination';
+import { shouldNotifyChannelQueryError } from './channel-query-error';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { useSelectedProjectId } from '@/stores/projectStore';
 import { useErrorHandler } from '@/hooks/use-error-handler';
-import { mergeChannelSettingsForUpdate } from '../utils/merge';
-import { shouldNotifyChannelQueryError } from './channel-query-error';
 import {
   Channel,
   ChannelConnection,
@@ -24,11 +22,6 @@ import {
   BulkUpdateChannelOrderingInput,
   BulkUpdateChannelOrderingResult,
   bulkUpdateChannelOrderingResultSchema,
-  BulkUpdateChannelAutoDisableInput,
-  BulkUpdateChannelAutoDisablePayload,
-  bulkUpdateChannelAutoDisablePayloadSchema,
-  ChannelAutoDisableCopySource,
-  channelAutoDisableCopySourceSchema,
   channelSummaryConnectionSchema,
   ChannelSettings,
   ProxyConfig,
@@ -43,6 +36,7 @@ import {
   DetectedChannelEndpoint,
   detectedChannelEndpointSchema,
 } from './schema';
+import { mergeChannelSettingsForUpdate } from '../utils/merge';
 
 const QUERY_CHANNEL_NAMES_QUERY = `
   query QueryChannelNames($input: QueryChannelInput!) {
@@ -88,16 +82,7 @@ const CREATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
-        apiKeyAutoDisableMode
-        apiKeyAutoDisableRules {
-          statusCodes
-          keywordPatterns
-          times
-          action
-          disableDurationMinutes
-          disableUntilCron
-          disableUntilTimezone
-        }
+        apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes disableUntilCron disableUntilTimezone }
       }
       supportedModels
       autoSyncSupportedModels
@@ -180,16 +165,7 @@ const DUPLICATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
-        apiKeyAutoDisableMode
-        apiKeyAutoDisableRules {
-          statusCodes
-          keywordPatterns
-          times
-          action
-          disableDurationMinutes
-          disableUntilCron
-          disableUntilTimezone
-        }
+        apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes disableUntilCron disableUntilTimezone }
       }
       supportedModels
       autoSyncSupportedModels
@@ -272,16 +248,7 @@ const BULK_CREATE_CHANNELS_MUTATION = `
       status
       policies {
         stream
-        apiKeyAutoDisableMode
-        apiKeyAutoDisableRules {
-          statusCodes
-          keywordPatterns
-          times
-          action
-          disableDurationMinutes
-          disableUntilCron
-          disableUntilTimezone
-        }
+        apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes disableUntilCron disableUntilTimezone }
       }
       supportedModels
       autoSyncSupportedModels
@@ -364,16 +331,7 @@ const UPDATE_CHANNEL_MUTATION = `
       status
       policies {
         stream
-        apiKeyAutoDisableMode
-        apiKeyAutoDisableRules {
-          statusCodes
-          keywordPatterns
-          times
-          action
-          disableDurationMinutes
-          disableUntilCron
-          disableUntilTimezone
-        }
+        apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes disableUntilCron disableUntilTimezone }
       }
       supportedModels
       autoSyncSupportedModels
@@ -912,54 +870,6 @@ const ALL_CHANNEL_SUMMARYS_QUERY = `
   }
 `;
 
-const CHANNEL_AUTO_DISABLE_COPY_SOURCES_QUERY = `
-  query ChannelAutoDisableCopySources {
-    allChannelSummarys {
-      id
-      name
-      policies {
-        apiKeyAutoDisableMode
-        apiKeyAutoDisableRules {
-          statusCodes
-          keywordPatterns
-          times
-          action
-          disableDurationMinutes
-          disableUntilCron
-          disableUntilTimezone
-        }
-      }
-    }
-  }
-`;
-
-// Bulk auto-disable actions: write_rules, inherit, off
-const BULK_UPDATE_CHANNEL_AUTO_DISABLE_MUTATION = `
-  mutation BulkUpdateChannelAutoDisable($input: BulkUpdateChannelAutoDisableInput!) {
-    bulkUpdateChannelAutoDisable(input: $input) {
-      success
-      updated
-      channels {
-        id
-        name
-        policies {
-          stream
-          apiKeyAutoDisableMode
-          apiKeyAutoDisableRules {
-            statusCodes
-            keywordPatterns
-            times
-            action
-            disableDurationMinutes
-            disableUntilCron
-            disableUntilTimezone
-          }
-        }
-      }
-    }
-  }
-`;
-
 const FETCH_MODELS_QUERY = `
   query FetchModels($input: FetchModelsInput!) {
     fetchModels(input: $input) {
@@ -1038,16 +948,7 @@ const CHANNEL_QUERY_FULL_NODE_SELECTION = `
           status
           policies {
             stream
-            apiKeyAutoDisableMode
-            apiKeyAutoDisableRules {
-              statusCodes
-              keywordPatterns
-              times
-              action
-              disableDurationMinutes
-              disableUntilCron
-              disableUntilTimezone
-            }
+            apiKeyAutoDisableRules { statusCodes keywordPatterns times action disableDurationMinutes disableUntilCron disableUntilTimezone }
           }
           credentials {
             apiKey
@@ -1277,7 +1178,10 @@ function isChannelColumnVisible(columnVisibility: ChannelListColumnVisibility | 
   return columnVisibility?.[columnID] !== false;
 }
 
-export function buildQueryChannelsQuery(columnVisibility?: ChannelListColumnVisibility, options?: { full?: boolean }): string {
+export function buildQueryChannelsQuery(
+  columnVisibility?: ChannelListColumnVisibility,
+  options?: { full?: boolean }
+): string {
   const nodeSelection = options?.full
     ? CHANNEL_QUERY_FULL_NODE_SELECTION
     : [
@@ -1942,7 +1846,6 @@ export function useTestChannel(options?: { silent?: boolean }) {
   const silent = options?.silent ?? false;
 
   return useMutation({
-    // prettier-ignore
     mutationFn: async ({
       channelID,
       modelID,
@@ -2093,58 +1996,6 @@ export function useAllChannelSummarys(projectId?: string | null, options?: { ena
       }
     },
     enabled: options?.enabled !== false,
-  });
-}
-
-export function useChannelAutoDisableCopySources(options?: { enabled?: boolean }) {
-  const { handleError } = useErrorHandler();
-  const { t } = useTranslation();
-  const projectId = useSelectedProjectId();
-
-  return useQuery({
-    queryKey: ['channelAutoDisableCopySources', projectId],
-    queryFn: async () => {
-      try {
-        const headers = projectId ? { 'X-Project-ID': projectId } : undefined;
-        const data = await graphqlRequest<{ allChannelSummarys: ChannelAutoDisableCopySource[] }>(
-          CHANNEL_AUTO_DISABLE_COPY_SOURCES_QUERY,
-          undefined,
-          headers
-        );
-        return z.array(channelAutoDisableCopySourceSchema).parse(data.allChannelSummarys ?? []);
-      } catch (error) {
-        handleError(error, t('common.errors.internalServerError'));
-        throw error;
-      }
-    },
-    enabled: options?.enabled === true,
-  });
-}
-
-export function useBulkUpdateChannelAutoDisable() {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-  const { handleError } = useErrorHandler();
-
-  return useMutation({
-    mutationFn: async (input: BulkUpdateChannelAutoDisableInput) => {
-      try {
-        const data = await graphqlRequest<{ bulkUpdateChannelAutoDisable: BulkUpdateChannelAutoDisablePayload }>(
-          BULK_UPDATE_CHANNEL_AUTO_DISABLE_MUTATION,
-          { input }
-        );
-        return bulkUpdateChannelAutoDisablePayloadSchema.parse(data.bulkUpdateChannelAutoDisable);
-      } catch (error) {
-        handleError(error, { context: 'Bulk Update Channel Auto Disable' });
-        throw error;
-      }
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
-      queryClient.invalidateQueries({ queryKey: ['allChannelSummarys'] });
-      queryClient.invalidateQueries({ queryKey: ['channelAutoDisableCopySources'] });
-      toast.success(t('channels.bulkAutoDisable.success', { count: data.updated }));
-    },
   });
 }
 

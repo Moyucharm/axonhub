@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -524,9 +525,46 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 	}()
 
 	if perf.Success {
-		svc.clearAutoDisableCountsOnSuccess(perf)
+		svc.channelErrorCountsLock.Lock()
+		delete(svc.channelErrorCounts, perf.ChannelID)
+		svc.channelErrorCountsLock.Unlock()
+
+		// Also clear API key error counts on success
+		if perf.APIKey != "" {
+			svc.apiKeyErrorCountsLock.Lock()
+
+			rulePrefix := perf.APIKey + ":rule:"
+			if svc.apiKeyErrorCounts[perf.ChannelID] != nil {
+				delete(svc.apiKeyErrorCounts[perf.ChannelID], perf.APIKey)
+				for key := range svc.apiKeyErrorCounts[perf.ChannelID] {
+					if strings.HasPrefix(key, rulePrefix) {
+						delete(svc.apiKeyErrorCounts[perf.ChannelID], key)
+					}
+				}
+			}
+			for key := range svc.apiKeyRuleActionsInFlight[perf.ChannelID] {
+				if strings.HasPrefix(key, rulePrefix) {
+					svc.apiKeyRuleActionsInFlight[perf.ChannelID][key] = true
+				}
+			}
+
+			svc.apiKeyErrorCountsLock.Unlock()
+		}
 	} else if !perf.Canceled {
-		svc.evaluateAutoDisableForFailure(ctx, perf)
+		matched := false
+		if perf.APIKey != "" {
+			matched, _ = svc.checkAndHandleChannelAPIKeyRules(ctx, perf)
+		}
+		if !matched {
+			policy := svc.SystemService.RetryPolicyOrDefault(ctx)
+			if statuses, ok := svc.resolveAutoDisableStatuses(policy); ok {
+				if perf.APIKey != "" {
+					svc.checkAndHandleAPIKeyError(ctx, perf, statuses)
+				} else {
+					svc.checkAndHandleChannelError(ctx, perf, statuses)
+				}
+			}
+		}
 	}
 
 	windowSize := svc.performanceWindowSeconds()
