@@ -95,6 +95,10 @@ func (RequestExecution) Fields() []ent.Field {
 		field.Bool("pass_through_applied").
 			Default(false).
 			Comment("Whether pass-through was active for this execution attempt"),
+		// The model name reported by the upstream provider response, before AxonHub rewrites it to the client model.
+		field.String("response_model").
+			Optional().
+			Comment("Model reported by the upstream provider response"),
 	}
 }
 

@@ -292,6 +292,20 @@ func (_c *RequestExecutionCreate) SetNillablePassThroughApplied(v *bool) *Reques
 	return _c
 }
 
+// SetResponseModel sets the "response_model" field.
+func (_c *RequestExecutionCreate) SetResponseModel(v string) *RequestExecutionCreate {
+	_c.mutation.SetResponseModel(v)
+	return _c
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_c *RequestExecutionCreate) SetNillableResponseModel(v *string) *RequestExecutionCreate {
+	if v != nil {
+		_c.SetResponseModel(*v)
+	}
+	return _c
+}
+
 // SetRequest sets the "request" edge to the Request entity.
 func (_c *RequestExecutionCreate) SetRequest(v *Request) *RequestExecutionCreate {
 	return _c.SetRequestID(v.ID)
@@ -513,6 +527,10 @@ func (_c *RequestExecutionCreate) createSpec() (*RequestExecution, *sqlgraph.Cre
 	if value, ok := _c.mutation.PassThroughApplied(); ok {
 		_spec.SetField(requestexecution.FieldPassThroughApplied, field.TypeBool, value)
 		_node.PassThroughApplied = value
+	}
+	if value, ok := _c.mutation.ResponseModel(); ok {
+		_spec.SetField(requestexecution.FieldResponseModel, field.TypeString, value)
+		_node.ResponseModel = value
 	}
 	if nodes := _c.mutation.RequestIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -854,6 +872,24 @@ func (u *RequestExecutionUpsert) SetPassThroughApplied(v bool) *RequestExecution
 // UpdatePassThroughApplied sets the "pass_through_applied" field to the value that was provided on create.
 func (u *RequestExecutionUpsert) UpdatePassThroughApplied() *RequestExecutionUpsert {
 	u.SetExcluded(requestexecution.FieldPassThroughApplied)
+	return u
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *RequestExecutionUpsert) SetResponseModel(v string) *RequestExecutionUpsert {
+	u.Set(requestexecution.FieldResponseModel, v)
+	return u
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *RequestExecutionUpsert) UpdateResponseModel() *RequestExecutionUpsert {
+	u.SetExcluded(requestexecution.FieldResponseModel)
+	return u
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (u *RequestExecutionUpsert) ClearResponseModel() *RequestExecutionUpsert {
+	u.SetNull(requestexecution.FieldResponseModel)
 	return u
 }
 
@@ -1206,6 +1242,27 @@ func (u *RequestExecutionUpsertOne) SetPassThroughApplied(v bool) *RequestExecut
 func (u *RequestExecutionUpsertOne) UpdatePassThroughApplied() *RequestExecutionUpsertOne {
 	return u.Update(func(s *RequestExecutionUpsert) {
 		s.UpdatePassThroughApplied()
+	})
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *RequestExecutionUpsertOne) SetResponseModel(v string) *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetResponseModel(v)
+	})
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *RequestExecutionUpsertOne) UpdateResponseModel() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateResponseModel()
+	})
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (u *RequestExecutionUpsertOne) ClearResponseModel() *RequestExecutionUpsertOne {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearResponseModel()
 	})
 }
 
@@ -1724,6 +1781,27 @@ func (u *RequestExecutionUpsertBulk) SetPassThroughApplied(v bool) *RequestExecu
 func (u *RequestExecutionUpsertBulk) UpdatePassThroughApplied() *RequestExecutionUpsertBulk {
 	return u.Update(func(s *RequestExecutionUpsert) {
 		s.UpdatePassThroughApplied()
+	})
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *RequestExecutionUpsertBulk) SetResponseModel(v string) *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.SetResponseModel(v)
+	})
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *RequestExecutionUpsertBulk) UpdateResponseModel() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.UpdateResponseModel()
+	})
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (u *RequestExecutionUpsertBulk) ClearResponseModel() *RequestExecutionUpsertBulk {
+	return u.Update(func(s *RequestExecutionUpsert) {
+		s.ClearResponseModel()
 	})
 }
 

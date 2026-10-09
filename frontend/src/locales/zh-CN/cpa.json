@@ -189,5 +189,17 @@
   "cpa.claudeReset.reason.tenure": "账户时长不足",
   "cpa.claudeReset.reason.other_experiment": "处于其他实验",
   "cpa.claudeReset.reason.unavailable": "暂不可用",
-  "cpa.claudeReset.reason.unknown": "未知原因"
+  "cpa.claudeReset.reason.unknown": "未知原因",
+  "cpa.views.credentials": "凭证",
+  "cpa.views.requests": "请求监控",
+  "cpa.usage.columns.time": "时间",
+  "cpa.usage.columns.credential": "凭证",
+  "cpa.usage.columns.provider": "提供商",
+  "cpa.usage.columns.model": "模型",
+  "cpa.usage.columns.tokens": "Tokens",
+  "cpa.usage.columns.status": "状态",
+  "cpa.usage.status.success": "成功",
+  "cpa.usage.status.failed": "失败",
+  "cpa.usage.empty": "暂无采集到的请求，请在实例设置中启用用量采集。",
+  "cpa.errors.loadUsageEvents": "加载 CPA 请求失败"
 }

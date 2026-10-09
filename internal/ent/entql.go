@@ -334,6 +334,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpausageevent.FieldAuthIndex:           {Type: field.TypeString, Column: cpausageevent.FieldAuthIndex},
 			cpausageevent.FieldProvider:            {Type: field.TypeString, Column: cpausageevent.FieldProvider},
 			cpausageevent.FieldModel:               {Type: field.TypeString, Column: cpausageevent.FieldModel},
+			cpausageevent.FieldResponseModel:       {Type: field.TypeString, Column: cpausageevent.FieldResponseModel},
 			cpausageevent.FieldSource:              {Type: field.TypeString, Column: cpausageevent.FieldSource},
 			cpausageevent.FieldInputTokens:         {Type: field.TypeInt64, Column: cpausageevent.FieldInputTokens},
 			cpausageevent.FieldOutputTokens:        {Type: field.TypeInt64, Column: cpausageevent.FieldOutputTokens},
@@ -601,6 +602,7 @@ var schemaGraph = func() *sqlgraph.Schema {
 			requestexecution.FieldRequestHeaders:             {Type: field.TypeJSON, Column: requestexecution.FieldRequestHeaders},
 			requestexecution.FieldRequestURL:                 {Type: field.TypeString, Column: requestexecution.FieldRequestURL},
 			requestexecution.FieldPassThroughApplied:         {Type: field.TypeBool, Column: requestexecution.FieldPassThroughApplied},
+			requestexecution.FieldResponseModel:              {Type: field.TypeString, Column: requestexecution.FieldResponseModel},
 		},
 	}
 	graph.Nodes[21] = &sqlgraph.Node{
@@ -3005,6 +3007,11 @@ func (f *CpaUsageEventFilter) WhereModel(p entql.StringP) {
 	f.Where(p.Field(cpausageevent.FieldModel))
 }
 
+// WhereResponseModel applies the entql string predicate on the response_model field.
+func (f *CpaUsageEventFilter) WhereResponseModel(p entql.StringP) {
+	f.Where(p.Field(cpausageevent.FieldResponseModel))
+}
+
 // WhereSource applies the entql string predicate on the source field.
 func (f *CpaUsageEventFilter) WhereSource(p entql.StringP) {
 	f.Where(p.Field(cpausageevent.FieldSource))
@@ -4424,6 +4431,11 @@ func (f *RequestExecutionFilter) WhereRequestURL(p entql.StringP) {
 // WherePassThroughApplied applies the entql bool predicate on the pass_through_applied field.
 func (f *RequestExecutionFilter) WherePassThroughApplied(p entql.BoolP) {
 	f.Where(p.Field(requestexecution.FieldPassThroughApplied))
+}
+
+// WhereResponseModel applies the entql string predicate on the response_model field.
+func (f *RequestExecutionFilter) WhereResponseModel(p entql.StringP) {
+	f.Where(p.Field(requestexecution.FieldResponseModel))
 }
 
 // WhereHasRequest applies a predicate to check if query has an edge request.

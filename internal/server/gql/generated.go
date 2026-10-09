@@ -535,6 +535,33 @@ type ComplexityRoot struct {
 		Succeeded func(childComplexity int) int
 	}
 
+	CPAUsageEvent struct {
+		AuthIndex      func(childComplexity int) int
+		CachedTokens   func(childComplexity int) int
+		CredentialName func(childComplexity int) int
+		Failed         func(childComplexity int) int
+		ID             func(childComplexity int) int
+		InputTokens    func(childComplexity int) int
+		Model          func(childComplexity int) int
+		OutputTokens   func(childComplexity int) int
+		Provider       func(childComplexity int) int
+		RequestedAt    func(childComplexity int) int
+		ResponseModel  func(childComplexity int) int
+		Source         func(childComplexity int) int
+		TotalTokens    func(childComplexity int) int
+	}
+
+	CPAUsageEventConnection struct {
+		Edges      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	CPAUsageEventEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
 	CatalogSettings struct {
 		RefreshSeconds func(childComplexity int) int
 		UpstreamURL    func(childComplexity int) int
@@ -1693,6 +1720,7 @@ type ComplexityRoot struct {
 		ProvidersCatalog                func(childComplexity int, filtered *bool) int
 		ProxyPresets                    func(childComplexity int) int
 		QueryCPACredentials             func(childComplexity int, input biz.QueryCPACredentialsInput) int
+		QueryCPAUsageEvents             func(childComplexity int, input biz.QueryCPAUsageEventsInput) int
 		QueryChannels                   func(childComplexity int, input biz.QueryChannelsInput) int
 		QueryModelChannelConnections    func(childComplexity int, associations []*objects.ModelAssociation) int
 		QueryModels                     func(childComplexity int, input QueryModelsInput) int
@@ -1817,6 +1845,7 @@ type ComplexityRoot struct {
 		RequestURL                 func(childComplexity int) int
 		ResponseBody               func(childComplexity int) int
 		ResponseChunks             func(childComplexity int) int
+		ResponseModel              func(childComplexity int) int
 		ResponseStatusCode         func(childComplexity int) int
 		Status                     func(childComplexity int) int
 		Stream                     func(childComplexity int) int
@@ -2755,6 +2784,7 @@ type QueryResolver interface {
 	CpaInstances(ctx context.Context) ([]*biz.CPAInstanceView, error)
 	CpaInstance(ctx context.Context, id int) (*biz.CPAInstanceView, error)
 	QueryCPACredentials(ctx context.Context, input biz.QueryCPACredentialsInput) (*biz.CPACredentialConnection, error)
+	QueryCPAUsageEvents(ctx context.Context, input biz.QueryCPAUsageEventsInput) (*biz.CPAUsageEventConnection, error)
 	CpaOverview(ctx context.Context, instanceID int) (*biz.CPAOverview, error)
 	CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error)
 }
@@ -4626,6 +4656,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPARefreshResult.Succeeded(childComplexity), true
+
+	case "CPAUsageEvent.authIndex":
+		if e.complexity.CPAUsageEvent.AuthIndex == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.AuthIndex(childComplexity), true
+	case "CPAUsageEvent.cachedTokens":
+		if e.complexity.CPAUsageEvent.CachedTokens == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.CachedTokens(childComplexity), true
+	case "CPAUsageEvent.credentialName":
+		if e.complexity.CPAUsageEvent.CredentialName == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.CredentialName(childComplexity), true
+	case "CPAUsageEvent.failed":
+		if e.complexity.CPAUsageEvent.Failed == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.Failed(childComplexity), true
+	case "CPAUsageEvent.id":
+		if e.complexity.CPAUsageEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.ID(childComplexity), true
+	case "CPAUsageEvent.inputTokens":
+		if e.complexity.CPAUsageEvent.InputTokens == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.InputTokens(childComplexity), true
+	case "CPAUsageEvent.model":
+		if e.complexity.CPAUsageEvent.Model == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.Model(childComplexity), true
+	case "CPAUsageEvent.outputTokens":
+		if e.complexity.CPAUsageEvent.OutputTokens == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.OutputTokens(childComplexity), true
+	case "CPAUsageEvent.provider":
+		if e.complexity.CPAUsageEvent.Provider == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.Provider(childComplexity), true
+	case "CPAUsageEvent.requestedAt":
+		if e.complexity.CPAUsageEvent.RequestedAt == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.RequestedAt(childComplexity), true
+	case "CPAUsageEvent.responseModel":
+		if e.complexity.CPAUsageEvent.ResponseModel == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.ResponseModel(childComplexity), true
+	case "CPAUsageEvent.source":
+		if e.complexity.CPAUsageEvent.Source == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.Source(childComplexity), true
+	case "CPAUsageEvent.totalTokens":
+		if e.complexity.CPAUsageEvent.TotalTokens == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEvent.TotalTokens(childComplexity), true
+
+	case "CPAUsageEventConnection.edges":
+		if e.complexity.CPAUsageEventConnection.Edges == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEventConnection.Edges(childComplexity), true
+	case "CPAUsageEventConnection.pageInfo":
+		if e.complexity.CPAUsageEventConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEventConnection.PageInfo(childComplexity), true
+	case "CPAUsageEventConnection.totalCount":
+		if e.complexity.CPAUsageEventConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEventConnection.TotalCount(childComplexity), true
+
+	case "CPAUsageEventEdge.cursor":
+		if e.complexity.CPAUsageEventEdge.Cursor == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEventEdge.Cursor(childComplexity), true
+	case "CPAUsageEventEdge.node":
+		if e.complexity.CPAUsageEventEdge.Node == nil {
+			break
+		}
+
+		return e.complexity.CPAUsageEventEdge.Node(childComplexity), true
 
 	case "CatalogSettings.refreshSeconds":
 		if e.complexity.CatalogSettings.RefreshSeconds == nil {
@@ -10238,6 +10379,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.QueryCPACredentials(childComplexity, args["input"].(biz.QueryCPACredentialsInput)), true
+	case "Query.queryCPAUsageEvents":
+		if e.complexity.Query.QueryCPAUsageEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_queryCPAUsageEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.QueryCPAUsageEvents(childComplexity, args["input"].(biz.QueryCPAUsageEventsInput)), true
 	case "Query.queryChannels":
 		if e.complexity.Query.QueryChannels == nil {
 			break
@@ -10958,6 +11110,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.RequestExecution.ResponseChunks(childComplexity), true
+	case "RequestExecution.responseModel":
+		if e.complexity.RequestExecution.ResponseModel == nil {
+			break
+		}
+
+		return e.complexity.RequestExecution.ResponseModel(childComplexity), true
 	case "RequestExecution.responseStatusCode":
 		if e.complexity.RequestExecution.ResponseStatusCode == nil {
 			break
@@ -13438,6 +13596,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputProviderQuotaStatusWhereInput,
 		ec.unmarshalInputProxyConfigInput,
 		ec.unmarshalInputQueryCPACredentialsInput,
+		ec.unmarshalInputQueryCPAUsageEventsInput,
 		ec.unmarshalInputQueryChannelInput,
 		ec.unmarshalInputQueryModelsInput,
 		ec.unmarshalInputReasoningEffortMappingInput,
@@ -16564,6 +16723,17 @@ func (ec *executionContext) field_Query_queryCPACredentials_args(ctx context.Con
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNQueryCPACredentialsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐQueryCPACredentialsInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_queryCPAUsageEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNQueryCPAUsageEventsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐQueryCPAUsageEventsInput)
 	if err != nil {
 		return nil, err
 	}
@@ -26293,6 +26463,572 @@ func (ec *executionContext) fieldContext_CPARefreshResult_skipped(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_id(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_requestedAt(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_requestedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.RequestedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_requestedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_authIndex(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_authIndex,
+		func(ctx context.Context) (any, error) {
+			return obj.AuthIndex, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_authIndex(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_credentialName(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_credentialName,
+		func(ctx context.Context) (any, error) {
+			return obj.CredentialName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_credentialName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_provider(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_provider,
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_model(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_model,
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_responseModel(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_responseModel,
+		func(ctx context.Context) (any, error) {
+			return obj.ResponseModel, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_responseModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_source(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_inputTokens(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_inputTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.InputTokens, nil
+		},
+		nil,
+		ec.marshalNInt2int64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_inputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_outputTokens(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_outputTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.OutputTokens, nil
+		},
+		nil,
+		ec.marshalNInt2int64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_outputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_cachedTokens(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_cachedTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.CachedTokens, nil
+		},
+		nil,
+		ec.marshalNInt2int64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_cachedTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_totalTokens(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_totalTokens,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalTokens, nil
+		},
+		nil,
+		ec.marshalNInt2int64,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_totalTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEvent_failed(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEvent_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEvent_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEventConnection_edges(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEventConnection_edges,
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		ec.marshalNCPAUsageEventEdge2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventEdgeᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEventConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "cursor":
+				return ec.fieldContext_CPAUsageEventEdge_cursor(ctx, field)
+			case "node":
+				return ec.fieldContext_CPAUsageEventEdge_node(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAUsageEventEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEventConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEventConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNCPAPageInfo2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEventConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_CPAPageInfo_hasNextPage(ctx, field)
+			case "hasPreviousPage":
+				return ec.fieldContext_CPAPageInfo_hasPreviousPage(ctx, field)
+			case "startCursor":
+				return ec.fieldContext_CPAPageInfo_startCursor(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_CPAPageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAPageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEventConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEventConnection_totalCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEventConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEventEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEventEdge_cursor,
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEventEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEventEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAUsageEventEdge_node(ctx context.Context, field graphql.CollectedField, obj *biz.CPAUsageEventEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAUsageEventEdge_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalNCPAUsageEvent2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventView,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAUsageEventEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAUsageEventEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPAUsageEvent_id(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_CPAUsageEvent_requestedAt(ctx, field)
+			case "authIndex":
+				return ec.fieldContext_CPAUsageEvent_authIndex(ctx, field)
+			case "credentialName":
+				return ec.fieldContext_CPAUsageEvent_credentialName(ctx, field)
+			case "provider":
+				return ec.fieldContext_CPAUsageEvent_provider(ctx, field)
+			case "model":
+				return ec.fieldContext_CPAUsageEvent_model(ctx, field)
+			case "responseModel":
+				return ec.fieldContext_CPAUsageEvent_responseModel(ctx, field)
+			case "source":
+				return ec.fieldContext_CPAUsageEvent_source(ctx, field)
+			case "inputTokens":
+				return ec.fieldContext_CPAUsageEvent_inputTokens(ctx, field)
+			case "outputTokens":
+				return ec.fieldContext_CPAUsageEvent_outputTokens(ctx, field)
+			case "cachedTokens":
+				return ec.fieldContext_CPAUsageEvent_cachedTokens(ctx, field)
+			case "totalTokens":
+				return ec.fieldContext_CPAUsageEvent_totalTokens(ctx, field)
+			case "failed":
+				return ec.fieldContext_CPAUsageEvent_failed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAUsageEvent", field.Name)
 		},
 	}
 	return fc, nil
@@ -56432,6 +57168,55 @@ func (ec *executionContext) fieldContext_Query_queryCPACredentials(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_queryCPAUsageEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_queryCPAUsageEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().QueryCPAUsageEvents(ctx, fc.Args["input"].(biz.QueryCPAUsageEventsInput))
+		},
+		nil,
+		ec.marshalNCPAUsageEventConnection2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_queryCPAUsageEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "edges":
+				return ec.fieldContext_CPAUsageEventConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_CPAUsageEventConnection_pageInfo(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_CPAUsageEventConnection_totalCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAUsageEventConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_queryCPAUsageEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_cpaOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -59000,6 +59785,35 @@ func (ec *executionContext) fieldContext_RequestExecution_passThroughApplied(_ c
 	return fc, nil
 }
 
+func (ec *executionContext) _RequestExecution_responseModel(ctx context.Context, field graphql.CollectedField, obj *ent.RequestExecution) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestExecution_responseModel,
+		func(ctx context.Context) (any, error) {
+			return obj.ResponseModel, nil
+		},
+		nil,
+		ec.marshalOString2string,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestExecution_responseModel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestExecution",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RequestExecution_request(ctx context.Context, field graphql.CollectedField, obj *ent.RequestExecution) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -59426,6 +60240,8 @@ func (ec *executionContext) fieldContext_RequestExecutionEdge_node(_ context.Con
 				return ec.fieldContext_RequestExecution_requestURL(ctx, field)
 			case "passThroughApplied":
 				return ec.fieldContext_RequestExecution_passThroughApplied(ctx, field)
+			case "responseModel":
+				return ec.fieldContext_RequestExecution_responseModel(ctx, field)
 			case "request":
 				return ec.fieldContext_RequestExecution_request(ctx, field)
 			case "channel":
@@ -88078,6 +88894,47 @@ func (ec *executionContext) unmarshalInputQueryCPACredentialsInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputQueryCPAUsageEventsInput(ctx context.Context, obj any) (biz.QueryCPAUsageEventsInput, error) {
+	var it biz.QueryCPAUsageEventsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"instanceID", "first", "after"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "instanceID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("instanceID"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InstanceID = data
+		case "first":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.First = data
+		case "after":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("after"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.After = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputQueryChannelInput(ctx context.Context, obj any) (biz.QueryChannelsInput, error) {
 	var it biz.QueryChannelsInput
 	asMap := map[string]any{}
@@ -88349,7 +89206,7 @@ func (ec *executionContext) unmarshalInputRequestExecutionWhereInput(ctx context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "projectID", "projectIDNEQ", "projectIDIn", "projectIDNotIn", "projectIDGT", "projectIDGTE", "projectIDLT", "projectIDLTE", "requestID", "requestIDNEQ", "requestIDIn", "requestIDNotIn", "channelID", "channelIDNEQ", "channelIDIn", "channelIDNotIn", "channelIDIsNil", "channelIDNotNil", "dataStorageID", "dataStorageIDNEQ", "dataStorageIDIn", "dataStorageIDNotIn", "dataStorageIDIsNil", "dataStorageIDNotNil", "externalID", "externalIDNEQ", "externalIDIn", "externalIDNotIn", "externalIDGT", "externalIDGTE", "externalIDLT", "externalIDLTE", "externalIDContains", "externalIDHasPrefix", "externalIDHasSuffix", "externalIDIsNil", "externalIDNotNil", "externalIDEqualFold", "externalIDContainsFold", "modelID", "modelIDNEQ", "modelIDIn", "modelIDNotIn", "modelIDGT", "modelIDGTE", "modelIDLT", "modelIDLTE", "modelIDContains", "modelIDHasPrefix", "modelIDHasSuffix", "modelIDEqualFold", "modelIDContainsFold", "format", "formatNEQ", "formatIn", "formatNotIn", "formatGT", "formatGTE", "formatLT", "formatLTE", "formatContains", "formatHasPrefix", "formatHasSuffix", "formatEqualFold", "formatContainsFold", "reasoningEffort", "reasoningEffortNEQ", "reasoningEffortIn", "reasoningEffortNotIn", "reasoningEffortGT", "reasoningEffortGTE", "reasoningEffortLT", "reasoningEffortLTE", "reasoningEffortContains", "reasoningEffortHasPrefix", "reasoningEffortHasSuffix", "reasoningEffortIsNil", "reasoningEffortNotNil", "reasoningEffortEqualFold", "reasoningEffortContainsFold", "errorMessage", "errorMessageNEQ", "errorMessageIn", "errorMessageNotIn", "errorMessageGT", "errorMessageGTE", "errorMessageLT", "errorMessageLTE", "errorMessageContains", "errorMessageHasPrefix", "errorMessageHasSuffix", "errorMessageIsNil", "errorMessageNotNil", "errorMessageEqualFold", "errorMessageContainsFold", "responseStatusCode", "responseStatusCodeNEQ", "responseStatusCodeIn", "responseStatusCodeNotIn", "responseStatusCodeGT", "responseStatusCodeGTE", "responseStatusCodeLT", "responseStatusCodeLTE", "responseStatusCodeIsNil", "responseStatusCodeNotNil", "status", "statusNEQ", "statusIn", "statusNotIn", "stream", "streamNEQ", "metricsLatencyMs", "metricsLatencyMsNEQ", "metricsLatencyMsIn", "metricsLatencyMsNotIn", "metricsLatencyMsGT", "metricsLatencyMsGTE", "metricsLatencyMsLT", "metricsLatencyMsLTE", "metricsLatencyMsIsNil", "metricsLatencyMsNotNil", "metricsFirstTokenLatencyMs", "metricsFirstTokenLatencyMsNEQ", "metricsFirstTokenLatencyMsIn", "metricsFirstTokenLatencyMsNotIn", "metricsFirstTokenLatencyMsGT", "metricsFirstTokenLatencyMsGTE", "metricsFirstTokenLatencyMsLT", "metricsFirstTokenLatencyMsLTE", "metricsFirstTokenLatencyMsIsNil", "metricsFirstTokenLatencyMsNotNil", "metricsReasoningDurationMs", "metricsReasoningDurationMsNEQ", "metricsReasoningDurationMsIn", "metricsReasoningDurationMsNotIn", "metricsReasoningDurationMsGT", "metricsReasoningDurationMsGTE", "metricsReasoningDurationMsLT", "metricsReasoningDurationMsLTE", "metricsReasoningDurationMsIsNil", "metricsReasoningDurationMsNotNil", "requestURL", "requestURLNEQ", "requestURLIn", "requestURLNotIn", "requestURLGT", "requestURLGTE", "requestURLLT", "requestURLLTE", "requestURLContains", "requestURLHasPrefix", "requestURLHasSuffix", "requestURLIsNil", "requestURLNotNil", "requestURLEqualFold", "requestURLContainsFold", "passThroughApplied", "passThroughAppliedNEQ", "hasRequest", "hasRequestWith", "hasChannel", "hasChannelWith", "hasDataStorage", "hasDataStorageWith"}
+	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "projectID", "projectIDNEQ", "projectIDIn", "projectIDNotIn", "projectIDGT", "projectIDGTE", "projectIDLT", "projectIDLTE", "requestID", "requestIDNEQ", "requestIDIn", "requestIDNotIn", "channelID", "channelIDNEQ", "channelIDIn", "channelIDNotIn", "channelIDIsNil", "channelIDNotNil", "dataStorageID", "dataStorageIDNEQ", "dataStorageIDIn", "dataStorageIDNotIn", "dataStorageIDIsNil", "dataStorageIDNotNil", "externalID", "externalIDNEQ", "externalIDIn", "externalIDNotIn", "externalIDGT", "externalIDGTE", "externalIDLT", "externalIDLTE", "externalIDContains", "externalIDHasPrefix", "externalIDHasSuffix", "externalIDIsNil", "externalIDNotNil", "externalIDEqualFold", "externalIDContainsFold", "modelID", "modelIDNEQ", "modelIDIn", "modelIDNotIn", "modelIDGT", "modelIDGTE", "modelIDLT", "modelIDLTE", "modelIDContains", "modelIDHasPrefix", "modelIDHasSuffix", "modelIDEqualFold", "modelIDContainsFold", "format", "formatNEQ", "formatIn", "formatNotIn", "formatGT", "formatGTE", "formatLT", "formatLTE", "formatContains", "formatHasPrefix", "formatHasSuffix", "formatEqualFold", "formatContainsFold", "reasoningEffort", "reasoningEffortNEQ", "reasoningEffortIn", "reasoningEffortNotIn", "reasoningEffortGT", "reasoningEffortGTE", "reasoningEffortLT", "reasoningEffortLTE", "reasoningEffortContains", "reasoningEffortHasPrefix", "reasoningEffortHasSuffix", "reasoningEffortIsNil", "reasoningEffortNotNil", "reasoningEffortEqualFold", "reasoningEffortContainsFold", "errorMessage", "errorMessageNEQ", "errorMessageIn", "errorMessageNotIn", "errorMessageGT", "errorMessageGTE", "errorMessageLT", "errorMessageLTE", "errorMessageContains", "errorMessageHasPrefix", "errorMessageHasSuffix", "errorMessageIsNil", "errorMessageNotNil", "errorMessageEqualFold", "errorMessageContainsFold", "responseStatusCode", "responseStatusCodeNEQ", "responseStatusCodeIn", "responseStatusCodeNotIn", "responseStatusCodeGT", "responseStatusCodeGTE", "responseStatusCodeLT", "responseStatusCodeLTE", "responseStatusCodeIsNil", "responseStatusCodeNotNil", "status", "statusNEQ", "statusIn", "statusNotIn", "stream", "streamNEQ", "metricsLatencyMs", "metricsLatencyMsNEQ", "metricsLatencyMsIn", "metricsLatencyMsNotIn", "metricsLatencyMsGT", "metricsLatencyMsGTE", "metricsLatencyMsLT", "metricsLatencyMsLTE", "metricsLatencyMsIsNil", "metricsLatencyMsNotNil", "metricsFirstTokenLatencyMs", "metricsFirstTokenLatencyMsNEQ", "metricsFirstTokenLatencyMsIn", "metricsFirstTokenLatencyMsNotIn", "metricsFirstTokenLatencyMsGT", "metricsFirstTokenLatencyMsGTE", "metricsFirstTokenLatencyMsLT", "metricsFirstTokenLatencyMsLTE", "metricsFirstTokenLatencyMsIsNil", "metricsFirstTokenLatencyMsNotNil", "metricsReasoningDurationMs", "metricsReasoningDurationMsNEQ", "metricsReasoningDurationMsIn", "metricsReasoningDurationMsNotIn", "metricsReasoningDurationMsGT", "metricsReasoningDurationMsGTE", "metricsReasoningDurationMsLT", "metricsReasoningDurationMsLTE", "metricsReasoningDurationMsIsNil", "metricsReasoningDurationMsNotNil", "requestURL", "requestURLNEQ", "requestURLIn", "requestURLNotIn", "requestURLGT", "requestURLGTE", "requestURLLT", "requestURLLTE", "requestURLContains", "requestURLHasPrefix", "requestURLHasSuffix", "requestURLIsNil", "requestURLNotNil", "requestURLEqualFold", "requestURLContainsFold", "passThroughApplied", "passThroughAppliedNEQ", "responseModel", "responseModelNEQ", "responseModelIn", "responseModelNotIn", "responseModelGT", "responseModelGTE", "responseModelLT", "responseModelLTE", "responseModelContains", "responseModelHasPrefix", "responseModelHasSuffix", "responseModelIsNil", "responseModelNotNil", "responseModelEqualFold", "responseModelContainsFold", "hasRequest", "hasRequestWith", "hasChannel", "hasChannelWith", "hasDataStorage", "hasDataStorageWith"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -89731,6 +90588,111 @@ func (ec *executionContext) unmarshalInputRequestExecutionWhereInput(ctx context
 				return it, err
 			}
 			it.PassThroughAppliedNEQ = data
+		case "responseModel":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModel"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModel = data
+		case "responseModelNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelNEQ"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelNEQ = data
+		case "responseModelIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelIn = data
+		case "responseModelNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelNotIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelNotIn = data
+		case "responseModelGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelGT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelGT = data
+		case "responseModelGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelGTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelGTE = data
+		case "responseModelLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelLT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelLT = data
+		case "responseModelLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelLTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelLTE = data
+		case "responseModelContains":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelContains"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelContains = data
+		case "responseModelHasPrefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelHasPrefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelHasPrefix = data
+		case "responseModelHasSuffix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelHasSuffix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelHasSuffix = data
+		case "responseModelIsNil":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelIsNil"))
+			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelIsNil = data
+		case "responseModelNotNil":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelNotNil"))
+			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelNotNil = data
+		case "responseModelEqualFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelEqualFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelEqualFold = data
+		case "responseModelContainsFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("responseModelContainsFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResponseModelContainsFold = data
 		case "hasRequest":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasRequest"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -103513,6 +104475,198 @@ func (ec *executionContext) _CPARefreshResult(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var cPAUsageEventImplementors = []string{"CPAUsageEvent"}
+
+func (ec *executionContext) _CPAUsageEvent(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAUsageEventView) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAUsageEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAUsageEvent")
+		case "id":
+			out.Values[i] = ec._CPAUsageEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestedAt":
+			out.Values[i] = ec._CPAUsageEvent_requestedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authIndex":
+			out.Values[i] = ec._CPAUsageEvent_authIndex(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "credentialName":
+			out.Values[i] = ec._CPAUsageEvent_credentialName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "provider":
+			out.Values[i] = ec._CPAUsageEvent_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._CPAUsageEvent_model(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "responseModel":
+			out.Values[i] = ec._CPAUsageEvent_responseModel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._CPAUsageEvent_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inputTokens":
+			out.Values[i] = ec._CPAUsageEvent_inputTokens(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "outputTokens":
+			out.Values[i] = ec._CPAUsageEvent_outputTokens(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cachedTokens":
+			out.Values[i] = ec._CPAUsageEvent_cachedTokens(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalTokens":
+			out.Values[i] = ec._CPAUsageEvent_totalTokens(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._CPAUsageEvent_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPAUsageEventConnectionImplementors = []string{"CPAUsageEventConnection"}
+
+func (ec *executionContext) _CPAUsageEventConnection(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAUsageEventConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAUsageEventConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAUsageEventConnection")
+		case "edges":
+			out.Values[i] = ec._CPAUsageEventConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._CPAUsageEventConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._CPAUsageEventConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPAUsageEventEdgeImplementors = []string{"CPAUsageEventEdge"}
+
+func (ec *executionContext) _CPAUsageEventEdge(ctx context.Context, sel ast.SelectionSet, obj *biz.CPAUsageEventEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPAUsageEventEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPAUsageEventEdge")
+		case "cursor":
+			out.Values[i] = ec._CPAUsageEventEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._CPAUsageEventEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var catalogSettingsImplementors = []string{"CatalogSettings"}
 
 func (ec *executionContext) _CatalogSettings(ctx context.Context, sel ast.SelectionSet, obj *biz.CatalogSettings) graphql.Marshaler {
@@ -115099,6 +116253,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "queryCPAUsageEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_queryCPAUsageEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "cpaOverview":
 			field := field
 
@@ -116375,6 +117551,8 @@ func (ec *executionContext) _RequestExecution(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "responseModel":
+			out.Values[i] = ec._RequestExecution_responseModel(ctx, field, obj)
 		case "request":
 			field := field
 
@@ -124019,6 +125197,84 @@ func (ec *executionContext) marshalNCPARefreshResult2ᚖgithubᚗcomᚋloopljᚋ
 	return ec._CPARefreshResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCPAUsageEvent2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventView(ctx context.Context, sel ast.SelectionSet, v *biz.CPAUsageEventView) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAUsageEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCPAUsageEventConnection2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventConnection(ctx context.Context, sel ast.SelectionSet, v biz.CPAUsageEventConnection) graphql.Marshaler {
+	return ec._CPAUsageEventConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPAUsageEventConnection2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventConnection(ctx context.Context, sel ast.SelectionSet, v *biz.CPAUsageEventConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAUsageEventConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCPAUsageEventEdge2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.CPAUsageEventEdge) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPAUsageEventEdge2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventEdge(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCPAUsageEventEdge2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventEdge(ctx context.Context, sel ast.SelectionSet, v *biz.CPAUsageEventEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPAUsageEventEdge(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCatalogSettings2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCatalogSettings(ctx context.Context, sel ast.SelectionSet, v biz.CatalogSettings) graphql.Marshaler {
 	return ec._CatalogSettings(ctx, sel, &v)
 }
@@ -127796,6 +129052,11 @@ func (ec *executionContext) marshalNProxyType2githubᚗcomᚋloopljᚋaxonhubᚋ
 
 func (ec *executionContext) unmarshalNQueryCPACredentialsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐQueryCPACredentialsInput(ctx context.Context, v any) (biz.QueryCPACredentialsInput, error) {
 	res, err := ec.unmarshalInputQueryCPACredentialsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNQueryCPAUsageEventsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐQueryCPAUsageEventsInput(ctx context.Context, v any) (biz.QueryCPAUsageEventsInput, error) {
+	res, err := ec.unmarshalInputQueryCPAUsageEventsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

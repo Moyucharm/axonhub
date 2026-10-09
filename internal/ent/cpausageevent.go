@@ -29,6 +29,8 @@ type CpaUsageEvent struct {
 	Provider string `json:"provider,omitempty"`
 	// Model holds the value of the "model" field.
 	Model string `json:"model,omitempty"`
+	// ResponseModel holds the value of the "response_model" field.
+	ResponseModel string `json:"response_model,omitempty"`
 	// Source holds the value of the "source" field.
 	Source string `json:"source,omitempty"`
 	// InputTokens holds the value of the "input_tokens" field.
@@ -63,7 +65,7 @@ func (*CpaUsageEvent) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case cpausageevent.FieldID, cpausageevent.FieldCpaInstanceID, cpausageevent.FieldInputTokens, cpausageevent.FieldOutputTokens, cpausageevent.FieldReasoningTokens, cpausageevent.FieldCachedTokens, cpausageevent.FieldCacheReadTokens, cpausageevent.FieldCacheCreationTokens, cpausageevent.FieldTotalTokens, cpausageevent.FieldStatusCode:
 			values[i] = new(sql.NullInt64)
-		case cpausageevent.FieldAuthIndex, cpausageevent.FieldProvider, cpausageevent.FieldModel, cpausageevent.FieldSource:
+		case cpausageevent.FieldAuthIndex, cpausageevent.FieldProvider, cpausageevent.FieldModel, cpausageevent.FieldResponseModel, cpausageevent.FieldSource:
 			values[i] = new(sql.NullString)
 		case cpausageevent.FieldCreatedAt, cpausageevent.FieldUpdatedAt, cpausageevent.FieldRequestedAt:
 			values[i] = new(sql.NullTime)
@@ -123,6 +125,12 @@ func (_m *CpaUsageEvent) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field model", values[i])
 			} else if value.Valid {
 				_m.Model = value.String
+			}
+		case cpausageevent.FieldResponseModel:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field response_model", values[i])
+			} else if value.Valid {
+				_m.ResponseModel = value.String
 			}
 		case cpausageevent.FieldSource:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -243,6 +251,9 @@ func (_m *CpaUsageEvent) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("model=")
 	builder.WriteString(_m.Model)
+	builder.WriteString(", ")
+	builder.WriteString("response_model=")
+	builder.WriteString(_m.ResponseModel)
 	builder.WriteString(", ")
 	builder.WriteString("source=")
 	builder.WriteString(_m.Source)

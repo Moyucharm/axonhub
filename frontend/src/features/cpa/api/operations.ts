@@ -32,6 +32,18 @@ export const CREDENTIALS_QUERY = `
     }
   }
 `;
+export const USAGE_EVENTS_QUERY = `
+  query QueryCPAUsageEvents($input: QueryCPAUsageEventsInput!) {
+    queryCPAUsageEvents(input: $input) {
+      totalCount
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      edges {
+        cursor
+        node { id requestedAt authIndex credentialName provider model responseModel source inputTokens outputTokens cachedTokens totalTokens failed }
+      }
+    }
+  }
+`;
 export const OVERVIEW_QUERY = `
   query CPAOverview($instanceID: Int!) {
     cpaOverview(instanceID: $instanceID) {

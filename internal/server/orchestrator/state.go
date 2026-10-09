@@ -61,6 +61,10 @@ type PersistenceState struct {
 	// immediately after receiving the last chunk.
 	StreamCompleted bool
 
+	// UpstreamResponseModel is the first non-empty model reported by the upstream
+	// response of the current execution attempt, captured before model rewriting.
+	UpstreamResponseModel string
+
 	// RawProviderResponse stores the raw provider response for non-stream response pass-through.
 	RawProviderResponse *httpclient.Response
 

@@ -26,6 +26,8 @@ const (
 	FieldProvider = "provider"
 	// FieldModel holds the string denoting the model field in the database.
 	FieldModel = "model"
+	// FieldResponseModel holds the string denoting the response_model field in the database.
+	FieldResponseModel = "response_model"
 	// FieldSource holds the string denoting the source field in the database.
 	FieldSource = "source"
 	// FieldInputTokens holds the string denoting the input_tokens field in the database.
@@ -61,6 +63,7 @@ var Columns = []string{
 	FieldAuthIndex,
 	FieldProvider,
 	FieldModel,
+	FieldResponseModel,
 	FieldSource,
 	FieldInputTokens,
 	FieldOutputTokens,
@@ -104,6 +107,8 @@ var (
 	DefaultProvider string
 	// DefaultModel holds the default value on creation for the "model" field.
 	DefaultModel string
+	// DefaultResponseModel holds the default value on creation for the "response_model" field.
+	DefaultResponseModel string
 	// DefaultSource holds the default value on creation for the "source" field.
 	DefaultSource string
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
@@ -162,6 +167,11 @@ func ByProvider(opts ...sql.OrderTermOption) OrderOption {
 // ByModel orders the results by the model field.
 func ByModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldModel, opts...).ToFunc()
+}
+
+// ByResponseModel orders the results by the response_model field.
+func ByResponseModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResponseModel, opts...).ToFunc()
 }
 
 // BySource orders the results by the source field.

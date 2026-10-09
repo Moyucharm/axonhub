@@ -1870,7 +1870,7 @@ func (_m *RequestExecution) Node(ctx context.Context) (node *Node, err error) {
 	node = &Node{
 		ID:     _m.ID,
 		Type:   "RequestExecution",
-		Fields: make([]*Field, 23),
+		Fields: make([]*Field, 24),
 		Edges:  make([]*Edge, 3),
 	}
 	var buf []byte
@@ -2056,6 +2056,14 @@ func (_m *RequestExecution) Node(ctx context.Context) (node *Node, err error) {
 	node.Fields[22] = &Field{
 		Type:  "bool",
 		Name:  "pass_through_applied",
+		Value: string(buf),
+	}
+	if buf, err = json.Marshal(_m.ResponseModel); err != nil {
+		return nil, err
+	}
+	node.Fields[23] = &Field{
+		Type:  "string",
+		Name:  "response_model",
 		Value: string(buf),
 	}
 	node.Edges[0] = &Edge{

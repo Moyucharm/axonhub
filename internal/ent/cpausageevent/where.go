@@ -84,6 +84,11 @@ func Model(v string) predicate.CpaUsageEvent {
 	return predicate.CpaUsageEvent(sql.FieldEQ(FieldModel, v))
 }
 
+// ResponseModel applies equality check predicate on the "response_model" field. It's identical to ResponseModelEQ.
+func ResponseModel(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldEQ(FieldResponseModel, v))
+}
+
 // Source applies equality check predicate on the "source" field. It's identical to SourceEQ.
 func Source(v string) predicate.CpaUsageEvent {
 	return predicate.CpaUsageEvent(sql.FieldEQ(FieldSource, v))
@@ -452,6 +457,71 @@ func ModelEqualFold(v string) predicate.CpaUsageEvent {
 // ModelContainsFold applies the ContainsFold predicate on the "model" field.
 func ModelContainsFold(v string) predicate.CpaUsageEvent {
 	return predicate.CpaUsageEvent(sql.FieldContainsFold(FieldModel, v))
+}
+
+// ResponseModelEQ applies the EQ predicate on the "response_model" field.
+func ResponseModelEQ(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldEQ(FieldResponseModel, v))
+}
+
+// ResponseModelNEQ applies the NEQ predicate on the "response_model" field.
+func ResponseModelNEQ(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldNEQ(FieldResponseModel, v))
+}
+
+// ResponseModelIn applies the In predicate on the "response_model" field.
+func ResponseModelIn(vs ...string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldIn(FieldResponseModel, vs...))
+}
+
+// ResponseModelNotIn applies the NotIn predicate on the "response_model" field.
+func ResponseModelNotIn(vs ...string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldNotIn(FieldResponseModel, vs...))
+}
+
+// ResponseModelGT applies the GT predicate on the "response_model" field.
+func ResponseModelGT(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldGT(FieldResponseModel, v))
+}
+
+// ResponseModelGTE applies the GTE predicate on the "response_model" field.
+func ResponseModelGTE(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldGTE(FieldResponseModel, v))
+}
+
+// ResponseModelLT applies the LT predicate on the "response_model" field.
+func ResponseModelLT(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldLT(FieldResponseModel, v))
+}
+
+// ResponseModelLTE applies the LTE predicate on the "response_model" field.
+func ResponseModelLTE(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldLTE(FieldResponseModel, v))
+}
+
+// ResponseModelContains applies the Contains predicate on the "response_model" field.
+func ResponseModelContains(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldContains(FieldResponseModel, v))
+}
+
+// ResponseModelHasPrefix applies the HasPrefix predicate on the "response_model" field.
+func ResponseModelHasPrefix(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldHasPrefix(FieldResponseModel, v))
+}
+
+// ResponseModelHasSuffix applies the HasSuffix predicate on the "response_model" field.
+func ResponseModelHasSuffix(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldHasSuffix(FieldResponseModel, v))
+}
+
+// ResponseModelEqualFold applies the EqualFold predicate on the "response_model" field.
+func ResponseModelEqualFold(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldEqualFold(FieldResponseModel, v))
+}
+
+// ResponseModelContainsFold applies the ContainsFold predicate on the "response_model" field.
+func ResponseModelContainsFold(v string) predicate.CpaUsageEvent {
+	return predicate.CpaUsageEvent(sql.FieldContainsFold(FieldResponseModel, v))
 }
 
 // SourceEQ applies the EQ predicate on the "source" field.

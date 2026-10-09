@@ -98,6 +98,20 @@ func (_c *CpaUsageEventCreate) SetNillableModel(v *string) *CpaUsageEventCreate 
 	return _c
 }
 
+// SetResponseModel sets the "response_model" field.
+func (_c *CpaUsageEventCreate) SetResponseModel(v string) *CpaUsageEventCreate {
+	_c.mutation.SetResponseModel(v)
+	return _c
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_c *CpaUsageEventCreate) SetNillableResponseModel(v *string) *CpaUsageEventCreate {
+	if v != nil {
+		_c.SetResponseModel(*v)
+	}
+	return _c
+}
+
 // SetSource sets the "source" field.
 func (_c *CpaUsageEventCreate) SetSource(v string) *CpaUsageEventCreate {
 	_c.mutation.SetSource(v)
@@ -307,6 +321,10 @@ func (_c *CpaUsageEventCreate) defaults() error {
 		v := cpausageevent.DefaultModel
 		_c.mutation.SetModel(v)
 	}
+	if _, ok := _c.mutation.ResponseModel(); !ok {
+		v := cpausageevent.DefaultResponseModel
+		_c.mutation.SetResponseModel(v)
+	}
 	if _, ok := _c.mutation.Source(); !ok {
 		v := cpausageevent.DefaultSource
 		_c.mutation.SetSource(v)
@@ -363,6 +381,9 @@ func (_c *CpaUsageEventCreate) check() error {
 	}
 	if _, ok := _c.mutation.Model(); !ok {
 		return &ValidationError{Name: "model", err: errors.New(`ent: missing required field "CpaUsageEvent.model"`)}
+	}
+	if _, ok := _c.mutation.ResponseModel(); !ok {
+		return &ValidationError{Name: "response_model", err: errors.New(`ent: missing required field "CpaUsageEvent.response_model"`)}
 	}
 	if _, ok := _c.mutation.Source(); !ok {
 		return &ValidationError{Name: "source", err: errors.New(`ent: missing required field "CpaUsageEvent.source"`)}
@@ -447,6 +468,10 @@ func (_c *CpaUsageEventCreate) createSpec() (*CpaUsageEvent, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.Model(); ok {
 		_spec.SetField(cpausageevent.FieldModel, field.TypeString, value)
 		_node.Model = value
+	}
+	if value, ok := _c.mutation.ResponseModel(); ok {
+		_spec.SetField(cpausageevent.FieldResponseModel, field.TypeString, value)
+		_node.ResponseModel = value
 	}
 	if value, ok := _c.mutation.Source(); ok {
 		_spec.SetField(cpausageevent.FieldSource, field.TypeString, value)
@@ -607,6 +632,18 @@ func (u *CpaUsageEventUpsert) SetModel(v string) *CpaUsageEventUpsert {
 // UpdateModel sets the "model" field to the value that was provided on create.
 func (u *CpaUsageEventUpsert) UpdateModel() *CpaUsageEventUpsert {
 	u.SetExcluded(cpausageevent.FieldModel)
+	return u
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *CpaUsageEventUpsert) SetResponseModel(v string) *CpaUsageEventUpsert {
+	u.Set(cpausageevent.FieldResponseModel, v)
+	return u
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *CpaUsageEventUpsert) UpdateResponseModel() *CpaUsageEventUpsert {
+	u.SetExcluded(cpausageevent.FieldResponseModel)
 	return u
 }
 
@@ -909,6 +946,20 @@ func (u *CpaUsageEventUpsertOne) SetModel(v string) *CpaUsageEventUpsertOne {
 func (u *CpaUsageEventUpsertOne) UpdateModel() *CpaUsageEventUpsertOne {
 	return u.Update(func(s *CpaUsageEventUpsert) {
 		s.UpdateModel()
+	})
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *CpaUsageEventUpsertOne) SetResponseModel(v string) *CpaUsageEventUpsertOne {
+	return u.Update(func(s *CpaUsageEventUpsert) {
+		s.SetResponseModel(v)
+	})
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *CpaUsageEventUpsertOne) UpdateResponseModel() *CpaUsageEventUpsertOne {
+	return u.Update(func(s *CpaUsageEventUpsert) {
+		s.UpdateResponseModel()
 	})
 }
 
@@ -1407,6 +1458,20 @@ func (u *CpaUsageEventUpsertBulk) SetModel(v string) *CpaUsageEventUpsertBulk {
 func (u *CpaUsageEventUpsertBulk) UpdateModel() *CpaUsageEventUpsertBulk {
 	return u.Update(func(s *CpaUsageEventUpsert) {
 		s.UpdateModel()
+	})
+}
+
+// SetResponseModel sets the "response_model" field.
+func (u *CpaUsageEventUpsertBulk) SetResponseModel(v string) *CpaUsageEventUpsertBulk {
+	return u.Update(func(s *CpaUsageEventUpsert) {
+		s.SetResponseModel(v)
+	})
+}
+
+// UpdateResponseModel sets the "response_model" field to the value that was provided on create.
+func (u *CpaUsageEventUpsertBulk) UpdateResponseModel() *CpaUsageEventUpsertBulk {
+	return u.Update(func(s *CpaUsageEventUpsert) {
+		s.UpdateResponseModel()
 	})
 }
 

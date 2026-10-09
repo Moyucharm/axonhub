@@ -13426,6 +13426,7 @@ type CpaUsageEventMutation struct {
 	auth_index               *string
 	provider                 *string
 	model                    *string
+	response_model           *string
 	source                   *string
 	input_tokens             *int64
 	addinput_tokens          *int64
@@ -13783,6 +13784,42 @@ func (m *CpaUsageEventMutation) OldModel(ctx context.Context) (v string, err err
 // ResetModel resets all changes to the "model" field.
 func (m *CpaUsageEventMutation) ResetModel() {
 	m.model = nil
+}
+
+// SetResponseModel sets the "response_model" field.
+func (m *CpaUsageEventMutation) SetResponseModel(s string) {
+	m.response_model = &s
+}
+
+// ResponseModel returns the value of the "response_model" field in the mutation.
+func (m *CpaUsageEventMutation) ResponseModel() (r string, exists bool) {
+	v := m.response_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseModel returns the old "response_model" field's value of the CpaUsageEvent entity.
+// If the CpaUsageEvent object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CpaUsageEventMutation) OldResponseModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseModel: %w", err)
+	}
+	return oldValue.ResponseModel, nil
+}
+
+// ResetResponseModel resets all changes to the "response_model" field.
+func (m *CpaUsageEventMutation) ResetResponseModel() {
+	m.response_model = nil
 }
 
 // SetSource sets the "source" field.
@@ -14375,7 +14412,7 @@ func (m *CpaUsageEventMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CpaUsageEventMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.created_at != nil {
 		fields = append(fields, cpausageevent.FieldCreatedAt)
 	}
@@ -14393,6 +14430,9 @@ func (m *CpaUsageEventMutation) Fields() []string {
 	}
 	if m.model != nil {
 		fields = append(fields, cpausageevent.FieldModel)
+	}
+	if m.response_model != nil {
+		fields = append(fields, cpausageevent.FieldResponseModel)
 	}
 	if m.source != nil {
 		fields = append(fields, cpausageevent.FieldSource)
@@ -14447,6 +14487,8 @@ func (m *CpaUsageEventMutation) Field(name string) (ent.Value, bool) {
 		return m.Provider()
 	case cpausageevent.FieldModel:
 		return m.Model()
+	case cpausageevent.FieldResponseModel:
+		return m.ResponseModel()
 	case cpausageevent.FieldSource:
 		return m.Source()
 	case cpausageevent.FieldInputTokens:
@@ -14490,6 +14532,8 @@ func (m *CpaUsageEventMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldProvider(ctx)
 	case cpausageevent.FieldModel:
 		return m.OldModel(ctx)
+	case cpausageevent.FieldResponseModel:
+		return m.OldResponseModel(ctx)
 	case cpausageevent.FieldSource:
 		return m.OldSource(ctx)
 	case cpausageevent.FieldInputTokens:
@@ -14562,6 +14606,13 @@ func (m *CpaUsageEventMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModel(v)
+		return nil
+	case cpausageevent.FieldResponseModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseModel(v)
 		return nil
 	case cpausageevent.FieldSource:
 		v, ok := value.(string)
@@ -14817,6 +14868,9 @@ func (m *CpaUsageEventMutation) ResetField(name string) error {
 		return nil
 	case cpausageevent.FieldModel:
 		m.ResetModel()
+		return nil
+	case cpausageevent.FieldResponseModel:
+		m.ResetResponseModel()
 		return nil
 	case cpausageevent.FieldSource:
 		m.ResetSource()
@@ -25770,6 +25824,7 @@ type RequestExecutionMutation struct {
 	appendrequest_headers             objects.JSONRawMessage
 	request_url                       *string
 	pass_through_applied              *bool
+	response_model                    *string
 	clearedFields                     map[string]struct{}
 	request                           *int
 	clearedrequest                    bool
@@ -27044,6 +27099,55 @@ func (m *RequestExecutionMutation) ResetPassThroughApplied() {
 	m.pass_through_applied = nil
 }
 
+// SetResponseModel sets the "response_model" field.
+func (m *RequestExecutionMutation) SetResponseModel(s string) {
+	m.response_model = &s
+}
+
+// ResponseModel returns the value of the "response_model" field in the mutation.
+func (m *RequestExecutionMutation) ResponseModel() (r string, exists bool) {
+	v := m.response_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseModel returns the old "response_model" field's value of the RequestExecution entity.
+// If the RequestExecution object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RequestExecutionMutation) OldResponseModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseModel: %w", err)
+	}
+	return oldValue.ResponseModel, nil
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (m *RequestExecutionMutation) ClearResponseModel() {
+	m.response_model = nil
+	m.clearedFields[requestexecution.FieldResponseModel] = struct{}{}
+}
+
+// ResponseModelCleared returns if the "response_model" field was cleared in this mutation.
+func (m *RequestExecutionMutation) ResponseModelCleared() bool {
+	_, ok := m.clearedFields[requestexecution.FieldResponseModel]
+	return ok
+}
+
+// ResetResponseModel resets all changes to the "response_model" field.
+func (m *RequestExecutionMutation) ResetResponseModel() {
+	m.response_model = nil
+	delete(m.clearedFields, requestexecution.FieldResponseModel)
+}
+
 // ClearRequest clears the "request" edge to the Request entity.
 func (m *RequestExecutionMutation) ClearRequest() {
 	m.clearedrequest = true
@@ -27159,7 +27263,7 @@ func (m *RequestExecutionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RequestExecutionMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.created_at != nil {
 		fields = append(fields, requestexecution.FieldCreatedAt)
 	}
@@ -27229,6 +27333,9 @@ func (m *RequestExecutionMutation) Fields() []string {
 	if m.pass_through_applied != nil {
 		fields = append(fields, requestexecution.FieldPassThroughApplied)
 	}
+	if m.response_model != nil {
+		fields = append(fields, requestexecution.FieldResponseModel)
+	}
 	return fields
 }
 
@@ -27283,6 +27390,8 @@ func (m *RequestExecutionMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestURL()
 	case requestexecution.FieldPassThroughApplied:
 		return m.PassThroughApplied()
+	case requestexecution.FieldResponseModel:
+		return m.ResponseModel()
 	}
 	return nil, false
 }
@@ -27338,6 +27447,8 @@ func (m *RequestExecutionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldRequestURL(ctx)
 	case requestexecution.FieldPassThroughApplied:
 		return m.OldPassThroughApplied(ctx)
+	case requestexecution.FieldResponseModel:
+		return m.OldResponseModel(ctx)
 	}
 	return nil, fmt.Errorf("unknown RequestExecution field %s", name)
 }
@@ -27508,6 +27619,13 @@ func (m *RequestExecutionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetPassThroughApplied(v)
 		return nil
+	case requestexecution.FieldResponseModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseModel(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution field %s", name)
 }
@@ -27640,6 +27758,9 @@ func (m *RequestExecutionMutation) ClearedFields() []string {
 	if m.FieldCleared(requestexecution.FieldRequestURL) {
 		fields = append(fields, requestexecution.FieldRequestURL)
 	}
+	if m.FieldCleared(requestexecution.FieldResponseModel) {
+		fields = append(fields, requestexecution.FieldResponseModel)
+	}
 	return fields
 }
 
@@ -27692,6 +27813,9 @@ func (m *RequestExecutionMutation) ClearField(name string) error {
 		return nil
 	case requestexecution.FieldRequestURL:
 		m.ClearRequestURL()
+		return nil
+	case requestexecution.FieldResponseModel:
+		m.ClearResponseModel()
 		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution nullable field %s", name)
@@ -27769,6 +27893,9 @@ func (m *RequestExecutionMutation) ResetField(name string) error {
 		return nil
 	case requestexecution.FieldPassThroughApplied:
 		m.ResetPassThroughApplied()
+		return nil
+	case requestexecution.FieldResponseModel:
+		m.ResetResponseModel()
 		return nil
 	}
 	return fmt.Errorf("unknown RequestExecution field %s", name)

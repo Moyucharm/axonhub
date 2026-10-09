@@ -7,6 +7,7 @@ import {
   INSTANCES_QUERY,
   OVERVIEW_QUERY,
   REFRESH_PROGRESS,
+  USAGE_EVENTS_QUERY,
 } from './operations';
 import type {
   CPAInstance,
@@ -14,6 +15,8 @@ import type {
   CPAOverview,
   CPARefreshProgress,
   CPACredentialQueryInput,
+  CPAUsageEventConnection,
+  CPAUsageEventQueryInput,
 } from '../types';
 
 export function useCPAInstances() {
@@ -46,6 +49,25 @@ export function useCPACredentials(input?: CPACredentialQueryInput) {
         return data.queryCPACredentials;
       } catch (error) {
         handleError(error, { context: t('cpa.errors.loadCredentials') });
+        throw error;
+      }
+    },
+  });
+}
+
+export function useCPAUsageEvents(input?: CPAUsageEventQueryInput) {
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+  return useQuery({
+    queryKey: ['cpa', 'usage-events', input],
+    enabled: Boolean(input?.instanceID),
+    refetchInterval: 10_000,
+    queryFn: async () => {
+      try {
+        const data = await graphqlRequest<{ queryCPAUsageEvents: CPAUsageEventConnection }>(USAGE_EVENTS_QUERY, { input });
+        return data.queryCPAUsageEvents;
+      } catch (error) {
+        handleError(error, { context: t('cpa.errors.loadUsageEvents') });
         throw error;
       }
     },

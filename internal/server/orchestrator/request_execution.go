@@ -14,6 +14,7 @@ import (
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/pipeline"
+	"github.com/looplj/axonhub/llm/streams"
 )
 
 // Precompiled regex patterns for sanitizeResponseBody to avoid recompiling on each call.
@@ -176,6 +177,7 @@ func (m *persistRequestExecutionMiddleware) OnOutboundLlmResponse(ctx context.Co
 		persistCtx,
 		state.RequestExec.ID,
 		llmResp.ID,
+		llmResp.Model,
 		respBody,
 		metrics,
 	)
@@ -184,6 +186,22 @@ func (m *persistRequestExecutionMiddleware) OnOutboundLlmResponse(ctx context.Co
 	}
 
 	return llmResp, nil
+}
+
+// OnOutboundLlmStream captures the first non-empty upstream model before later middlewares rewrite it.
+func (m *persistRequestExecutionMiddleware) OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error) {
+	state := m.outbound.state
+	if state == nil {
+		return stream, nil
+	}
+
+	return streams.Map(stream, func(resp *llm.Response) *llm.Response {
+		if resp != nil && state.UpstreamResponseModel == "" && resp.Model != "" {
+			state.UpstreamResponseModel = resp.Model
+		}
+
+		return resp
+	}), nil
 }
 
 func (m *persistRequestExecutionMiddleware) OnOutboundRawError(ctx context.Context, err error) {

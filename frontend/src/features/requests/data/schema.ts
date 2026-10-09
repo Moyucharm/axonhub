@@ -40,6 +40,7 @@ export const requestExecutionSchema = z.object({
   metricsReasoningDurationMs: z.number().nullable().optional(),
   requestURL: z.string().nullable().optional(),
   passThroughApplied: z.boolean().optional(),
+  responseModel: z.string().nullable().optional(),
 });
 export type RequestExecution = z.infer<typeof requestExecutionSchema>;
 

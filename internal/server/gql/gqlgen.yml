@@ -125,6 +125,18 @@ models:
   CPAClaudeResetOutcome:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPAClaudeResetOutcome
+  CPAUsageEvent:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAUsageEventView
+  CPAUsageEventEdge:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAUsageEventEdge
+  CPAUsageEventConnection:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPAUsageEventConnection
+  QueryCPAUsageEventsInput:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.QueryCPAUsageEventsInput
   CPACredentialConnection:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPACredentialConnection

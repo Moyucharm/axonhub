@@ -77,6 +77,7 @@ function buildRequestsQuery(permissions: { canViewApiKeys: boolean; canViewChann
                   format
                   status
                   reasoningEffort
+                  responseModel
                   passThroughApplied${executionChannelFields}
                 }
                 cursor

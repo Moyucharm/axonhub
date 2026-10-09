@@ -13,6 +13,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/cpacredential"
+	"github.com/looplj/axonhub/internal/ent/cpausageevent"
 	"github.com/looplj/axonhub/internal/ent/predicate"
 	"github.com/looplj/axonhub/internal/objects"
 )
@@ -112,6 +113,48 @@ type CPAOverview struct {
 	Providers []*CPAProviderOverview
 }
 
+// QueryCPAUsageEventsInput lists collected usage events of one instance, newest first.
+type QueryCPAUsageEventsInput struct {
+	InstanceID int
+	First      int
+	After      *string
+}
+
+// CPAUsageEventView is one collected CPA request with its resolved credential name.
+type CPAUsageEventView struct {
+	ID             int
+	RequestedAt    time.Time
+	AuthIndex      string
+	CredentialName string
+	Provider       string
+	Model          string
+	ResponseModel  string
+	Source         string
+	InputTokens    int64
+	OutputTokens   int64
+	CachedTokens   int64
+	TotalTokens    int64
+	Failed         bool
+}
+
+// CPAUsageEventEdge is one usage event page edge.
+type CPAUsageEventEdge struct {
+	Cursor string
+	Node   *CPAUsageEventView
+}
+
+// CPAUsageEventConnection is the CPA usage event list response.
+type CPAUsageEventConnection struct {
+	Edges      []*CPAUsageEventEdge
+	PageInfo   *CPAPageInfo
+	TotalCount int
+}
+
+type cpaUsageEventCursor struct {
+	RequestedAt time.Time `json:"t"`
+	ID          int       `json:"id"`
+}
+
 type cpaCredentialCursor struct {
 	Version     int    `json:"v,omitempty"`
 	Priority    int    `json:"priority"`
@@ -196,6 +239,127 @@ func (svc *CPAService) QueryCredentials(ctx context.Context, input QueryCPACrede
 		pageInfo.EndCursor = &edges[len(edges)-1].Cursor
 	}
 	return &CPACredentialConnection{Edges: edges, PageInfo: pageInfo, TotalCount: totalCount}, nil
+}
+
+func (svc *CPAService) QueryUsageEvents(ctx context.Context, input QueryCPAUsageEventsInput) (*CPAUsageEventConnection, error) {
+	client := svc.entFromContext(ctx)
+	if _, err := client.CPAInstance.Get(ctx, input.InstanceID); err != nil {
+		return nil, fmt.Errorf("get CPA instance for usage event query: %w", err)
+	}
+	base := client.CpaUsageEvent.Query().Where(cpausageevent.CpaInstanceIDEQ(input.InstanceID))
+	totalCount, err := base.Clone().Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count CPA usage events: %w", err)
+	}
+
+	pageSize := input.First
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	pageQuery := base
+	hasPreviousPage := input.After != nil && strings.TrimSpace(*input.After) != ""
+	if hasPreviousPage {
+		cursor, decodeErr := decodeCPAUsageEventCursor(strings.TrimSpace(*input.After))
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		pageQuery = pageQuery.Where(cpausageevent.Or(
+			cpausageevent.RequestedAtLT(cursor.RequestedAt),
+			cpausageevent.And(
+				cpausageevent.RequestedAtEQ(cursor.RequestedAt),
+				cpausageevent.IDLT(cursor.ID),
+			),
+		))
+	}
+	events, err := pageQuery.
+		Order(cpausageevent.ByRequestedAt(sql.OrderDesc()), cpausageevent.ByID(sql.OrderDesc())).
+		Limit(pageSize + 1).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query CPA usage event page: %w", err)
+	}
+	hasNextPage := len(events) > pageSize
+	if hasNextPage {
+		events = events[:pageSize]
+	}
+
+	names, err := svc.cpaCredentialNamesByAuthIndex(ctx, input.InstanceID, events)
+	if err != nil {
+		return nil, err
+	}
+
+	edges := make([]*CPAUsageEventEdge, 0, len(events))
+	for _, event := range events {
+		cursor, encodeErr := encodeCPAUsageEventCursor(event)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		edges = append(edges, &CPAUsageEventEdge{Cursor: cursor, Node: &CPAUsageEventView{
+			ID:             event.ID,
+			RequestedAt:    event.RequestedAt,
+			AuthIndex:      event.AuthIndex,
+			CredentialName: names[event.AuthIndex],
+			Provider:       event.Provider,
+			Model:          event.Model,
+			ResponseModel:  event.ResponseModel,
+			Source:         event.Source,
+			InputTokens:    event.InputTokens,
+			OutputTokens:   event.OutputTokens,
+			CachedTokens:   event.CachedTokens,
+			TotalTokens:    event.TotalTokens,
+			Failed:         event.Failed,
+		}})
+	}
+	pageInfo := &CPAPageInfo{
+		HasPreviousPage: hasPreviousPage,
+		HasNextPage:     hasNextPage,
+	}
+	if len(edges) > 0 {
+		pageInfo.StartCursor = &edges[0].Cursor
+		pageInfo.EndCursor = &edges[len(edges)-1].Cursor
+	}
+	return &CPAUsageEventConnection{Edges: edges, PageInfo: pageInfo, TotalCount: totalCount}, nil
+}
+
+// cpaCredentialNamesByAuthIndex resolves display names for the auth indexes on one event page.
+func (svc *CPAService) cpaCredentialNamesByAuthIndex(ctx context.Context, instanceID int, events []*ent.CpaUsageEvent) (map[string]string, error) {
+	seen := make(map[string]struct{}, len(events))
+	authIndexes := make([]string, 0, len(events))
+	for _, event := range events {
+		if event.AuthIndex == "" {
+			continue
+		}
+		if _, ok := seen[event.AuthIndex]; ok {
+			continue
+		}
+		seen[event.AuthIndex] = struct{}{}
+		authIndexes = append(authIndexes, event.AuthIndex)
+	}
+	names := make(map[string]string, len(authIndexes))
+	if len(authIndexes) == 0 {
+		return names, nil
+	}
+	credentials, err := svc.entFromContext(ctx).CPACredential.Query().
+		Where(cpacredential.CpaInstanceIDEQ(instanceID), cpacredential.AuthIndexIn(authIndexes...)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("query CPA credentials for usage events: %w", err)
+	}
+	for _, credential := range credentials {
+		if _, ok := names[credential.AuthIndex]; ok {
+			continue
+		}
+		for _, name := range []string{credential.Email, credential.DisplayName, credential.RemoteName} {
+			if name != "" {
+				names[credential.AuthIndex] = name
+				break
+			}
+		}
+	}
+	return names, nil
 }
 
 func applyCPACredentialFilters(query *ent.CPACredentialQuery, input QueryCPACredentialsInput, now time.Time) *ent.CPACredentialQuery {
@@ -650,6 +814,26 @@ func decodeCPACredentialCursor(value string) (cpaCredentialCursor, error) {
 	if cursor.SortKey == "" {
 		cursor.SortKey = cpaDisplayNameSortKey(cursor.DisplayName)
 		cursor.SortLength = cpaDisplayNameSortLength(cursor.DisplayName)
+	}
+	return cursor, nil
+}
+
+func encodeCPAUsageEventCursor(event *ent.CpaUsageEvent) (string, error) {
+	encoded, err := json.Marshal(cpaUsageEventCursor{RequestedAt: event.RequestedAt, ID: event.ID})
+	if err != nil {
+		return "", fmt.Errorf("encode CPA usage event cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(encoded), nil
+}
+
+func decodeCPAUsageEventCursor(value string) (cpaUsageEventCursor, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return cpaUsageEventCursor{}, fmt.Errorf("invalid CPA usage event cursor: %w", err)
+	}
+	var cursor cpaUsageEventCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return cpaUsageEventCursor{}, fmt.Errorf("invalid CPA usage event cursor: %w", err)
 	}
 	return cursor, nil
 }

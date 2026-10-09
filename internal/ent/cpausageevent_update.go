@@ -98,6 +98,20 @@ func (_u *CpaUsageEventUpdate) SetNillableModel(v *string) *CpaUsageEventUpdate 
 	return _u
 }
 
+// SetResponseModel sets the "response_model" field.
+func (_u *CpaUsageEventUpdate) SetResponseModel(v string) *CpaUsageEventUpdate {
+	_u.mutation.SetResponseModel(v)
+	return _u
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_u *CpaUsageEventUpdate) SetNillableResponseModel(v *string) *CpaUsageEventUpdate {
+	if v != nil {
+		_u.SetResponseModel(*v)
+	}
+	return _u
+}
+
 // SetSource sets the "source" field.
 func (_u *CpaUsageEventUpdate) SetSource(v string) *CpaUsageEventUpdate {
 	_u.mutation.SetSource(v)
@@ -388,6 +402,9 @@ func (_u *CpaUsageEventUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if value, ok := _u.mutation.Model(); ok {
 		_spec.SetField(cpausageevent.FieldModel, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.ResponseModel(); ok {
+		_spec.SetField(cpausageevent.FieldResponseModel, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Source(); ok {
 		_spec.SetField(cpausageevent.FieldSource, field.TypeString, value)
 	}
@@ -532,6 +549,20 @@ func (_u *CpaUsageEventUpdateOne) SetModel(v string) *CpaUsageEventUpdateOne {
 func (_u *CpaUsageEventUpdateOne) SetNillableModel(v *string) *CpaUsageEventUpdateOne {
 	if v != nil {
 		_u.SetModel(*v)
+	}
+	return _u
+}
+
+// SetResponseModel sets the "response_model" field.
+func (_u *CpaUsageEventUpdateOne) SetResponseModel(v string) *CpaUsageEventUpdateOne {
+	_u.mutation.SetResponseModel(v)
+	return _u
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_u *CpaUsageEventUpdateOne) SetNillableResponseModel(v *string) *CpaUsageEventUpdateOne {
+	if v != nil {
+		_u.SetResponseModel(*v)
 	}
 	return _u
 }
@@ -855,6 +886,9 @@ func (_u *CpaUsageEventUpdateOne) sqlSave(ctx context.Context) (_node *CpaUsageE
 	}
 	if value, ok := _u.mutation.Model(); ok {
 		_spec.SetField(cpausageevent.FieldModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ResponseModel(); ok {
+		_spec.SetField(cpausageevent.FieldResponseModel, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Source(); ok {
 		_spec.SetField(cpausageevent.FieldSource, field.TypeString, value)

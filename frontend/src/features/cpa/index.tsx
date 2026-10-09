@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { IconPlus } from '@tabler/icons-react';
 import { Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/layout/header';
 import { Main } from '@/components/layout/main';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CPAClaudeResetDialog, CPACodexResetDialog, CPACredentialToggleDialog, CPAInstanceDeleteDialog } from './components/confirmation-dialogs';
 import { CPAToolbar } from './components/cpa-toolbar';
 import { CPACredentialTable } from './components/credential-table';
@@ -11,12 +13,14 @@ import { CPAInstanceDialog } from './components/instance-dialog';
 import { CPAInstanceToolbar } from './components/instance-toolbar';
 import { CPAProviderTabs } from './components/provider-tabs';
 import { CPARefreshProgress } from './components/refresh-progress';
+import { CPAUsageMonitor } from './components/usage-monitor';
 import { SUPPORTED_QUOTA_PROVIDERS } from './types';
 import { useCPAController } from './use-cpa-controller';
 
 export default function CPAManagement() {
   const { t, i18n } = useTranslation();
   const controller = useCPAController();
+  const [activeTab, setActiveTab] = useState<'credentials' | 'requests'>('credentials');
   const {
     canWrite,
     instancesQuery,
@@ -133,7 +137,16 @@ export default function CPAManagement() {
 
 
           {selectedInstance && (
-            <>
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as 'credentials' | 'requests')}
+              className='flex min-h-0 flex-1 flex-col'
+            >
+              <TabsList>
+                <TabsTrigger value='credentials'>{t('cpa.views.credentials')}</TabsTrigger>
+                <TabsTrigger value='requests'>{t('cpa.views.requests')}</TabsTrigger>
+              </TabsList>
+              <TabsContent value='credentials' className='flex min-h-0 flex-col gap-4 overflow-hidden'>
               <CPAProviderTabs
                 providers={providers}
                 providerCounts={providerCounts}
@@ -207,7 +220,15 @@ export default function CPAManagement() {
                 onPageSizeChange={setPageSize}
                 onResetCursor={resetPagination}
               />
-            </>
+              </TabsContent>
+              <TabsContent value='requests' className='flex min-h-0 flex-col overflow-hidden'>
+                <CPAUsageMonitor
+                  key={selectedInstance.id}
+                  instanceID={selectedInstance.id}
+                  locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
+                />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </Main>

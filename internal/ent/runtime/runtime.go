@@ -678,44 +678,48 @@ func init() {
 	cpausageeventDescModel := cpausageeventFields[3].Descriptor()
 	// cpausageevent.DefaultModel holds the default value on creation for the model field.
 	cpausageevent.DefaultModel = cpausageeventDescModel.Default.(string)
+	// cpausageeventDescResponseModel is the schema descriptor for response_model field.
+	cpausageeventDescResponseModel := cpausageeventFields[4].Descriptor()
+	// cpausageevent.DefaultResponseModel holds the default value on creation for the response_model field.
+	cpausageevent.DefaultResponseModel = cpausageeventDescResponseModel.Default.(string)
 	// cpausageeventDescSource is the schema descriptor for source field.
-	cpausageeventDescSource := cpausageeventFields[4].Descriptor()
+	cpausageeventDescSource := cpausageeventFields[5].Descriptor()
 	// cpausageevent.DefaultSource holds the default value on creation for the source field.
 	cpausageevent.DefaultSource = cpausageeventDescSource.Default.(string)
 	// cpausageeventDescInputTokens is the schema descriptor for input_tokens field.
-	cpausageeventDescInputTokens := cpausageeventFields[5].Descriptor()
+	cpausageeventDescInputTokens := cpausageeventFields[6].Descriptor()
 	// cpausageevent.DefaultInputTokens holds the default value on creation for the input_tokens field.
 	cpausageevent.DefaultInputTokens = cpausageeventDescInputTokens.Default.(int64)
 	// cpausageeventDescOutputTokens is the schema descriptor for output_tokens field.
-	cpausageeventDescOutputTokens := cpausageeventFields[6].Descriptor()
+	cpausageeventDescOutputTokens := cpausageeventFields[7].Descriptor()
 	// cpausageevent.DefaultOutputTokens holds the default value on creation for the output_tokens field.
 	cpausageevent.DefaultOutputTokens = cpausageeventDescOutputTokens.Default.(int64)
 	// cpausageeventDescReasoningTokens is the schema descriptor for reasoning_tokens field.
-	cpausageeventDescReasoningTokens := cpausageeventFields[7].Descriptor()
+	cpausageeventDescReasoningTokens := cpausageeventFields[8].Descriptor()
 	// cpausageevent.DefaultReasoningTokens holds the default value on creation for the reasoning_tokens field.
 	cpausageevent.DefaultReasoningTokens = cpausageeventDescReasoningTokens.Default.(int64)
 	// cpausageeventDescCachedTokens is the schema descriptor for cached_tokens field.
-	cpausageeventDescCachedTokens := cpausageeventFields[8].Descriptor()
+	cpausageeventDescCachedTokens := cpausageeventFields[9].Descriptor()
 	// cpausageevent.DefaultCachedTokens holds the default value on creation for the cached_tokens field.
 	cpausageevent.DefaultCachedTokens = cpausageeventDescCachedTokens.Default.(int64)
 	// cpausageeventDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
-	cpausageeventDescCacheReadTokens := cpausageeventFields[9].Descriptor()
+	cpausageeventDescCacheReadTokens := cpausageeventFields[10].Descriptor()
 	// cpausageevent.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
 	cpausageevent.DefaultCacheReadTokens = cpausageeventDescCacheReadTokens.Default.(int64)
 	// cpausageeventDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
-	cpausageeventDescCacheCreationTokens := cpausageeventFields[10].Descriptor()
+	cpausageeventDescCacheCreationTokens := cpausageeventFields[11].Descriptor()
 	// cpausageevent.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
 	cpausageevent.DefaultCacheCreationTokens = cpausageeventDescCacheCreationTokens.Default.(int64)
 	// cpausageeventDescTotalTokens is the schema descriptor for total_tokens field.
-	cpausageeventDescTotalTokens := cpausageeventFields[11].Descriptor()
+	cpausageeventDescTotalTokens := cpausageeventFields[12].Descriptor()
 	// cpausageevent.DefaultTotalTokens holds the default value on creation for the total_tokens field.
 	cpausageevent.DefaultTotalTokens = cpausageeventDescTotalTokens.Default.(int64)
 	// cpausageeventDescFailed is the schema descriptor for failed field.
-	cpausageeventDescFailed := cpausageeventFields[12].Descriptor()
+	cpausageeventDescFailed := cpausageeventFields[13].Descriptor()
 	// cpausageevent.DefaultFailed holds the default value on creation for the failed field.
 	cpausageevent.DefaultFailed = cpausageeventDescFailed.Default.(bool)
 	// cpausageeventDescStatusCode is the schema descriptor for status_code field.
-	cpausageeventDescStatusCode := cpausageeventFields[13].Descriptor()
+	cpausageeventDescStatusCode := cpausageeventFields[14].Descriptor()
 	// cpausageevent.DefaultStatusCode holds the default value on creation for the status_code field.
 	cpausageevent.DefaultStatusCode = cpausageeventDescStatusCode.Default.(int)
 	datastorageMixin := schema.DataStorage{}.Mixin()

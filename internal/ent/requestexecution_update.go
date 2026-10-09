@@ -287,6 +287,26 @@ func (_u *RequestExecutionUpdate) SetNillablePassThroughApplied(v *bool) *Reques
 	return _u
 }
 
+// SetResponseModel sets the "response_model" field.
+func (_u *RequestExecutionUpdate) SetResponseModel(v string) *RequestExecutionUpdate {
+	_u.mutation.SetResponseModel(v)
+	return _u
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_u *RequestExecutionUpdate) SetNillableResponseModel(v *string) *RequestExecutionUpdate {
+	if v != nil {
+		_u.SetResponseModel(*v)
+	}
+	return _u
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (_u *RequestExecutionUpdate) ClearResponseModel() *RequestExecutionUpdate {
+	_u.mutation.ClearResponseModel()
+	return _u
+}
+
 // Mutation returns the RequestExecutionMutation object of the builder.
 func (_u *RequestExecutionUpdate) Mutation() *RequestExecutionMutation {
 	return _u.mutation
@@ -462,6 +482,12 @@ func (_u *RequestExecutionUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.PassThroughApplied(); ok {
 		_spec.SetField(requestexecution.FieldPassThroughApplied, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseModel(); ok {
+		_spec.SetField(requestexecution.FieldResponseModel, field.TypeString, value)
+	}
+	if _u.mutation.ResponseModelCleared() {
+		_spec.ClearField(requestexecution.FieldResponseModel, field.TypeString)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -741,6 +767,26 @@ func (_u *RequestExecutionUpdateOne) SetNillablePassThroughApplied(v *bool) *Req
 	return _u
 }
 
+// SetResponseModel sets the "response_model" field.
+func (_u *RequestExecutionUpdateOne) SetResponseModel(v string) *RequestExecutionUpdateOne {
+	_u.mutation.SetResponseModel(v)
+	return _u
+}
+
+// SetNillableResponseModel sets the "response_model" field if the given value is not nil.
+func (_u *RequestExecutionUpdateOne) SetNillableResponseModel(v *string) *RequestExecutionUpdateOne {
+	if v != nil {
+		_u.SetResponseModel(*v)
+	}
+	return _u
+}
+
+// ClearResponseModel clears the value of the "response_model" field.
+func (_u *RequestExecutionUpdateOne) ClearResponseModel() *RequestExecutionUpdateOne {
+	_u.mutation.ClearResponseModel()
+	return _u
+}
+
 // Mutation returns the RequestExecutionMutation object of the builder.
 func (_u *RequestExecutionUpdateOne) Mutation() *RequestExecutionMutation {
 	return _u.mutation
@@ -946,6 +992,12 @@ func (_u *RequestExecutionUpdateOne) sqlSave(ctx context.Context) (_node *Reques
 	}
 	if value, ok := _u.mutation.PassThroughApplied(); ok {
 		_spec.SetField(requestexecution.FieldPassThroughApplied, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseModel(); ok {
+		_spec.SetField(requestexecution.FieldResponseModel, field.TypeString, value)
+	}
+	if _u.mutation.ResponseModelCleared() {
+		_spec.ClearField(requestexecution.FieldResponseModel, field.TypeString)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &RequestExecution{config: _u.config}

@@ -4663,6 +4663,10 @@ type RequestExecution implements Node {
   Whether pass-through was active for this execution attempt
   """
   passThroughApplied: Boolean!
+  """
+  Model reported by the upstream provider response
+  """
+  responseModel: String
   request: Request!
   channel: Channel @goField(forceResolver: true)
   dataStorage: DataStorage
@@ -4977,6 +4981,24 @@ input RequestExecutionWhereInput {
   """
   passThroughApplied: Boolean
   passThroughAppliedNEQ: Boolean
+  """
+  response_model field predicates
+  """
+  responseModel: String
+  responseModelNEQ: String
+  responseModelIn: [String!]
+  responseModelNotIn: [String!]
+  responseModelGT: String
+  responseModelGTE: String
+  responseModelLT: String
+  responseModelLTE: String
+  responseModelContains: String
+  responseModelHasPrefix: String
+  responseModelHasSuffix: String
+  responseModelIsNil: Boolean
+  responseModelNotNil: Boolean
+  responseModelEqualFold: String
+  responseModelContainsFold: String
   """
   request edge predicates
   """

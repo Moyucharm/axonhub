@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { DataTableColumnHeader } from '@/components/data-table-column-header';
+import { UpstreamModelHint } from '@/components/upstream-model-hint';
 import { useGeneralSettings, useSecuritySettings, useUpdateSecuritySettings } from '@/features/system/data/system';
 import { useRequestPermissions } from '../../../hooks/useRequestPermissions';
 import { Request } from '../data/schema';
@@ -185,7 +186,10 @@ export function useRequestsColumns(options?: UseRequestsColumnsOptions): ColumnD
 
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
-            {modelLabel}
+            <div className='flex flex-wrap items-center gap-1.5'>
+              {modelLabel}
+              <UpstreamModelHint routedModel={executions[0]?.modelID} responseModel={executions[0]?.responseModel} />
+            </div>
             <div className='flex items-center gap-1.5'>
               {reasoningEffort && (
                 <Badge className='border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300'>

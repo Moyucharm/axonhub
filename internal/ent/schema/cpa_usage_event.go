@@ -27,6 +27,7 @@ func (CpaUsageEvent) Fields() []ent.Field {
 		field.String("auth_index").Default(""),
 		field.String("provider").Default(""),
 		field.String("model").Default(""),
+		field.String("response_model").Default(""),
 		field.String("source").Default(""),
 		field.Int64("input_tokens").Default(0),
 		field.Int64("output_tokens").Default(0),

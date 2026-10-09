@@ -248,6 +248,39 @@ input UpdateCPAInstanceInput {
   disabledPatrolIntervalMinutes: Int
 }
 
+type CPAUsageEvent {
+  id: Int!
+  requestedAt: Time!
+  authIndex: String!
+  credentialName: String!
+  provider: String!
+  model: String!
+  responseModel: String!
+  source: String!
+  inputTokens: Int!
+  outputTokens: Int!
+  cachedTokens: Int!
+  totalTokens: Int!
+  failed: Boolean!
+}
+
+type CPAUsageEventEdge {
+  cursor: String!
+  node: CPAUsageEvent!
+}
+
+type CPAUsageEventConnection {
+  edges: [CPAUsageEventEdge!]!
+  pageInfo: CPAPageInfo!
+  totalCount: Int!
+}
+
+input QueryCPAUsageEventsInput {
+  instanceID: Int!
+  first: Int!
+  after: String
+}
+
 input QueryCPACredentialsInput {
   instanceID: Int!
   first: Int!
@@ -263,6 +296,7 @@ extend type Query {
   cpaInstances: [CPAManagedInstance!]!
   cpaInstance(id: Int!): CPAManagedInstance!
   queryCPACredentials(input: QueryCPACredentialsInput!): CPACredentialConnection!
+  queryCPAUsageEvents(input: QueryCPAUsageEventsInput!): CPAUsageEventConnection!
   cpaOverview(instanceID: Int!): CPAOverview!
   cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
 }

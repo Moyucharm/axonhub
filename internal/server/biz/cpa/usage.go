@@ -24,6 +24,7 @@ type UsageEvent struct {
 	ExecutorType    string           `json:"executor_type"`
 	Model           string           `json:"model"`
 	Alias           string           `json:"alias"`
+	ResponseModel   string           `json:"response_model,omitempty"`
 	AuthType        string           `json:"auth_type"`
 	APIKey          string           `json:"api_key"`
 	Source          string           `json:"source"`

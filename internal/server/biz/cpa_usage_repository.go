@@ -118,6 +118,7 @@ func (repository *cpaUsageRepository) persistEvents(ctx context.Context, batch [
 			SetAuthIndex(strings.TrimSpace(event.AuthIndex)).
 			SetProvider(event.Provider).
 			SetModel(strings.TrimSpace(event.Model)).
+			SetResponseModel(strings.TrimSpace(event.ResponseModel)).
 			SetSource(event.Source).
 			SetInputTokens(event.Tokens.InputTokens).
 			SetOutputTokens(event.Tokens.OutputTokens).

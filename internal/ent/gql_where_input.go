@@ -7847,6 +7847,23 @@ type RequestExecutionWhereInput struct {
 	PassThroughApplied    *bool `json:"passThroughApplied,omitempty"`
 	PassThroughAppliedNEQ *bool `json:"passThroughAppliedNEQ,omitempty"`
 
+	// "response_model" field predicates.
+	ResponseModel             *string  `json:"responseModel,omitempty"`
+	ResponseModelNEQ          *string  `json:"responseModelNEQ,omitempty"`
+	ResponseModelIn           []string `json:"responseModelIn,omitempty"`
+	ResponseModelNotIn        []string `json:"responseModelNotIn,omitempty"`
+	ResponseModelGT           *string  `json:"responseModelGT,omitempty"`
+	ResponseModelGTE          *string  `json:"responseModelGTE,omitempty"`
+	ResponseModelLT           *string  `json:"responseModelLT,omitempty"`
+	ResponseModelLTE          *string  `json:"responseModelLTE,omitempty"`
+	ResponseModelContains     *string  `json:"responseModelContains,omitempty"`
+	ResponseModelHasPrefix    *string  `json:"responseModelHasPrefix,omitempty"`
+	ResponseModelHasSuffix    *string  `json:"responseModelHasSuffix,omitempty"`
+	ResponseModelIsNil        bool     `json:"responseModelIsNil,omitempty"`
+	ResponseModelNotNil       bool     `json:"responseModelNotNil,omitempty"`
+	ResponseModelEqualFold    *string  `json:"responseModelEqualFold,omitempty"`
+	ResponseModelContainsFold *string  `json:"responseModelContainsFold,omitempty"`
+
 	// "request" edge predicates.
 	HasRequest     *bool                `json:"hasRequest,omitempty"`
 	HasRequestWith []*RequestWhereInput `json:"hasRequestWith,omitempty"`
@@ -8476,6 +8493,51 @@ func (i *RequestExecutionWhereInput) P() (predicate.RequestExecution, error) {
 	}
 	if i.PassThroughAppliedNEQ != nil {
 		predicates = append(predicates, requestexecution.PassThroughAppliedNEQ(*i.PassThroughAppliedNEQ))
+	}
+	if i.ResponseModel != nil {
+		predicates = append(predicates, requestexecution.ResponseModelEQ(*i.ResponseModel))
+	}
+	if i.ResponseModelNEQ != nil {
+		predicates = append(predicates, requestexecution.ResponseModelNEQ(*i.ResponseModelNEQ))
+	}
+	if len(i.ResponseModelIn) > 0 {
+		predicates = append(predicates, requestexecution.ResponseModelIn(i.ResponseModelIn...))
+	}
+	if len(i.ResponseModelNotIn) > 0 {
+		predicates = append(predicates, requestexecution.ResponseModelNotIn(i.ResponseModelNotIn...))
+	}
+	if i.ResponseModelGT != nil {
+		predicates = append(predicates, requestexecution.ResponseModelGT(*i.ResponseModelGT))
+	}
+	if i.ResponseModelGTE != nil {
+		predicates = append(predicates, requestexecution.ResponseModelGTE(*i.ResponseModelGTE))
+	}
+	if i.ResponseModelLT != nil {
+		predicates = append(predicates, requestexecution.ResponseModelLT(*i.ResponseModelLT))
+	}
+	if i.ResponseModelLTE != nil {
+		predicates = append(predicates, requestexecution.ResponseModelLTE(*i.ResponseModelLTE))
+	}
+	if i.ResponseModelContains != nil {
+		predicates = append(predicates, requestexecution.ResponseModelContains(*i.ResponseModelContains))
+	}
+	if i.ResponseModelHasPrefix != nil {
+		predicates = append(predicates, requestexecution.ResponseModelHasPrefix(*i.ResponseModelHasPrefix))
+	}
+	if i.ResponseModelHasSuffix != nil {
+		predicates = append(predicates, requestexecution.ResponseModelHasSuffix(*i.ResponseModelHasSuffix))
+	}
+	if i.ResponseModelIsNil {
+		predicates = append(predicates, requestexecution.ResponseModelIsNil())
+	}
+	if i.ResponseModelNotNil {
+		predicates = append(predicates, requestexecution.ResponseModelNotNil())
+	}
+	if i.ResponseModelEqualFold != nil {
+		predicates = append(predicates, requestexecution.ResponseModelEqualFold(*i.ResponseModelEqualFold))
+	}
+	if i.ResponseModelContainsFold != nil {
+		predicates = append(predicates, requestexecution.ResponseModelContainsFold(*i.ResponseModelContainsFold))
 	}
 
 	if i.HasRequest != nil {

@@ -63,6 +63,8 @@ const (
 	FieldRequestURL = "request_url"
 	// FieldPassThroughApplied holds the string denoting the pass_through_applied field in the database.
 	FieldPassThroughApplied = "pass_through_applied"
+	// FieldResponseModel holds the string denoting the response_model field in the database.
+	FieldResponseModel = "response_model"
 	// EdgeRequest holds the string denoting the request edge name in mutations.
 	EdgeRequest = "request"
 	// EdgeChannel holds the string denoting the channel edge name in mutations.
@@ -120,6 +122,7 @@ var Columns = []string{
 	FieldRequestHeaders,
 	FieldRequestURL,
 	FieldPassThroughApplied,
+	FieldResponseModel,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -278,6 +281,11 @@ func ByRequestURL(opts ...sql.OrderTermOption) OrderOption {
 // ByPassThroughApplied orders the results by the pass_through_applied field.
 func ByPassThroughApplied(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPassThroughApplied, opts...).ToFunc()
+}
+
+// ByResponseModel orders the results by the response_model field.
+func ByResponseModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResponseModel, opts...).ToFunc()
 }
 
 // ByRequestField orders the results by request field.

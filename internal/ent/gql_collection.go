@@ -4111,6 +4111,11 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 				selectedFields = append(selectedFields, requestexecution.FieldPassThroughApplied)
 				fieldSeen[requestexecution.FieldPassThroughApplied] = struct{}{}
 			}
+		case "responseModel":
+			if _, ok := fieldSeen[requestexecution.FieldResponseModel]; !ok {
+				selectedFields = append(selectedFields, requestexecution.FieldResponseModel)
+				fieldSeen[requestexecution.FieldResponseModel] = struct{}{}
+			}
 		case "id":
 		case "__typename":
 		default:

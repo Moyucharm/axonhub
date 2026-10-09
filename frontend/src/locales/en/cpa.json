@@ -189,5 +189,17 @@
   "cpa.claudeReset.reason.tenure": "account too new",
   "cpa.claudeReset.reason.other_experiment": "other experiment",
   "cpa.claudeReset.reason.unavailable": "unavailable",
-  "cpa.claudeReset.reason.unknown": "unknown reason"
+  "cpa.claudeReset.reason.unknown": "unknown reason",
+  "cpa.views.credentials": "Credentials",
+  "cpa.views.requests": "Request Monitor",
+  "cpa.usage.columns.time": "Time",
+  "cpa.usage.columns.credential": "Credential",
+  "cpa.usage.columns.provider": "Provider",
+  "cpa.usage.columns.model": "Model",
+  "cpa.usage.columns.tokens": "Tokens",
+  "cpa.usage.columns.status": "Status",
+  "cpa.usage.status.success": "Success",
+  "cpa.usage.status.failed": "Failed",
+  "cpa.usage.empty": "No requests collected yet. Enable the usage collector on this instance.",
+  "cpa.errors.loadUsageEvents": "Failed to load CPA requests"
 }

@@ -89,6 +89,34 @@ export interface CPACredentialConnection {
   totalCount: number;
 }
 
+export interface CPAUsageEvent {
+  id: number;
+  requestedAt: string;
+  authIndex: string;
+  credentialName: string;
+  provider: string;
+  model: string;
+  responseModel: string;
+  source: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
+  failed: boolean;
+}
+
+export interface CPAUsageEventConnection {
+  edges: Array<{ cursor: string; node: CPAUsageEvent }>;
+  pageInfo: CPACredentialConnection['pageInfo'];
+  totalCount: number;
+}
+
+export interface CPAUsageEventQueryInput {
+  instanceID: number;
+  first: number;
+  after?: string;
+}
+
 export interface CPAStats {
   available: number;
   total: number;

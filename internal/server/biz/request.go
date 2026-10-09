@@ -749,6 +749,7 @@ func (s *RequestService) UpdateRequestExecutionCompleted(
 	ctx context.Context,
 	executionID int,
 	externalId string,
+	responseModel string,
 	responseBody any,
 	metrics *LatencyMetrics,
 ) error {
@@ -781,6 +782,10 @@ func (s *RequestService) UpdateRequestExecutionCompleted(
 	upd := client.RequestExecution.UpdateOneID(executionID).
 		SetStatus(requestexecution.StatusCompleted).
 		SetExternalID(externalId)
+
+	if rm := strings.TrimSpace(responseModel); rm != "" {
+		upd = upd.SetResponseModel(rm)
+	}
 
 	// Set latency metrics if provided
 	if metrics != nil {

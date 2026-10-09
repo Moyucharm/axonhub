@@ -110,6 +110,14 @@ func (r *queryResolver) QueryCPACredentials(ctx context.Context, input biz.Query
 	return r.cpaService.QueryCredentials(ctx, input)
 }
 
+// QueryCPAUsageEvents is the resolver for the queryCPAUsageEvents field.
+func (r *queryResolver) QueryCPAUsageEvents(ctx context.Context, input biz.QueryCPAUsageEventsInput) (*biz.CPAUsageEventConnection, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
+		return nil, fmt.Errorf("permission denied: requires read:settings scope")
+	}
+	return r.cpaService.QueryUsageEvents(ctx, input)
+}
+
 // CpaOverview is the resolver for the cpaOverview field.
 func (r *queryResolver) CpaOverview(ctx context.Context, instanceID int) (*biz.CPAOverview, error) {
 	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {

@@ -345,6 +345,7 @@ func (ts *OutboundPersistentStream) persistAggregatedResponse(ctx context.Contex
 		ctx,
 		ts.requestExec.ID,
 		meta.ID,
+		ts.state.UpstreamResponseModel,
 		responseBody,
 		metrics,
 	)
@@ -676,6 +677,7 @@ func (p *PersistentOutboundTransformer) NextChannel(ctx context.Context) error {
 
 	// Reset request execution for the new candidate
 	p.state.RequestExec = nil
+	p.state.UpstreamResponseModel = ""
 	p.state.PassThroughApplied = false
 
 	candidate := p.state.ChannelModelsCandidates[p.state.CurrentCandidateIndex]
@@ -771,6 +773,7 @@ func (p *PersistentOutboundTransformer) PrepareForRetry(ctx context.Context) err
 
 	// Reset request execution for the same channel.
 	p.state.RequestExec = nil
+	p.state.UpstreamResponseModel = ""
 	p.state.PassThroughApplied = false
 
 	// Cancel any in-flight pass-through stream goroutine from the previous attempt

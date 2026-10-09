@@ -68,6 +68,8 @@ type RequestExecution struct {
 	RequestURL string `json:"request_url,omitempty"`
 	// Whether pass-through was active for this execution attempt
 	PassThroughApplied bool `json:"pass_through_applied,omitempty"`
+	// Model reported by the upstream provider response
+	ResponseModel string `json:"response_model,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the RequestExecutionQuery when eager-loading is set.
 	Edges        RequestExecutionEdges `json:"edges"`
@@ -133,7 +135,7 @@ func (*RequestExecution) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case requestexecution.FieldID, requestexecution.FieldProjectID, requestexecution.FieldRequestID, requestexecution.FieldChannelID, requestexecution.FieldDataStorageID, requestexecution.FieldResponseStatusCode, requestexecution.FieldMetricsLatencyMs, requestexecution.FieldMetricsFirstTokenLatencyMs, requestexecution.FieldMetricsReasoningDurationMs:
 			values[i] = new(sql.NullInt64)
-		case requestexecution.FieldExternalID, requestexecution.FieldModelID, requestexecution.FieldFormat, requestexecution.FieldReasoningEffort, requestexecution.FieldErrorMessage, requestexecution.FieldStatus, requestexecution.FieldRequestURL:
+		case requestexecution.FieldExternalID, requestexecution.FieldModelID, requestexecution.FieldFormat, requestexecution.FieldReasoningEffort, requestexecution.FieldErrorMessage, requestexecution.FieldStatus, requestexecution.FieldRequestURL, requestexecution.FieldResponseModel:
 			values[i] = new(sql.NullString)
 		case requestexecution.FieldCreatedAt, requestexecution.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -309,6 +311,12 @@ func (_m *RequestExecution) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.PassThroughApplied = value.Bool
 			}
+		case requestexecution.FieldResponseModel:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field response_model", values[i])
+			} else if value.Valid {
+				_m.ResponseModel = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -438,6 +446,9 @@ func (_m *RequestExecution) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("pass_through_applied=")
 	builder.WriteString(fmt.Sprintf("%v", _m.PassThroughApplied))
+	builder.WriteString(", ")
+	builder.WriteString("response_model=")
+	builder.WriteString(_m.ResponseModel)
 	builder.WriteByte(')')
 	return builder.String()
 }

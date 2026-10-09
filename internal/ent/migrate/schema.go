@@ -472,6 +472,7 @@ var (
 		{Name: "auth_index", Type: field.TypeString, Default: ""},
 		{Name: "provider", Type: field.TypeString, Default: ""},
 		{Name: "model", Type: field.TypeString, Default: ""},
+		{Name: "response_model", Type: field.TypeString, Default: ""},
 		{Name: "source", Type: field.TypeString, Default: ""},
 		{Name: "input_tokens", Type: field.TypeInt64, Default: 0},
 		{Name: "output_tokens", Type: field.TypeInt64, Default: 0},
@@ -493,12 +494,12 @@ var (
 			{
 				Name:    "cpausageevent_cpa_instance_id_auth_index_requested_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[4], CpaUsageEventsColumns[17]},
+				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[4], CpaUsageEventsColumns[18]},
 			},
 			{
 				Name:    "cpausageevent_cpa_instance_id_requested_at",
 				Unique:  false,
-				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[17]},
+				Columns: []*schema.Column{CpaUsageEventsColumns[3], CpaUsageEventsColumns[18]},
 			},
 		},
 	}
@@ -900,6 +901,7 @@ var (
 		{Name: "request_headers", Type: field.TypeJSON, Nullable: true},
 		{Name: "request_url", Type: field.TypeString, Nullable: true},
 		{Name: "pass_through_applied", Type: field.TypeBool, Default: false},
+		{Name: "response_model", Type: field.TypeString, Nullable: true},
 		{Name: "channel_id", Type: field.TypeInt, Nullable: true},
 		{Name: "data_storage_id", Type: field.TypeInt, Nullable: true},
 		{Name: "request_id", Type: field.TypeInt},
@@ -912,19 +914,19 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "request_executions_channels_executions",
-				Columns:    []*schema.Column{RequestExecutionsColumns[21]},
+				Columns:    []*schema.Column{RequestExecutionsColumns[22]},
 				RefColumns: []*schema.Column{ChannelsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "request_executions_data_storages_executions",
-				Columns:    []*schema.Column{RequestExecutionsColumns[22]},
+				Columns:    []*schema.Column{RequestExecutionsColumns[23]},
 				RefColumns: []*schema.Column{DataStoragesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "request_executions_requests_executions",
-				Columns:    []*schema.Column{RequestExecutionsColumns[23]},
+				Columns:    []*schema.Column{RequestExecutionsColumns[24]},
 				RefColumns: []*schema.Column{RequestsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -933,17 +935,17 @@ var (
 			{
 				Name:    "request_executions_by_request_id_status_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[23], RequestExecutionsColumns[13], RequestExecutionsColumns[1]},
+				Columns: []*schema.Column{RequestExecutionsColumns[24], RequestExecutionsColumns[13], RequestExecutionsColumns[1]},
 			},
 			{
 				Name:    "request_executions_by_request_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[23], RequestExecutionsColumns[1]},
+				Columns: []*schema.Column{RequestExecutionsColumns[24], RequestExecutionsColumns[1]},
 			},
 			{
 				Name:    "request_executions_by_channel_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[21], RequestExecutionsColumns[1]},
+				Columns: []*schema.Column{RequestExecutionsColumns[22], RequestExecutionsColumns[1]},
 			},
 		},
 	}
