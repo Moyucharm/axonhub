@@ -1,25 +1,17 @@
 package zen
 
 const (
-	DefaultBaseURL = "https://opencode.ai/zen/v1"
-	PublicAPIKey   = "public"
-	OfficialUA     = "opencode/1.18.31"
-	DefaultModel   = "mimo-v2.5-free"
+	DefaultBaseURL   = "https://opencode.ai/zen/v1"
+	AnonymousBaseURL = "https://opencode.ai/inference/v1"
+	PublicAPIKey     = "public"
+	OfficialUA       = "opencode/latest/2.0.29/cli"
+	DefaultModel     = "mimo-v2.6-flash-free"
 )
 
-const stubToolsJSON = `[
-	{"type":"function","function":{"name":"bash","description":"Execute bash commands in the environment.","parameters":{"type":"object","properties":{"command":{"type":"string","description":"The command to execute"}},"required":["command"]}}},
-	{"type":"function","function":{"name":"read","description":"Read file contents from the environment.","parameters":{"type":"object","properties":{"filePath":{"type":"string","description":"The file path to read"}},"required":["filePath"]}}}
-]`
-
-const stubResponsesToolsJSON = `[
-	{"type":"function","name":"bash","description":"Execute bash commands in the environment.","parameters":{"type":"object","properties":{"command":{"type":"string","description":"The command to execute"}},"required":["command"]}},
-	{"type":"function","name":"read","description":"Read file contents from the environment.","parameters":{"type":"object","properties":{"filePath":{"type":"string","description":"The file path to read"}},"required":["filePath"]}}
-]`
-
 const (
-	clientHeader  = "X-Opencode-Client"
-	projectHeader = "X-Opencode-Project"
-	sessionHeader = "X-Opencode-Session"
-	requestHeader = "X-Opencode-Request"
+	clientHeader    = "X-Opencode-Client"
+	projectHeader   = "X-Opencode-Project"
+	sessionHeader   = "X-Opencode-Session"
+	sessionIDHeader = "X-Opencode-Session-Id"
+	requestHeader   = "X-Opencode-Request"
 )

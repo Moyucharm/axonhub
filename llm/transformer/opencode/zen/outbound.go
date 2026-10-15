@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"net/http"
-	"strings"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -16,11 +13,6 @@ import (
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/transformer"
 	"github.com/looplj/axonhub/llm/transformer/openai"
-)
-
-const (
-	sessionMetadataKey = "opencode_zen_session_id"
-	requestMetadataKey = "opencode_zen_request_id"
 )
 
 // Config holds the transport configuration for OpenCode Zen.
@@ -59,7 +51,7 @@ func NewOutboundTransformerWithConfig(config *Config) (transformer.Outbound, err
 		return nil, fmt.Errorf("invalid OpenCode Zen transformer configuration: %w", err)
 	}
 
-	return &OutboundTransformer{Outbound: outbound}, nil
+	return &OutboundTransformer{Outbound: &toolAliasOutbound{Outbound: outbound}}, nil
 }
 
 func NewOutboundTransformer(baseURL string) (transformer.Outbound, error) {
@@ -81,7 +73,7 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, request *llm
 		return nil, err
 	}
 
-	if err := ensureIdentityMetadata(httpRequest); err != nil {
+	if err := initializeIdentity(ctx, request, httpRequest); err != nil {
 		return nil, err
 	}
 
@@ -105,28 +97,14 @@ func (t *OutboundTransformer) FinalizeTransportRequest(request *httpclient.Reque
 		return nil
 	}
 
-	cloned := *request
-	cloned.Body = append([]byte(nil), request.Body...)
-	cloned.Headers = request.Headers.Clone()
-	if cloned.Headers == nil {
-		cloned.Headers = make(http.Header)
-	}
-	if request.TransformerMetadata != nil {
-		cloned.TransformerMetadata = maps.Clone(request.TransformerMetadata)
-	}
-
-	if err := applyFingerprint(&cloned); err != nil {
+	cloned := cloneTransportRequest(request)
+	if err := applyFingerprint(cloned); err != nil {
 		return request
 	}
-
-	return &cloned
+	return cloned
 }
 
 func applyFingerprint(request *httpclient.Request) error {
-	if request.Headers == nil {
-		request.Headers = make(http.Header)
-	}
-
 	body, err := reconcileRequestBody(request.Body)
 	if err != nil {
 		return fmt.Errorf("reconcile OpenCode Zen request body: %w", err)
@@ -135,61 +113,6 @@ func applyFingerprint(request *httpclient.Request) error {
 	request.JSONBody = append([]byte(nil), body...)
 
 	return applyIdentityFingerprint(request)
-}
-
-func ensureIdentityMetadata(request *httpclient.Request) error {
-	if request.TransformerMetadata == nil {
-		request.TransformerMetadata = make(map[string]any)
-	}
-
-	if sessionID, _ := request.TransformerMetadata[sessionMetadataKey].(string); sessionID == "" {
-		generated, err := generateOpenCodeID("ses")
-		if err != nil {
-			return err
-		}
-		request.TransformerMetadata[sessionMetadataKey] = generated
-	}
-	if requestID, _ := request.TransformerMetadata[requestMetadataKey].(string); requestID == "" {
-		generated, err := generateOpenCodeID("msg")
-		if err != nil {
-			return err
-		}
-		request.TransformerMetadata[requestMetadataKey] = generated
-	}
-
-	return nil
-}
-
-func applyIdentityFingerprint(request *httpclient.Request) error {
-	if request.Headers == nil {
-		request.Headers = make(http.Header)
-	}
-	if err := ensureIdentityMetadata(request); err != nil {
-		return err
-	}
-
-	apiKey := PublicAPIKey
-	if request.Auth != nil {
-		if configuredKey := strings.TrimSpace(request.Auth.APIKey); configuredKey != "" {
-			apiKey = configuredKey
-		}
-	}
-	request.Auth = &httpclient.AuthConfig{
-		Type:   httpclient.AuthTypeBearer,
-		APIKey: apiKey,
-	}
-	request.Headers.Set("Authorization", "Bearer "+apiKey)
-	request.Headers.Set("Content-Type", "application/json")
-	request.Headers.Set("Accept", "application/json")
-	request.Headers.Set("User-Agent", OfficialUA)
-	request.Headers.Set(clientHeader, "cli")
-	request.Headers.Set(projectHeader, "global")
-	sessionID, _ := request.TransformerMetadata[sessionMetadataKey].(string)
-	requestID, _ := request.TransformerMetadata[requestMetadataKey].(string)
-	request.Headers.Set(sessionHeader, sessionID)
-	request.Headers.Set(requestHeader, requestID)
-
-	return nil
 }
 
 func reconcileRequestBody(body []byte) ([]byte, error) {
@@ -202,23 +125,15 @@ func reconcileRequestBody(body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	toolsResult := gjson.GetBytes(next, "tools")
-	tools := toolsResult.Array()
-	if !toolsResult.Exists() || len(tools) == 0 {
-		next, err = sjson.SetRawBytes(next, "tools", []byte(stubToolsJSON))
-		if err != nil {
-			return nil, err
-		}
-		return sjson.SetBytes(next, "tool_choice", "none")
-	}
-
-	toolsJSON, appended, err := appendMissingStubTools(tools, "function.name", preparsedChatStubs)
+	next, err = sjson.SetBytes(next, "stream_options.include_usage", true)
 	if err != nil {
 		return nil, err
 	}
-	if !appended {
-		return next, nil
+	if len(gjson.GetBytes(next, "tools").Array()) == 0 {
+		next, err = sjson.SetBytes(next, "tool_choice", "none")
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	return sjson.SetRawBytes(next, "tools", toolsJSON)
+	return reconcileTools(next, llm.APIFormatOpenAIChatCompletion)
 }

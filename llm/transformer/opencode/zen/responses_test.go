@@ -46,7 +46,7 @@ func TestResponsesTransformRequestAppliesZenIdentity(t *testing.T) {
 	httpRequest, err := outbound.TransformRequest(context.Background(), newResponsesRequest("gpt-5-nano"))
 	require.NoError(t, err)
 
-	assert.Equal(t, DefaultBaseURL+"/responses", httpRequest.URL)
+	assert.Equal(t, AnonymousBaseURL+"/responses", httpRequest.URL)
 	assert.Equal(t, llm.APIFormatOpenAIResponse.String(), httpRequest.APIFormat)
 	require.NotNil(t, httpRequest.Auth)
 	assert.Equal(t, httpclient.AuthTypeBearer, httpRequest.Auth.Type)
@@ -54,12 +54,12 @@ func TestResponsesTransformRequestAppliesZenIdentity(t *testing.T) {
 	assert.Equal(t, "Bearer public", httpRequest.Headers.Get("Authorization"))
 	assert.Equal(t, OfficialUA, httpRequest.Headers.Get("User-Agent"))
 	assert.Equal(t, "cli", httpRequest.Headers.Get(clientHeader))
-	assert.Equal(t, "global", httpRequest.Headers.Get(projectHeader))
+	assert.Regexp(t, `^[0-9a-f]{40}$`, httpRequest.Headers.Get(projectHeader))
 
-	idPattern := regexp.MustCompile(`^(ses|msg)_[0-9a-f]{12}[0-9A-Za-z]{14}$`)
+	idPattern := regexp.MustCompile(`^ses_[0-9a-f]{9}f[c-f][0-9a-f][0-9A-Za-z]{14}$`)
 	assert.Regexp(t, idPattern, httpRequest.Headers.Get(sessionHeader))
-	assert.Regexp(t, idPattern, httpRequest.Headers.Get(requestHeader))
-	assert.NotEqual(t, httpRequest.Headers.Get(sessionHeader), httpRequest.Headers.Get(requestHeader))
+	assert.Equal(t, httpRequest.Headers.Get(sessionHeader), httpRequest.Headers.Get(sessionIDHeader))
+	assert.Empty(t, httpRequest.Headers.Get(requestHeader))
 
 	assert.Equal(t, "gpt-5-nano", gjson.GetBytes(httpRequest.Body, "model").String())
 	assert.True(t, gjson.GetBytes(httpRequest.Body, "input").Exists())
@@ -69,7 +69,7 @@ func TestResponsesTransformRequestAppliesZenIdentity(t *testing.T) {
 
 	body := decodeBody(t, httpRequest.Body)
 	assert.Equal(t, true, body["stream"])
-	assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+	assert.Equal(t, coreToolNames, toolNames(t, body))
 	_, hasChoice := body["tool_choice"]
 	assert.False(t, hasChoice)
 }
@@ -110,7 +110,7 @@ func TestResponsesFinalizeTransportRequestRestoresZenIdentity(t *testing.T) {
 	httpRequest, err := outbound.TransformRequest(context.Background(), newResponsesRequest("gpt-5-nano"))
 	require.NoError(t, err)
 	originalSessionID := httpRequest.Headers.Get(sessionHeader)
-	originalRequestID := httpRequest.Headers.Get(requestHeader)
+	originalProjectID := httpRequest.Headers.Get(projectHeader)
 
 	httpRequest.Headers.Set("Authorization", "Bearer overridden")
 	httpRequest.Headers.Set("User-Agent", "client/1.0")
@@ -127,21 +127,21 @@ func TestResponsesFinalizeTransportRequestRestoresZenIdentity(t *testing.T) {
 	assert.Equal(t, "Bearer public", finalized.Headers.Get("Authorization"))
 	assert.Equal(t, OfficialUA, finalized.Headers.Get("User-Agent"))
 	assert.Equal(t, "cli", finalized.Headers.Get(clientHeader))
-	assert.Equal(t, "global", finalized.Headers.Get(projectHeader))
+	assert.Equal(t, originalProjectID, finalized.Headers.Get(projectHeader))
 	assert.Equal(t, originalSessionID, finalized.Headers.Get(sessionHeader))
-	assert.Equal(t, originalRequestID, finalized.Headers.Get(requestHeader))
+	assert.Empty(t, finalized.Headers.Get(requestHeader))
 	assert.Equal(t, "kept", finalized.Headers.Get("X-Custom"))
 	assert.Equal(t, "other_beta=v1", finalized.Headers.Get("OpenAI-Beta"))
 
 	body := decodeBody(t, finalized.Body)
 	assert.Equal(t, true, body["stream"])
-	assert.Equal(t, []string{"weather", "bash", "read"}, toolNames(t, body))
+	assert.Equal(t, append([]string{"weather"}, coreToolNames...), toolNames(t, body))
 }
 
 func TestResponsesReconcileRequestBody(t *testing.T) {
 	outbound := newTestResponsesOutbound(t)
 
-	t.Run("forces stream and injects stub tools", func(t *testing.T) {
+	t.Run("forces stream and injects official tools", func(t *testing.T) {
 		req := newResponsesRequest("gpt-5-nano")
 		req.Stream = lo.ToPtr(false)
 
@@ -150,7 +150,7 @@ func TestResponsesReconcileRequestBody(t *testing.T) {
 
 		body := decodeBody(t, httpRequest.Body)
 		assert.Equal(t, true, body["stream"])
-		assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+		assert.Equal(t, coreToolNames, toolNames(t, body))
 		_, hasChoice := body["tool_choice"]
 		assert.False(t, hasChoice)
 	})
@@ -167,7 +167,7 @@ func TestResponsesReconcileRequestBody(t *testing.T) {
 		assert.False(t, hasChoice)
 	})
 
-	t.Run("preserves custom tools and appends missing stubs", func(t *testing.T) {
+	t.Run("preserves custom tools and appends missing core tools", func(t *testing.T) {
 		req := newResponsesRequest("gpt-5-nano")
 		req.Tools = []llm.Tool{
 			{
@@ -183,7 +183,7 @@ func TestResponsesReconcileRequestBody(t *testing.T) {
 		require.NoError(t, err)
 
 		body := decodeBody(t, httpRequest.Body)
-		assert.Equal(t, []string{"custom_calc", "bash", "read"}, toolNames(t, body))
+		assert.Equal(t, append([]string{"custom_calc"}, coreToolNames...), toolNames(t, body))
 	})
 
 	t.Run("preserves existing bash and appends read", func(t *testing.T) {
@@ -202,13 +202,13 @@ func TestResponsesReconcileRequestBody(t *testing.T) {
 		require.NoError(t, err)
 
 		body := decodeBody(t, httpRequest.Body)
-		assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+		assert.Equal(t, append([]string{"axonhub_bash"}, coreToolNames...), toolNames(t, body))
 		tools := body["tools"].([]any)
 		bash := tools[0].(map[string]any)
 		assert.Equal(t, "user bash tool", bash["description"])
 	})
 
-	t.Run("does not duplicate when both bash and read are present", func(t *testing.T) {
+	t.Run("aliases reserved client tools without duplicates", func(t *testing.T) {
 		req := newResponsesRequest("gpt-5-nano")
 		req.Tools = []llm.Tool{
 			{Type: "function", Function: llm.Function{Name: "bash"}},
@@ -219,7 +219,7 @@ func TestResponsesReconcileRequestBody(t *testing.T) {
 		require.NoError(t, err)
 
 		body := decodeBody(t, httpRequest.Body)
-		assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+		assert.Equal(t, append([]string{"axonhub_bash", "axonhub_read"}, coreToolNames...), toolNames(t, body))
 	})
 }
 
@@ -275,4 +275,3 @@ func TestResponsesFinalizeTransportRequestClonesTransformerMetadata(t *testing.T
 	finalized.TransformerMetadata["new_key"] = "test"
 	assert.NotContains(t, httpRequest.TransformerMetadata, "new_key")
 }
-

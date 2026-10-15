@@ -108,14 +108,15 @@ func TestOpenCodeZenBuildsNativeProtocolOutbounds(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, opencodezen.DefaultBaseURL+"/responses", responsesRequest.URL)
+	require.Equal(t, opencodezen.AnonymousBaseURL+"/responses", responsesRequest.URL)
 	require.NotNil(t, responsesRequest.Auth)
 	require.Equal(t, httpclient.AuthTypeBearer, responsesRequest.Auth.Type)
 	require.Equal(t, opencodezen.PublicAPIKey, responsesRequest.Auth.APIKey)
 	require.Equal(t, opencodezen.OfficialUA, responsesRequest.Headers.Get("User-Agent"))
 	require.Equal(t, "cli", responsesRequest.Headers.Get("X-Opencode-Client"))
 	require.NotEmpty(t, responsesRequest.Headers.Get("X-Opencode-Session"))
-	require.NotEmpty(t, responsesRequest.Headers.Get("X-Opencode-Request"))
+	require.Empty(t, responsesRequest.Headers.Get("X-Opencode-Request"))
+	require.Equal(t, responsesRequest.Headers.Get("X-Opencode-Session"), responsesRequest.Headers.Get("X-Opencode-Session-Id"))
 
 	messagesOutbound := built.Outbounds[llm.APIFormatAnthropicMessage.String()]
 	request := &llm.Request{
@@ -134,7 +135,7 @@ func TestOpenCodeZenBuildsNativeProtocolOutbounds(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(messagesRequest.Body, &body))
 	require.True(t, body.Stream)
-	require.Equal(t, opencodezen.DefaultBaseURL+"/messages", messagesRequest.URL)
+	require.Equal(t, opencodezen.AnonymousBaseURL+"/messages", messagesRequest.URL)
 	require.NotNil(t, messagesRequest.Auth)
 	require.Equal(t, httpclient.AuthTypeAPIKey, messagesRequest.Auth.Type)
 	require.Equal(t, "X-API-Key", messagesRequest.Auth.HeaderKey)

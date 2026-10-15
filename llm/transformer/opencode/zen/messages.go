@@ -50,7 +50,7 @@ func NewMessagesOutboundTransformerWithConfig(config *Config) (transformer.Outbo
 		return nil, fmt.Errorf("invalid OpenCode Zen Messages transformer configuration: %w", err)
 	}
 
-	return &MessagesOutboundTransformer{Outbound: outbound}, nil
+	return &MessagesOutboundTransformer{Outbound: &toolAliasOutbound{Outbound: outbound}}, nil
 }
 
 func (t *MessagesOutboundTransformer) TransformRequest(ctx context.Context, request *llm.Request) (*httpclient.Request, error) {
@@ -60,7 +60,17 @@ func (t *MessagesOutboundTransformer) TransformRequest(ctx context.Context, requ
 
 	stream := true
 	request.Stream = &stream
-	return t.Outbound.TransformRequest(ctx, request)
+	httpRequest, err := t.Outbound.TransformRequest(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if err := initializeIdentity(ctx, request, httpRequest); err != nil {
+		return nil, err
+	}
+	if err := applyMessagesFingerprint(httpRequest); err != nil {
+		return nil, err
+	}
+	return httpRequest, nil
 }
 
 func (t *MessagesOutboundTransformer) AllowPassThroughBody(context.Context, *llm.Request, *httpclient.Request) bool {
@@ -72,13 +82,29 @@ func (t *MessagesOutboundTransformer) FinalizeTransportRequest(request *httpclie
 		return request
 	}
 
-	body, err := sjson.SetBytes(request.Body, "stream", true)
-	if err != nil {
+	cloned := cloneTransportRequest(request)
+	if err := applyMessagesFingerprint(cloned); err != nil {
 		return request
 	}
+	return cloned
+}
 
-	cloned := *request
-	cloned.Body = body
-	cloned.JSONBody = append([]byte(nil), body...)
-	return &cloned
+func applyMessagesFingerprint(request *httpclient.Request) error {
+	body, err := sjson.SetBytes(request.Body, "stream", true)
+	if err != nil {
+		return err
+	}
+	if len(gjson.GetBytes(body, "tools").Array()) == 0 {
+		body, err = sjson.SetBytes(body, "tool_choice", map[string]string{"type": "none"})
+		if err != nil {
+			return err
+		}
+	}
+	body, err = reconcileTools(body, llm.APIFormatAnthropicMessage)
+	if err != nil {
+		return err
+	}
+	request.Body = body
+	request.JSONBody = append([]byte(nil), body...)
+	return applyIdentityFingerprint(request)
 }

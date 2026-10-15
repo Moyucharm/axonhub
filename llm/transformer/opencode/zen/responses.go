@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"net/http"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -34,7 +32,7 @@ type ResponsesConfig struct {
 }
 
 // ResponsesOutboundTransformer applies the OpenCode client identity on top of
-// the standard OpenAI Responses transformer without changing Responses payload semantics.
+// the standard OpenAI Responses transformer, retaining client tool schemas.
 type ResponsesOutboundTransformer struct {
 	transformer.Outbound
 	responses *responses.OutboundTransformer
@@ -64,7 +62,7 @@ func NewResponsesOutboundTransformerWithConfig(config *ResponsesConfig) (transfo
 	}
 
 	return &ResponsesOutboundTransformer{
-		Outbound:  outbound,
+		Outbound:  &toolAliasOutbound{Outbound: outbound},
 		responses: outbound,
 	}, nil
 }
@@ -81,6 +79,9 @@ func (t *ResponsesOutboundTransformer) TransformRequest(ctx context.Context, req
 	if err != nil {
 		return nil, err
 	}
+	if err := initializeIdentity(ctx, request, httpRequest); err != nil {
+		return nil, err
+	}
 	if err := applyResponsesFingerprint(httpRequest); err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func (t *ResponsesOutboundTransformer) TransformRequest(ctx context.Context, req
 }
 
 // AllowPassThroughBody rejects raw request pass-through because Zen requires
-// transport fields and tool stubs to be reconciled after normal request transformation.
+// transport fields and official tools to be reconciled after normal request transformation.
 func (t *ResponsesOutboundTransformer) AllowPassThroughBody(context.Context, *llm.Request, *httpclient.Request) bool {
 	return false
 }
@@ -102,27 +103,14 @@ func (t *ResponsesOutboundTransformer) FinalizeTransportRequest(request *httpcli
 	}
 
 	prepared := t.responses.FinalizeTransportRequest(request)
-	cloned := *prepared
-	cloned.Body = append([]byte(nil), prepared.Body...)
-	cloned.Headers = prepared.Headers.Clone()
-	if cloned.Headers == nil {
-		cloned.Headers = make(http.Header)
-	}
-	if prepared.TransformerMetadata != nil {
-		cloned.TransformerMetadata = maps.Clone(prepared.TransformerMetadata)
-	}
-	if err := applyResponsesFingerprint(&cloned); err != nil {
+	cloned := cloneTransportRequest(prepared)
+	if err := applyResponsesFingerprint(cloned); err != nil {
 		return prepared
 	}
-
-	return &cloned
+	return cloned
 }
 
 func applyResponsesFingerprint(request *httpclient.Request) error {
-	if request.Headers == nil {
-		request.Headers = make(http.Header)
-	}
-
 	body, err := reconcileResponsesRequestBody(request.Body)
 	if err != nil {
 		return fmt.Errorf("reconcile OpenCode Zen Responses request body: %w", err)
@@ -150,21 +138,7 @@ func reconcileResponsesRequestBody(body []byte) ([]byte, error) {
 		}
 	}
 
-	toolsResult := gjson.GetBytes(next, "tools")
-	tools := toolsResult.Array()
-	if !toolsResult.Exists() || len(tools) == 0 {
-		return sjson.SetRawBytes(next, "tools", []byte(stubResponsesToolsJSON))
-	}
-
-	toolsJSON, appended, err := appendMissingStubTools(tools, "name", preparsedResponsesStubs)
-	if err != nil {
-		return nil, err
-	}
-	if !appended {
-		return next, nil
-	}
-
-	return sjson.SetRawBytes(next, "tools", toolsJSON)
+	return reconcileTools(next, llm.APIFormatOpenAIResponse)
 }
 
 // CustomizeExecutor forwards Responses HTTP/SSE executor customization.

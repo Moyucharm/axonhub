@@ -77,24 +77,24 @@ func TestTransformRequestAppliesZenFingerprint(t *testing.T) {
 
 	require.NotNil(t, request.Stream)
 	assert.True(t, *request.Stream)
-	assert.Equal(t, "https://opencode.ai/zen/v1/chat/completions", httpRequest.URL)
+	assert.Equal(t, AnonymousBaseURL+"/chat/completions", httpRequest.URL)
 	assert.Equal(t, "Bearer public", httpRequest.Headers.Get("Authorization"))
 	require.NotNil(t, httpRequest.Auth)
 	assert.Equal(t, httpclient.AuthTypeBearer, httpRequest.Auth.Type)
 	assert.Equal(t, PublicAPIKey, httpRequest.Auth.APIKey)
 	assert.Equal(t, OfficialUA, httpRequest.Headers.Get("User-Agent"))
 	assert.Equal(t, "cli", httpRequest.Headers.Get(clientHeader))
-	assert.Equal(t, "global", httpRequest.Headers.Get(projectHeader))
+	assert.Regexp(t, `^[0-9a-f]{40}$`, httpRequest.Headers.Get(projectHeader))
 
-	idPattern := regexp.MustCompile(`^(ses|msg)_[0-9a-f]{12}[0-9A-Za-z]{14}$`)
+	idPattern := regexp.MustCompile(`^ses_[0-9a-f]{9}f[c-f][0-9a-f][0-9A-Za-z]{14}$`)
 	assert.Regexp(t, idPattern, httpRequest.Headers.Get(sessionHeader))
-	assert.Regexp(t, idPattern, httpRequest.Headers.Get(requestHeader))
-	assert.NotEqual(t, httpRequest.Headers.Get(sessionHeader), httpRequest.Headers.Get(requestHeader))
+	assert.Equal(t, httpRequest.Headers.Get(sessionHeader), httpRequest.Headers.Get(sessionIDHeader))
+	assert.Empty(t, httpRequest.Headers.Get(requestHeader))
 
 	body := decodeBody(t, httpRequest.Body)
 	assert.Equal(t, true, body["stream"])
 	assert.Equal(t, "none", body["tool_choice"])
-	assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+	assert.Equal(t, coreToolNames, toolNames(t, body))
 }
 
 func TestTransformRequestUsesConfiguredAPIKey(t *testing.T) {
@@ -160,7 +160,7 @@ func TestTransformRequestPreservesExistingToolsAndChoice(t *testing.T) {
 
 	body := decodeBody(t, httpRequest.Body)
 	assert.Equal(t, "auto", body["tool_choice"])
-	assert.Equal(t, []string{"bash", "weather", "read"}, toolNames(t, body))
+	assert.Equal(t, append([]string{"axonhub_bash", "weather"}, coreToolNames...), toolNames(t, body))
 
 	tools := body["tools"].([]any)
 	bash := tools[0].(map[string]any)["function"].(map[string]any)
@@ -170,7 +170,7 @@ func TestTransformRequestPreservesExistingToolsAndChoice(t *testing.T) {
 	assert.Contains(t, properties, "cmd")
 }
 
-func TestTransformRequestLeavesCompleteToolSetUnchanged(t *testing.T) {
+func TestTransformRequestAliasesReservedToolNames(t *testing.T) {
 	outbound := newTestOutbound(t)
 	request := newChatRequest()
 	request.Tools = []llm.Tool{
@@ -182,7 +182,7 @@ func TestTransformRequestLeavesCompleteToolSetUnchanged(t *testing.T) {
 	require.NoError(t, err)
 
 	body := decodeBody(t, httpRequest.Body)
-	assert.Equal(t, []string{"bash", "read"}, toolNames(t, body))
+	assert.Equal(t, append([]string{"axonhub_bash", "axonhub_read"}, coreToolNames...), toolNames(t, body))
 	_, hasChoice := body["tool_choice"]
 	assert.False(t, hasChoice)
 }
@@ -208,7 +208,7 @@ func TestFinalizeTransportRequestRestoresRequiredFields(t *testing.T) {
 	body := decodeBody(t, finalized.Body)
 	assert.Equal(t, true, body["stream"])
 	assert.Equal(t, "auto", body["tool_choice"])
-	assert.Equal(t, []string{"weather", "bash", "read"}, toolNames(t, body))
+	assert.Equal(t, append([]string{"weather"}, coreToolNames...), toolNames(t, body))
 }
 
 func TestOutboundRejectsPassThroughBody(t *testing.T) {
