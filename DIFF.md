@@ -140,7 +140,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 重叠项取舍（2026-10-09 用户确认）：
 
 1. **System One（#2524/#2607 ↔ 3.14）**：采用上游类型化协议（`state`/`questions`/`answers`）、`typesafe` 渠道类型、默认模型与渠道测试格式；`RequestTypeSystemOne` 统一为 `systemone`。**放宽**上游「该格式只能给 typesafe 渠道」的限制：任意渠道仍可挂 Jev 兼容的 `typesafe/systemone` 端点（后端 `validateEndpointsForChannelType` 与前端 `getConfigurableApiFormatsForChannelType`）。删除自用 `llm/system_one.go` 与透传 transformer。
-2. **上游自报模型（#2509/#2533 ↔ `dec1c5b4`）**：请求执行改用上游 `upstream_model_id` 与 `llm/modelname`；删除自用 `request_executions.response_model`、`PersistenceState.UpstreamResponseModel`、流式捕获中间件及请求列表里的宽松比较徽标（改用上游审计图标）。**保留** CPA 请求监控的模型不一致提示（`cpa_usage_events.response_model`、`UpstreamModelHint`、`model-mismatch.ts`）。
+2. **上游自报模型（#2509/#2533 ↔ `dec1c5b4`）**：请求执行改用上游 `upstream_model_id` 与 `llm/modelname`；删除自用 `request_executions.response_model`、`PersistenceState.UpstreamResponseModel`、流式捕获中间件及请求列表里的宽松比较徽标（改用上游审计图标）。**保留** CPA 请求监控的模型一致性审计（`cpa_usage_events.response_model`、`model-mismatch.ts`）。
 3. **自动禁用（#2453 ↔ 2.1/2.2/3.11）**：整体不引入（已 revert）；保留自用 Key Pool、全局 `AutoDisableChannel`/`AutoDisableAPIKey`、持久化失败计数、渠道冷却与单一归属。今后同步上游时该区域会持续冲突。
 4. **额度路由（#2448/#2562）**：采用上游三模式两阶段路由与一次性设置迁移，删除旧 `quota_enforcement_settings` 前端；自用 `WithChannelCooldownFilterSelector` 保留在额度闸门之前。
 5. **重试（#2469/#2478 ↔ 3.1）**：采用上游；Key Pool 多 key 重试分支同时识别 HTTP 429 状态码，`RetryCount` 总请求数语义不变。
@@ -341,9 +341,10 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **样式恢复**：将 `EstimateBadge` 导出并更新为圆角药丸胶囊（`rounded-full`），保持与剩余百分比视觉风格一致；悬停展示已用估算金额。
 - **布局与防挤占**：额度条第二列宽度固定保持 `267px` 绝不挤占；预估额度胶囊放置在额度条右侧第三列槽位，且与 `+N` 溢出按钮在同一位置支持 flex 横向并排排列。
 
-### 3.23 自用新功能：CPA 上游模型不一致提示与管理页紧凑页头
+### 3.23 自用新功能：CPA 模型一致性审计、请求监控样式与管理页紧凑页头
 
-- **CPA 模型不一致提示**（`dec1c5b4` 中保留的部分）：`cpa_usage_events.response_model` 记录上游自报模型，CPA 请求监控用 `UpstreamModelHint` + `frontend/src/lib/model-mismatch.ts` 的宽松归一化比较（去前缀/大小写/thinking 后缀/`-latest`/日期快照）标出不一致。请求执行侧的同类功能已改用上游 #2509/#2533（见 2.8 节第 2 条）。
+- **CPA 模型一致性审计**（`dec1c5b4` 中保留的部分）：`cpa_usage_events.response_model` 记录 CPA 上报的上游自报模型（CLIProxyAPI `25f40d8c`/`e9463ff5` 起提供），CPA 请求监控在模型列用与请求列表相同的审计图标标出状态：一致（绿勾）、不一致或请求失败（红色三角）、未上报（淡灰问号）。比较使用 `frontend/src/lib/model-mismatch.ts` 的宽松归一化（去前缀/大小写/thinking 后缀/`-latest`/日期快照）。请求执行侧的同类功能已改用上游 #2509/#2533（见 2.8 节第 2 条）。
+- **CPA 请求监控表格样式**：与请求列表一致（圆角表格、粘性表头、行动画、ID+状态徽标、Tokens 总计/输入/输出、读缓存命中率、`yyyy-MM-dd HH:mm:ss` 时间）。
 - **CPA 管理页紧凑页头**（`414c9f84`）：实例选择、可用/异常统计胶囊与「添加 CPA」并入页面标题栏；实例健康以状态点表示，详情悬停在「可用/总数」胶囊上；删除入口移入编辑对话框；视图切换右置到提供商筛选行。后续计划迁移到上游 #2542 的 `PageHeader`。
 
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta11
