@@ -230,11 +230,7 @@ export default function CPAManagement() {
               />
               </TabsContent>
               <TabsContent value='requests' className='flex min-h-0 flex-col overflow-hidden'>
-                <CPAUsageMonitor
-                  key={selectedInstance.id}
-                  instanceID={selectedInstance.id}
-                  locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
-                />
+                <CPAUsageMonitor key={selectedInstance.id} instanceID={selectedInstance.id} />
               </TabsContent>
             </Tabs>
           )}
