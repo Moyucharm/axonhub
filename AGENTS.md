@@ -25,7 +25,7 @@ This is a personal fork (`自用` branch). The baseline for self-hosted versions
 - The user decides how much to bump the enhancement number based on the scope of each update; there is no fixed step. Never reset it when moving to a new upstream release, and ask the user for the new number when unsure. Update `internal/build/VERSION` and the git tag together.
 - `internal/build/VERSION` must contain only the plain version string (no comments) — it is parsed by semver after TrimSpace.
 - When a new upstream release is published, follow the upgrade flow in `DIFF.md` §5: rebase self-hosted features onto the new release, review overlapping features (upstream #2180/#2156 overlap with Key Pool auto-disable and channel cooldown), then update version/tag/image and refresh `DIFF.md`.
-- Current status: `v1.0.0-beta11+azusa.v0.6.7` (baseline official v1.0.0-beta11; see `DIFF.md` §2.8).
+- Current status: `v1.0.0-beta11+azusa.v0.6.8` (baseline official v1.0.0-beta11; see `DIFF.md` §2.8).
 
 ## Project Overview
 

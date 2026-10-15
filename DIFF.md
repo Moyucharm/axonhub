@@ -13,7 +13,7 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta11`（`b8bb3421`，2026-10-08） |
 | 当前发行基线提交 | `b8bb3421` fix(channels): 修复 System One 渠道与 API key 的测试格式 (#2607) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta11+azusa.v0.6.7` |
+| 本分支版本号 | `v1.0.0-beta11+azusa.v0.6.8` |
 
 ### 更新本文件的方法
 
@@ -347,6 +347,11 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **CPA 请求监控表格样式**：与请求列表一致（圆角表格、粘性表头、行动画、ID+状态徽标、Tokens 总计/输入/输出、读缓存命中率、`yyyy-MM-dd HH:mm:ss` 时间）。
 - **CPA 管理页紧凑页头**（`414c9f84`）：实例选择、可用/异常统计胶囊与「添加 CPA」并入页面标题栏；实例健康以状态点表示，详情悬停在「可用/总数」胶囊上；删除入口移入编辑对话框；视图切换右置到提供商筛选行。后续计划迁移到上游 #2542 的 `PageHeader`。
 
+### 3.24 OpenCode Zen 匿名推理与工具兼容修复（`87a1e5d5`、`b52f51aa`）
+
+- **匿名推理入口与客户端身份**：`public` 请求改写到 `https://opencode.ai/inference/v1`（用户 Key 与自定义地址不变）；三种协议共用 `identity.go` 的 OpenCode CLI 身份（User-Agent、四个 session header、稳定 project），不再发送 `x-opencode-request`；finalizer 从请求初始化时保存的私有 `requestIdentity` 恢复已选 Key，修复真实用户 Key 被误回退为 `public`。
+- **官方工具与别名**：按原生协议补齐 MIT 许可官方 OpenCode 的 `shell/edit/glob/grep/read` 工具（`opencode_tools.json`，来源见 `OPENCODE_LICENSE.md`）；与官方保留名冲突的客户端工具改用 `axonhub_*` 内部别名，响应中还原为客户端名称；Responses 的自定义工具与 namespace 同样保留。详见 [OpenCode Zen 渠道](.agents/notes/implemented/feature/2026-09-18-opencode-zen-channel.md)。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta11
 
 本次合并前 `自用` HEAD 为 `414c9f84`。官方 `v1.0.0-beta11`（`b8bb3421`）相对 `v1.0.0-beta10` 新增 **138 个提交**，除 #2453（已 revert）外全部吸收，重叠项取舍见 2.8 节；明确忽略 `v1.0.0-beta11..unstable` 的未发行提交。下文 beta10 部分为上一轮记录。
@@ -388,7 +393,7 @@ beta10 记录：本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-be
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：自用更新时递增增强号（`azusa.v<主>.<次>.<修订>`），**递增幅度由用户根据更新情况决定**，没有固定步长；同步更新 `internal/build/VERSION` 与 git tag。不确定时先问用户。
 - **跨官方版本（2026-10-09 定）**：跟进新的官方发行版时，增强号**不归零**，在原数字上继续递增。
-- **当前状态**：`2026-10-09` 对齐官方 `v1.0.0-beta11`，版本 `v1.0.0-beta11+azusa.v0.6.7`（相对 `v0.6.6` 递增修订位；取舍见 2.8 节，新增内容见 3.23）。`beta11..unstable` 未发行提交不在本次范围内。
+- **当前状态**：`2026-10-15` 发布 `v1.0.0-beta11+azusa.v0.6.8`（相对 `v0.6.7` 递增修订位；新增 CPA 请求监控样式与模型一致性审计（3.23）、OpenCode Zen 修复（3.24））。基线仍为官方 `v1.0.0-beta11`，`beta11..unstable` 未发行提交不在本次范围内。
 
 ### 官方新发行版发布时的升级流程
 
