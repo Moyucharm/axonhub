@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
@@ -32,6 +36,23 @@ type toolAliasOutbound struct {
 }
 
 func (t *toolAliasOutbound) TransformRequest(ctx context.Context, request *llm.Request) (*httpclient.Request, error) {
+	if t.APIFormat() == llm.APIFormatOpenAIResponse {
+		// Serialize first so aliasing does not invalidate the Responses
+		// transformer's raw namespace/tool-choice extension signatures.
+		cloned := *request
+		httpRequest, err := t.Outbound.TransformRequest(ctx, &cloned)
+		if err != nil {
+			return nil, err
+		}
+		body, aliases, err := aliasResponsesRequestBody(httpRequest.Body)
+		if err != nil {
+			return nil, fmt.Errorf("alias OpenCode Zen Responses tools: %w", err)
+		}
+		httpRequest.Body = body
+		setToolAliases(httpRequest, aliases)
+		return httpRequest, nil
+	}
+
 	cloned := *request
 	cloned.Tools = slices.Clone(request.Tools)
 	aliases := make(map[string]string)
@@ -100,12 +121,83 @@ func (t *toolAliasOutbound) TransformRequest(ctx context.Context, request *llm.R
 	if err != nil {
 		return nil, err
 	}
-	httpRequest.TransformerMetadata = maps.Clone(httpRequest.TransformerMetadata)
-	if httpRequest.TransformerMetadata == nil {
-		httpRequest.TransformerMetadata = make(map[string]any)
-	}
-	httpRequest.TransformerMetadata[toolAliasesMetadataKey] = aliases
+	setToolAliases(httpRequest, aliases)
 	return httpRequest, nil
+}
+
+// Responses custom tools and namespaces must retain their native contracts.
+// Only top-level callable tools share names with the injected official functions.
+func aliasResponsesRequestBody(body []byte) ([]byte, map[string]string, error) {
+	payload := gjson.ParseBytes(body)
+	tools := payload.Get("tools").Array()
+	used := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		used[tool.Get("name").String()] = true
+		if tool.Get("type").String() == "namespace" {
+			// Done events may omit namespace, so keep aliases distinct from
+			// local member names as well as top-level tool names.
+			for _, member := range tool.Get("tools").Array() {
+				used[member.Get("name").String()] = true
+			}
+		}
+	}
+	aliases := make(map[string]string)
+	renames := make(map[string]string)
+	for i, tool := range tools {
+		kind := tool.Get("type").String()
+		name := tool.Get("name").String()
+		if (kind != "function" && kind != "custom") || !reservedToolNames[name] {
+			continue
+		}
+		alias := "axonhub_" + name
+		for used[alias] {
+			alias = "_" + alias
+		}
+		used[alias] = true
+		aliases[alias] = name
+		renames[name] = alias
+		var err error
+		body, err = sjson.SetBytes(body, fmt.Sprintf("tools.%d.name", i), alias)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(aliases) == 0 {
+		return body, aliases, nil
+	}
+
+	paths := []string{"tool_choice"}
+	for i := range payload.Get("input").Array() {
+		paths = append(paths, fmt.Sprintf("input.%d", i))
+	}
+	for i := range payload.Get("tool_choice.tools").Array() {
+		paths = append(paths, fmt.Sprintf("tool_choice.tools.%d", i))
+	}
+	for _, path := range paths {
+		item := payload.Get(path)
+		if item.Get("namespace").String() != "" {
+			continue
+		}
+		switch item.Get("type").String() {
+		case "function", "custom", "function_call", "custom_tool_call":
+			if alias := renames[item.Get("name").String()]; alias != "" {
+				var err error
+				body, err = sjson.SetBytes(body, path+".name", alias)
+				if err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+	}
+	return body, aliases, nil
+}
+
+func setToolAliases(request *httpclient.Request, aliases map[string]string) {
+	request.TransformerMetadata = maps.Clone(request.TransformerMetadata)
+	if request.TransformerMetadata == nil {
+		request.TransformerMetadata = make(map[string]any)
+	}
+	request.TransformerMetadata[toolAliasesMetadataKey] = aliases
 }
 
 func toolAliases(request *httpclient.Request) map[string]string {
@@ -139,6 +231,9 @@ func restoreToolNames(body []byte, aliases map[string]string) []byte {
 		return body
 	}
 	rename := func(value map[string]any) {
+		if namespace, _ := value["namespace"].(string); namespace != "" {
+			return
+		}
 		if name, ok := value["name"].(string); ok {
 			if original := aliases[name]; original != "" {
 				value["name"] = original
@@ -150,7 +245,10 @@ func restoreToolNames(body []byte, aliases map[string]string) []byte {
 		switch value := value.(type) {
 		case map[string]any:
 			switch value["type"] {
-			case "function_call", "tool_use", "server_tool_use", "response.function_call_arguments.done":
+			case "namespace":
+				return // Namespace members were never aliased.
+			case "function", "custom", "function_call", "custom_tool_call", "tool_use", "server_tool_use",
+				"response.function_call_arguments.done", "response.custom_tool_call_input.done":
 				rename(value)
 			}
 			if function, ok := value["function"].(map[string]any); ok {

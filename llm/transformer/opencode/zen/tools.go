@@ -37,6 +37,12 @@ func reconcileTools(body []byte, format llm.APIFormat) ([]byte, error) {
 	}
 	tools := make([]json.RawMessage, 0, len(result.Array())+len(coreToolNames))
 	for _, tool := range result.Array() {
+		// A Responses namespace or custom tool is not an official function,
+		// even when its name matches one of the required definitions.
+		if format == llm.APIFormatOpenAIResponse && tool.Get("type").String() != llm.ToolTypeFunction {
+			tools = append(tools, json.RawMessage(tool.Raw))
+			continue
+		}
 		name := tool.Get("name").String()
 		if format == llm.APIFormatOpenAIChatCompletion {
 			name = tool.Get("function.name").String()
