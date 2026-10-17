@@ -70,7 +70,7 @@ func planFromTierName(raw string) string {
 	switch tier {
 	case "free", "grok_free", "grokfree", "free_tier", "freetier", "grok_basic", "grokbasic":
 		return "Free"
-	case "supergrok", "grokpro", "supergrok_pro", "supergrokpro", "paid", "pro":
+	case "supergrok", "grokpro", "supergrok_pro", "supergrokpro":
 		return "SuperGrok"
 	case "supergrok_lite", "supergroklite":
 		return "SuperGrok Lite"

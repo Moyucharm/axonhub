@@ -60,9 +60,6 @@ func NormalizeAuthFile(file AuthFile) (NormalizedCredential, error) {
 	paid := (file.UsingAPI && strings.EqualFold(file.Prefix, "paid")) ||
 		strings.Contains(planType, "paid") || strings.Contains(strings.ToLower(accountType), "paid") ||
 		(tier != nil && *tier >= 1)
-	if paid && planType == "" {
-		planType = "paid"
-	}
 
 	email := strings.TrimSpace(file.Email)
 	if strings.EqualFold(accountType, "api_key") {

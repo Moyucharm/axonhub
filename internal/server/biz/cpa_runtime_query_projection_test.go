@@ -78,6 +78,38 @@ func TestCPAProjectionBackfillIsIdempotent(t *testing.T) {
 	require.Equal(t, first.UpdatedAt, second.UpdatedAt)
 }
 
+func TestCPAProjectionBackfillClearsFabricatedXAIPlans(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_projection_plan_cleanup?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	svc := &CPAService{AbstractService: &AbstractService{db: client}, now: time.Now}
+	instance := client.CPAInstance.Create().
+		SetName("projection").
+		SetBaseURL("http://127.0.0.1:8317").
+		SetEncryptedSecret("encrypted").
+		SaveX(ctx)
+	create := func(key, provider, plan string) int {
+		return client.CPACredential.Create().
+			SetCpaInstanceID(instance.ID).
+			SetExternalKey(key).
+			SetRemoteName(key + ".json").
+			SetDisplayName(key).
+			SetStatus("active").
+			SetProvider(provider).
+			SetPlanType(plan).
+			SetProjectionVersion(1).
+			SaveX(ctx).ID
+	}
+	xaiFree := create("xai-free", "xai", "free")
+	xaiPaid := create("xai-paid", "xai", "paid")
+	codexFree := create("codex-free", "codex", "free")
+
+	require.NoError(t, svc.backfillCPACredentialProjections(ctx))
+	require.Empty(t, client.CPACredential.GetX(ctx, xaiFree).PlanType)
+	require.Empty(t, client.CPACredential.GetX(ctx, xaiPaid).PlanType)
+	require.Equal(t, "free", client.CPACredential.GetX(ctx, codexFree).PlanType)
+}
+
 func TestCPAQueryUsesStableKeysetAndOverviewAggregates(t *testing.T) {
 	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_keyset_overview?mode=memory&_fk=0")
 	defer client.Close()

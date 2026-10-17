@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseBillingResponses_merges_weekly_usage_and_monthly_plan(t *testing.T) {
+func TestParseBillingResponses_merges_weekly_and_monthly_usage(t *testing.T) {
 	// Given
 	weekly := []byte(`{
 		"config": {
@@ -33,27 +33,13 @@ func TestParseBillingResponses_merges_weekly_usage_and_monthly_plan(t *testing.T
 
 	// Then
 	require.NoError(t, err)
-	require.Equal(t, "SuperGrok", result.Plan)
+	require.Empty(t, result.Plan, "monthly credit limit must not be mapped to a plan name")
 	require.Equal(t, 82.5, result.Weekly.UsagePercent)
 	require.Equal(t, "2026-07-16T03:25:00Z", result.Weekly.ResetAt)
 	require.Equal(t, 50.0, result.Monthly.UsagePercent)
 	require.Equal(t, 150.0, result.Monthly.LimitUSD)
 	require.Equal(t, 75.0, result.Monthly.UsedUSD)
 	require.Equal(t, "2026-08-01T00:00:00Z", result.Monthly.ResetAt)
-}
-
-func TestParseBillingResponses_identifies_supergrok_heavy(t *testing.T) {
-	// Given
-	weekly := []byte(`{"config":{"creditUsagePercent":2}}`)
-	monthly := []byte(`{"config":{"monthlyLimit":{"val":"150000"},"used":{"val":"30000"}}}`)
-
-	// When
-	result, err := ParseBillingResponses(weekly, monthly)
-
-	// Then
-	require.NoError(t, err)
-	require.Equal(t, "SuperGrok Heavy", result.Plan)
-	require.Equal(t, 20.0, result.Monthly.UsagePercent)
 }
 
 func TestParseBillingResponses_rejects_missing_billing_config(t *testing.T) {

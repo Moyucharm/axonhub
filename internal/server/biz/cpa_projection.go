@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	currentCPAProjectionVersion = 1
+	// Version 2 clears xAI plan types that older releases fabricated.
+	currentCPAProjectionVersion = 2
 	cpaProjectionBackfillBatch  = 200
 )
 
@@ -158,6 +159,9 @@ func (svc *CPAService) backfillCPACredentialProjections(ctx context.Context) err
 				} else {
 					update.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
 				}
+				if clearFabricatedCPAPlan(credential) {
+					update.SetPlanType("")
+				}
 				if err := update.Exec(txCtx); err != nil {
 					return fmt.Errorf("backfill CPA credential %d projection: %w", credential.ID, err)
 				}
@@ -168,4 +172,14 @@ func (svc *CPAService) backfillCPACredentialProjections(ctx context.Context) err
 		}
 		lastID = rows[len(rows)-1].ID
 	}
+}
+
+// clearFabricatedCPAPlan reports whether a stored plan was invented by older
+// releases rather than reported by CPA. CPA never reports an xAI plan, so the
+// "free"/"paid" values those releases wrote for xAI carry no information.
+func clearFabricatedCPAPlan(credential *ent.CPACredential) bool {
+	if credential.Provider != "xai" {
+		return false
+	}
+	return strings.EqualFold(credential.PlanType, "free") || strings.EqualFold(credential.PlanType, "paid")
 }

@@ -24,8 +24,8 @@ func TestNormalizeAuthFileKeepsOnlySafeAccountMetadata(t *testing.T) {
 	if normalized.Email != "" {
 		t.Fatalf("api-key account value was retained as searchable email: %q", normalized.Email)
 	}
-	if normalized.PlanType != "paid" || !normalized.QuotaContext.Paid {
-		t.Fatalf("paid xAI tier was not detected: plan=%q paid=%v", normalized.PlanType, normalized.QuotaContext.Paid)
+	if normalized.PlanType != "" || !normalized.QuotaContext.Paid {
+		t.Fatalf("paid xAI tier must not invent a plan name: plan=%q paid=%v", normalized.PlanType, normalized.QuotaContext.Paid)
 	}
 }
 

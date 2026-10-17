@@ -20,16 +20,11 @@ type xaiQuotaAdapter struct{}
 func (xaiQuotaAdapter) Provider() string { return "xai" }
 
 func (xaiQuotaAdapter) Fetch(ctx context.Context, client ManagementClient, input CredentialInput) (QuotaResult, error) {
-	if input.Paid || strings.EqualFold(input.PlanType, "paid") {
-		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: "paid"}, nil
-	}
-	// Non-paid accounts are free regardless of whether billing returns usable
-	// data; normalizing up front lets every return path report a plan so the
-	// credential badge does not stay empty after insufficient_data results.
+	// CPA's auth-files never report an xAI plan, so the plan stays whatever
+	// sync stored (normally empty). Guessing "free"/"paid" would show false data.
 	planType := input.PlanType
-	// "oauth" is an auth-method placeholder from legacy sync data, not a plan.
-	if planType == "" || strings.EqualFold(planType, "oauth") {
-		planType = "free"
+	if input.Paid {
+		return QuotaResult{State: objects.CPAQuotaStateUnsupported, PlanType: planType}, nil
 	}
 	headers := map[string]string{
 		"Authorization":         "Bearer $TOKEN$",

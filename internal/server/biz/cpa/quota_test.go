@@ -333,8 +333,8 @@ func TestXAIEmptyBillingConfigIsInsufficientData(t *testing.T) {
 	if result.State != objects.CPAQuotaStateInsufficientData {
 		t.Fatalf("unexpected empty billing state: %s", result.State)
 	}
-	if result.PlanType != "free" {
-		t.Fatalf("empty billing should still report free plan: %q", result.PlanType)
+	if result.PlanType != "" {
+		t.Fatalf("xAI plan must not be guessed when CPA reports none: %q", result.PlanType)
 	}
 }
 

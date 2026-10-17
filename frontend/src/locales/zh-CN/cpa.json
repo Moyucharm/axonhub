@@ -105,8 +105,6 @@
   "cpa.planLabels.antigravity.pro": "Pro",
   "cpa.planLabels.antigravity.ultra": "Ultra",
   "cpa.planLabels.antigravity.ultra-lite": "Ultra Lite",
-  "cpa.planLabels.xai.free": "Free",
-  "cpa.planLabels.xai.paid": "Paid",
   "cpa.instance.autoManage": "凭证自动管理",
   "cpa.instance.autoManageHint": "自动巡查凭证：额度耗尽或已过期的自动禁用，已禁用的额度恢复后自动启用。",
   "cpa.instance.autoResetDependency": "需先开启「凭证自动管理」——只有它的巡检会按周期刷新额度与重置卡信息。",

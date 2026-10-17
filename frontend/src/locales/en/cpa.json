@@ -105,8 +105,6 @@
   "cpa.planLabels.antigravity.pro": "Pro",
   "cpa.planLabels.antigravity.ultra": "Ultra",
   "cpa.planLabels.antigravity.ultra-lite": "Ultra Lite",
-  "cpa.planLabels.xai.free": "Free",
-  "cpa.planLabels.xai.paid": "Paid",
   "cpa.instance.autoManage": "Credential auto-management",
   "cpa.instance.autoManageHint": "Patrol credentials automatically: disable exhausted or expired ones and re-enable disabled ones once their quota recovered.",
   "cpa.instance.autoResetDependency": "Requires credential auto-management: only that patrol refreshes quota and reset-credit data on schedule.",

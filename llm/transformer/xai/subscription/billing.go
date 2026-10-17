@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-const (
-	superGrokLimitCents      = 15_000
-	superGrokHeavyLimitCents = 150_000
-)
-
 type BillingWindow struct {
 	UsagePercent float64 `json:"usage_percent"`
 	ResetAt      string  `json:"reset_at,omitempty"`
@@ -96,7 +91,7 @@ func ParseBillingResponses(weeklyBody, monthlyBody []byte) (BillingSummary, erro
 		if limitCents > 0 {
 			result.Monthly.UsagePercent = math.Min(usedCents, limitCents) / limitCents * 100
 		}
-		result.Plan = billingPlan(limitCents)
+		// monthlyLimit is a credit amount, not a plan name; never derive the plan from it.
 	}
 	return result, nil
 }
@@ -137,15 +132,4 @@ func valueOrZero(value *float64) float64 {
 		return 0
 	}
 	return *value
-}
-
-func billingPlan(limitCents float64) string {
-	switch math.Round(limitCents) {
-	case superGrokLimitCents:
-		return "SuperGrok"
-	case superGrokHeavyLimitCents:
-		return "SuperGrok Heavy"
-	default:
-		return ""
-	}
 }

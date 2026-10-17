@@ -48,7 +48,7 @@ func TestXAISubscriptionQuotaChecker_CheckQuota_merges_billing_windows(t *testin
 	require.InDelta(t, 0.5, result.Limits[1].UsageRatio, 1e-9)
 	require.Equal(t, time.Date(2099, 8, 1, 0, 0, 0, 0, time.UTC), *result.Limits[1].NextResetAt)
 	require.Equal(t, time.Date(2099, 7, 16, 3, 25, 0, 0, time.UTC), *result.NextResetAt)
-	require.Equal(t, "SuperGrok", result.RawData["plan_type"])
+	require.Empty(t, result.RawData["plan_type"], "opaque token carries no tier, so no plan is reported")
 	require.NotNil(t, result.RawData["billing"])
 }
 
