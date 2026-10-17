@@ -11,10 +11,12 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 )
 
+// Production is tried first: the daily endpoints answer 200 with only the
+// "Claude and GPT models" group and omit the Gemini group entirely.
 var antigravityQuotaURLs = []string{
+	"https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 	"https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 	"https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
-	"https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 }
 
 const antigravitySubscriptionURL = "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
