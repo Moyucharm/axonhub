@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/schema/index"
 
 	"github.com/looplj/axonhub/internal/objects"
+	"github.com/looplj/axonhub/internal/scopes"
 )
 
 type RequestExecution struct {
@@ -170,5 +171,26 @@ func (RequestExecution) Edges() []ent.Edge {
 func (RequestExecution) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entgql.RelayConnection(),
+	}
+}
+
+// Policy mirrors Request so executions (bodies, headers, upstream URLs) are
+// never readable through edges such as channel.executions by callers that
+// cannot read the parent request. API key principals are limited to their own
+// project.
+func (RequestExecution) Policy() ent.Policy {
+	return scopes.Policy{
+		Query: scopes.QueryPolicy{
+			scopes.APIKeyProjectScopeReadRule(scopes.ScopeWriteRequests),
+			scopes.UserProjectScopeReadRequestsRule(scopes.ScopeReadRequests),
+			scopes.OwnerRule(),
+			scopes.UserReadScopeRule(scopes.ScopeReadRequests),
+		},
+		Mutation: scopes.MutationPolicy{
+			scopes.APIKeyScopeMutationRule(scopes.ScopeWriteRequests),
+			scopes.UserProjectScopeWriteRule(scopes.ScopeWriteRequests),
+			scopes.OwnerRule(),
+			scopes.UserWriteScopeRule(scopes.ScopeWriteRequests),
+		},
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/apikey"
+	"github.com/looplj/axonhub/internal/ent/predicate"
 	"github.com/looplj/axonhub/internal/ent/privacy"
 	"github.com/looplj/axonhub/internal/ent/request"
 )
@@ -61,17 +62,25 @@ func UserProjectScopeReadRequestsRule(requiredScope ScopeSlug) privacy.QueryRule
 				),
 			))
 		case *ent.UsageLogFilter:
-			q.WhereHasRequestWith(request.Or(
-				request.And(request.SourceEQ(request.SourcePlayground), request.UserIDEQ(currentUser.ID)),
-				request.And(
-					request.SourceNEQ(request.SourcePlayground),
-					request.Or(request.APIKeyIDIsNil(), request.HasAPIKeyWith(
-						apikey.Or(apikey.TypeNEQ(apikey.TypePersonal), apikey.UserID(currentUser.ID)),
-					)),
-				),
-			))
+			q.WhereHasRequestWith(memberVisibleRequest(currentUser.ID))
+		case *ent.RequestExecutionFilter:
+			q.WhereHasRequestWith(memberVisibleRequest(currentUser.ID))
 		}
 
 		return privacy.Allowf("User %d can query permitted requests in project %d", currentUser.ID, projectID)
 	})
+}
+
+// memberVisibleRequest matches requests a non-owner project member may read:
+// their own Playground records and API requests not made with another user's personal key.
+func memberVisibleRequest(userID int) predicate.Request {
+	return request.Or(
+		request.And(request.SourceEQ(request.SourcePlayground), request.UserIDEQ(userID)),
+		request.And(
+			request.SourceNEQ(request.SourcePlayground),
+			request.Or(request.APIKeyIDIsNil(), request.HasAPIKeyWith(
+				apikey.Or(apikey.TypeNEQ(apikey.TypePersonal), apikey.UserID(userID)),
+			)),
+		),
+	)
 }

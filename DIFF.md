@@ -353,6 +353,13 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **匿名推理入口与客户端身份**：`public` 请求改写到 `https://opencode.ai/inference/v1`（用户 Key 与自定义地址不变）；三种协议共用 `identity.go` 的 OpenCode CLI 身份（User-Agent、四个 session header、稳定 project），不再发送 `x-opencode-request`；finalizer 从请求初始化时保存的私有 `requestIdentity` 恢复已选 Key，修复真实用户 Key 被误回退为 `public`。
 - **官方工具与别名**：按原生协议补齐 MIT 许可官方 OpenCode 的 `shell/edit/glob/grep/read` 工具（`opencode_tools.json`，来源见 `OPENCODE_LICENSE.md`）；与官方保留名冲突的客户端工具改用 `axonhub_*` 内部别名，响应中还原为客户端名称；Responses 的自定义工具与 namespace 同样保留。详见 [OpenCode Zen 渠道](.agents/notes/implemented/feature/2026-09-18-opencode-zen-channel.md)。
 
+### 3.25 RequestExecution 跨项目读取修复
+
+- **问题**：`RequestExecution` 原本没有 ent Policy，持有 `read_channels` 的 service account key 可经 `channels { executions }` 读取任意项目的请求 URL、请求头与请求体（上游 `SECURITY.md` 将跨项目读取列为漏洞范围）。
+- **修复**：策略与 `Request` 一致——API Key 需要 `write_requests` 且只能读本项目；项目成员沿用 Request 的个人 Key 可见性规则（`memberVisibleRequest`）。只有 `read_channels` 的 key 查询 `channels { executions }` 时与 `channels { requests }` 一样返回 FORBIDDEN。
+- **不改动**：渠道可见范围（`read_channels` 仍可读全部渠道，见上游 #2565）以及代理、覆盖规则的显示保持上游原样。
+- 回归测试：`internal/server/gql/admin_graphql_apikey_execution_visibility_test.go`。
+
 ## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta11
 
 本次合并前 `自用` HEAD 为 `414c9f84`。官方 `v1.0.0-beta11`（`b8bb3421`）相对 `v1.0.0-beta10` 新增 **138 个提交**，除 #2453（已 revert）外全部吸收，重叠项取舍见 2.8 节；明确忽略 `v1.0.0-beta11..unstable` 的未发行提交。下文 beta10 部分为上一轮记录。

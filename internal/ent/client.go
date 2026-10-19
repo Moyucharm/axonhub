@@ -3949,7 +3949,8 @@ func (c *RequestExecutionClient) QueryDataStorage(_m *RequestExecution) *DataSto
 
 // Hooks returns the client hooks.
 func (c *RequestExecutionClient) Hooks() []Hook {
-	return c.hooks.RequestExecution
+	hooks := c.hooks.RequestExecution
+	return append(hooks[:len(hooks):len(hooks)], requestexecution.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
