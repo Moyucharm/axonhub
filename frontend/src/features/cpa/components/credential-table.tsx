@@ -62,6 +62,28 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   return <QuotaSummaryCapsule items={credential.quotaData.items} fallback={<span>—</span>} />;
 }
 
+function CredentialCooldownBadge({ credential }: { credential: CPACredential }) {
+  const { t } = useTranslation();
+  const details = [...new Set([
+    credential.cooldownUntil ? t('cpa.status.cooldownUntil', { time: formatTime(credential.cooldownUntil) }) : '',
+    credential.statusMessage,
+    credential.quotaLastError,
+  ].map((detail) => detail.trim()).filter(Boolean))];
+
+  if (details.length === 0) return <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant='secondary' className='cursor-help'>{t('cpa.status.cooldown')}</Badge>
+      </TooltipTrigger>
+      <TooltipContent side='top' className='max-w-80 space-y-1 break-all text-xs'>
+        {details.map((detail) => <p key={detail} className='whitespace-pre-wrap'>{detail}</p>)}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function CredentialResetBubble({
   credential,
   canWrite,
@@ -348,8 +370,8 @@ export function CPACredentialTable({
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <div className='flex flex-col items-start gap-1'>
                           {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
-                          {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
-                          {credential.abnormal &&
+                          {credential.unavailable && !credential.cooling && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
+                          {credential.abnormal && !credential.cooling &&
                             (credential.statusMessage ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -365,19 +387,7 @@ export function CPACredentialTable({
                               <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>
                             ))}
                           {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
-                          {credential.cooling &&
-                            (credential.cooldownUntil ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side='top'>
-                                  {t('cpa.status.cooldownUntil', { time: formatTime(credential.cooldownUntil) })}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>
-                            ))}
+                          {credential.cooling && <CredentialCooldownBadge credential={credential} />}
                           {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
                         </div>
                       </TableCell>
@@ -385,7 +395,7 @@ export function CPACredentialTable({
                         <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
                           <QuotaSummaryCell credential={credential} />
                         </span>
-                        {credential.quotaLastError && (
+                        {credential.quotaLastError && !credential.cooling && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default text-xs break-all'>
