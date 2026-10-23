@@ -631,8 +631,16 @@ func TestCPACooldownResetFailedLiveReadNeverWrites(t *testing.T) {
 		want string
 	}{
 		{name: "authentication", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusUnauthorized}, want: "management authentication failed"},
+		{name: "forbidden", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusForbidden}, want: "management authentication failed"},
+		{name: "list route missing", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusNotFound}, want: "HTTP 404"},
+		{name: "list refusal is not target disappearance", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusNotFound, Reason: "auth not found"}, want: "HTTP 404"},
+		{name: "list method unsupported", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusMethodNotAllowed}, want: "HTTP 405"},
 		{name: "unavailable", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusServiceUnavailable}, want: "management service is unavailable"},
+		{name: "server error", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusInternalServerError}, want: "service error"},
+		{name: "gateway error", err: &cpaclient.ManagementHTTPError{StatusCode: http.StatusBadGateway}, want: "service error"},
 		{name: "disconnected", err: fmt.Errorf("live read interrupted; Authorization: Bearer %s", cpaCooldownTestSecret), want: "refresh state before retrying"},
+		{name: "timeout", err: context.DeadlineExceeded, want: "refresh state before retrying"},
+		{name: "invalid list response", err: fmt.Errorf("decode CPA credential list: %w", io.ErrUnexpectedEOF), want: "refresh state before retrying"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newCPACooldownTestFixture(t)
@@ -640,6 +648,11 @@ func TestCPACooldownResetFailedLiveReadNeverWrites(t *testing.T) {
 			f.list = func(context.Context, int) (*cpaclient.AuthFilesResponse, error) { return nil, tt.err }
 			outcome, err := f.svc.ResetCredentialCooldown(f.ctx, f.credential.ID)
 			require.ErrorContains(t, err, tt.want)
+			require.ErrorContains(t, err, "read CPA credential before cooldown reset")
+			require.NotContains(t, err.Error(), "unconfirmed")
+			require.NotContains(t, err.Error(), "cooldown reset is unsupported")
+			require.NotContains(t, err.Error(), "during cooldown reset")
+			require.NotContains(t, err.Error(), "credential not found")
 			require.Nil(t, outcome)
 			require.Empty(t, f.resetRequests())
 			after := f.client.CPACredential.GetX(f.seedCtx, f.credential.ID)

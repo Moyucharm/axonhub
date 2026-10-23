@@ -48,7 +48,7 @@ func (svc *CPAService) ResetCredentialCooldown(ctx context.Context, credentialID
 	// select the management API for the credential's current remote identity.
 	freshResponse, _, err := client.ListCredentials(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read CPA credential before cooldown reset: %w", cpaCooldownResetRemoteError(err))
+		return nil, cpaCooldownResetReadError(err)
 	}
 	var matched cpaclient.AuthFile
 	matches := 0
@@ -114,7 +114,29 @@ func (svc *CPAService) refreshCredentialAfterCooldownReset(ctx context.Context, 
 	return view, nil
 }
 
-// cpaCooldownResetRemoteError exposes only classified management failures, not
+// cpaCooldownResetReadError reports failures before any reset POST is sent.
+// Raw errors may contain transport URLs or credentials and are never exposed.
+func cpaCooldownResetReadError(err error) error {
+	const prefix = "read CPA credential before cooldown reset failed"
+	const suffix = "; no cooldown reset request was sent; refresh state before retrying"
+	var managementErr *cpaclient.ManagementHTTPError
+	if !errors.As(err, &managementErr) {
+		return errors.New(prefix + suffix)
+	}
+	switch managementErr.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return fmt.Errorf(prefix+": CPA management authentication failed (HTTP %d)"+suffix, managementErr.StatusCode)
+	case http.StatusServiceUnavailable:
+		return errors.New(prefix + ": CPA management service is unavailable (HTTP 503)" + suffix)
+	default:
+		if managementErr.StatusCode >= http.StatusInternalServerError {
+			return fmt.Errorf(prefix+": CPA service error while reading credentials (HTTP %d)"+suffix, managementErr.StatusCode)
+		}
+		return fmt.Errorf(prefix+" (HTTP %d)"+suffix, managementErr.StatusCode)
+	}
+}
+
+// cpaCooldownResetRemoteError reports reset POST failures without exposing
 // upstream bodies, transport URLs, or credentials embedded in arbitrary errors.
 func cpaCooldownResetRemoteError(err error) error {
 	var managementErr *cpaclient.ManagementHTTPError
