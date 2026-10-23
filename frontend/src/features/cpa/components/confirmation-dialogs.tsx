@@ -98,6 +98,48 @@ export function CPAClaudeResetDialog({ confirmation, pending, failed, onOpenChan
   );
 }
 
+export interface CPACredentialCooldownResetConfirmation {
+  credentialID: number;
+  displayName: string;
+}
+
+interface CPACredentialCooldownResetDialogProps {
+  confirmation?: CPACredentialCooldownResetConfirmation;
+  pending: boolean;
+  failed: boolean;
+  error?: string;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}
+
+export function CPACredentialCooldownResetDialog({ confirmation, pending, failed, error, onOpenChange, onConfirm }: CPACredentialCooldownResetDialogProps) {
+  const { t } = useTranslation();
+  return (
+    <AlertDialog open={Boolean(confirmation)} onOpenChange={(open) => !pending && onOpenChange(open)}>
+      <AlertDialogContent data-testid='cpa-cooldown-reset-confirmation'>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('cpa.cooldownReset.confirmTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t('cpa.cooldownReset.confirmDescription', { name: confirmation?.displayName })}
+          </AlertDialogDescription>
+          {failed && (
+            <div role='alert' className='text-destructive mt-2 space-y-1 text-sm'>
+              <p>{t('cpa.cooldownReset.failure')}</p>
+              {error && <p className='break-words whitespace-pre-wrap'>{error}</p>}
+            </div>
+          )}
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>{t('common.buttons.cancel')}</AlertDialogCancel>
+          <Button data-testid='cpa-cooldown-reset-confirm' onClick={onConfirm} disabled={pending || failed}>
+            {t('cpa.cooldownReset.action')}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 interface CPACredentialToggleDialogProps {
   confirmation?: CPAToggleConfirmation;
   pending: boolean;

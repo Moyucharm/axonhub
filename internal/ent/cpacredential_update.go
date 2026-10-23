@@ -350,6 +350,46 @@ func (_u *CPACredentialUpdate) ClearQuotaCooldownUntil() *CPACredentialUpdate {
 	return _u
 }
 
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (_u *CPACredentialUpdate) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialUpdate {
+	_u.mutation.SetRoutingCooldown(v)
+	return _u
+}
+
+// SetNillableRoutingCooldown sets the "routing_cooldown" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableRoutingCooldown(v *objects.CPARoutingCooldownSnapshot) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetRoutingCooldown(*v)
+	}
+	return _u
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (_u *CPACredentialUpdate) ClearRoutingCooldown() *CPACredentialUpdate {
+	_u.mutation.ClearRoutingCooldown()
+	return _u
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (_u *CPACredentialUpdate) SetRoutingCooldownUntil(v time.Time) *CPACredentialUpdate {
+	_u.mutation.SetRoutingCooldownUntil(v)
+	return _u
+}
+
+// SetNillableRoutingCooldownUntil sets the "routing_cooldown_until" field if the given value is not nil.
+func (_u *CPACredentialUpdate) SetNillableRoutingCooldownUntil(v *time.Time) *CPACredentialUpdate {
+	if v != nil {
+		_u.SetRoutingCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (_u *CPACredentialUpdate) ClearRoutingCooldownUntil() *CPACredentialUpdate {
+	_u.mutation.ClearRoutingCooldownUntil()
+	return _u
+}
+
 // SetProjectionVersion sets the "projection_version" field.
 func (_u *CPACredentialUpdate) SetProjectionVersion(v int) *CPACredentialUpdate {
 	_u.mutation.ResetProjectionVersion()
@@ -696,6 +736,18 @@ func (_u *CPACredentialUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if _u.mutation.QuotaCooldownUntilCleared() {
 		_spec.ClearField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RoutingCooldown(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldown, field.TypeJSON, value)
+	}
+	if _u.mutation.RoutingCooldownCleared() {
+		_spec.ClearField(cpacredential.FieldRoutingCooldown, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.RoutingCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.RoutingCooldownUntilCleared() {
+		_spec.ClearField(cpacredential.FieldRoutingCooldownUntil, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ProjectionVersion(); ok {
 		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
@@ -1090,6 +1142,46 @@ func (_u *CPACredentialUpdateOne) ClearQuotaCooldownUntil() *CPACredentialUpdate
 	return _u
 }
 
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (_u *CPACredentialUpdateOne) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialUpdateOne {
+	_u.mutation.SetRoutingCooldown(v)
+	return _u
+}
+
+// SetNillableRoutingCooldown sets the "routing_cooldown" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableRoutingCooldown(v *objects.CPARoutingCooldownSnapshot) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetRoutingCooldown(*v)
+	}
+	return _u
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (_u *CPACredentialUpdateOne) ClearRoutingCooldown() *CPACredentialUpdateOne {
+	_u.mutation.ClearRoutingCooldown()
+	return _u
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (_u *CPACredentialUpdateOne) SetRoutingCooldownUntil(v time.Time) *CPACredentialUpdateOne {
+	_u.mutation.SetRoutingCooldownUntil(v)
+	return _u
+}
+
+// SetNillableRoutingCooldownUntil sets the "routing_cooldown_until" field if the given value is not nil.
+func (_u *CPACredentialUpdateOne) SetNillableRoutingCooldownUntil(v *time.Time) *CPACredentialUpdateOne {
+	if v != nil {
+		_u.SetRoutingCooldownUntil(*v)
+	}
+	return _u
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (_u *CPACredentialUpdateOne) ClearRoutingCooldownUntil() *CPACredentialUpdateOne {
+	_u.mutation.ClearRoutingCooldownUntil()
+	return _u
+}
+
 // SetProjectionVersion sets the "projection_version" field.
 func (_u *CPACredentialUpdateOne) SetProjectionVersion(v int) *CPACredentialUpdateOne {
 	_u.mutation.ResetProjectionVersion()
@@ -1466,6 +1558,18 @@ func (_u *CPACredentialUpdateOne) sqlSave(ctx context.Context) (_node *CPACreden
 	}
 	if _u.mutation.QuotaCooldownUntilCleared() {
 		_spec.ClearField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RoutingCooldown(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldown, field.TypeJSON, value)
+	}
+	if _u.mutation.RoutingCooldownCleared() {
+		_spec.ClearField(cpacredential.FieldRoutingCooldown, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.RoutingCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldownUntil, field.TypeTime, value)
+	}
+	if _u.mutation.RoutingCooldownUntilCleared() {
+		_spec.ClearField(cpacredential.FieldRoutingCooldownUntil, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ProjectionVersion(); ok {
 		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)

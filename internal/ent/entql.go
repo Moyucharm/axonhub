@@ -123,6 +123,8 @@ var schemaGraph = func() *sqlgraph.Schema {
 			cpacredential.FieldHealthState:           {Type: field.TypeString, Column: cpacredential.FieldHealthState},
 			cpacredential.FieldQuotaCooling:          {Type: field.TypeBool, Column: cpacredential.FieldQuotaCooling},
 			cpacredential.FieldQuotaCooldownUntil:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaCooldownUntil},
+			cpacredential.FieldRoutingCooldown:       {Type: field.TypeJSON, Column: cpacredential.FieldRoutingCooldown},
+			cpacredential.FieldRoutingCooldownUntil:  {Type: field.TypeTime, Column: cpacredential.FieldRoutingCooldownUntil},
 			cpacredential.FieldProjectionVersion:     {Type: field.TypeInt, Column: cpacredential.FieldProjectionVersion},
 			cpacredential.FieldQuotaData:             {Type: field.TypeJSON, Column: cpacredential.FieldQuotaData},
 			cpacredential.FieldQuotaLastAttemptAt:    {Type: field.TypeTime, Column: cpacredential.FieldQuotaLastAttemptAt},
@@ -1974,6 +1976,16 @@ func (f *CPACredentialFilter) WhereQuotaCooling(p entql.BoolP) {
 // WhereQuotaCooldownUntil applies the entql time.Time predicate on the quota_cooldown_until field.
 func (f *CPACredentialFilter) WhereQuotaCooldownUntil(p entql.TimeP) {
 	f.Where(p.Field(cpacredential.FieldQuotaCooldownUntil))
+}
+
+// WhereRoutingCooldown applies the entql json.RawMessage predicate on the routing_cooldown field.
+func (f *CPACredentialFilter) WhereRoutingCooldown(p entql.BytesP) {
+	f.Where(p.Field(cpacredential.FieldRoutingCooldown))
+}
+
+// WhereRoutingCooldownUntil applies the entql time.Time predicate on the routing_cooldown_until field.
+func (f *CPACredentialFilter) WhereRoutingCooldownUntil(p entql.TimeP) {
+	f.Where(p.Field(cpacredential.FieldRoutingCooldownUntil))
 }
 
 // WhereProjectionVersion applies the entql int predicate on the projection_version field.

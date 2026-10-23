@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { expect, test, type Page } from '@playwright/test'
-import { gotoAndEnsureAuth, waitForGraphQLOperation } from './auth.utils'
+import { gotoAndEnsureAuth, signInAsAdmin, waitForGraphQLOperation } from './auth.utils'
 
 const managementSecret = 'e2e-management-secret'
 
@@ -49,6 +49,16 @@ async function openCPA(page: Page) {
   }
 }
 
+type MockCooldown = {
+  scope: 'credential' | 'model'
+  model_key?: string
+  reason: string
+  retry_at: string
+  remaining_seconds: number
+  http_status?: number
+  backoff_level?: number
+}
+
 type MockCredential = {
   auth_index: string
   name: string
@@ -59,6 +69,9 @@ type MockCredential = {
   account_type: string
   id_token?: { chatgpt_account_id: string }
   priority: number
+  unavailable?: boolean
+  cooldowns?: MockCooldown[] | null
+  quotaUsedPercent?: number
 }
 
 test.describe('CPA critical paths', () => {
@@ -76,6 +89,11 @@ test.describe('CPA critical paths', () => {
   // Counts how many quota reads the mock should fail so a refresh can end in
   // quotaState error while the cached cards stay in the database.
   let usageFailures = 0
+  let managementAPI: 'v0' | 'v8' = 'v0'
+  let cooldownResetFailure: 'none' | '503' | 'disconnect' | 'refresh' | 'retrigger' = 'none'
+  let credentialListFailures = 0
+  let resetCalls: string[] = []
+  let statusPatchCalls = 0
   const credentials: MockCredential[] = Array.from({ length: 55 }, (_, index) => ({
     auth_index: `e2e-auth-${index + 1}`,
     name: `e2e-codex-${index + 1}.json`,
@@ -101,15 +119,48 @@ test.describe('CPA critical paths', () => {
         response.setHeader('X-CPA-VERSION', '7.2.0')
         const body = chunks.length > 0 ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : undefined
 
-        if (request.method === 'GET' && request.url === '/v0/management/auth-files') {
-          response.end(JSON.stringify(credentials))
+        if (request.method === 'GET' && (request.url === '/v8/management/credentials' || request.url === '/v0/management/auth-files')) {
+          if ((managementAPI === 'v8') !== (request.url === '/v8/management/credentials')) {
+            response.writeHead(404).end('{}')
+            return
+          }
+          if (credentialListFailures > 0) {
+            credentialListFailures -= 1
+            response.writeHead(503).end('{}')
+            return
+          }
+          response.end(JSON.stringify({ observed_at: new Date().toISOString(), files: credentials }))
+          return
+        }
+        if (request.method === 'POST' && request.url === (managementAPI === 'v8' ? '/v8/management/routing/cooldown/reset' : '/v0/management/reset-quota')) {
+          if (!body || Object.keys(body).length !== 1 || typeof body.auth_index !== 'string') {
+            response.writeHead(400).end(JSON.stringify({ error: 'invalid request body' }))
+            return
+          }
+          resetCalls.push(body.auth_index)
+          if (cooldownResetFailure === '503') {
+            response.writeHead(503).end(JSON.stringify({ error: 'core auth manager unavailable' }))
+            return
+          }
+          if (cooldownResetFailure === 'disconnect') {
+            request.socket.destroy()
+            return
+          }
+          const credential = credentials.find((item) => item.auth_index === body.auth_index)
+          if (!credential) {
+            response.writeHead(404).end(JSON.stringify({ error: 'auth not found' }))
+            return
+          }
+          if (cooldownResetFailure !== 'retrigger') credential.cooldowns = []
+          if (cooldownResetFailure === 'refresh') credentialListFailures = 3
+          response.end(JSON.stringify({ status: 'ok', auth_index: body.auth_index, models: [] }))
           return
         }
         if (request.method === 'POST' && request.url === '/v0/management/api-call') {
           providerCalls += 1
           let providerBody: unknown = {
             plan_type: 'plus',
-            rate_limit: { primary_window: { used_percent: 25, limit_window_seconds: 18_000, reset_after_seconds: 600 } },
+            rate_limit: { primary_window: { used_percent: credentials.find((item) => item.auth_index === body?.auth_index)?.quotaUsedPercent ?? 25, limit_window_seconds: 18_000, reset_after_seconds: 7200 } },
           }
           if (body?.url === 'https://chatgpt.com/backend-api/wham/usage') {
             if (usageFailures > 0) {
@@ -145,6 +196,7 @@ test.describe('CPA critical paths', () => {
           return
         }
         if (request.method === 'PATCH' && request.url === '/v0/management/auth-files/status') {
+          statusPatchCalls += 1
           if (failPatch) {
             response.writeHead(503).end('{}')
             return
@@ -299,7 +351,7 @@ test.describe('CPA critical paths', () => {
       waitForGraphQLOperation(page, 'DeleteCPAInstance'),
       page.getByTestId('cpa-delete-confirm').click(),
     ])
-    await expect(page.getByTestId('cpa-instance-select')).not.toContainText(`${instanceName} updated`)
+    await expect(page.getByTestId('cpa-instance-select').filter({ hasText: `${instanceName} updated` })).toHaveCount(0)
   })
 
   test('confirms the selected Codex credit once and saves automatic reset', async ({ page }) => {
@@ -412,6 +464,203 @@ test.describe('CPA critical paths', () => {
     await expect(dialog.getByTestId('cpa-auto-reset')).toHaveAttribute('data-state', 'unchecked')
     await dialog.getByTestId('cpa-delete-instance').click()
     await page.getByTestId('cpa-delete-confirm').click()
-    await expect(page.getByTestId('cpa-instance-select')).not.toContainText(instanceName)
+    await expect(page.getByTestId('cpa-instance-select').filter({ hasText: instanceName })).toHaveCount(0)
   })
+
+  for (const api of ['v8', 'v0'] as const) {
+    test(`clears CPA cooldown without resetting upstream quota (${api})`, async ({ page, browser }) => {
+      test.setTimeout(180_000)
+      managementAPI = api
+      cooldownResetFailure = 'none'
+      credentialListFailures = 0
+      resetCalls = []
+      usageFailures = 0
+      resetListFailures = 0
+      creditIDs = ['late', 'soon', 'middle']
+      consumedCredits = []
+      const deadline = new Date(Date.now() + 2 * 60 * 60_000).toISOString()
+      const cooling = (scope: 'credential' | 'model'): MockCooldown[] => [{
+        scope, model_key: scope === 'model' ? 'cooldown-model' : '', reason: 'quota',
+        retry_at: deadline, remaining_seconds: 7200, http_status: 429, backoff_level: 2,
+      }]
+      credentials.splice(0, credentials.length, ...['A', 'B', 'C', 'D', 'E', 'normal', 'both'].map((name) => ({
+        auth_index: `cooldown-${api}-${name}`,
+        name: `cooldown-${name}.json`, type: 'codex', email: `cooldown-${name}@example.com`,
+        status: name === 'E' ? 'disabled' : 'active', disabled: name === 'E',
+        account_type: 'plus', priority: 0, unavailable: name === 'D',
+        id_token: { chatgpt_account_id: `cooldown-${api}-${name}-${Date.now()}` },
+        quotaUsedPercent: name === 'C' || name === 'both' ? 100 : 25,
+        cooldowns: name === 'D' ? null : ['A', 'E', 'both'].includes(name) ? cooling('credential') : name === 'B' ? cooling('model') : [],
+      })))
+      await openCPA(page)
+      await deleteAllCPAInstances(page)
+      const gql = async (query: string, variables: Record<string, unknown> = {}) => {
+        const result = await page.evaluate(async ({ query, variables }) => {
+          const token = localStorage.getItem('axonhub_access_token')
+          const response = await fetch('/admin/graphql', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ query, variables }),
+          })
+          return response.json()
+        }, { query, variables })
+        expect(result.errors).toBeUndefined()
+        return result.data
+      }
+      const instanceName = `CPA E2E cooldown ${api} ${Date.now()}`
+      const created = await gql('mutation CreateCPAInstance($input: CreateCPAInstanceInput!) { createCPAInstance(input: $input) { id } }', {
+        input: { name: instanceName, baseURL, managementSecret, enabled: true, insecureSkipTLS: false,
+          autoRefreshEnabled: false, autoManageEnabled: false, autoResetEnabled: false, usageStreamEnabled: false },
+      })
+      const instanceID = created.createCPAInstance.id as number
+      let readOnlyUserID: string | undefined
+      try {
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await expect(page.getByTestId('cpa-credential-table')).toBeVisible()
+        const row = (name: string) => page.locator('[data-testid^="cpa-credential-row-"]').filter({ hasText: `cooldown-${name}@example.com` })
+        const ids: Record<string, number> = {}
+        for (const name of ['A', 'B', 'C', 'D', 'E', 'normal', 'both']) {
+          await expect(row(name)).toBeVisible()
+          ids[name] = Number((await row(name).getAttribute('data-testid'))?.replace('cpa-credential-row-', ''))
+          await gql('mutation RefreshCPACredential($credentialID: Int!) { refreshCPACredential(credentialID: $credentialID) { id } }', { credentialID: ids[name] })
+        }
+        await page.reload({ waitUntil: 'domcontentloaded' })
+        await expect(row('C')).toContainText(/Quota exhausted|额度耗尽/)
+        await expect(row('both')).toContainText(/Quota exhausted|额度耗尽/)
+        await expect(row('A')).toContainText(/CPA cooldown|CPA 冷却/)
+        await expect(row('B')).toContainText(/CPA model cooldown|CPA 模型冷却/)
+        await expect(row('E')).toContainText(/Disabled|已禁用/)
+        const clearButton = (name: string) => page.getByTestId(`cpa-clear-cooldown-${ids[name]}`)
+        await expect(page.locator('[data-testid^="cpa-clear-cooldown-"]')).toHaveCount(0)
+        for (const name of ['A', 'B', 'C', 'D', 'E', 'normal', 'both']) {
+          await expect(row(name).locator('td').last().getByRole('button')).toHaveCount(2)
+        }
+        for (const name of ['C', 'D', 'normal']) await expect(clearButton(name)).toHaveCount(0)
+        await row('A').getByRole('button').first().click()
+        await expect(page.getByText(/Quota\/rate restriction|额度\/速率限制/).first()).toBeVisible()
+        await expect(page.getByText(/remaining|剩余时间/i).first()).toBeVisible()
+        await row('B').getByRole('button').first().click()
+        await expect(page.getByText('cooldown-model', { exact: true })).toBeVisible()
+        await row('D').getByRole('button').first().click()
+        await expect(page.getByText(/CPA did not provide cooldown state|CPA 未提供冷却状态/)).toBeVisible()
+        await page.screenshot({ path: test.info().outputPath(`cooldown-${api}-details.png`), fullPage: true })
+
+        const statusTrigger = page.getByTestId('cpa-status-filter').getByRole('button')
+        await statusTrigger.click()
+        const cpaOption = page.getByRole('option', { name: /^CPA cooldown$|^CPA 冷却$/ })
+        await cpaOption.click()
+        await expect(page.locator('[data-testid^="cpa-credential-row-"]')).toHaveCount(4)
+        await cpaOption.click()
+        const quotaOption = page.getByRole('option', { name: /^Quota exhausted$|^额度耗尽$/ })
+        await quotaOption.click()
+        await expect(page.locator('[data-testid^="cpa-credential-row-"]')).toHaveCount(2)
+        await expect(row('C')).toBeVisible()
+        await quotaOption.click()
+        await page.keyboard.press('Escape')
+
+        const readerEmail = `cpa-reader-${api}-${Date.now()}@example.com`
+        const reader = await gql('mutation($input: CreateUserInput!) { createUser(input: $input) { id } }', {
+          input: { email: readerEmail, password: 'pwd123456', firstName: 'CPA', lastName: 'Reader', scopes: ['read_settings'] },
+        })
+        readOnlyUserID = reader.createUser.id
+        const readerContext = await browser.newContext({ baseURL: 'http://localhost:9527' })
+        try {
+          const readerPage = await readerContext.newPage()
+          await readerPage.goto('/sign-in')
+          await signInAsAdmin(readerPage, { email: readerEmail, password: 'pwd123456' })
+          await readerPage.goto('/cpa')
+          await expect(readerPage.getByTestId('cpa-credential-table')).toBeVisible()
+          await readerPage.locator(`[data-testid="cpa-credential-row-${ids.A}"]`).getByRole('button').first().click()
+          await expect(readerPage.locator('[data-testid^="cpa-clear-cooldown-"]')).toHaveCount(0)
+          const denied = await readerPage.evaluate(async (credentialID) => {
+            const response = await fetch('/admin/graphql', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('axonhub_access_token')}` },
+              body: JSON.stringify({ query: 'mutation($credentialID: Int!) { resetCPACredentialCooldown(credentialID: $credentialID) { applied } }', variables: { credentialID } }) })
+            return response.json()
+          }, ids.A)
+          expect(denied.errors?.[0].message).toContain('write:settings')
+          expect(resetCalls).toEqual([])
+        } finally { await readerContext.close() }
+
+        const capturedVariables: Record<string, unknown>[] = []
+        page.on('request', (request) => {
+          if (request.url().includes('/admin/graphql') && request.postData()?.includes('mutation ResetCPACredentialCooldown(')) {
+            capturedVariables.push(request.postDataJSON().variables)
+          }
+        })
+        const callsBefore = providerCalls
+        const patchesBefore = statusPatchCalls
+        const creditsBefore = [...consumedCredits]
+        const confirmation = page.getByTestId('cpa-cooldown-reset-confirmation')
+        const confirm = page.getByTestId('cpa-cooldown-reset-confirm')
+        const submit = async (name: string) => {
+          if (!await clearButton(name).isVisible()) await row(name).getByRole('button').first().click()
+          await clearButton(name).click()
+          await expect(confirmation).toBeVisible()
+          await Promise.all([waitForGraphQLOperation(page, 'ResetCPACredentialCooldown'), confirm.click()])
+        }
+        await clearButton('A').click()
+        await expect(confirmation).toContainText(/does not reset upstream quota|不重置上游额度/)
+        await page.screenshot({ path: test.info().outputPath(`cooldown-${api}-confirmation.png`) })
+        await confirmation.getByRole('button', { name: /Cancel|取消/ }).click()
+        expect(resetCalls).toEqual([])
+        await submit('A')
+        await expect(confirmation).not.toBeVisible()
+        expect(resetCalls).toEqual([credentials[0].auth_index])
+        await expect(clearButton('A')).toHaveCount(0)
+        await expect(clearButton('B')).toBeVisible()
+        await expect(row('C')).toContainText(/Quota exhausted|额度耗尽/)
+
+        for (const failure of ['503', 'disconnect'] as const) {
+          cooldownResetFailure = failure
+          const before = resetCalls.length
+          await submit('B')
+          await expect(confirmation).toBeVisible()
+          await expect(confirm).toBeDisabled()
+          await expect(confirmation).toContainText(failure === '503' ? /HTTP 503/ : /unconfirmed|refresh state before retrying/)
+          expect(resetCalls).toHaveLength(before + 1)
+          await confirmation.getByRole('button', { name: /Cancel|取消/ }).click()
+        }
+        cooldownResetFailure = 'refresh'
+        await submit('B')
+        await expect(confirmation).not.toBeVisible()
+        await expect(page.getByText(/accepted.*refresh failed|已接受解除.*刷新失败/i).first()).toBeVisible()
+        await expect(clearButton('B')).toBeVisible()
+        cooldownResetFailure = 'none'
+        const beforeNoop = resetCalls.length
+        await submit('B')
+        await expect(confirmation).not.toBeVisible()
+        expect(resetCalls).toHaveLength(beforeNoop)
+        await expect(clearButton('B')).toHaveCount(0)
+        await expect(row('B')).not.toContainText(/CPA model cooldown|CPA 模型冷却/)
+
+        cooldownResetFailure = 'retrigger'
+        await submit('E')
+        await expect(confirmation).not.toBeVisible()
+        await expect(page.getByText(/still reports cooldown|仍报告冷却/).first()).toBeVisible()
+        await expect(clearButton('E')).toBeVisible()
+        cooldownResetFailure = 'none'
+        await submit('E')
+        await expect(clearButton('E')).toHaveCount(0)
+        await expect(row('E')).toContainText(/Disabled|已禁用/)
+        await submit('both')
+        await expect(clearButton('both')).toHaveCount(0)
+        await expect(row('both')).toContainText(/Quota exhausted|额度耗尽/)
+        expect(providerCalls).toBe(callsBefore)
+        expect(statusPatchCalls).toBe(patchesBefore)
+        expect(consumedCredits).toEqual(creditsBefore)
+        for (const variables of capturedVariables) expect(Object.keys(variables)).toEqual(['credentialID'])
+        expect(capturedVariables).toHaveLength(8)
+
+        credentials.find((item) => item.name === 'cooldown-both.json')!.quotaUsedPercent = 25
+        await page.getByTestId(`cpa-refresh-credential-${ids.both}`).click()
+        await expect(row('both')).not.toContainText(/Quota exhausted|额度耗尽/)
+        await expect(row('C')).toContainText(/Quota exhausted|额度耗尽/)
+        await page.screenshot({ path: test.info().outputPath(`cooldown-${api}-cleared.png`), fullPage: true })
+      } finally {
+        cooldownResetFailure = 'none'
+        credentialListFailures = 0
+        if (readOnlyUserID) await gql('mutation($id: ID!) { deleteUser(id: $id) }', { id: readOnlyUserID })
+        await gql('mutation($id: Int!) { deleteCPAInstance(id: $id) }', { id: instanceID })
+      }
+    })
+  }
 })

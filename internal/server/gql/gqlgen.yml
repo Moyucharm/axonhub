@@ -89,6 +89,21 @@ models:
   JSONRawMessageInput:
     model:
       - github.com/looplj/axonhub/internal/objects.JSONRawMessage
+  CPARoutingCooldownScope:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPARoutingCooldownScope
+  CPARoutingCooldownReason:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPARoutingCooldownReason
+  CPARoutingCooldown:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPARoutingCooldown
+  CPARoutingCooldownSnapshot:
+    model:
+      - github.com/looplj/axonhub/internal/objects.CPARoutingCooldownSnapshot
+  CPACredentialCooldownResetOutcome:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.CPACredentialCooldownResetOutcome
   CPAQuotaSnapshot:
     model:
       - github.com/looplj/axonhub/internal/objects.CPAQuotaSnapshot

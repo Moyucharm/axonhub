@@ -49,6 +49,7 @@ export function CPAToolbar({
       { value: 'disabled', label: t('cpa.status.disabled') },
       { value: 'abnormal', label: t('cpa.status.abnormal') },
       { value: 'cooldown', label: t('cpa.status.cooldown') },
+      { value: 'cpa_cooldown', label: t('cpa.routingCooldown.title') },
     ],
     [t]
   );

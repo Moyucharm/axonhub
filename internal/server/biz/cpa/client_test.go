@@ -24,7 +24,7 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/proxy/v0/management/auth-files":
+		case "/proxy/v8/management/credentials":
 			w.Header().Set("X-CPA-VERSION", "7.1.0")
 			_, _ = w.Write([]byte(`[{"auth_index":"auth-1","name":"codex.json","type":"codex","email":"user@example.com"}]`))
 		case "/proxy/v0/management/usage-queue":
@@ -66,6 +66,9 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 	if len(files.Files) != 1 || files.Files[0].AuthIndex != "auth-1" {
 		t.Fatalf("unexpected auth files: %#v", files.Files)
 	}
+	if files.API != ManagementAPIV8 || files.ObservedAt != nil || files.Files[0].CooldownObservedAt != nil {
+		t.Fatalf("unexpected API or fabricated observation time: %#v", files)
+	}
 
 	events, err := client.ListUsageQueue(context.Background(), 20)
 	if err != nil {
@@ -90,7 +93,7 @@ func TestClientUsesManagementAPIOnly(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(paths) != 3 || paths[0] != "/proxy/v0/management/auth-files" || paths[1] != "/proxy/v0/management/usage-queue" || paths[2] != "/proxy/v0/management/api-call" {
+	if len(paths) != 3 || paths[0] != "/proxy/v8/management/credentials" || paths[1] != "/proxy/v0/management/usage-queue" || paths[2] != "/proxy/v0/management/api-call" {
 		t.Fatalf("unexpected dialed paths: %#v", paths)
 	}
 }

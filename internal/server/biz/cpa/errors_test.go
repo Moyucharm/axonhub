@@ -158,6 +158,10 @@ func (providerErrorTestClient) PatchAuthFileStatus(context.Context, string, stri
 	return errors.New("unused")
 }
 
+func (providerErrorTestClient) ResetCooldown(context.Context, string, ManagementAPI) error {
+	return errors.New("unused ResetCooldown call")
+}
+
 func TestCallJSONPreservesProviderResponseError(t *testing.T) {
 	t.Parallel()
 

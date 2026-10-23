@@ -398,6 +398,12 @@ type ComplexityRoot struct {
 		TotalCount func(childComplexity int) int
 	}
 
+	CPACredentialCooldownResetOutcome struct {
+		Applied      func(childComplexity int) int
+		Credential   func(childComplexity int) int
+		RefreshError func(childComplexity int) int
+	}
+
 	CPACredentialEdge struct {
 		Cursor func(childComplexity int) int
 		Node   func(childComplexity int) int
@@ -412,6 +418,7 @@ type ComplexityRoot struct {
 	CPAManagedCredential struct {
 		Abnormal           func(childComplexity int) int
 		Available          func(childComplexity int) int
+		CanResetCooldown   func(childComplexity int) int
 		CooldownUntil      func(childComplexity int) int
 		Cooling            func(childComplexity int) int
 		CreatedAt          func(childComplexity int) int
@@ -431,6 +438,7 @@ type ComplexityRoot struct {
 		QuotaLastSuccessAt func(childComplexity int) int
 		QuotaState         func(childComplexity int) int
 		RemoteName         func(childComplexity int) int
+		RoutingCooldown    func(childComplexity int) int
 		RuntimeOnly        func(childComplexity int) int
 		Stale              func(childComplexity int) int
 		Status             func(childComplexity int) int
@@ -534,6 +542,21 @@ type ComplexityRoot struct {
 		Requested func(childComplexity int) int
 		Skipped   func(childComplexity int) int
 		Succeeded func(childComplexity int) int
+	}
+
+	CPARoutingCooldown struct {
+		BackoffLevel func(childComplexity int) int
+		HTTPStatus   func(childComplexity int) int
+		ModelKey     func(childComplexity int) int
+		Reason       func(childComplexity int) int
+		RetryAt      func(childComplexity int) int
+		Scope        func(childComplexity int) int
+	}
+
+	CPARoutingCooldownSnapshot struct {
+		Items      func(childComplexity int) int
+		Known      func(childComplexity int) int
+		ObservedAt func(childComplexity int) int
 	}
 
 	CPAUsageEvent struct {
@@ -1342,6 +1365,7 @@ type ComplexityRoot struct {
 		RemoveUserFromProject                 func(childComplexity int, input RemoveUserFromProjectInput) int
 		ResetCPAClaudeCredential              func(childComplexity int, credentialID int, grantID string) int
 		ResetCPACodexCredential               func(childComplexity int, credentialID int, creditID string) int
+		ResetCPACredentialCooldown            func(childComplexity int, credentialID int) int
 		ResetChannelQuotaNow                  func(childComplexity int, channelID objects.GUID) int
 		Restore                               func(childComplexity int, file graphql.Upload, input backup.RestoreOptions) int
 		RetainThread                          func(childComplexity int, id objects.GUID) int
@@ -2700,6 +2724,7 @@ type MutationResolver interface {
 	RefreshCPAInstance(ctx context.Context, instanceID int, provider *string) (*biz.CPARefreshResult, error)
 	RefreshCPACredential(ctx context.Context, credentialID int) (*biz.CPACredentialView, error)
 	ToggleCPACredential(ctx context.Context, credentialID int, disabled bool) (*biz.CPACredentialView, error)
+	ResetCPACredentialCooldown(ctx context.Context, credentialID int) (*biz.CPACredentialCooldownResetOutcome, error)
 	ResetCPACodexCredential(ctx context.Context, credentialID int, creditID string) (bool, error)
 	ResetCPAClaudeCredential(ctx context.Context, credentialID int, grantID string) (*biz.CPAClaudeResetOutcome, error)
 }
@@ -4077,6 +4102,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CPACredentialConnection.TotalCount(childComplexity), true
 
+	case "CPACredentialCooldownResetOutcome.applied":
+		if e.complexity.CPACredentialCooldownResetOutcome.Applied == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialCooldownResetOutcome.Applied(childComplexity), true
+	case "CPACredentialCooldownResetOutcome.credential":
+		if e.complexity.CPACredentialCooldownResetOutcome.Credential == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialCooldownResetOutcome.Credential(childComplexity), true
+	case "CPACredentialCooldownResetOutcome.refreshError":
+		if e.complexity.CPACredentialCooldownResetOutcome.RefreshError == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialCooldownResetOutcome.RefreshError(childComplexity), true
+
 	case "CPACredentialEdge.cursor":
 		if e.complexity.CPACredentialEdge.Cursor == nil {
 			break
@@ -4121,6 +4165,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedCredential.Available(childComplexity), true
+	case "CPAManagedCredential.canResetCooldown":
+		if e.complexity.CPAManagedCredential.CanResetCooldown == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedCredential.CanResetCooldown(childComplexity), true
 	case "CPAManagedCredential.cooldownUntil":
 		if e.complexity.CPAManagedCredential.CooldownUntil == nil {
 			break
@@ -4235,6 +4285,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPAManagedCredential.RemoteName(childComplexity), true
+	case "CPAManagedCredential.routingCooldown":
+		if e.complexity.CPAManagedCredential.RoutingCooldown == nil {
+			break
+		}
+
+		return e.complexity.CPAManagedCredential.RoutingCooldown(childComplexity), true
 	case "CPAManagedCredential.runtimeOnly":
 		if e.complexity.CPAManagedCredential.RuntimeOnly == nil {
 			break
@@ -4700,6 +4756,62 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPARefreshResult.Succeeded(childComplexity), true
+
+	case "CPARoutingCooldown.backoffLevel":
+		if e.complexity.CPARoutingCooldown.BackoffLevel == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.BackoffLevel(childComplexity), true
+	case "CPARoutingCooldown.httpStatus":
+		if e.complexity.CPARoutingCooldown.HTTPStatus == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.HTTPStatus(childComplexity), true
+	case "CPARoutingCooldown.modelKey":
+		if e.complexity.CPARoutingCooldown.ModelKey == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.ModelKey(childComplexity), true
+	case "CPARoutingCooldown.reason":
+		if e.complexity.CPARoutingCooldown.Reason == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.Reason(childComplexity), true
+	case "CPARoutingCooldown.retryAt":
+		if e.complexity.CPARoutingCooldown.RetryAt == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.RetryAt(childComplexity), true
+	case "CPARoutingCooldown.scope":
+		if e.complexity.CPARoutingCooldown.Scope == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldown.Scope(childComplexity), true
+
+	case "CPARoutingCooldownSnapshot.items":
+		if e.complexity.CPARoutingCooldownSnapshot.Items == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldownSnapshot.Items(childComplexity), true
+	case "CPARoutingCooldownSnapshot.known":
+		if e.complexity.CPARoutingCooldownSnapshot.Known == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldownSnapshot.Known(childComplexity), true
+	case "CPARoutingCooldownSnapshot.observedAt":
+		if e.complexity.CPARoutingCooldownSnapshot.ObservedAt == nil {
+			break
+		}
+
+		return e.complexity.CPARoutingCooldownSnapshot.ObservedAt(childComplexity), true
 
 	case "CPAUsageEvent.authIndex":
 		if e.complexity.CPAUsageEvent.AuthIndex == nil {
@@ -8290,6 +8402,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ResetCPACodexCredential(childComplexity, args["credentialID"].(int), args["creditID"].(string)), true
+	case "Mutation.resetCPACredentialCooldown":
+		if e.complexity.Mutation.ResetCPACredentialCooldown == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetCPACredentialCooldown_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ResetCPACredentialCooldown(childComplexity, args["credentialID"].(int)), true
 	case "Mutation.resetChannelQuotaNow":
 		if e.complexity.Mutation.ResetChannelQuotaNow == nil {
 			break
@@ -15166,6 +15289,17 @@ func (ec *executionContext) field_Mutation_resetCPACodexCredential_args(ctx cont
 		return nil, err
 	}
 	args["creditID"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetCPACredentialCooldown_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "credentialID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["credentialID"] = arg0
 	return args, nil
 }
 
@@ -23659,6 +23793,153 @@ func (ec *executionContext) fieldContext_CPACredentialConnection_totalCount(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _CPACredentialCooldownResetOutcome_applied(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialCooldownResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialCooldownResetOutcome_applied,
+		func(ctx context.Context) (any, error) {
+			return obj.Applied, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialCooldownResetOutcome_applied(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialCooldownResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialCooldownResetOutcome_credential(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialCooldownResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialCooldownResetOutcome_credential,
+		func(ctx context.Context) (any, error) {
+			return obj.Credential, nil
+		},
+		nil,
+		ec.marshalOCPAManagedCredential2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialView,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialCooldownResetOutcome_credential(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialCooldownResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPAManagedCredential_id(ctx, field)
+			case "instanceID":
+				return ec.fieldContext_CPAManagedCredential_instanceID(ctx, field)
+			case "remoteName":
+				return ec.fieldContext_CPAManagedCredential_remoteName(ctx, field)
+			case "displayName":
+				return ec.fieldContext_CPAManagedCredential_displayName(ctx, field)
+			case "provider":
+				return ec.fieldContext_CPAManagedCredential_provider(ctx, field)
+			case "email":
+				return ec.fieldContext_CPAManagedCredential_email(ctx, field)
+			case "status":
+				return ec.fieldContext_CPAManagedCredential_status(ctx, field)
+			case "statusMessage":
+				return ec.fieldContext_CPAManagedCredential_statusMessage(ctx, field)
+			case "disabled":
+				return ec.fieldContext_CPAManagedCredential_disabled(ctx, field)
+			case "unavailable":
+				return ec.fieldContext_CPAManagedCredential_unavailable(ctx, field)
+			case "runtimeOnly":
+				return ec.fieldContext_CPAManagedCredential_runtimeOnly(ctx, field)
+			case "priority":
+				return ec.fieldContext_CPAManagedCredential_priority(ctx, field)
+			case "planType":
+				return ec.fieldContext_CPAManagedCredential_planType(ctx, field)
+			case "quotaState":
+				return ec.fieldContext_CPAManagedCredential_quotaState(ctx, field)
+			case "quotaData":
+				return ec.fieldContext_CPAManagedCredential_quotaData(ctx, field)
+			case "quotaLastAttemptAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastAttemptAt(ctx, field)
+			case "quotaLastSuccessAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastSuccessAt(ctx, field)
+			case "quotaLastFailureAt":
+				return ec.fieldContext_CPAManagedCredential_quotaLastFailureAt(ctx, field)
+			case "quotaLastError":
+				return ec.fieldContext_CPAManagedCredential_quotaLastError(ctx, field)
+			case "available":
+				return ec.fieldContext_CPAManagedCredential_available(ctx, field)
+			case "abnormal":
+				return ec.fieldContext_CPAManagedCredential_abnormal(ctx, field)
+			case "stale":
+				return ec.fieldContext_CPAManagedCredential_stale(ctx, field)
+			case "expired":
+				return ec.fieldContext_CPAManagedCredential_expired(ctx, field)
+			case "cooling":
+				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
+			case "cooldownUntil":
+				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
+			case "routingCooldown":
+				return ec.fieldContext_CPAManagedCredential_routingCooldown(ctx, field)
+			case "canResetCooldown":
+				return ec.fieldContext_CPAManagedCredential_canResetCooldown(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_CPAManagedCredential_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPAManagedCredential", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialCooldownResetOutcome_refreshError(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialCooldownResetOutcome) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialCooldownResetOutcome_refreshError,
+		func(ctx context.Context) (any, error) {
+			return obj.RefreshError, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialCooldownResetOutcome_refreshError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialCooldownResetOutcome",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CPACredentialEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialEdge) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23762,6 +24043,10 @@ func (ec *executionContext) fieldContext_CPACredentialEdge_node(_ context.Contex
 				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
 			case "cooldownUntil":
 				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
+			case "routingCooldown":
+				return ec.fieldContext_CPAManagedCredential_routingCooldown(ctx, field)
+			case "canResetCooldown":
+				return ec.fieldContext_CPAManagedCredential_canResetCooldown(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
 			case "updatedAt":
@@ -24592,6 +24877,72 @@ func (ec *executionContext) fieldContext_CPAManagedCredential_cooldownUntil(_ co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedCredential_routingCooldown(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedCredential_routingCooldown,
+		func(ctx context.Context) (any, error) {
+			return obj.RoutingCooldown, nil
+		},
+		nil,
+		ec.marshalNCPARoutingCooldownSnapshot2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownSnapshot,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedCredential_routingCooldown(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedCredential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "known":
+				return ec.fieldContext_CPARoutingCooldownSnapshot_known(ctx, field)
+			case "observedAt":
+				return ec.fieldContext_CPARoutingCooldownSnapshot_observedAt(ctx, field)
+			case "items":
+				return ec.fieldContext_CPARoutingCooldownSnapshot_items(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPARoutingCooldownSnapshot", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPAManagedCredential_canResetCooldown(ctx context.Context, field graphql.CollectedField, obj *biz.CPACredentialView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPAManagedCredential_canResetCooldown,
+		func(ctx context.Context) (any, error) {
+			return obj.CanResetCooldown, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPAManagedCredential_canResetCooldown(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPAManagedCredential",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -26756,6 +27107,281 @@ func (ec *executionContext) fieldContext_CPARefreshResult_skipped(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_scope(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_scope,
+		func(ctx context.Context) (any, error) {
+			return obj.Scope, nil
+		},
+		nil,
+		ec.marshalNCPARoutingCooldownScope2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownScope,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_scope(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type CPARoutingCooldownScope does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_modelKey(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_modelKey,
+		func(ctx context.Context) (any, error) {
+			return obj.ModelKey, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_modelKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_reason(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNCPARoutingCooldownReason2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownReason,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type CPARoutingCooldownReason does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_retryAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_retryAt,
+		func(ctx context.Context) (any, error) {
+			return obj.RetryAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_retryAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_backoffLevel(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_backoffLevel,
+		func(ctx context.Context) (any, error) {
+			return obj.BackoffLevel, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_backoffLevel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldown_httpStatus(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldown) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldown_httpStatus,
+		func(ctx context.Context) (any, error) {
+			return obj.HTTPStatus, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldown_httpStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldown",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldownSnapshot_known(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldownSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldownSnapshot_known,
+		func(ctx context.Context) (any, error) {
+			return obj.Known, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldownSnapshot_known(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldownSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldownSnapshot_observedAt(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldownSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldownSnapshot_observedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ObservedAt, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldownSnapshot_observedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldownSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPARoutingCooldownSnapshot_items(ctx context.Context, field graphql.CollectedField, obj *objects.CPARoutingCooldownSnapshot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPARoutingCooldownSnapshot_items,
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		ec.marshalNCPARoutingCooldown2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPARoutingCooldownSnapshot_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPARoutingCooldownSnapshot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "scope":
+				return ec.fieldContext_CPARoutingCooldown_scope(ctx, field)
+			case "modelKey":
+				return ec.fieldContext_CPARoutingCooldown_modelKey(ctx, field)
+			case "reason":
+				return ec.fieldContext_CPARoutingCooldown_reason(ctx, field)
+			case "retryAt":
+				return ec.fieldContext_CPARoutingCooldown_retryAt(ctx, field)
+			case "backoffLevel":
+				return ec.fieldContext_CPARoutingCooldown_backoffLevel(ctx, field)
+			case "httpStatus":
+				return ec.fieldContext_CPARoutingCooldown_httpStatus(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPARoutingCooldown", field.Name)
 		},
 	}
 	return fc, nil
@@ -48238,6 +48864,10 @@ func (ec *executionContext) fieldContext_Mutation_refreshCPACredential(ctx conte
 				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
 			case "cooldownUntil":
 				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
+			case "routingCooldown":
+				return ec.fieldContext_CPAManagedCredential_routingCooldown(ctx, field)
+			case "canResetCooldown":
+				return ec.fieldContext_CPAManagedCredential_canResetCooldown(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
 			case "updatedAt":
@@ -48335,6 +48965,10 @@ func (ec *executionContext) fieldContext_Mutation_toggleCPACredential(ctx contex
 				return ec.fieldContext_CPAManagedCredential_cooling(ctx, field)
 			case "cooldownUntil":
 				return ec.fieldContext_CPAManagedCredential_cooldownUntil(ctx, field)
+			case "routingCooldown":
+				return ec.fieldContext_CPAManagedCredential_routingCooldown(ctx, field)
+			case "canResetCooldown":
+				return ec.fieldContext_CPAManagedCredential_canResetCooldown(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_CPAManagedCredential_createdAt(ctx, field)
 			case "updatedAt":
@@ -48351,6 +48985,55 @@ func (ec *executionContext) fieldContext_Mutation_toggleCPACredential(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_toggleCPACredential_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resetCPACredentialCooldown(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_resetCPACredentialCooldown,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ResetCPACredentialCooldown(ctx, fc.Args["credentialID"].(int))
+		},
+		nil,
+		ec.marshalNCPACredentialCooldownResetOutcome2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialCooldownResetOutcome,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_resetCPACredentialCooldown(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "applied":
+				return ec.fieldContext_CPACredentialCooldownResetOutcome_applied(ctx, field)
+			case "credential":
+				return ec.fieldContext_CPACredentialCooldownResetOutcome_credential(ctx, field)
+			case "refreshError":
+				return ec.fieldContext_CPACredentialCooldownResetOutcome_refreshError(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPACredentialCooldownResetOutcome", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetCPACredentialCooldown_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -104680,6 +105363,49 @@ func (ec *executionContext) _CPACredentialConnection(ctx context.Context, sel as
 	return out
 }
 
+var cPACredentialCooldownResetOutcomeImplementors = []string{"CPACredentialCooldownResetOutcome"}
+
+func (ec *executionContext) _CPACredentialCooldownResetOutcome(ctx context.Context, sel ast.SelectionSet, obj *biz.CPACredentialCooldownResetOutcome) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPACredentialCooldownResetOutcomeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPACredentialCooldownResetOutcome")
+		case "applied":
+			out.Values[i] = ec._CPACredentialCooldownResetOutcome_applied(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "credential":
+			out.Values[i] = ec._CPACredentialCooldownResetOutcome_credential(ctx, field, obj)
+		case "refreshError":
+			out.Values[i] = ec._CPACredentialCooldownResetOutcome_refreshError(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPACredentialEdgeImplementors = []string{"CPACredentialEdge"}
 
 func (ec *executionContext) _CPACredentialEdge(ctx context.Context, sel ast.SelectionSet, obj *biz.CPACredentialEdge) graphql.Marshaler {
@@ -104928,6 +105654,16 @@ func (ec *executionContext) _CPAManagedCredential(ctx context.Context, sel ast.S
 			}
 		case "cooldownUntil":
 			out.Values[i] = ec._CPAManagedCredential_cooldownUntil(ctx, field, obj)
+		case "routingCooldown":
+			out.Values[i] = ec._CPAManagedCredential_routingCooldown(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "canResetCooldown":
+			out.Values[i] = ec._CPAManagedCredential_canResetCooldown(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "createdAt":
 			out.Values[i] = ec._CPAManagedCredential_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -105525,6 +106261,110 @@ func (ec *executionContext) _CPARefreshResult(ctx context.Context, sel ast.Selec
 			}
 		case "skipped":
 			out.Values[i] = ec._CPARefreshResult_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPARoutingCooldownImplementors = []string{"CPARoutingCooldown"}
+
+func (ec *executionContext) _CPARoutingCooldown(ctx context.Context, sel ast.SelectionSet, obj *objects.CPARoutingCooldown) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPARoutingCooldownImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPARoutingCooldown")
+		case "scope":
+			out.Values[i] = ec._CPARoutingCooldown_scope(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modelKey":
+			out.Values[i] = ec._CPARoutingCooldown_modelKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._CPARoutingCooldown_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "retryAt":
+			out.Values[i] = ec._CPARoutingCooldown_retryAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "backoffLevel":
+			out.Values[i] = ec._CPARoutingCooldown_backoffLevel(ctx, field, obj)
+		case "httpStatus":
+			out.Values[i] = ec._CPARoutingCooldown_httpStatus(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var cPARoutingCooldownSnapshotImplementors = []string{"CPARoutingCooldownSnapshot"}
+
+func (ec *executionContext) _CPARoutingCooldownSnapshot(ctx context.Context, sel ast.SelectionSet, obj *objects.CPARoutingCooldownSnapshot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPARoutingCooldownSnapshotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPARoutingCooldownSnapshot")
+		case "known":
+			out.Values[i] = ec._CPARoutingCooldownSnapshot_known(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "observedAt":
+			out.Values[i] = ec._CPARoutingCooldownSnapshot_observedAt(ctx, field, obj)
+		case "items":
+			out.Values[i] = ec._CPARoutingCooldownSnapshot_items(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -112886,6 +113726,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "toggleCPACredential":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_toggleCPACredential(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetCPACredentialCooldown":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetCPACredentialCooldown(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -126051,6 +126898,20 @@ func (ec *executionContext) marshalNCPACredentialConnection2ᚖgithubᚗcomᚋlo
 	return ec._CPACredentialConnection(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCPACredentialCooldownResetOutcome2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialCooldownResetOutcome(ctx context.Context, sel ast.SelectionSet, v biz.CPACredentialCooldownResetOutcome) graphql.Marshaler {
+	return ec._CPACredentialCooldownResetOutcome(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPACredentialCooldownResetOutcome2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialCooldownResetOutcome(ctx context.Context, sel ast.SelectionSet, v *biz.CPACredentialCooldownResetOutcome) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPACredentialCooldownResetOutcome(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCPACredentialEdge2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.CPACredentialEdge) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -126470,6 +127331,92 @@ func (ec *executionContext) marshalNCPARefreshResult2ᚖgithubᚗcomᚋloopljᚋ
 		return graphql.Null
 	}
 	return ec._CPARefreshResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCPARoutingCooldown2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldown(ctx context.Context, sel ast.SelectionSet, v objects.CPARoutingCooldown) graphql.Marshaler {
+	return ec._CPARoutingCooldown(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCPARoutingCooldown2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownᚄ(ctx context.Context, sel ast.SelectionSet, v []objects.CPARoutingCooldown) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPARoutingCooldown2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldown(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNCPARoutingCooldownReason2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownReason(ctx context.Context, v any) (objects.CPARoutingCooldownReason, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := objects.CPARoutingCooldownReason(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCPARoutingCooldownReason2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownReason(ctx context.Context, sel ast.SelectionSet, v objects.CPARoutingCooldownReason) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNCPARoutingCooldownScope2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownScope(ctx context.Context, v any) (objects.CPARoutingCooldownScope, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := objects.CPARoutingCooldownScope(tmp)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCPARoutingCooldownScope2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownScope(ctx context.Context, sel ast.SelectionSet, v objects.CPARoutingCooldownScope) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNCPARoutingCooldownSnapshot2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐCPARoutingCooldownSnapshot(ctx context.Context, sel ast.SelectionSet, v objects.CPARoutingCooldownSnapshot) graphql.Marshaler {
+	return ec._CPARoutingCooldownSnapshot(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNCPAUsageEvent2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPAUsageEventView(ctx context.Context, sel ast.SelectionSet, v *biz.CPAUsageEventView) graphql.Marshaler {
@@ -133321,6 +134268,13 @@ func (ec *executionContext) marshalOCPAClaudeResetResult2ᚖgithubᚗcomᚋloopl
 	_ = ctx
 	res := graphql.MarshalString(string(*v))
 	return res
+}
+
+func (ec *executionContext) marshalOCPAManagedCredential2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialView(ctx context.Context, sel ast.SelectionSet, v *biz.CPACredentialView) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CPAManagedCredential(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCPARefreshProgress2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPARefreshProgress(ctx context.Context, sel ast.SelectionSet, v *biz.CPARefreshProgress) graphql.Marshaler {

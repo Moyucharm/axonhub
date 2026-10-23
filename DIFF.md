@@ -85,7 +85,7 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 
 新增独立一级「CPA 管理」功能，用于注册多个 CLIProxyAPI 实例并集中查看其 auth-files 凭证与额度快照：
 
-- **多实例连接**：每个实例独立配置名称、项目地址、管理密钥、启用状态、自动刷新开关、5–1440 分钟刷新间隔及跳过 TLS 校验选项；地址/密钥变更与重新启用前必须成功读取 CPA `/v0/management/auth-files`。
+- **多实例连接**：每个实例独立配置名称、项目地址、管理密钥、启用状态、自动刷新开关、5–1440 分钟刷新间隔及跳过 TLS 校验选项；地址/密钥变更与重新启用前必须成功读取 CPA 凭证列表。优先 GET `/v8/management/credentials`，仅 404/405 回退 `/v0/management/auth-files`；支持反代子路径及粘贴 v0/v8 管理根地址，不按版本号猜接口，不跨版本重发写操作。
 - **密钥边界**：CPA 管理密钥以 JWT secret 经 HKDF-SHA256 派生的 AES-256-GCM 密钥可逆加密保存；GraphQL 仅返回 `hasSecret`，编辑留空保留原密钥，永不回显明文或密文。该方案不抵御同时取得完整数据库（含 JWT secret）的攻击。**注意：轮换 JWT secret 会使所有已保存的 CPA 管理密钥无法解密**（加密密钥由 JWT secret 派生，无多密钥版本化）；轮换后需对每个实例重新填写管理密钥（`updateCPAInstance` 传入新密钥即原地更新）。
 - **只读凭证同步**：同步 CPA auth-files 的安全元数据；成功同步后硬删除已消失凭证，失败同步保留旧快照；支持 runtime-only 凭证，禁止下载 auth JSON 或持久化 access/refresh token、原始额度响应。
 - **额度请求边界**：CPA 管理模块的 Codex、Claude、Antigravity、Kimi、xAI free 额度请求全部通过所选 CPA 的 `/v0/management/api-call` 发出，AxonHub 不直连供应商额度 API；xAI paid 不执行付费健康探测并标记为不支持。该限制仅适用于 CPA 管理，不影响现有渠道额度功能。
@@ -93,6 +93,8 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **刷新、执行边界与并发**：统一 `cpa-runtime` 以数据库 optimistic claim 领取同一实例到期的 snapshot refresh、enabled patrol 与 disabled patrol，并按固定顺序串行执行；不同实例最多 4 个 runtime job。quota executor 负责同凭证 singleflight、单实例最多 4、全局最多 8 个 provider 请求，并产出 typed outcome；repository 在实例写锁内重读当前 credential 后统一写入 quota/projection，失败保留上次成功 snapshot，单项失败不终止批次。手动刷新包含 disabled credential；自动巡检分别处理 enabled/disabled candidate，5 小时窗口不触发自动禁用。
 - **凭证过期与实例连接异常**：仅供应商额度响应中的明确失效证据或 CPA auth-files 的凭证错误状态可标记凭证「已过期」；CPA 管理接口认证/网络故障及任意错误文本中的认证关键词不能证明凭证失效。同步失败保留旧快照，界面只在实例级显示「CPA 连接异常」，不逐条给凭证添加快照陈旧徽标；真正失效的凭证仍单独显示「已过期」。
 - **查询投影与分页**：凭证持久化自然排序键、health、cooldown 和 projection version；列表过滤下推 SQL，按 `priority DESC + natural sort projection + id` 做 keyset pagination。GraphQL 使用单一 `cpaOverview` 返回 stats/provider/plan types；旧 `cpaCredentialStats`、`cpaProviderCounts`、`cpaPlanTypes` root fields 已删除。provider-plan 查询使用基于真实 SQLite query plan 选择的 covering index；规模压测只作为独立手工任务，不进入常规测试套件。
+- **额度耗尽与 CPA 冷却分离**：旧 `cooling/cooldownUntil` 与 `cooldown` 筛选仍表示额度快照耗尽及最近窗口预计重置时间，界面改称「额度耗尽」，不掩盖认证、连接或额度请求错误。原生 `routingCooldown` 独立保存 CPA 的 credential/model 冷却与观测时间；缺失、null 或畸形为未知，明确空数组为已知无冷却，不从 unavailable、statusMessage 或额度推断。查询仅返回未到期条目，`cpa_cooldown` 按最大截止时间在 SQL 筛选；模型冷却不统一降低凭证可用统计，新列存量默认未知，不从旧额度数据回填。
+- **单凭证解除 CPA 冷却**：仅有写设置权限且原生冷却有效时，在凭证展开详情末尾显示「解除 CPA 冷却」文字入口；不在行尾增加按钮、表格列或占位，前端只提交 credentialID。服务按所属实例、唯一 authIndex、provider 与 remoteName 实时复核后，单次 POST 所选 v8 `/routing/cooldown/reset` 或 v0 `/reset-quota`，body 仅 auth_index；不消费重置卡、不请求供应商额度、不启用凭证、不改变自动策略。写后绕过旧 singleflight 强制读取并同步；远端已确认但刷新失败返回 Applied=true 与脱敏 RefreshError，不伪造本地恢复、不重发。网络中断结果未确认时须关闭确认框并先刷新状态再操作；解除后仍照实显示额度耗尽、禁用、过期或再次触发的冷却。
 - **自动巡检收敛**：patrol 复用一次实例管理 client，依据 fresh persisted credential 产出 `none/disable/enable` 决策；remote patch 仍以 CPA 为 disabled 事实来源，成功后立即复用同一 client 同步本地 snapshot。
 - **独立界面**：新增 `/cpa` 路由与侧栏入口，复用系统级 `read_settings` / `write_settings` 权限；页面按单实例查看，提供固定供应商分组、名称/邮箱搜索、状态/套餐筛选、统计卡片、紧凑额度摘要与可展开多窗口详情，不复刻 CPA 自身面板。
 - **缓存与刷新资格**：usage event 写入、auth-index lookup、Codex observation 和 model aggregation 由 `cpaUsageRepository` 持有；price index 的 channel/catalog/builtin 合并与 TTL 由 `cpaPricingRepository` 持有。credential refresh 使用数据库 token/expiry/revision 短租约，进程内 singleflight 只作优化，不能替代跨进程 CAS；owner 失败/取消会释放租约，joiner 只等待 revision。

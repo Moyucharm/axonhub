@@ -409,3 +409,219 @@ func TestSupportsStoredQuotaRetriesUnsupportedXAI(t *testing.T) {
 		QuotaState: string(objects.CPAQuotaStatePending),
 	}))
 }
+
+func TestActiveCPARoutingCooldown(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	observedAt := now.Add(-time.Minute)
+	past := objects.CPARoutingCooldown{Scope: objects.CPARoutingCooldownScopeCredential, RetryAt: now.Add(-time.Second)}
+	boundary := objects.CPARoutingCooldown{Scope: objects.CPARoutingCooldownScopeCredential, RetryAt: now}
+	future := objects.CPARoutingCooldown{Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "model", RetryAt: now.Add(time.Hour)}
+	for _, tt := range []struct {
+		name  string
+		known bool
+		items []objects.CPARoutingCooldown
+		want  []objects.CPARoutingCooldown
+	}{
+		{name: "unknown"},
+		{name: "unknown ignores entries", items: []objects.CPARoutingCooldown{future}},
+		{name: "known nil", known: true},
+		{name: "known empty", known: true, items: []objects.CPARoutingCooldown{}},
+		{name: "future", known: true, items: []objects.CPARoutingCooldown{future}, want: []objects.CPARoutingCooldown{future}},
+		{name: "exact deadline expires", known: true, items: []objects.CPARoutingCooldown{boundary}},
+		{name: "all expired", known: true, items: []objects.CPARoutingCooldown{past, boundary}},
+		{name: "mixed", known: true, items: []objects.CPARoutingCooldown{past, future, boundary}, want: []objects.CPARoutingCooldown{future}},
+		{name: "expired suffix", known: true, items: []objects.CPARoutingCooldown{future, boundary}, want: []objects.CPARoutingCooldown{future}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := objects.CPARoutingCooldownSnapshot{Known: tt.known, ObservedAt: &observedAt, Items: tt.items}
+			original := append([]objects.CPARoutingCooldown{}, tt.items...)
+			active := activeCPARoutingCooldown(snapshot, now)
+			require.Equal(t, tt.known, active.Known)
+			require.Equal(t, &observedAt, active.ObservedAt)
+			require.NotNil(t, active.Items)
+			require.Equal(t, append([]objects.CPARoutingCooldown{}, tt.want...), active.Items)
+			require.Equal(t, original, append([]objects.CPARoutingCooldown{}, snapshot.Items...))
+		})
+	}
+}
+
+func TestCPACredentialRoutingCooldownView(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	until := now.Add(time.Hour)
+	modelCooldown := objects.CPARoutingCooldownSnapshot{Known: true, Items: []objects.CPARoutingCooldown{{
+		Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "model", Reason: objects.CPARoutingCooldownReasonQuota, RetryAt: until,
+	}}}
+	for _, tt := range []struct {
+		name             string
+		instanceDisabled bool
+		authIndex        string
+		disabled         bool
+		expired          bool
+		quotaExhausted   bool
+		snapshot         objects.CPARoutingCooldownSnapshot
+		canReset         bool
+		available        bool
+	}{
+		{name: "model cooldown remains available", authIndex: "auth", snapshot: modelCooldown, canReset: true, available: true},
+		{name: "disabled credential can clear cooldown", authIndex: "auth", disabled: true, snapshot: modelCooldown, canReset: true},
+		{name: "expired credential can clear cooldown", authIndex: "auth", expired: true, snapshot: modelCooldown, canReset: true},
+		{name: "disabled instance cannot clear cooldown", instanceDisabled: true, authIndex: "auth", snapshot: modelCooldown, available: true},
+		{name: "missing auth index", snapshot: modelCooldown, available: true},
+		{name: "blank auth index", authIndex: " \t", snapshot: modelCooldown, available: true},
+		{name: "quota exhausted with known empty native state", authIndex: "auth", quotaExhausted: true, snapshot: objects.CPARoutingCooldownSnapshot{Known: true}},
+		{name: "quota exhaustion and native cooldown coexist", authIndex: "auth", quotaExhausted: true, snapshot: modelCooldown, canReset: true},
+		{name: "quota exhaustion does not imply native cooldown", authIndex: "auth", quotaExhausted: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			credential := &ent.CPACredential{
+				AuthIndex: tt.authIndex, Status: "active", Disabled: tt.disabled,
+				HealthState: string(objects.CPACredentialHealthHealthy), RoutingCooldown: tt.snapshot,
+				QuotaCooling: tt.quotaExhausted,
+			}
+			if tt.quotaExhausted {
+				credential.QuotaCooldownUntil = &until
+			}
+			if tt.disabled {
+				credential.HealthState = string(objects.CPACredentialHealthDisabled)
+			}
+			if tt.expired {
+				credential.HealthState = string(objects.CPACredentialHealthAbnormal)
+				credential.QuotaState = string(objects.CPAQuotaStateError)
+				credential.QuotaLastError = "provider quota request returned HTTP 401"
+			}
+			view := buildCPACredentialView(&ent.CPAInstance{Enabled: !tt.instanceDisabled}, credential, now)
+			require.Equal(t, tt.canReset, view.CanResetCooldown)
+			require.Equal(t, tt.available, view.Available)
+			require.Equal(t, tt.quotaExhausted, view.Cooling)
+			require.Equal(t, tt.expired, view.Expired)
+			require.Equal(t, tt.disabled, view.Disabled)
+			require.Equal(t, tt.snapshot.Known, view.RoutingCooldown.Known)
+			require.NotNil(t, view.RoutingCooldown.Items)
+		})
+	}
+}
+
+func TestParseCPARoutingCooldownFilterOR(t *testing.T) {
+	t.Parallel()
+	active := &CPACredentialView{RoutingCooldown: objects.CPARoutingCooldownSnapshot{Known: true, Items: []objects.CPARoutingCooldown{{Scope: objects.CPARoutingCooldownScopeModel}}}}
+	filter := parseCPAStatusFilter([]CPACredentialFilterStatus{" CPA_COOLDOWN "})
+	require.False(t, filter.any)
+	require.True(t, filter.matches(active))
+	require.False(t, filter.matches(&CPACredentialView{Cooling: true}))
+	require.False(t, filter.matches(&CPACredentialView{RoutingCooldown: objects.CPARoutingCooldownSnapshot{Known: true}}))
+	union := parseCPAStatusFilter([]CPACredentialFilterStatus{CPACredentialFilterCPACooldown, CPACredentialFilterCooldown, CPACredentialFilterDisabled})
+	require.True(t, union.matches(active))
+	require.True(t, union.matches(&CPACredentialView{Cooling: true}))
+	require.True(t, union.matches(&CPACredentialView{Disabled: true}))
+	require.False(t, union.matches(&CPACredentialView{Available: true}))
+}
+
+func TestQueryCPARoutingCooldownPaginationAndFilters(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_query_routing_cooldown?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	svc := newCPAServiceForTest(client, func() time.Time { return now })
+	instance := client.CPAInstance.Create().
+		SetName("routing filters").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").SaveX(ctx)
+	otherInstance := client.CPAInstance.Create().
+		SetName("other routing filters").SetBaseURL("http://127.0.0.1:8318").SetEncryptedSecret("encrypted").SaveX(ctx)
+	until := now.Add(time.Hour)
+	future := objects.CPARoutingCooldownSnapshot{Known: true, Items: []objects.CPARoutingCooldown{{
+		Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "model", RetryAt: until,
+	}}}
+	boundary := objects.CPARoutingCooldownSnapshot{Known: true, Items: []objects.CPARoutingCooldown{{
+		Scope: objects.CPARoutingCooldownScopeCredential, RetryAt: now,
+	}}}
+	empty := objects.CPARoutingCooldownSnapshot{Known: true, Items: []objects.CPARoutingCooldown{}}
+	create := func(instanceID int, name, provider, plan string, disabled bool, snapshot objects.CPARoutingCooldownSnapshot) *ent.CPACredential {
+		projection := projectCPACredential(name, "active", disabled, false, objects.CPAQuotaStateSuccess, objects.CPAQuotaSnapshot{}, now)
+		builder := client.CPACredential.Create().
+			SetCpaInstanceID(instanceID).SetExternalKey(name).SetAuthIndex(name).SetRemoteName(name + ".json").SetDisplayName(name).
+			SetProvider(provider).SetPlanType(plan).SetStatus("active").SetDisabled(disabled).
+			SetHealthState(string(projection.healthState)).SetQuotaState(string(objects.CPAQuotaStateSuccess)).
+			SetDisplayNameSortKey(projection.displayNameSortKey).SetDisplayNameSortLength(projection.displayNameSortLength).
+			SetProjectionVersion(currentCPAProjectionVersion).SetRoutingCooldown(snapshot)
+		if until := cpaRoutingCooldownUntil(snapshot); until != nil {
+			builder.SetRoutingCooldownUntil(*until)
+		}
+		return builder.SaveX(ctx)
+	}
+	first := create(instance.ID, "Target 1", "codex", "plus", false, future)
+	second := create(instance.ID, "Target 2", "codex", "plus", false, future)
+	create(instance.ID, "Target 3", "codex", "plus", true, empty)
+	exhausted := create(instance.ID, "Target 4", "codex", "plus", false, empty)
+	client.CPACredential.UpdateOne(exhausted).SetQuotaCooling(true).SetQuotaCooldownUntil(until).ExecX(ctx)
+	create(instance.ID, "Target 5", "codex", "plus", false, boundary)
+	create(instance.ID, "Target 6", "xai", "plus", false, future)
+	create(instance.ID, "Target 7", "codex", "free", false, future)
+	create(instance.ID, "Excluded search", "codex", "plus", false, future)
+	create(otherInstance.ID, "Target 1", "codex", "plus", false, future)
+	provider, search := "codex", "Target"
+	input := QueryCPACredentialsInput{
+		InstanceID: instance.ID, First: 1, Provider: &provider, Search: &search, PlanTypes: []string{"plus"},
+		Statuses: []CPACredentialFilterStatus{CPACredentialFilterCPACooldown},
+	}
+	page, err := svc.QueryCredentials(ctx, input)
+	require.NoError(t, err)
+	require.Equal(t, 2, page.TotalCount)
+	require.Len(t, page.Edges, 1)
+	require.Equal(t, first.ID, page.Edges[0].Node.ID)
+	require.True(t, page.Edges[0].Node.Available)
+	require.True(t, page.PageInfo.HasNextPage)
+	input.After = page.PageInfo.EndCursor
+	page, err = svc.QueryCredentials(ctx, input)
+	require.NoError(t, err)
+	require.Equal(t, 2, page.TotalCount)
+	require.Len(t, page.Edges, 1)
+	require.Equal(t, second.ID, page.Edges[0].Node.ID)
+	require.True(t, page.PageInfo.HasPreviousPage)
+	require.False(t, page.PageInfo.HasNextPage)
+
+	input.After, input.First = nil, 20
+	for _, tt := range []struct {
+		name     string
+		statuses []CPACredentialFilterStatus
+		count    int
+	}{
+		{name: "native only", statuses: []CPACredentialFilterStatus{CPACredentialFilterCPACooldown}, count: 2},
+		{name: "quota only", statuses: []CPACredentialFilterStatus{CPACredentialFilterCooldown}, count: 1},
+		{name: "native or disabled", statuses: []CPACredentialFilterStatus{CPACredentialFilterCPACooldown, CPACredentialFilterDisabled}, count: 3},
+		{name: "native or quota", statuses: []CPACredentialFilterStatus{CPACredentialFilterCPACooldown, CPACredentialFilterCooldown}, count: 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			input.Statuses = tt.statuses
+			page, err := svc.QueryCredentials(ctx, input)
+			require.NoError(t, err)
+			require.Equal(t, tt.count, page.TotalCount)
+			require.Len(t, page.Edges, tt.count)
+			filter := parseCPAStatusFilter(tt.statuses)
+			for _, edge := range page.Edges {
+				require.Equal(t, instance.ID, edge.Node.InstanceID)
+				require.True(t, filter.matches(edge.Node))
+				if edge.Node.ID == exhausted.ID {
+					require.True(t, edge.Node.Cooling)
+					require.Empty(t, edge.Node.RoutingCooldown.Items)
+					require.False(t, edge.Node.CanResetCooldown)
+				}
+			}
+		})
+	}
+	input.Statuses = []CPACredentialFilterStatus{CPACredentialFilterCPACooldown}
+	input.Search = nil
+	input.Provider = nil
+	input.PlanTypes = nil
+	page, err = svc.QueryCredentials(ctx, input)
+	require.NoError(t, err)
+	require.Equal(t, 5, page.TotalCount)
+	input.InstanceID = otherInstance.ID
+	page, err = svc.QueryCredentials(ctx, input)
+	require.NoError(t, err)
+	require.Equal(t, 1, page.TotalCount)
+
+	overview, err := svc.Overview(ctx, instance.ID)
+	require.NoError(t, err)
+	require.Equal(t, &CPACredentialStats{Available: 6, Total: 8, Abnormal: 0}, overview.Stats)
+}

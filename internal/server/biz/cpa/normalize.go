@@ -5,27 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/looplj/axonhub/internal/objects"
 )
 
 // NormalizedCredential is the database-safe auth-files representation.
 type NormalizedCredential struct {
-	ExternalKey   string
-	AuthIndex     string
-	RemoteName    string
-	Label         string
-	DisplayName   string
-	Provider      string
-	Email         string
-	Status        string
-	StatusMessage string
-	Disabled      bool
-	Unavailable   bool
-	RuntimeOnly   bool
-	Priority      int
-	PlanType      string
-	QuotaContext  objects.CPAQuotaContext
+	ExternalKey     string
+	AuthIndex       string
+	RemoteName      string
+	Label           string
+	DisplayName     string
+	Provider        string
+	Email           string
+	Status          string
+	StatusMessage   string
+	Disabled        bool
+	Unavailable     bool
+	RuntimeOnly     bool
+	Priority        int
+	PlanType        string
+	QuotaContext    objects.CPAQuotaContext
+	RoutingCooldown objects.CPARoutingCooldownSnapshot
 }
 
 // NormalizeAuthFile converts a CPA auth-files entry without retaining token material.
@@ -88,7 +90,54 @@ func NormalizeAuthFile(file AuthFile) (NormalizedCredential, error) {
 			AccountType:     accountType,
 			Paid:            paid,
 		},
+		RoutingCooldown: normalizeRoutingCooldown(file.Cooldowns, file.CooldownObservedAt),
 	}, nil
+}
+
+// normalizeRoutingCooldown rejects an unreliable block without failing credential sync.
+// Expiration is evaluated by readers, never by parsing this observed snapshot.
+func normalizeRoutingCooldown(raw json.RawMessage, observedAt *time.Time) objects.CPARoutingCooldownSnapshot {
+	var items []objects.CPARoutingCooldown
+	if len(raw) == 0 || json.Unmarshal(raw, &items) != nil || items == nil {
+		return objects.CPARoutingCooldownSnapshot{}
+	}
+
+	for index := range items {
+		item := &items[index]
+		switch item.Scope {
+		case objects.CPARoutingCooldownScopeCredential:
+		case objects.CPARoutingCooldownScopeModel:
+			item.ModelKey = strings.TrimSpace(item.ModelKey)
+			if item.ModelKey == "" {
+				return objects.CPARoutingCooldownSnapshot{}
+			}
+		default:
+			return objects.CPARoutingCooldownSnapshot{}
+		}
+		if item.RetryAt.IsZero() {
+			return objects.CPARoutingCooldownSnapshot{}
+		}
+		switch item.Reason {
+		case objects.CPARoutingCooldownReasonCredentialQuota,
+			objects.CPARoutingCooldownReasonQuota,
+			objects.CPARoutingCooldownReasonCloudflareChallenge,
+			objects.CPARoutingCooldownReasonModelNotSupported,
+			objects.CPARoutingCooldownReasonInvalidGrant,
+			objects.CPARoutingCooldownReasonUnauthorized,
+			objects.CPARoutingCooldownReasonPaymentRequired,
+			objects.CPARoutingCooldownReasonNotFound,
+			objects.CPARoutingCooldownReasonTransientError,
+			objects.CPARoutingCooldownReasonUnknown:
+		default:
+			item.Reason = objects.CPARoutingCooldownReasonUnknown
+		}
+	}
+
+	return objects.CPARoutingCooldownSnapshot{
+		Known:      true,
+		ObservedAt: observedAt,
+		Items:      items,
+	}
 }
 
 func parseObject(raw json.RawMessage) map[string]any {

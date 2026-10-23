@@ -68,6 +68,10 @@ type CPACredential struct {
 	QuotaCooling bool `json:"quota_cooling,omitempty"`
 	// QuotaCooldownUntil holds the value of the "quota_cooldown_until" field.
 	QuotaCooldownUntil *time.Time `json:"quota_cooldown_until,omitempty"`
+	// RoutingCooldown holds the value of the "routing_cooldown" field.
+	RoutingCooldown objects.CPARoutingCooldownSnapshot `json:"routing_cooldown,omitempty"`
+	// RoutingCooldownUntil holds the value of the "routing_cooldown_until" field.
+	RoutingCooldownUntil *time.Time `json:"routing_cooldown_until,omitempty"`
 	// ProjectionVersion holds the value of the "projection_version" field.
 	ProjectionVersion int `json:"projection_version,omitempty"`
 	// QuotaData holds the value of the "quota_data" field.
@@ -119,7 +123,7 @@ func (*CPACredential) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case cpacredential.FieldQuotaContext, cpacredential.FieldQuotaData, cpacredential.FieldQuotaObserved:
+		case cpacredential.FieldQuotaContext, cpacredential.FieldRoutingCooldown, cpacredential.FieldQuotaData, cpacredential.FieldQuotaObserved:
 			values[i] = new([]byte)
 		case cpacredential.FieldDisabled, cpacredential.FieldUnavailable, cpacredential.FieldRuntimeOnly, cpacredential.FieldQuotaCooling:
 			values[i] = new(sql.NullBool)
@@ -127,7 +131,7 @@ func (*CPACredential) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case cpacredential.FieldExternalKey, cpacredential.FieldAuthIndex, cpacredential.FieldRemoteName, cpacredential.FieldLabel, cpacredential.FieldDisplayName, cpacredential.FieldDisplayNameSortKey, cpacredential.FieldProvider, cpacredential.FieldEmail, cpacredential.FieldStatus, cpacredential.FieldStatusMessage, cpacredential.FieldPlanType, cpacredential.FieldQuotaState, cpacredential.FieldHealthState, cpacredential.FieldQuotaLastError, cpacredential.FieldRefreshLeaseToken:
 			values[i] = new(sql.NullString)
-		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaCooldownUntil, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt, cpacredential.FieldRefreshLeaseUntil:
+		case cpacredential.FieldCreatedAt, cpacredential.FieldUpdatedAt, cpacredential.FieldQuotaCooldownUntil, cpacredential.FieldRoutingCooldownUntil, cpacredential.FieldQuotaLastAttemptAt, cpacredential.FieldQuotaLastSuccessAt, cpacredential.FieldQuotaLastFailureAt, cpacredential.FieldRefreshLeaseUntil:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -296,6 +300,21 @@ func (_m *CPACredential) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.QuotaCooldownUntil = new(time.Time)
 				*_m.QuotaCooldownUntil = value.Time
+			}
+		case cpacredential.FieldRoutingCooldown:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field routing_cooldown", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.RoutingCooldown); err != nil {
+					return fmt.Errorf("unmarshal field routing_cooldown: %w", err)
+				}
+			}
+		case cpacredential.FieldRoutingCooldownUntil:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field routing_cooldown_until", values[i])
+			} else if value.Valid {
+				_m.RoutingCooldownUntil = new(time.Time)
+				*_m.RoutingCooldownUntil = value.Time
 			}
 		case cpacredential.FieldProjectionVersion:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -476,6 +495,14 @@ func (_m *CPACredential) String() string {
 	builder.WriteString(", ")
 	if v := _m.QuotaCooldownUntil; v != nil {
 		builder.WriteString("quota_cooldown_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("routing_cooldown=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RoutingCooldown))
+	builder.WriteString(", ")
+	if v := _m.RoutingCooldownUntil; v != nil {
+		builder.WriteString("routing_cooldown_until=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useErrorHandler } from '@/hooks/use-error-handler';
 import {
   SUPPORTED_QUOTA_PROVIDERS,
   compareCPAProviders,
@@ -13,9 +14,14 @@ import {
   useToggleCPACredential,
   useResetCPACodexCredential,
   useResetCPAClaudeCredential,
+  useResetCPACredentialCooldown,
 } from './data';
 import type { CPAInstance } from './types';
-import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation } from './components/confirmation-dialogs';
+import type {
+  CPAClaudeResetConfirmation,
+  CPACodexResetConfirmation,
+  CPACredentialCooldownResetConfirmation,
+} from './components/confirmation-dialogs';
 import { useCPAFilters } from './use-cpa-filters';
 import { useCPAPagination } from './use-cpa-pagination';
 
@@ -24,6 +30,7 @@ export { clampTablePageSize, CPA_TABLE_PAGE_SIZES } from './use-cpa-pagination';
 export function useCPAController() {
   const { hasSystemScope } = usePermissions();
   const canWrite = hasSystemScope('write_settings');
+  const { handleError } = useErrorHandler();
   const instancesQuery = useCPAInstances();
   const instances = instancesQuery.data ?? [];
   const [selectedInstanceID, setSelectedInstanceID] = useState<number>();
@@ -41,6 +48,16 @@ export function useCPAController() {
   const resetSubmissionInFlight = useRef(false);
   const [claudeResettingCredential, setClaudeResettingCredential] = useState<CPAClaudeResetConfirmation>();
   const claudeResetSubmissionInFlight = useRef(false);
+  const [cooldownResettingCredential, setCooldownResettingCredential] = useState<CPACredentialCooldownResetConfirmation>();
+  const cooldownResetSubmissionInFlight = useRef(false);
+  const cooldownResetPreparing = useRef(false);
+  const cooldownResetNeedsRefresh = useRef(false);
+  const cooldownResetContextVersion = useRef(0);
+
+  const clearCooldownResetConfirmation = () => {
+    cooldownResetContextVersion.current += 1;
+    setCooldownResettingCredential(undefined);
+  };
   const [activeRefreshInstanceId, setActiveRefreshInstanceId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -49,6 +66,7 @@ export function useCPAController() {
       setExpanded(new Set());
       setResettingCredential(undefined);
       setClaudeResettingCredential(undefined);
+      clearCooldownResetConfirmation();
       setSelectedInstanceID(instances[0]?.id);
     }
   }, [instances, selectedInstanceID]);
@@ -89,6 +107,7 @@ export function useCPAController() {
   const deleteInstance = useDeleteCPAInstance();
   const resetCredential = useResetCPACodexCredential();
   const claudeResetCredential = useResetCPAClaudeCredential();
+  const cooldownResetCredential = useResetCPACredentialCooldown();
   const refreshProgress = useCPARefreshProgress(activeRefreshInstanceId);
   const credentials = credentialsQuery.data?.edges.map((edge) => edge.node) ?? [];
   const stats = overviewQuery.data?.stats;
@@ -98,6 +117,7 @@ export function useCPAController() {
     setExpanded(new Set());
     setResettingCredential(undefined);
     setClaudeResettingCredential(undefined);
+    clearCooldownResetConfirmation();
     setSelectedInstanceID(id);
   };
 
@@ -132,6 +152,33 @@ export function useCPAController() {
     setClaudeResettingCredential(confirmation);
   };
 
+  const requestCooldownResetCredential = async (confirmation: CPACredentialCooldownResetConfirmation) => {
+    if (!canWrite || cooldownResetSubmissionInFlight.current || cooldownResetPreparing.current || cooldownResettingCredential) return;
+    const contextVersion = cooldownResetContextVersion.current;
+    cooldownResetPreparing.current = true;
+    try {
+      let currentCredentials = credentials;
+      if (cooldownResetNeedsRefresh.current) {
+        const result = await credentialsQuery.refetch({ throwOnError: true });
+        currentCredentials = result.data?.edges.map((edge) => edge.node) ?? [];
+      }
+      if (contextVersion !== cooldownResetContextVersion.current) return;
+      const credential = currentCredentials.find((item) => item.id === confirmation.credentialID);
+      if (!credential?.canResetCooldown || !credential.routingCooldown.items.some((item) => Date.parse(item.retryAt) > Date.now())) return;
+      cooldownResetNeedsRefresh.current = false;
+      cooldownResetCredential.reset();
+      setCooldownResettingCredential(confirmation);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      cooldownResetPreparing.current = false;
+    }
+  };
+
+  const closeCooldownResetDialog = (open: boolean) => {
+    if (!open && !cooldownResetSubmissionInFlight.current) clearCooldownResetConfirmation();
+  };
+
   const refreshSelectedScope = () => {
     if (!selectedInstanceID) return;
     setActiveRefreshInstanceId(selectedInstanceID);
@@ -146,6 +193,7 @@ export function useCPAController() {
     try {
       await deleteInstance.mutateAsync(deletingInstance.id);
       setDeletingInstance(undefined);
+      if (deletingInstance.id === selectedInstanceID) clearCooldownResetConfirmation();
     } catch {
       // The mutation hook displays the error and keeps the confirmation available.
     }
@@ -189,6 +237,21 @@ export function useCPAController() {
     }
   };
 
+  const confirmCooldownResetCredential = async () => {
+    if (!canWrite || !cooldownResettingCredential || cooldownResetSubmissionInFlight.current || cooldownResetCredential.isError || cooldownResetNeedsRefresh.current) return;
+    const confirmation = cooldownResettingCredential;
+    cooldownResetSubmissionInFlight.current = true;
+    try {
+      await cooldownResetCredential.mutateAsync(confirmation.credentialID);
+      setCooldownResettingCredential((current) => (current === confirmation ? undefined : current));
+    } catch {
+      cooldownResetNeedsRefresh.current = true;
+      // Keep the error visible; closing and reading state is required before another attempt.
+    } finally {
+      cooldownResetSubmissionInFlight.current = false;
+    }
+  };
+
   return {
     canWrite,
     instancesQuery,
@@ -221,6 +284,8 @@ export function useCPAController() {
     setResettingCredential,
     claudeResettingCredential,
     setClaudeResettingCredential,
+    cooldownResettingCredential,
+    closeCooldownResetDialog,
     overviewQuery,
     providerCounts,
     providers,
@@ -235,6 +300,7 @@ export function useCPAController() {
     refreshProgress,
     resetCredential,
     claudeResetCredential,
+    cooldownResetCredential,
     showRefreshProgress: Boolean(refreshProgress.data?.running),
     resetPagination,
     selectInstance,
@@ -247,6 +313,8 @@ export function useCPAController() {
     requestResetCredential,
     confirmClaudeResetCredential,
     requestClaudeResetCredential,
+    confirmCooldownResetCredential,
+    requestCooldownResetCredential,
     setPageSize,
     supportedQuotaProviders: SUPPORTED_QUOTA_PROVIDERS,
   };

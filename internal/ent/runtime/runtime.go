@@ -243,28 +243,32 @@ func init() {
 	cpacredentialDescQuotaCooling := cpacredentialFields[20].Descriptor()
 	// cpacredential.DefaultQuotaCooling holds the default value on creation for the quota_cooling field.
 	cpacredential.DefaultQuotaCooling = cpacredentialDescQuotaCooling.Default.(bool)
+	// cpacredentialDescRoutingCooldown is the schema descriptor for routing_cooldown field.
+	cpacredentialDescRoutingCooldown := cpacredentialFields[22].Descriptor()
+	// cpacredential.DefaultRoutingCooldown holds the default value on creation for the routing_cooldown field.
+	cpacredential.DefaultRoutingCooldown = cpacredentialDescRoutingCooldown.Default.(objects.CPARoutingCooldownSnapshot)
 	// cpacredentialDescProjectionVersion is the schema descriptor for projection_version field.
-	cpacredentialDescProjectionVersion := cpacredentialFields[22].Descriptor()
+	cpacredentialDescProjectionVersion := cpacredentialFields[24].Descriptor()
 	// cpacredential.DefaultProjectionVersion holds the default value on creation for the projection_version field.
 	cpacredential.DefaultProjectionVersion = cpacredentialDescProjectionVersion.Default.(int)
 	// cpacredentialDescQuotaData is the schema descriptor for quota_data field.
-	cpacredentialDescQuotaData := cpacredentialFields[23].Descriptor()
+	cpacredentialDescQuotaData := cpacredentialFields[25].Descriptor()
 	// cpacredential.DefaultQuotaData holds the default value on creation for the quota_data field.
 	cpacredential.DefaultQuotaData = cpacredentialDescQuotaData.Default.(objects.CPAQuotaSnapshot)
 	// cpacredentialDescQuotaLastError is the schema descriptor for quota_last_error field.
-	cpacredentialDescQuotaLastError := cpacredentialFields[27].Descriptor()
+	cpacredentialDescQuotaLastError := cpacredentialFields[29].Descriptor()
 	// cpacredential.DefaultQuotaLastError holds the default value on creation for the quota_last_error field.
 	cpacredential.DefaultQuotaLastError = cpacredentialDescQuotaLastError.Default.(string)
 	// cpacredentialDescRefreshLeaseToken is the schema descriptor for refresh_lease_token field.
-	cpacredentialDescRefreshLeaseToken := cpacredentialFields[28].Descriptor()
+	cpacredentialDescRefreshLeaseToken := cpacredentialFields[30].Descriptor()
 	// cpacredential.DefaultRefreshLeaseToken holds the default value on creation for the refresh_lease_token field.
 	cpacredential.DefaultRefreshLeaseToken = cpacredentialDescRefreshLeaseToken.Default.(string)
 	// cpacredentialDescRefreshRevision is the schema descriptor for refresh_revision field.
-	cpacredentialDescRefreshRevision := cpacredentialFields[30].Descriptor()
+	cpacredentialDescRefreshRevision := cpacredentialFields[32].Descriptor()
 	// cpacredential.DefaultRefreshRevision holds the default value on creation for the refresh_revision field.
 	cpacredential.DefaultRefreshRevision = cpacredentialDescRefreshRevision.Default.(int)
 	// cpacredentialDescQuotaObserved is the schema descriptor for quota_observed field.
-	cpacredentialDescQuotaObserved := cpacredentialFields[31].Descriptor()
+	cpacredentialDescQuotaObserved := cpacredentialFields[33].Descriptor()
 	// cpacredential.DefaultQuotaObserved holds the default value on creation for the quota_observed field.
 	cpacredential.DefaultQuotaObserved = cpacredentialDescQuotaObserved.Default.(objects.CPAQuotaObserved)
 	cpainstanceMixin := schema.CPAInstance{}.Mixin()

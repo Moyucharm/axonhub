@@ -16,8 +16,9 @@ import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
 import { ClaudeResetGrants, claudeResetAction, claudeResetConfirmation, claudeResetIsCurrent, claudeResetRemaining } from './claude-reset-grants';
 import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming, resetCreditsAreCurrent } from './codex-reset-credits';
-import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation } from './confirmation-dialogs';
+import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation, CPACredentialCooldownResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
+import { activeRoutingCooldowns, CPARoutingCooldownBadge, CPARoutingCooldownDetails } from './routing-cooldown';
 
 const MotionExpandedRow = motion.create(TableRow);
 
@@ -32,6 +33,7 @@ interface CPACredentialTableProps {
   instanceEnabled: boolean;
   resetPending: boolean;
   claudeResetPending: boolean;
+  cooldownResetPending: boolean;
   refreshPending: boolean;
   togglePending: boolean;
   locale: string;
@@ -40,6 +42,7 @@ interface CPACredentialTableProps {
   onRequestToggle: (credential: CPACredential) => void;
   onRequestReset: (confirmation: CPACodexResetConfirmation) => void;
   onRequestClaudeReset: (confirmation: CPAClaudeResetConfirmation) => void;
+  onRequestCooldownReset: (confirmation: CPACredentialCooldownResetConfirmation) => void;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (size: number) => void;
@@ -64,11 +67,9 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
 
 function CredentialCooldownBadge({ credential }: { credential: CPACredential }) {
   const { t } = useTranslation();
-  const details = [...new Set([
-    credential.cooldownUntil ? t('cpa.status.cooldownUntil', { time: formatTime(credential.cooldownUntil) }) : '',
-    credential.statusMessage,
-    credential.quotaLastError,
-  ].map((detail) => detail.trim()).filter(Boolean))];
+  const details = credential.cooldownUntil
+    ? [t('cpa.status.cooldownUntil', { time: formatTime(credential.cooldownUntil) })]
+    : [];
 
   if (details.length === 0) return <Badge variant='secondary'>{t('cpa.status.cooldown')}</Badge>;
 
@@ -257,6 +258,7 @@ export function CPACredentialTable({
   instanceEnabled,
   resetPending,
   claudeResetPending,
+  cooldownResetPending,
   refreshPending,
   togglePending,
   locale,
@@ -265,6 +267,7 @@ export function CPACredentialTable({
   onRequestToggle,
   onRequestReset,
   onRequestClaudeReset,
+  onRequestCooldownReset,
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
@@ -370,8 +373,8 @@ export function CPACredentialTable({
                       <TableCell className='border-0 bg-inherit px-4 py-3'>
                         <div className='flex flex-col items-start gap-1'>
                           {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
-                          {credential.unavailable && !credential.cooling && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
-                          {credential.abnormal && !credential.cooling &&
+                          {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
+                          {credential.abnormal &&
                             (credential.statusMessage ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -388,6 +391,7 @@ export function CPACredentialTable({
                             ))}
                           {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
                           {credential.cooling && <CredentialCooldownBadge credential={credential} />}
+                          <CPARoutingCooldownBadge snapshot={credential.routingCooldown} />
                           {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
                         </div>
                       </TableCell>
@@ -395,7 +399,7 @@ export function CPACredentialTable({
                         <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
                           <QuotaSummaryCell credential={credential} />
                         </span>
-                        {credential.quotaLastError && !credential.cooling && (
+                        {credential.quotaLastError && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default text-xs break-all'>
@@ -492,6 +496,22 @@ export function CPACredentialTable({
                                     locale={locale}
                                     onRequestReset={onRequestClaudeReset}
                                   />
+                                )}
+                                <CPARoutingCooldownDetails snapshot={credential.routingCooldown} locale={locale} />
+                                {canWrite && credential.canResetCooldown && activeRoutingCooldowns(credential.routingCooldown).length > 0 && (
+                                  <Button
+                                    data-testid={`cpa-clear-cooldown-${credential.id}`}
+                                    variant='link'
+                                    size='sm'
+                                    className='h-auto px-0 text-xs'
+                                    disabled={cooldownResetPending}
+                                    onClick={() => onRequestCooldownReset({
+                                      credentialID: credential.id,
+                                      displayName: credential.email || credential.displayName || credential.remoteName,
+                                    })}
+                                  >
+                                    {t('cpa.cooldownReset.action')}
+                                  </Button>
                                 )}
                               </div>
                             </motion.div>

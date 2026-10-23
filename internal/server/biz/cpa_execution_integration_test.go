@@ -23,7 +23,7 @@ func TestCPAExecutionIntegrationSyncsAndRefreshesThroughManagementHTTP(t *testin
 		authorizationHeaders <- r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/v0/management/auth-files":
+		case "/v8/management/credentials":
 			_, _ = w.Write([]byte(`[{"auth_index":"claude-auth","name":"claude.json","type":"claude","status":"active","email":"user@example.com"}]`))
 		case "/v0/management/api-call":
 			if providerCalls.Add(1) == 1 {

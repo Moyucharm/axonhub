@@ -2131,6 +2131,8 @@ type CPACredentialMutation struct {
 	health_state                *string
 	quota_cooling               *bool
 	quota_cooldown_until        *time.Time
+	routing_cooldown            *objects.CPARoutingCooldownSnapshot
+	routing_cooldown_until      *time.Time
 	projection_version          *int
 	addprojection_version       *int
 	quota_data                  *objects.CPAQuotaSnapshot
@@ -3166,6 +3168,104 @@ func (m *CPACredentialMutation) ResetQuotaCooldownUntil() {
 	delete(m.clearedFields, cpacredential.FieldQuotaCooldownUntil)
 }
 
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (m *CPACredentialMutation) SetRoutingCooldown(orcs objects.CPARoutingCooldownSnapshot) {
+	m.routing_cooldown = &orcs
+}
+
+// RoutingCooldown returns the value of the "routing_cooldown" field in the mutation.
+func (m *CPACredentialMutation) RoutingCooldown() (r objects.CPARoutingCooldownSnapshot, exists bool) {
+	v := m.routing_cooldown
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoutingCooldown returns the old "routing_cooldown" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRoutingCooldown(ctx context.Context) (v objects.CPARoutingCooldownSnapshot, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoutingCooldown is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoutingCooldown requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoutingCooldown: %w", err)
+	}
+	return oldValue.RoutingCooldown, nil
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (m *CPACredentialMutation) ClearRoutingCooldown() {
+	m.routing_cooldown = nil
+	m.clearedFields[cpacredential.FieldRoutingCooldown] = struct{}{}
+}
+
+// RoutingCooldownCleared returns if the "routing_cooldown" field was cleared in this mutation.
+func (m *CPACredentialMutation) RoutingCooldownCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldRoutingCooldown]
+	return ok
+}
+
+// ResetRoutingCooldown resets all changes to the "routing_cooldown" field.
+func (m *CPACredentialMutation) ResetRoutingCooldown() {
+	m.routing_cooldown = nil
+	delete(m.clearedFields, cpacredential.FieldRoutingCooldown)
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (m *CPACredentialMutation) SetRoutingCooldownUntil(t time.Time) {
+	m.routing_cooldown_until = &t
+}
+
+// RoutingCooldownUntil returns the value of the "routing_cooldown_until" field in the mutation.
+func (m *CPACredentialMutation) RoutingCooldownUntil() (r time.Time, exists bool) {
+	v := m.routing_cooldown_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRoutingCooldownUntil returns the old "routing_cooldown_until" field's value of the CPACredential entity.
+// If the CPACredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CPACredentialMutation) OldRoutingCooldownUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRoutingCooldownUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRoutingCooldownUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRoutingCooldownUntil: %w", err)
+	}
+	return oldValue.RoutingCooldownUntil, nil
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (m *CPACredentialMutation) ClearRoutingCooldownUntil() {
+	m.routing_cooldown_until = nil
+	m.clearedFields[cpacredential.FieldRoutingCooldownUntil] = struct{}{}
+}
+
+// RoutingCooldownUntilCleared returns if the "routing_cooldown_until" field was cleared in this mutation.
+func (m *CPACredentialMutation) RoutingCooldownUntilCleared() bool {
+	_, ok := m.clearedFields[cpacredential.FieldRoutingCooldownUntil]
+	return ok
+}
+
+// ResetRoutingCooldownUntil resets all changes to the "routing_cooldown_until" field.
+func (m *CPACredentialMutation) ResetRoutingCooldownUntil() {
+	m.routing_cooldown_until = nil
+	delete(m.clearedFields, cpacredential.FieldRoutingCooldownUntil)
+}
+
 // SetProjectionVersion sets the "projection_version" field.
 func (m *CPACredentialMutation) SetProjectionVersion(i int) {
 	m.projection_version = &i
@@ -3692,7 +3792,7 @@ func (m *CPACredentialMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CPACredentialMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 36)
 	if m.created_at != nil {
 		fields = append(fields, cpacredential.FieldCreatedAt)
 	}
@@ -3764,6 +3864,12 @@ func (m *CPACredentialMutation) Fields() []string {
 	}
 	if m.quota_cooldown_until != nil {
 		fields = append(fields, cpacredential.FieldQuotaCooldownUntil)
+	}
+	if m.routing_cooldown != nil {
+		fields = append(fields, cpacredential.FieldRoutingCooldown)
+	}
+	if m.routing_cooldown_until != nil {
+		fields = append(fields, cpacredential.FieldRoutingCooldownUntil)
 	}
 	if m.projection_version != nil {
 		fields = append(fields, cpacredential.FieldProjectionVersion)
@@ -3851,6 +3957,10 @@ func (m *CPACredentialMutation) Field(name string) (ent.Value, bool) {
 		return m.QuotaCooling()
 	case cpacredential.FieldQuotaCooldownUntil:
 		return m.QuotaCooldownUntil()
+	case cpacredential.FieldRoutingCooldown:
+		return m.RoutingCooldown()
+	case cpacredential.FieldRoutingCooldownUntil:
+		return m.RoutingCooldownUntil()
 	case cpacredential.FieldProjectionVersion:
 		return m.ProjectionVersion()
 	case cpacredential.FieldQuotaData:
@@ -3928,6 +4038,10 @@ func (m *CPACredentialMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldQuotaCooling(ctx)
 	case cpacredential.FieldQuotaCooldownUntil:
 		return m.OldQuotaCooldownUntil(ctx)
+	case cpacredential.FieldRoutingCooldown:
+		return m.OldRoutingCooldown(ctx)
+	case cpacredential.FieldRoutingCooldownUntil:
+		return m.OldRoutingCooldownUntil(ctx)
 	case cpacredential.FieldProjectionVersion:
 		return m.OldProjectionVersion(ctx)
 	case cpacredential.FieldQuotaData:
@@ -4125,6 +4239,20 @@ func (m *CPACredentialMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuotaCooldownUntil(v)
 		return nil
+	case cpacredential.FieldRoutingCooldown:
+		v, ok := value.(objects.CPARoutingCooldownSnapshot)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoutingCooldown(v)
+		return nil
+	case cpacredential.FieldRoutingCooldownUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRoutingCooldownUntil(v)
+		return nil
 	case cpacredential.FieldProjectionVersion:
 		v, ok := value.(int)
 		if !ok {
@@ -4279,6 +4407,12 @@ func (m *CPACredentialMutation) ClearedFields() []string {
 	if m.FieldCleared(cpacredential.FieldQuotaCooldownUntil) {
 		fields = append(fields, cpacredential.FieldQuotaCooldownUntil)
 	}
+	if m.FieldCleared(cpacredential.FieldRoutingCooldown) {
+		fields = append(fields, cpacredential.FieldRoutingCooldown)
+	}
+	if m.FieldCleared(cpacredential.FieldRoutingCooldownUntil) {
+		fields = append(fields, cpacredential.FieldRoutingCooldownUntil)
+	}
 	if m.FieldCleared(cpacredential.FieldQuotaLastAttemptAt) {
 		fields = append(fields, cpacredential.FieldQuotaLastAttemptAt)
 	}
@@ -4310,6 +4444,12 @@ func (m *CPACredentialMutation) ClearField(name string) error {
 	switch name {
 	case cpacredential.FieldQuotaCooldownUntil:
 		m.ClearQuotaCooldownUntil()
+		return nil
+	case cpacredential.FieldRoutingCooldown:
+		m.ClearRoutingCooldown()
+		return nil
+	case cpacredential.FieldRoutingCooldownUntil:
+		m.ClearRoutingCooldownUntil()
 		return nil
 	case cpacredential.FieldQuotaLastAttemptAt:
 		m.ClearQuotaLastAttemptAt()
@@ -4405,6 +4545,12 @@ func (m *CPACredentialMutation) ResetField(name string) error {
 		return nil
 	case cpacredential.FieldQuotaCooldownUntil:
 		m.ResetQuotaCooldownUntil()
+		return nil
+	case cpacredential.FieldRoutingCooldown:
+		m.ResetRoutingCooldown()
+		return nil
+	case cpacredential.FieldRoutingCooldownUntil:
+		m.ResetRoutingCooldownUntil()
 		return nil
 	case cpacredential.FieldProjectionVersion:
 		m.ResetProjectionVersion()

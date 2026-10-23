@@ -22,10 +22,11 @@ import (
 type CPACredentialFilterStatus string
 
 const (
-	CPACredentialFilterEnabled  CPACredentialFilterStatus = "enabled"
-	CPACredentialFilterDisabled CPACredentialFilterStatus = "disabled"
-	CPACredentialFilterAbnormal CPACredentialFilterStatus = "abnormal"
-	CPACredentialFilterCooldown CPACredentialFilterStatus = "cooldown"
+	CPACredentialFilterEnabled     CPACredentialFilterStatus = "enabled"
+	CPACredentialFilterDisabled    CPACredentialFilterStatus = "disabled"
+	CPACredentialFilterAbnormal    CPACredentialFilterStatus = "abnormal"
+	CPACredentialFilterCooldown    CPACredentialFilterStatus = "cooldown"
+	CPACredentialFilterCPACooldown CPACredentialFilterStatus = "cpa_cooldown"
 )
 
 // QueryCPACredentialsInput contains one-instance list filters.
@@ -67,6 +68,8 @@ type CPACredentialView struct {
 	Expired            bool
 	Cooling            bool
 	CooldownUntil      *time.Time
+	RoutingCooldown    objects.CPARoutingCooldownSnapshot
+	CanResetCooldown   bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	credential         *ent.CPACredential
@@ -379,7 +382,7 @@ func applyCPACredentialFilters(query *ent.CPACredentialQuery, input QueryCPACred
 		query = query.Where(cpacredential.PlanTypeIn(input.PlanTypes...))
 	}
 	statusFilter := parseCPAStatusFilter(input.Statuses)
-	statusPredicates := make([]predicate.CPACredential, 0, 4)
+	statusPredicates := make([]predicate.CPACredential, 0, 5)
 	if statusFilter.enabled {
 		statusPredicates = append(statusPredicates, cpacredential.DisabledEQ(false))
 	}
@@ -391,6 +394,9 @@ func applyCPACredentialFilters(query *ent.CPACredentialQuery, input QueryCPACred
 	}
 	if statusFilter.cooldown {
 		statusPredicates = append(statusPredicates, effectiveCPACooldownPredicate(now))
+	}
+	if statusFilter.cpaCooldown {
+		statusPredicates = append(statusPredicates, cpacredential.RoutingCooldownUntilGT(now))
 	}
 	if len(statusPredicates) > 0 {
 		query = query.Where(cpacredential.Or(statusPredicates...))
@@ -526,6 +532,7 @@ func (svc *CPAService) credentialView(ctx context.Context, instance *ent.CPAInst
 func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACredential, now time.Time) *CPACredentialView {
 	quotaError := credential.QuotaState == string(objects.CPAQuotaStateError)
 	cooling := effectiveCPACredentialCooling(credential.QuotaCooling, credential.QuotaCooldownUntil, now)
+	routingCooldown := activeCPARoutingCooldown(credential.RoutingCooldown, now)
 	var cooldownUntil *time.Time
 	if cooling {
 		cooldownUntil = credential.QuotaCooldownUntil
@@ -577,18 +584,47 @@ func buildCPACredentialView(instance *ent.CPAInstance, credential *ent.CPACreden
 		Expired:            deriveCPAExpired(credential),
 		Cooling:            cooling,
 		CooldownUntil:      cooldownUntil,
+		RoutingCooldown:    routingCooldown,
+		CanResetCooldown:   instance.Enabled && strings.TrimSpace(credential.AuthIndex) != "" && routingCooldown.Known && len(routingCooldown.Items) > 0,
 		CreatedAt:          credential.CreatedAt,
 		UpdatedAt:          credential.UpdatedAt,
 		credential:         credential,
 	}
 }
 
+// activeCPARoutingCooldown leaves the stored snapshot intact and expires entries at read time.
+func activeCPARoutingCooldown(snapshot objects.CPARoutingCooldownSnapshot, now time.Time) objects.CPARoutingCooldownSnapshot {
+	if !snapshot.Known {
+		snapshot.Items = []objects.CPARoutingCooldown{}
+		return snapshot
+	}
+	for index, item := range snapshot.Items {
+		if item.RetryAt.After(now) {
+			continue
+		}
+		items := make([]objects.CPARoutingCooldown, index, len(snapshot.Items)-1)
+		copy(items, snapshot.Items[:index])
+		for _, candidate := range snapshot.Items[index+1:] {
+			if candidate.RetryAt.After(now) {
+				items = append(items, candidate)
+			}
+		}
+		snapshot.Items = items
+		return snapshot
+	}
+	if snapshot.Items == nil {
+		snapshot.Items = []objects.CPARoutingCooldown{}
+	}
+	return snapshot
+}
+
 type cpaStatusFilter struct {
-	enabled  bool
-	disabled bool
-	abnormal bool
-	cooldown bool
-	any      bool
+	enabled     bool
+	disabled    bool
+	abnormal    bool
+	cooldown    bool
+	cpaCooldown bool
+	any         bool
 }
 
 func parseCPAStatusFilter(statuses []CPACredentialFilterStatus) cpaStatusFilter {
@@ -604,9 +640,11 @@ func parseCPAStatusFilter(statuses []CPACredentialFilterStatus) cpaStatusFilter 
 			filter.abnormal = true
 		case CPACredentialFilterCooldown:
 			filter.cooldown = true
+		case CPACredentialFilterCPACooldown:
+			filter.cpaCooldown = true
 		}
 	}
-	filter.any = !filter.enabled && !filter.disabled && !filter.abnormal && !filter.cooldown
+	filter.any = !filter.enabled && !filter.disabled && !filter.abnormal && !filter.cooldown && !filter.cpaCooldown
 	return filter
 }
 
@@ -624,6 +662,9 @@ func (filter cpaStatusFilter) matches(view *CPACredentialView) bool {
 		return true
 	}
 	if filter.cooldown && view.Cooling {
+		return true
+	}
+	if filter.cpaCooldown && len(view.RoutingCooldown.Items) > 0 {
 		return true
 	}
 	return false

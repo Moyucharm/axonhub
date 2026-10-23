@@ -36,6 +36,10 @@ func (s stubManagementClient) PatchAuthFileStatus(context.Context, string, strin
 	return fmt.Errorf("unexpected PatchAuthFileStatus call")
 }
 
+func (s stubManagementClient) ResetCooldown(context.Context, string, ManagementAPI) error {
+	return fmt.Errorf("unexpected ResetCooldown call")
+}
+
 func newStubProviderClient(usage, credits string, creditsErr error) stubManagementClient {
 	return stubManagementClient{call: func(_ context.Context, call ProviderCall) (*ProviderCallResult, error) {
 		switch call.URL {

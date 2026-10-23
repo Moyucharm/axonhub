@@ -165,6 +165,11 @@ func QuotaCooldownUntil(v time.Time) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldQuotaCooldownUntil, v))
 }
 
+// RoutingCooldownUntil applies equality check predicate on the "routing_cooldown_until" field. It's identical to RoutingCooldownUntilEQ.
+func RoutingCooldownUntil(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRoutingCooldownUntil, v))
+}
+
 // ProjectionVersion applies equality check predicate on the "projection_version" field. It's identical to ProjectionVersionEQ.
 func ProjectionVersion(v int) predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldEQ(FieldProjectionVersion, v))
@@ -1318,6 +1323,66 @@ func QuotaCooldownUntilIsNil() predicate.CPACredential {
 // QuotaCooldownUntilNotNil applies the NotNil predicate on the "quota_cooldown_until" field.
 func QuotaCooldownUntilNotNil() predicate.CPACredential {
 	return predicate.CPACredential(sql.FieldNotNull(FieldQuotaCooldownUntil))
+}
+
+// RoutingCooldownIsNil applies the IsNil predicate on the "routing_cooldown" field.
+func RoutingCooldownIsNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIsNull(FieldRoutingCooldown))
+}
+
+// RoutingCooldownNotNil applies the NotNil predicate on the "routing_cooldown" field.
+func RoutingCooldownNotNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotNull(FieldRoutingCooldown))
+}
+
+// RoutingCooldownUntilEQ applies the EQ predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldEQ(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilNEQ applies the NEQ predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilNEQ(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNEQ(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilIn applies the In predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIn(FieldRoutingCooldownUntil, vs...))
+}
+
+// RoutingCooldownUntilNotIn applies the NotIn predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilNotIn(vs ...time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotIn(FieldRoutingCooldownUntil, vs...))
+}
+
+// RoutingCooldownUntilGT applies the GT predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilGT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGT(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilGTE applies the GTE predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilGTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldGTE(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilLT applies the LT predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilLT(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLT(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilLTE applies the LTE predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilLTE(v time.Time) predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldLTE(FieldRoutingCooldownUntil, v))
+}
+
+// RoutingCooldownUntilIsNil applies the IsNil predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilIsNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldIsNull(FieldRoutingCooldownUntil))
+}
+
+// RoutingCooldownUntilNotNil applies the NotNil predicate on the "routing_cooldown_until" field.
+func RoutingCooldownUntilNotNil() predicate.CPACredential {
+	return predicate.CPACredential(sql.FieldNotNull(FieldRoutingCooldownUntil))
 }
 
 // ProjectionVersionEQ applies the EQ predicate on the "projection_version" field.

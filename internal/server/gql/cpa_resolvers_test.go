@@ -73,3 +73,19 @@ func TestCPACodexResetMutationEnforcesWriteSettings(t *testing.T) {
 	_, err = (&mutationResolver{resolver}).ResetCPACodexCredential(ctx, 123, "card")
 	require.NotContains(t, err.Error(), "permission denied")
 }
+
+func TestCPACooldownResetMutationEnforcesWriteSettings(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_cooldown_reset_resolver?mode=memory&_fk=0")
+	defer client.Close()
+	user := &ent.User{ID: 42}
+	ctx := contexts.WithUser(authz.NewUserContext(ent.NewContext(t.Context(), client), user.ID), user)
+	resolver := &mutationResolver{&Resolver{cpaService: biz.NewCPAService(biz.CPAServiceParams{Ent: client})}}
+	_, err := resolver.ResetCPACredentialCooldown(ctx, 123)
+	require.EqualError(t, err, "permission denied: requires write:settings scope")
+	user.Scopes = []string{string(scopes.ScopeReadSettings)}
+	_, err = resolver.ResetCPACredentialCooldown(ctx, 123)
+	require.EqualError(t, err, "permission denied: requires write:settings scope")
+	user.Scopes = []string{string(scopes.ScopeWriteSettings)}
+	_, err = resolver.ResetCPACredentialCooldown(ctx, 123)
+	require.ErrorContains(t, err, "get CPA credential")
+}

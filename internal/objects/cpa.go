@@ -2,6 +2,48 @@ package objects
 
 import "time"
 
+// CPARoutingCooldownScope identifies the CPA routing state covered by a cooldown.
+type CPARoutingCooldownScope string
+
+const (
+	CPARoutingCooldownScopeCredential CPARoutingCooldownScope = "credential"
+	CPARoutingCooldownScopeModel      CPARoutingCooldownScope = "model"
+)
+
+// CPARoutingCooldownReason is a safe, normalized CPA routing cooldown reason.
+type CPARoutingCooldownReason string
+
+const (
+	CPARoutingCooldownReasonCredentialQuota     CPARoutingCooldownReason = "credential_quota"
+	CPARoutingCooldownReasonQuota               CPARoutingCooldownReason = "quota"
+	CPARoutingCooldownReasonCloudflareChallenge CPARoutingCooldownReason = "cloudflare_challenge"
+	CPARoutingCooldownReasonModelNotSupported   CPARoutingCooldownReason = "model_not_supported"
+	CPARoutingCooldownReasonInvalidGrant        CPARoutingCooldownReason = "invalid_grant"
+	CPARoutingCooldownReasonUnauthorized        CPARoutingCooldownReason = "unauthorized"
+	CPARoutingCooldownReasonPaymentRequired     CPARoutingCooldownReason = "payment_required"
+	CPARoutingCooldownReasonNotFound            CPARoutingCooldownReason = "not_found"
+	CPARoutingCooldownReasonTransientError      CPARoutingCooldownReason = "transient_error"
+	CPARoutingCooldownReasonUnknown             CPARoutingCooldownReason = "unknown"
+)
+
+// CPARoutingCooldown retains only safe routing metadata and the absolute deadline.
+type CPARoutingCooldown struct {
+	Scope        CPARoutingCooldownScope  `json:"scope"`
+	ModelKey     string                   `json:"model_key"`
+	Reason       CPARoutingCooldownReason `json:"reason"`
+	RetryAt      time.Time                `json:"retry_at"`
+	BackoffLevel *int                     `json:"backoff_level"`
+	HTTPStatus   *int                     `json:"http_status"`
+}
+
+// CPARoutingCooldownSnapshot distinguishes an unavailable snapshot from known empty state.
+// The zero value is unknown; it must not be inferred from quota or health metadata.
+type CPARoutingCooldownSnapshot struct {
+	Known      bool                 `json:"known"`
+	ObservedAt *time.Time           `json:"observed_at"`
+	Items      []CPARoutingCooldown `json:"items"`
+}
+
 // CPAQuotaState describes the latest quota collection result for a CPA credential.
 type CPAQuotaState string
 

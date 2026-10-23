@@ -153,6 +153,7 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 	seenIDs := make(map[int]struct{}, len(normalizedByKey))
 	for key, normalized := range normalizedByKey {
 		current := currentByKey[key]
+		routingCooldownUntil := cpaRoutingCooldownUntil(normalized.RoutingCooldown)
 		if current == nil {
 			quotaState := objects.CPAQuotaStatePending
 			if !repository.supportsNormalizedQuota(normalized) {
@@ -186,10 +187,14 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 				SetPriority(normalized.Priority).
 				SetPlanType(normalized.PlanType).
 				SetQuotaContext(normalized.QuotaContext).
+				SetRoutingCooldown(normalized.RoutingCooldown).
 				SetQuotaState(string(quotaState)).
 				SetHealthState(string(projection.healthState)).
 				SetQuotaCooling(projection.quotaCooling).
 				SetProjectionVersion(currentCPAProjectionVersion)
+			if routingCooldownUntil != nil {
+				create.SetRoutingCooldownUntil(*routingCooldownUntil)
+			}
 			if projection.quotaCooldownUntil != nil {
 				create.SetQuotaCooldownUntil(*projection.quotaCooldownUntil)
 			}
@@ -238,9 +243,15 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 			SetRuntimeOnly(normalized.RuntimeOnly).
 			SetPriority(normalized.Priority).
 			SetQuotaContext(normalized.QuotaContext).
+			SetRoutingCooldown(normalized.RoutingCooldown).
 			SetHealthState(string(projection.healthState)).
 			SetQuotaCooling(projection.quotaCooling).
 			SetProjectionVersion(currentCPAProjectionVersion)
+		if routingCooldownUntil == nil {
+			update.ClearRoutingCooldownUntil()
+		} else {
+			update.SetRoutingCooldownUntil(*routingCooldownUntil)
+		}
 		if projection.quotaCooldownUntil == nil {
 			update.ClearQuotaCooldownUntil()
 		} else {
@@ -279,6 +290,20 @@ func (repository *cpaRepository) syncCredentialSnapshot(ctx context.Context, ins
 		repository.invalidateUsageCredentialCache(instance.ID)
 	}
 	return nil
+}
+
+func cpaRoutingCooldownUntil(snapshot objects.CPARoutingCooldownSnapshot) *time.Time {
+	if !snapshot.Known {
+		return nil
+	}
+	var until *time.Time
+	for index := range snapshot.Items {
+		retryAt := &snapshot.Items[index].RetryAt
+		if until == nil || retryAt.After(*until) {
+			until = retryAt
+		}
+	}
+	return until
 }
 
 func cpaAuthFilePresentInSnapshot(file cpaclient.AuthFile) bool {

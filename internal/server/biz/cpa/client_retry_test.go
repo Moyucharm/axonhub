@@ -84,6 +84,7 @@ func TestCallProviderNeverRetriesWrites(t *testing.T) {
 func TestListCredentialsRetriesTransientFailures(t *testing.T) {
 	client, calls := newRetryTestClient(t, func(call int32, w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/v8/management/credentials", r.URL.Path)
 		if call < 2 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
@@ -93,6 +94,7 @@ func TestListCredentialsRetriesTransientFailures(t *testing.T) {
 	files, _, err := client.ListCredentials(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, files.Files)
+	require.Equal(t, ManagementAPIV8, files.API)
 	require.Equal(t, int32(2), calls.Load())
 }
 

@@ -64,6 +64,10 @@ const (
 	FieldQuotaCooling = "quota_cooling"
 	// FieldQuotaCooldownUntil holds the string denoting the quota_cooldown_until field in the database.
 	FieldQuotaCooldownUntil = "quota_cooldown_until"
+	// FieldRoutingCooldown holds the string denoting the routing_cooldown field in the database.
+	FieldRoutingCooldown = "routing_cooldown"
+	// FieldRoutingCooldownUntil holds the string denoting the routing_cooldown_until field in the database.
+	FieldRoutingCooldownUntil = "routing_cooldown_until"
 	// FieldProjectionVersion holds the string denoting the projection_version field in the database.
 	FieldProjectionVersion = "projection_version"
 	// FieldQuotaData holds the string denoting the quota_data field in the database.
@@ -124,6 +128,8 @@ var Columns = []string{
 	FieldHealthState,
 	FieldQuotaCooling,
 	FieldQuotaCooldownUntil,
+	FieldRoutingCooldown,
+	FieldRoutingCooldownUntil,
 	FieldProjectionVersion,
 	FieldQuotaData,
 	FieldQuotaLastAttemptAt,
@@ -200,6 +206,8 @@ var (
 	DefaultHealthState string
 	// DefaultQuotaCooling holds the default value on creation for the "quota_cooling" field.
 	DefaultQuotaCooling bool
+	// DefaultRoutingCooldown holds the default value on creation for the "routing_cooldown" field.
+	DefaultRoutingCooldown objects.CPARoutingCooldownSnapshot
 	// DefaultProjectionVersion holds the default value on creation for the "projection_version" field.
 	DefaultProjectionVersion int
 	// DefaultQuotaData holds the default value on creation for the "quota_data" field.
@@ -335,6 +343,11 @@ func ByQuotaCooling(opts ...sql.OrderTermOption) OrderOption {
 // ByQuotaCooldownUntil orders the results by the quota_cooldown_until field.
 func ByQuotaCooldownUntil(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaCooldownUntil, opts...).ToFunc()
+}
+
+// ByRoutingCooldownUntil orders the results by the routing_cooldown_until field.
+func ByRoutingCooldownUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRoutingCooldownUntil, opts...).ToFunc()
 }
 
 // ByProjectionVersion orders the results by the projection_version field.

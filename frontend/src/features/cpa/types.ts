@@ -1,6 +1,6 @@
 export type CPAConnectionStatus = 'connected' | 'disabled' | 'error' | 'unknown';
 export type CPAQuotaState = 'pending' | 'success' | 'error' | 'unsupported' | 'insufficient_data';
-export type CPACredentialFilterStatus = 'enabled' | 'disabled' | 'abnormal' | 'cooldown';
+export type CPACredentialFilterStatus = 'enabled' | 'disabled' | 'abnormal' | 'cooldown' | 'cpa_cooldown';
 
 export interface CPAInstance {
   id: number;
@@ -49,6 +49,34 @@ export interface CPAQuotaItem {
   estimateSource?: string | null;
 }
 
+export type CPARoutingCooldownScope = 'credential' | 'model';
+export type CPARoutingCooldownReason =
+  | 'credential_quota'
+  | 'quota'
+  | 'cloudflare_challenge'
+  | 'model_not_supported'
+  | 'invalid_grant'
+  | 'unauthorized'
+  | 'payment_required'
+  | 'not_found'
+  | 'transient_error'
+  | 'unknown';
+
+export interface CPARoutingCooldown {
+  scope: CPARoutingCooldownScope;
+  modelKey: string;
+  reason: CPARoutingCooldownReason;
+  retryAt: string;
+  backoffLevel?: number | null;
+  httpStatus?: number | null;
+}
+
+export interface CPARoutingCooldownSnapshot {
+  known: boolean;
+  observedAt?: string | null;
+  items: CPARoutingCooldown[];
+}
+
 export interface CPACredential {
   id: number;
   instanceID: number;
@@ -74,8 +102,16 @@ export interface CPACredential {
   expired: boolean;
   cooling: boolean;
   cooldownUntil?: string | null;
+  routingCooldown: CPARoutingCooldownSnapshot;
+  canResetCooldown: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CPACredentialCooldownResetOutcome {
+  applied: boolean;
+  credential?: CPACredential | null;
+  refreshError?: string | null;
 }
 
 export interface CPACredentialConnection {

@@ -19,6 +19,7 @@ import (
 
 const (
 	managementPath        = "/v0/management"
+	managementV8Path      = "/v8/management"
 	defaultRequestTimeout = 30 * time.Second
 	maxAuthFilesBodySize  = 32 << 20
 	maxAPICallBodySize    = 16 << 20
@@ -45,6 +46,7 @@ type ManagementClient interface {
 	CallProvider(context.Context, ProviderCall) (*ProviderCallResult, error)
 	ListUsageQueue(context.Context, int) ([]*UsageEvent, error)
 	PatchAuthFileStatus(context.Context, string, string, bool) error
+	ResetCooldown(context.Context, string, ManagementAPI) error
 }
 
 // Client communicates with one CLIProxyAPI management endpoint.
@@ -66,10 +68,15 @@ type Config struct {
 // ManagementHTTPError reports a non-success response from CPA's management API.
 type ManagementHTTPError struct {
 	StatusCode int
+	Reason     string
 }
 
 func (e *ManagementHTTPError) Error() string {
-	return fmt.Sprintf("CPA management request returned HTTP %d", e.StatusCode)
+	message := fmt.Sprintf("CPA management request returned HTTP %d", e.StatusCode)
+	if e.Reason != "" {
+		message += ": " + e.Reason
+	}
+	return message
 }
 
 // NormalizeBaseURL validates and canonicalizes a CPA base URL.
@@ -100,8 +107,11 @@ func NormalizeBaseURL(raw string) (string, error) {
 	}
 
 	cleanPath := strings.TrimRight(parsed.EscapedPath(), "/")
-	if strings.HasSuffix(cleanPath, managementPath) {
-		cleanPath = strings.TrimSuffix(cleanPath, managementPath)
+	for _, root := range []string{managementPath, managementV8Path} {
+		if strings.HasSuffix(cleanPath, root) {
+			cleanPath = strings.TrimSuffix(cleanPath, root)
+			break
+		}
 	}
 	if cleanPath == "" {
 		parsed.Path = ""
@@ -186,7 +196,13 @@ func (c *Client) CloseIdleConnections() {
 // ListCredentials returns the current auth-files snapshot and CPA build metadata.
 func (c *Client) ListCredentials(ctx context.Context) (*AuthFilesResponse, BuildInfo, error) {
 	var raw json.RawMessage
-	buildInfo, err := c.doJSON(ctx, http.MethodGet, "auth-files", nil, maxAuthFilesBodySize, &raw)
+	api := ManagementAPIV8
+	buildInfo, err := c.doJSON(ctx, http.MethodGet, managementV8Path, "credentials", nil, maxAuthFilesBodySize, &raw)
+	var httpErr *ManagementHTTPError
+	if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusMethodNotAllowed) {
+		api = ManagementAPIV0
+		buildInfo, err = c.doJSON(ctx, http.MethodGet, managementPath, "auth-files", nil, maxAuthFilesBodySize, &raw)
+	}
 	if err != nil {
 		return nil, buildInfo, err
 	}
@@ -201,6 +217,10 @@ func (c *Client) ListCredentials(ctx context.Context) (*AuthFilesResponse, Build
 	}
 	if result.Files == nil {
 		result.Files = []AuthFile{}
+	}
+	result.API = api
+	for i := range result.Files {
+		result.Files[i].CooldownObservedAt = result.ObservedAt
 	}
 	return &result, buildInfo, nil
 }
@@ -245,7 +265,7 @@ func (c *Client) CallProvider(ctx context.Context, call ProviderCall) (*Provider
 			Header     map[string][]string `json:"header"`
 			Body       string              `json:"body"`
 		}
-		if _, err := c.doJSONOnce(ctx, http.MethodPost, "api-call", payload, maxAPICallBodySize, &envelope); err != nil {
+		if _, err := c.doJSONOnce(ctx, http.MethodPost, managementPath, "api-call", payload, maxAPICallBodySize, &envelope); err != nil {
 			if !retryableManagementError(err) {
 				return nil, err
 			}
@@ -278,7 +298,7 @@ func (c *Client) ListUsageQueue(ctx context.Context, count int) ([]*UsageEvent, 
 	endpoint := "usage-queue?count=" + strconv.Itoa(count)
 	// The usage queue pops records, so a retried read would silently drop the
 	// batch whose first response was lost. Send it exactly once.
-	if _, err := c.doJSONOnce(ctx, http.MethodGet, endpoint, nil, maxUsageQueueBodySize, &events); err != nil {
+	if _, err := c.doJSONOnce(ctx, http.MethodGet, managementPath, endpoint, nil, maxUsageQueueBodySize, &events); err != nil {
 		return nil, err
 	}
 	if events == nil {
@@ -306,13 +326,51 @@ func (c *Client) PatchAuthFileStatus(ctx context.Context, name, authIndex string
 	var output struct {
 		Status string `json:"status"`
 	}
-	_, err := c.doJSON(ctx, http.MethodPatch, "auth-files/status", payload, 1<<20, &output)
+	_, err := c.doJSON(ctx, http.MethodPatch, managementPath, "auth-files/status", payload, 1<<20, &output)
 	return err
+}
+
+// ResetCooldown clears only the selected credential's CPA routing cooldown.
+// The caller must select the API with ListCredentials before attempting a write.
+func (c *Client) ResetCooldown(ctx context.Context, authIndex string, api ManagementAPI) error {
+	if strings.TrimSpace(authIndex) == "" {
+		return fmt.Errorf("CPA credential auth index is required")
+	}
+	var root, endpoint string
+	switch api {
+	case ManagementAPIV8:
+		root, endpoint = managementV8Path, "routing/cooldown/reset"
+	case ManagementAPIV0:
+		root, endpoint = managementPath, "reset-quota"
+	default:
+		return fmt.Errorf("invalid CPA management API")
+	}
+	payload := struct {
+		AuthIndex string `json:"auth_index"`
+	}{AuthIndex: authIndex}
+	var output struct {
+		Status    string   `json:"status"`
+		AuthIndex string   `json:"auth_index"`
+		Models    []string `json:"models"`
+	}
+	_, err := c.doJSONOnce(ctx, http.MethodPost, root, endpoint, payload, 1<<20, &output)
+	if err != nil {
+		var syntaxError *json.SyntaxError
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &syntaxError) || errors.As(err, &typeError) {
+			return fmt.Errorf("CPA cooldown reset response is invalid; refresh state before retrying")
+		}
+		return err
+	}
+	if output.Status != "ok" || output.AuthIndex != authIndex {
+		return fmt.Errorf("CPA cooldown reset response is invalid; refresh state before retrying")
+	}
+	return nil
 }
 
 // doJSON performs one management request, retrying idempotent GET reads on
 // transient network or upstream failures. Other methods stay single-shot.
-func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
+func (c *Client) doJSON(ctx context.Context, method, managementRoot, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
 	attempts := 1
 	if method == http.MethodGet {
 		attempts = c.attempts()
@@ -327,7 +385,7 @@ func (c *Client) doJSON(ctx context.Context, method, endpoint string, payload an
 				return buildInfo, err
 			}
 		}
-		buildInfo, lastErr = c.doJSONOnce(ctx, method, endpoint, payload, maxBody, output)
+		buildInfo, lastErr = c.doJSONOnce(ctx, method, managementRoot, endpoint, payload, maxBody, output)
 		if lastErr == nil {
 			return buildInfo, nil
 		}
@@ -371,9 +429,12 @@ func (c *Client) waitBeforeRetry(ctx context.Context, attempt int) error {
 }
 
 // doJSONOnce performs exactly one management request and decodes its reply.
-func (c *Client) doJSONOnce(ctx context.Context, method, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
+func (c *Client) doJSONOnce(ctx context.Context, method, managementRoot, endpoint string, payload any, maxBody int64, output any) (BuildInfo, error) {
 	if c == nil || c.httpClient == nil || c.baseURL == nil {
 		return BuildInfo{}, fmt.Errorf("CPA client is not initialized")
+	}
+	if managementRoot != managementPath && managementRoot != managementV8Path {
+		return BuildInfo{}, fmt.Errorf("invalid CPA management API root")
 	}
 
 	var body io.Reader
@@ -387,7 +448,7 @@ func (c *Client) doJSONOnce(ctx context.Context, method, endpoint string, payloa
 
 	target := *c.baseURL
 	endpointPath, endpointQuery, _ := strings.Cut(endpoint, "?")
-	target.Path = strings.TrimRight(c.baseURL.Path, "/") + managementPath + "/" + strings.TrimLeft(endpointPath, "/")
+	target.Path = strings.TrimRight(c.baseURL.Path, "/") + managementRoot + "/" + strings.TrimLeft(endpointPath, "/")
 	target.RawPath = ""
 	target.RawQuery = endpointQuery
 	req, err := http.NewRequestWithContext(ctx, method, target.String(), body)
@@ -400,7 +461,16 @@ func (c *Client) doJSONOnce(ctx context.Context, method, endpoint string, payloa
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.httpClient.Do(req)
+	requestClient := c.httpClient
+	if method == http.MethodPost && (endpoint == "routing/cooldown/reset" || endpoint == "reset-quota") {
+		// A same-host 307 would repeat the mutation, so resets never redirect.
+		singleShotClient := *c.httpClient
+		singleShotClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		requestClient = &singleShotClient
+	}
+	resp, err := requestClient.Do(req)
 	if err != nil {
 		return BuildInfo{}, fmt.Errorf("CPA management request failed: %w", err)
 	}
@@ -420,7 +490,16 @@ func (c *Client) doJSONOnce(ctx context.Context, method, endpoint string, payloa
 		return buildInfo, fmt.Errorf("CPA management response exceeded size limit")
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return buildInfo, &ManagementHTTPError{StatusCode: resp.StatusCode}
+		var envelope struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(responseBody, &envelope)
+		reason := ""
+		switch envelope.Error {
+		case "auth not found", "core auth manager unavailable", "auth_index is required", "invalid request body":
+			reason = envelope.Error
+		}
+		return buildInfo, &ManagementHTTPError{StatusCode: resp.StatusCode, Reason: reason}
 	}
 	if err := json.Unmarshal(responseBody, output); err != nil {
 		return buildInfo, fmt.Errorf("decode CPA management response: %w", err)

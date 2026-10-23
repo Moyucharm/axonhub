@@ -6,7 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Header } from '@/components/layout/header';
 import { Main } from '@/components/layout/main';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CPAClaudeResetDialog, CPACodexResetDialog, CPACredentialToggleDialog, CPAInstanceDeleteDialog } from './components/confirmation-dialogs';
+import {
+  CPAClaudeResetDialog,
+  CPACodexResetDialog,
+  CPACredentialCooldownResetDialog,
+  CPACredentialToggleDialog,
+  CPAInstanceDeleteDialog,
+} from './components/confirmation-dialogs';
 import { CPAToolbar } from './components/cpa-toolbar';
 import { CPACredentialTable } from './components/credential-table';
 import { CPAInstanceDialog } from './components/instance-dialog';
@@ -53,6 +59,8 @@ export default function CPAManagement() {
     setResettingCredential,
     claudeResettingCredential,
     setClaudeResettingCredential,
+    cooldownResettingCredential,
+    closeCooldownResetDialog,
     providerCounts,
     providers,
     availablePlanTypes,
@@ -65,6 +73,7 @@ export default function CPAManagement() {
     deleteInstance,
     resetCredential,
     claudeResetCredential,
+    cooldownResetCredential,
     refreshProgress,
     showRefreshProgress,
     resetPagination,
@@ -78,6 +87,8 @@ export default function CPAManagement() {
     requestResetCredential,
     confirmClaudeResetCredential,
     requestClaudeResetCredential,
+    confirmCooldownResetCredential,
+    requestCooldownResetCredential,
     setPageSize,
   } = controller;
 
@@ -201,6 +212,7 @@ export default function CPAManagement() {
                 instanceEnabled={selectedInstance.enabled}
                 resetPending={resetCredential.isPending}
                 claudeResetPending={claudeResetCredential.isPending}
+                cooldownResetPending={cooldownResetCredential.isPending}
                 refreshPending={refreshCredential.isPending}
                 togglePending={toggleCredential.isPending}
                 locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
@@ -215,6 +227,7 @@ export default function CPAManagement() {
                 }
                 onRequestReset={requestResetCredential}
                 onRequestClaudeReset={requestClaudeResetCredential}
+                onRequestCooldownReset={requestCooldownResetCredential}
                 onNextPage={() => {
                   if (!credentialsQuery.data?.pageInfo.hasNextPage || !credentialsQuery.data.pageInfo.endCursor) return;
                   setCursorHistory((history) => [...history, after]);
@@ -269,6 +282,14 @@ export default function CPAManagement() {
           if (!open) setClaudeResettingCredential(undefined);
         }}
         onConfirm={confirmClaudeResetCredential}
+      />
+      <CPACredentialCooldownResetDialog
+        confirmation={canWrite ? cooldownResettingCredential : undefined}
+        pending={cooldownResetCredential.isPending}
+        failed={cooldownResetCredential.isError}
+        error={cooldownResetCredential.error?.message}
+        onOpenChange={closeCooldownResetDialog}
+        onConfirm={confirmCooldownResetCredential}
       />
       <CPAInstanceDeleteDialog
         instance={deletingInstance}

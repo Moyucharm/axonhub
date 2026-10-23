@@ -328,6 +328,34 @@ func (_c *CPACredentialCreate) SetNillableQuotaCooldownUntil(v *time.Time) *CPAC
 	return _c
 }
 
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (_c *CPACredentialCreate) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialCreate {
+	_c.mutation.SetRoutingCooldown(v)
+	return _c
+}
+
+// SetNillableRoutingCooldown sets the "routing_cooldown" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableRoutingCooldown(v *objects.CPARoutingCooldownSnapshot) *CPACredentialCreate {
+	if v != nil {
+		_c.SetRoutingCooldown(*v)
+	}
+	return _c
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (_c *CPACredentialCreate) SetRoutingCooldownUntil(v time.Time) *CPACredentialCreate {
+	_c.mutation.SetRoutingCooldownUntil(v)
+	return _c
+}
+
+// SetNillableRoutingCooldownUntil sets the "routing_cooldown_until" field if the given value is not nil.
+func (_c *CPACredentialCreate) SetNillableRoutingCooldownUntil(v *time.Time) *CPACredentialCreate {
+	if v != nil {
+		_c.SetRoutingCooldownUntil(*v)
+	}
+	return _c
+}
+
 // SetProjectionVersion sets the "projection_version" field.
 func (_c *CPACredentialCreate) SetProjectionVersion(v int) *CPACredentialCreate {
 	_c.mutation.SetProjectionVersion(v)
@@ -592,6 +620,10 @@ func (_c *CPACredentialCreate) defaults() error {
 		v := cpacredential.DefaultQuotaCooling
 		_c.mutation.SetQuotaCooling(v)
 	}
+	if _, ok := _c.mutation.RoutingCooldown(); !ok {
+		v := cpacredential.DefaultRoutingCooldown
+		_c.mutation.SetRoutingCooldown(v)
+	}
 	if _, ok := _c.mutation.ProjectionVersion(); !ok {
 		v := cpacredential.DefaultProjectionVersion
 		_c.mutation.SetProjectionVersion(v)
@@ -835,6 +867,14 @@ func (_c *CPACredentialCreate) createSpec() (*CPACredential, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.QuotaCooldownUntil(); ok {
 		_spec.SetField(cpacredential.FieldQuotaCooldownUntil, field.TypeTime, value)
 		_node.QuotaCooldownUntil = &value
+	}
+	if value, ok := _c.mutation.RoutingCooldown(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldown, field.TypeJSON, value)
+		_node.RoutingCooldown = value
+	}
+	if value, ok := _c.mutation.RoutingCooldownUntil(); ok {
+		_spec.SetField(cpacredential.FieldRoutingCooldownUntil, field.TypeTime, value)
+		_node.RoutingCooldownUntil = &value
 	}
 	if value, ok := _c.mutation.ProjectionVersion(); ok {
 		_spec.SetField(cpacredential.FieldProjectionVersion, field.TypeInt, value)
@@ -1224,6 +1264,42 @@ func (u *CPACredentialUpsert) UpdateQuotaCooldownUntil() *CPACredentialUpsert {
 // ClearQuotaCooldownUntil clears the value of the "quota_cooldown_until" field.
 func (u *CPACredentialUpsert) ClearQuotaCooldownUntil() *CPACredentialUpsert {
 	u.SetNull(cpacredential.FieldQuotaCooldownUntil)
+	return u
+}
+
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (u *CPACredentialUpsert) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldRoutingCooldown, v)
+	return u
+}
+
+// UpdateRoutingCooldown sets the "routing_cooldown" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateRoutingCooldown() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldRoutingCooldown)
+	return u
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (u *CPACredentialUpsert) ClearRoutingCooldown() *CPACredentialUpsert {
+	u.SetNull(cpacredential.FieldRoutingCooldown)
+	return u
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (u *CPACredentialUpsert) SetRoutingCooldownUntil(v time.Time) *CPACredentialUpsert {
+	u.Set(cpacredential.FieldRoutingCooldownUntil, v)
+	return u
+}
+
+// UpdateRoutingCooldownUntil sets the "routing_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsert) UpdateRoutingCooldownUntil() *CPACredentialUpsert {
+	u.SetExcluded(cpacredential.FieldRoutingCooldownUntil)
+	return u
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (u *CPACredentialUpsert) ClearRoutingCooldownUntil() *CPACredentialUpsert {
+	u.SetNull(cpacredential.FieldRoutingCooldownUntil)
 	return u
 }
 
@@ -1763,6 +1839,48 @@ func (u *CPACredentialUpsertOne) UpdateQuotaCooldownUntil() *CPACredentialUpsert
 func (u *CPACredentialUpsertOne) ClearQuotaCooldownUntil() *CPACredentialUpsertOne {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.ClearQuotaCooldownUntil()
+	})
+}
+
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (u *CPACredentialUpsertOne) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRoutingCooldown(v)
+	})
+}
+
+// UpdateRoutingCooldown sets the "routing_cooldown" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateRoutingCooldown() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRoutingCooldown()
+	})
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (u *CPACredentialUpsertOne) ClearRoutingCooldown() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRoutingCooldown()
+	})
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (u *CPACredentialUpsertOne) SetRoutingCooldownUntil(v time.Time) *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRoutingCooldownUntil(v)
+	})
+}
+
+// UpdateRoutingCooldownUntil sets the "routing_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertOne) UpdateRoutingCooldownUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRoutingCooldownUntil()
+	})
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (u *CPACredentialUpsertOne) ClearRoutingCooldownUntil() *CPACredentialUpsertOne {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRoutingCooldownUntil()
 	})
 }
 
@@ -2495,6 +2613,48 @@ func (u *CPACredentialUpsertBulk) UpdateQuotaCooldownUntil() *CPACredentialUpser
 func (u *CPACredentialUpsertBulk) ClearQuotaCooldownUntil() *CPACredentialUpsertBulk {
 	return u.Update(func(s *CPACredentialUpsert) {
 		s.ClearQuotaCooldownUntil()
+	})
+}
+
+// SetRoutingCooldown sets the "routing_cooldown" field.
+func (u *CPACredentialUpsertBulk) SetRoutingCooldown(v objects.CPARoutingCooldownSnapshot) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRoutingCooldown(v)
+	})
+}
+
+// UpdateRoutingCooldown sets the "routing_cooldown" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateRoutingCooldown() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRoutingCooldown()
+	})
+}
+
+// ClearRoutingCooldown clears the value of the "routing_cooldown" field.
+func (u *CPACredentialUpsertBulk) ClearRoutingCooldown() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRoutingCooldown()
+	})
+}
+
+// SetRoutingCooldownUntil sets the "routing_cooldown_until" field.
+func (u *CPACredentialUpsertBulk) SetRoutingCooldownUntil(v time.Time) *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.SetRoutingCooldownUntil(v)
+	})
+}
+
+// UpdateRoutingCooldownUntil sets the "routing_cooldown_until" field to the value that was provided on create.
+func (u *CPACredentialUpsertBulk) UpdateRoutingCooldownUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.UpdateRoutingCooldownUntil()
+	})
+}
+
+// ClearRoutingCooldownUntil clears the value of the "routing_cooldown_until" field.
+func (u *CPACredentialUpsertBulk) ClearRoutingCooldownUntil() *CPACredentialUpsertBulk {
+	return u.Update(func(s *CPACredentialUpsert) {
+		s.ClearRoutingCooldownUntil()
 	})
 }
 

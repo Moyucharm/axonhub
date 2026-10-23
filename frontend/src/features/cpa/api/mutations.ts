@@ -9,6 +9,7 @@ import {
   REFRESH_CREDENTIAL,
   RESET_CLAUDE_CREDENTIAL,
   RESET_CODEX_CREDENTIAL,
+  RESET_CREDENTIAL_COOLDOWN,
   REFRESH_INSTANCE,
   TOGGLE_CREDENTIAL,
   UPDATE_INSTANCE,
@@ -18,6 +19,7 @@ import type {
   CPAInstanceInput,
   CPACredential,
   CPAClaudeResetOutcome,
+  CPACredentialCooldownResetOutcome,
   CPARefreshResult,
 } from '../types';
 
@@ -224,5 +226,38 @@ export function useResetCPAClaudeCredential() {
         toast.info(t(`cpa.claudeReset.result.${outcome.result}`));
       }
     },
+  });
+}
+
+export function useResetCPACredentialCooldown() {
+  const { t } = useTranslation();
+  const invalidate = useInvalidateCPA();
+  const { handleError } = useErrorHandler();
+  return useMutation({
+    retry: false,
+    mutationFn: async (credentialID: number) => {
+      try {
+        const data = await graphqlRequest<{ resetCPACredentialCooldown: CPACredentialCooldownResetOutcome }>(
+          RESET_CREDENTIAL_COOLDOWN,
+          { credentialID }
+        );
+        return data.resetCPACredentialCooldown;
+      } catch (error) {
+        const result = handleError(error, { context: t('cpa.errors.resetCooldown') });
+        throw new Error(result.message || t('cpa.cooldownReset.failure'));
+      }
+    },
+    onSuccess: (outcome) => {
+      if (outcome.refreshError) {
+        toast.warning(t('cpa.cooldownReset.refreshFailed'), { description: outcome.refreshError });
+      } else if (!outcome.applied) {
+        toast.info(t('cpa.cooldownReset.alreadyEnded'));
+      } else if (outcome.credential?.routingCooldown.items.some((item) => Date.parse(item.retryAt) > Date.now())) {
+        toast.warning(t('cpa.cooldownReset.stillCooling'));
+      } else {
+        toast.success(t('cpa.cooldownReset.success'));
+      }
+    },
+    onSettled: () => Promise.all([invalidate.instances(), invalidate.overview(), invalidate.credentials()]),
   });
 }

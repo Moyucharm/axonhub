@@ -10,6 +10,11 @@ export const CREDENTIAL_FIELDS = `
   id instanceID remoteName displayName provider email status statusMessage disabled unavailable
   runtimeOnly priority planType quotaState quotaLastAttemptAt quotaLastSuccessAt
   quotaLastFailureAt quotaLastError available abnormal expired cooling cooldownUntil createdAt updatedAt
+  routingCooldown {
+    known observedAt
+    items { scope modelKey reason retryAt backoffLevel httpStatus }
+  }
+  canResetCooldown
   quotaData {
     items { id group label description usedPercent remainingPercent used limit remaining unit resetAt periodSeconds estimatedLimitUSD estimatedCostUSD estimateSource }
     resetCredits { id title resetType grantedAt expiresAt }
@@ -73,5 +78,12 @@ export const RESET_CODEX_CREDENTIAL = `
 export const RESET_CLAUDE_CREDENTIAL = `
   mutation ResetCPAClaudeCredential($credentialID: Int!, $grantID: String!) {
     resetCPAClaudeCredential(credentialID: $credentialID, grantID: $grantID) { result uncertain retryUntil }
+  }
+`;
+export const RESET_CREDENTIAL_COOLDOWN = `
+  mutation ResetCPACredentialCooldown($credentialID: Int!) {
+    resetCPACredentialCooldown(credentialID: $credentialID) {
+      applied refreshError credential { ${CREDENTIAL_FIELDS} }
+    }
   }
 `;

@@ -70,6 +70,14 @@ func (r *mutationResolver) ToggleCPACredential(ctx context.Context, credentialID
 	return r.cpaService.ToggleCredential(ctx, credentialID, disabled)
 }
 
+// ResetCPACredentialCooldown is the resolver for the resetCPACredentialCooldown field.
+func (r *mutationResolver) ResetCPACredentialCooldown(ctx context.Context, credentialID int) (*biz.CPACredentialCooldownResetOutcome, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {
+		return nil, fmt.Errorf("permission denied: requires write:settings scope")
+	}
+	return r.cpaService.ResetCredentialCooldown(ctx, credentialID)
+}
+
 // ResetCPACodexCredential is the resolver for the resetCPACodexCredential field.
 func (r *mutationResolver) ResetCPACodexCredential(ctx context.Context, credentialID int, creditID string) (bool, error) {
 	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {

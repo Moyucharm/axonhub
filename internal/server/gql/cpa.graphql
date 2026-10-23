@@ -17,7 +17,47 @@ enum CPACredentialFilterStatus {
   enabled
   disabled
   abnormal
+  """
+  Locally observed quota exhaustion, independent of CPA routing cooldown.
+  """
   cooldown
+  """
+  CPA-reported routing cooldown with an unexpired retry deadline.
+  """
+  cpa_cooldown
+}
+
+enum CPARoutingCooldownScope {
+  credential
+  model
+}
+
+enum CPARoutingCooldownReason {
+  credential_quota
+  quota
+  cloudflare_challenge
+  model_not_supported
+  invalid_grant
+  unauthorized
+  payment_required
+  not_found
+  transient_error
+  unknown
+}
+
+type CPARoutingCooldown {
+  scope: CPARoutingCooldownScope!
+  modelKey: String!
+  reason: CPARoutingCooldownReason!
+  retryAt: Time!
+  backoffLevel: Int
+  httpStatus: Int
+}
+
+type CPARoutingCooldownSnapshot {
+  known: Boolean!
+  observedAt: Time
+  items: [CPARoutingCooldown!]!
 }
 
 type CPAManagedInstance {
@@ -161,8 +201,17 @@ type CPAManagedCredential {
   abnormal: Boolean!
   stale: Boolean!
   expired: Boolean!
+  """
+  Whether locally observed quota windows remain exhausted; independent of CPA routing cooldown.
+  """
   cooling: Boolean!
+  """
+  Earliest expected reset of an exhausted quota window, not a CPA routing cooldown deadline.
+  Null when no reset time is known; other quota windows may remain exhausted after this time.
+  """
   cooldownUntil: Time
+  routingCooldown: CPARoutingCooldownSnapshot!
+  canResetCooldown: Boolean!
   createdAt: Time!
   updatedAt: Time!
 }
@@ -301,6 +350,18 @@ extend type Query {
   cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
 }
 
+type CPACredentialCooldownResetOutcome {
+  """
+  CPA accepted the reset; this does not imply quota or authentication recovered.
+  """
+  applied: Boolean!
+  credential: CPAManagedCredential
+  """
+  A reset was accepted but the subsequent state refresh failed.
+  """
+  refreshError: String
+}
+
 extend type Mutation {
   createCPAInstance(input: CreateCPAInstanceInput!): CPAManagedInstance!
   updateCPAInstance(id: Int!, input: UpdateCPAInstanceInput!): CPAManagedInstance!
@@ -308,6 +369,7 @@ extend type Mutation {
   refreshCPAInstance(instanceID: Int!, provider: String): CPARefreshResult!
   refreshCPACredential(credentialID: Int!): CPAManagedCredential!
   toggleCPACredential(credentialID: Int!, disabled: Boolean!): CPAManagedCredential!
+  resetCPACredentialCooldown(credentialID: Int!): CPACredentialCooldownResetOutcome!
   resetCPACodexCredential(credentialID: Int!, creditID: String!): Boolean!
   resetCPAClaudeCredential(credentialID: Int!, grantID: String!): CPAClaudeResetOutcome!
 }

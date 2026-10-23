@@ -4,6 +4,11 @@ export type {
   CPAQuotaResetCredit,
   CPAQuotaSnapshot,
   CPACredential,
+  CPARoutingCooldownScope,
+  CPARoutingCooldownReason,
+  CPARoutingCooldown,
+  CPARoutingCooldownSnapshot,
+  CPACredentialCooldownResetOutcome,
   CPAConnectionStatus,
   CPAQuotaState,
   CPACredentialFilterStatus,
@@ -28,4 +33,5 @@ export {
   useRefreshCPACredential,
   useResetCPACodexCredential,
   useResetCPAClaudeCredential,
+  useResetCPACredentialCooldown,
 } from './api/mutations';

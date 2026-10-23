@@ -49,6 +49,11 @@ func (CPACredential) Fields() []ent.Field {
 		field.String("health_state").Default(string(objects.CPACredentialHealthPending)),
 		field.Bool("quota_cooling").Default(false),
 		field.Time("quota_cooldown_until").Optional().Nillable(),
+		field.JSON("routing_cooldown", objects.CPARoutingCooldownSnapshot{}).
+			Default(objects.CPARoutingCooldownSnapshot{}).
+			Optional().
+			Annotations(entgql.Skip(entgql.SkipAll)),
+		field.Time("routing_cooldown_until").Optional().Nillable(),
 		field.Int("projection_version").Default(0),
 		field.JSON("quota_data", objects.CPAQuotaSnapshot{}).
 			Default(objects.CPAQuotaSnapshot{}).
@@ -91,6 +96,8 @@ func (CPACredential) Indexes() []ent.Index {
 		index.Fields("cpa_instance_id", "plan_type"),
 		index.Fields("cpa_instance_id", "health_state"),
 		index.Fields("cpa_instance_id", "quota_cooling", "quota_cooldown_until"),
+		index.Fields("cpa_instance_id", "routing_cooldown_until").
+			StorageKey("cpa_credentials_by_instance_routing_cooldown"),
 		index.Fields("cpa_instance_id", "provider", "plan_type", "priority", "display_name_sort_key", "display_name_sort_length", "id").
 			StorageKey("cpa_credentials_by_provider_plan_sort").
 			Annotations(entsql.DescColumns("priority")),

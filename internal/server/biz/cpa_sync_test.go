@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -480,4 +481,121 @@ func TestDeleteInstanceRemovesCredentials(t *testing.T) {
 	count, err := client.CPACredential.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Zero(t, count, "credentials must be deleted together with the instance")
+}
+
+func TestCPASyncPersistsIndependentRoutingCooldown(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_sync_routing_cooldown?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	svc := newCPAServiceForTest(client, func() time.Time { return now })
+	instance := client.CPAInstance.Create().
+		SetName("routing cooldown").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").SaveX(ctx)
+	observedAt := now.Add(-time.Minute)
+	items := []objects.CPARoutingCooldown{
+		{Scope: objects.CPARoutingCooldownScopeCredential, Reason: objects.CPARoutingCooldownReasonQuota, RetryAt: now.Add(-time.Hour)},
+		{Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "model-late", Reason: objects.CPARoutingCooldownReasonQuota, RetryAt: now.Add(3 * time.Hour)},
+		{Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "model-early", Reason: objects.CPARoutingCooldownReasonQuota, RetryAt: now.Add(time.Hour)},
+	}
+	raw, err := json.Marshal(items)
+	require.NoError(t, err)
+	file := cpaclient.AuthFile{
+		AuthIndex: "routing-auth", Name: "routing.json", Type: "codex", Status: "active",
+		Cooldowns: raw, CooldownObservedAt: &observedAt,
+	}
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, []cpaclient.AuthFile{file}, now))
+	credential := client.CPACredential.Query().OnlyX(ctx)
+	require.Equal(t, objects.CPARoutingCooldownSnapshot{Known: true, ObservedAt: &observedAt, Items: items}, credential.RoutingCooldown)
+	require.NotNil(t, credential.RoutingCooldownUntil)
+	require.True(t, credential.RoutingCooldownUntil.Equal(now.Add(3*time.Hour)))
+	view := buildCPACredentialView(instance, credential, now)
+	require.Equal(t, items[1:], view.RoutingCooldown.Items)
+	require.True(t, view.CanResetCooldown)
+	later := now.Add(2 * time.Hour)
+	count, err := applyCPACredentialFilters(client.CPACredential.Query(), QueryCPACredentialsInput{
+		InstanceID: instance.ID, Statuses: []CPACredentialFilterStatus{CPACredentialFilterCPACooldown},
+	}, later).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Equal(t, items[1:2], buildCPACredentialView(instance, credential, later).RoutingCooldown.Items)
+
+	for _, tt := range []struct {
+		name  string
+		raw   json.RawMessage
+		known bool
+	}{
+		{name: "known empty", raw: json.RawMessage(`[]`), known: true},
+		{name: "missing"},
+		{name: "null", raw: json.RawMessage(`null`)},
+		{name: "malformed", raw: json.RawMessage(`[{"scope":"model","retry_at":"invalid"}]`)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			file.Cooldowns = raw
+			require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, []cpaclient.AuthFile{file}, now))
+			restored := client.CPACredential.GetX(ctx, credential.ID)
+			require.NotNil(t, restored.RoutingCooldownUntil)
+			require.Equal(t, items, restored.RoutingCooldown.Items)
+			file.Cooldowns = tt.raw
+			require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, []cpaclient.AuthFile{file}, now))
+			updated := client.CPACredential.GetX(ctx, credential.ID)
+			require.Equal(t, tt.known, updated.RoutingCooldown.Known)
+			require.Empty(t, updated.RoutingCooldown.Items)
+			require.Nil(t, updated.RoutingCooldownUntil)
+			require.False(t, buildCPACredentialView(instance, updated, now).CanResetCooldown)
+		})
+	}
+	file.Cooldowns = raw
+	require.NoError(t, svc.syncCredentialSnapshot(ctx, instance, []cpaclient.AuthFile{
+		file,
+		{AuthIndex: "empty-auth", Name: "empty.json", Type: "codex", Status: "active", Cooldowns: json.RawMessage(`[]`)},
+		{AuthIndex: "unknown-auth", Name: "unknown.json", Type: "codex", Status: "active"},
+	}, now))
+	for _, created := range client.CPACredential.Query().AllX(ctx) {
+		if created.AuthIndex == file.AuthIndex {
+			continue
+		}
+		require.Equal(t, created.AuthIndex == "empty-auth", created.RoutingCooldown.Known)
+		require.Empty(t, created.RoutingCooldown.Items)
+		require.Nil(t, created.RoutingCooldownUntil)
+	}
+}
+
+func TestCPAQuotaRefreshPreservesRoutingCooldown(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_refresh_preserves_routing_cooldown?mode=memory&_fk=1")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	svc := newCPAServiceForTest(client, func() time.Time { return now })
+	instance := client.CPAInstance.Create().
+		SetName("quota independence").SetBaseURL("http://127.0.0.1:8317").SetEncryptedSecret("encrypted").SaveX(ctx)
+	until := now.Add(time.Hour)
+	snapshot := objects.CPARoutingCooldownSnapshot{Known: true, ObservedAt: &now, Items: []objects.CPARoutingCooldown{{
+		Scope: objects.CPARoutingCooldownScopeModel, ModelKey: "claude-model", Reason: objects.CPARoutingCooldownReasonQuota, RetryAt: until,
+	}}}
+	credential := client.CPACredential.Create().
+		SetCpaInstanceID(instance.ID).SetExternalKey("claude:routing").SetAuthIndex("claude-auth").
+		SetRemoteName("claude.json").SetDisplayName("Claude").SetProvider("claude").SetStatus("active").
+		SetRoutingCooldown(snapshot).SetRoutingCooldownUntil(until).SaveX(ctx)
+	providerCalls := 0
+	managementClient := &cpaTestManagementClient{callProvider: func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+		providerCalls++
+		return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"five_hour":{"utilization":25},"account":{"has_claude_pro":true}}`)}, nil
+	}}
+	outcome := svc.refreshCredentialOutcome(ctx, managementClient, credential)
+	require.NoError(t, outcome.err)
+	require.Positive(t, providerCalls)
+	updated := client.CPACredential.GetX(ctx, credential.ID)
+	require.Equal(t, string(objects.CPAQuotaStateSuccess), updated.QuotaState)
+	require.Equal(t, snapshot, updated.RoutingCooldown)
+	require.Equal(t, &until, updated.RoutingCooldownUntil)
+
+	managementClient.callProvider = func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+		return nil, errors.New("quota unavailable")
+	}
+	outcome = svc.refreshCredentialOutcome(ctx, managementClient, updated)
+	require.ErrorContains(t, outcome.err, "quota unavailable")
+	updated = client.CPACredential.GetX(ctx, credential.ID)
+	require.Equal(t, string(objects.CPAQuotaStateError), updated.QuotaState)
+	require.Equal(t, snapshot, updated.RoutingCooldown)
+	require.Equal(t, &until, updated.RoutingCooldownUntil)
 }

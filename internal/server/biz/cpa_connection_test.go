@@ -84,3 +84,7 @@ func (client *cpaConnectionTestClient) ListUsageQueue(context.Context, int) ([]*
 func (client *cpaConnectionTestClient) PatchAuthFileStatus(context.Context, string, string, bool) error {
 	return errors.New("unexpected PatchAuthFileStatus call")
 }
+
+func (client *cpaConnectionTestClient) ResetCooldown(context.Context, string, cpaclient.ManagementAPI) error {
+	return errors.New("unexpected ResetCooldown call")
+}

@@ -13,6 +13,14 @@ type BuildInfo struct {
 	BuildDate string
 }
 
+// ManagementAPI identifies the management API selected by a read-only probe.
+type ManagementAPI string
+
+const (
+	ManagementAPIV0 ManagementAPI = "v0"
+	ManagementAPIV8 ManagementAPI = "v8"
+)
+
 // AuthFile is the safe subset of a CPA auth-files entry used by AxonHub.
 type AuthFile struct {
 	ID                      string          `json:"id"`
@@ -36,12 +44,16 @@ type AuthFile struct {
 	IDToken                 json.RawMessage `json:"id_token"`
 	LastRefresh             *time.Time      `json:"last_refresh"`
 	UpdatedAt               *time.Time      `json:"updated_at"`
+	Cooldowns               json.RawMessage `json:"cooldowns"`
+	CooldownObservedAt      *time.Time      `json:"-"`
 	SubscriptionActiveUntil any             `json:"chatgpt_subscription_active_until"`
 }
 
-// AuthFilesResponse is returned by GET /v0/management/auth-files.
+// AuthFilesResponse contains a credential snapshot from either management API.
 type AuthFilesResponse struct {
-	Files []AuthFile `json:"files"`
+	Files      []AuthFile    `json:"files"`
+	ObservedAt *time.Time    `json:"observed_at"`
+	API        ManagementAPI `json:"-"`
 }
 
 // ProviderCall is an internal, typed request executed by CPA's api-call endpoint.

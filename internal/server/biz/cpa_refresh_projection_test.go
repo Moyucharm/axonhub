@@ -167,6 +167,7 @@ type cpaTestManagementClient struct {
 	callProvider        func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error)
 	listCredentials     func(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error)
 	patchAuthFileStatus func(context.Context, string, string, bool) error
+	resetCooldown       func(context.Context, string, cpaclient.ManagementAPI) error
 	closeIdle           func()
 }
 
@@ -199,4 +200,11 @@ func (c *cpaTestManagementClient) PatchAuthFileStatus(ctx context.Context, name,
 		return c.patchAuthFileStatus(ctx, name, authIndex, disabled)
 	}
 	return errors.New("unexpected PatchAuthFileStatus call")
+}
+
+func (c *cpaTestManagementClient) ResetCooldown(ctx context.Context, authIndex string, api cpaclient.ManagementAPI) error {
+	if c.resetCooldown != nil {
+		return c.resetCooldown(ctx, authIndex, api)
+	}
+	return errors.New("unexpected ResetCooldown call")
 }
