@@ -129,11 +129,21 @@ func reconcileRequestBody(body []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !gjson.GetBytes(next, "max_completion_tokens").Exists() && !gjson.GetBytes(next, "max_tokens").Exists() {
+		next, err = sjson.SetBytes(next, "max_completion_tokens", 32000)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if len(gjson.GetBytes(next, "tools").Array()) == 0 {
 		next, err = sjson.SetBytes(next, "tool_choice", "none")
 		if err != nil {
 			return nil, err
 		}
 	}
-	return reconcileTools(next, llm.APIFormatOpenAIChatCompletion)
+	next, err = reconcileTools(next, llm.APIFormatOpenAIChatCompletion)
+	if err != nil {
+		return nil, err
+	}
+	return marshalChatBody(next)
 }

@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-AxonHub 的 `opencode_zen` 在同一渠道提供 Chat Completions、Responses 和 Anthropic Messages 三种原生协议。Zen 的匿名推理入口与带 Key 的入口不同，免费层还校验 OpenCode 客户端身份和完整工具定义。继续向 `/zen/v1` 发送 `public` 请求、使用旧 User-Agent、遗漏第二个 session header、发送旧 request header 或仅补简化版 `bash/read`，都不能代表当前 OpenCode 客户端。
+AxonHub 的 `opencode_zen` 在同一渠道提供 Chat Completions、Responses 和 Anthropic Messages 三种原生协议。免费层校验不止 User-Agent 和工具定义，还涉及 2.x provider-family 路径、父子会话身份、JSON 编码及 Bun TLS/HTTP 请求特征。`Free usage limit reached` 不能单独证明 IP 真实额度耗尽；完整客户端兼容也不保证上游开放匿名访问。
 
 第三方 Agent 的工具定义又不等于官方 OpenCode：例如 Pi 的 `read` 使用自己的参数结构。直接把同名客户端工具替换成官方 schema，虽然可能通过准入，却会让模型产生客户端无法执行的参数。Responses 的 `custom` 工具和 `namespace` 容器也使用 `name` 字段；仅凭名称识别官方函数会删除客户端的自由格式工具或整个命名空间。另外 pipeline 在 raw middleware 前调用 `FinalizeAuthHeaders` 并清空 `request.Auth`；finalizer 若仅从 Auth 读取 Key，会把真实用户 Key 错误回退为 `public`。
 
@@ -14,8 +14,8 @@ AxonHub 保留独立渠道类型 `opencode_zen`，在 `llm/transformer/opencode/
 
 ### 地址与认证
 
-- 默认配置地址仍为 `https://opencode.ai/zen/v1`，兼容已保存的渠道；使用 `public` 时，仅把官方主机的标准 Chat、Responses、Messages 推理路径改写到 `https://opencode.ai/inference/v1`。
-- 用户 Key 保留原地址。自定义网关主机和自定义 endpoint path 不做匿名地址迁移；无需修改数据库中的渠道地址。
+- 默认配置地址仍为 `https://opencode.ai/zen/v1`，兼容已保存的渠道；官方主机的标准 `/zen/v1` 和 `/inference/v1` 推理路径统一迁移到 `/inference/openai/v1/chat/completions`、`/inference/openai/v1/responses` 或 `/inference/anthropic/v1/messages`，不改变选中的凭据。
+- 自定义网关主机和非标准 endpoint path 不做路径迁移；无需修改数据库中的渠道地址，不新增 v1 回退。Messages 保留已有查询参数并固定唯一的 `beta=true`，防止通用 Query 拼接重复或覆盖。
 - 用户 Key 优先，没有可用 Key 才使用 `public`。Chat/Responses 使用 Bearer，Messages 使用 `X-API-Key`。
 - 请求初始化时把已选 Key 保存为不可变的私有 `requestIdentity` 值，存于 HTTP request 的 transformer metadata。该值字段不导出，JSON 序列化不包含凭据；finalizer 不重复选择 Key，也不信任后续 header override。
 - finalizer 克隆 headers/body/metadata，再恢复认证和客户端身份；`Body` 与 `JSONBody` 保持同步。移除非规范大小写的受保护 header，避免同一身份字段出现多个冲突值。
@@ -24,17 +24,20 @@ AxonHub 保留独立渠道类型 `opencode_zen`，在 `llm/transformer/opencode/
 
 三种原生协议共用 `identity.go`：
 
-- User-Agent 为 `opencode/latest/2.0.29/cli`；client 为 `cli`，project 使用稳定的 40 位小写十六进制值。
-- `x-opencode-session`、`x-opencode-session-id`、`x-session-id` 和 `x-session-affinity` 使用同一个 session。
-- 不发送 `x-opencode-request`；追踪保留在网关本地。
-- 优先读取客户端 session headers，其次使用共享上下文 session、请求 metadata.session_id，最后取首个用户消息作为稳定信号。服务端 session scope 在存在时参与隔离。
-- 合法官方 session 保留；其他客户端 session 确定性编码成 `ses_` + descending timestamp 布局 + Base62 后缀。同一会话追加历史消息不会重置 session。
+- User-Agent 为 `opencode/latest/2.1.1/cli`；client 为 `cli`。合法客户端项目哈希保留，派生项目标识按调用者 scope 隔离，仍为 40 位小写十六进制值。
+- `x-opencode-session-id` 保留子会话；`x-opencode-session`、`x-session-id` 和 `x-session-affinity` 使用 root/parent 会话。有 parent 时同时发送两个 parent headers，不再把父子 ID 强制为同一值。
+- 不发送 `x-opencode-request`；追踪保留在网关本地。Messages 固定 `anthropic-version: 2023-06-01` 和 `anthropic-beta: interleaved-thinking-2025-05-14`。
+- 优先读取客户端 session headers，其次使用共享上下文 session、请求 metadata.session_id，最后哈希 system/developer 前缀和首个用户消息。服务端 session scope 在存在时隔离派生身份。
+- 合法官方 session 保留；其他客户端 session 确定性编码成 `ses_` + descending timestamp 布局 + Base62 后缀。同一会话追加历史消息不会重置 session；finalizer 从私有身份值恢复 root/child/parent，普通 overrides 不能替换身份。
+- 继续使用项目原有 `httpclient` / `net/http`，不另建请求客户端、TLS、代理、解压或连接池实现，也不增加 Bun/uTLS/Brotli 依赖。Accept、Cache-Control、TLS 与 HTTP 头顺序仍由原有执行器和标准库处理；本次只同步 transformer 协议字段，不宣称网络指纹与 Bun 完全相同。
 
 ### 请求体与工具兼容
 
 - 三种协议都强制上游 SSE。pipeline 保留调用方原始模式，并为非流式客户端聚合响应。Chat 强制 `stream_options.include_usage: true`，使自动聚合仍有上游 usage。
+- Chat 未显式设置 `max_tokens` 或 `max_completion_tokens` 时补 `max_completion_tokens: 32000`；显式字段包括 `0/null` 均保留，由上游验证。
+- Chat 顶层按 `model, messages, tools, stream, stream_options, max_completion_tokens` 排列，其余字段排序；三种协议均关闭 JSON HTML escaping。数字使用 `json.Number` 保持精度，工具参数字符串和字面反斜杠-u 内容不被解释或改写。
 - 按各原生协议补齐官方 `shell/edit/glob/grep/read` 工具：Chat 为嵌套 function，Responses 为扁平 function，Messages 为 `input_schema`。
-- `opencode_tools.json` 的说明和输入 schema 来自 MIT 许可的官方 OpenCode 源码，固定到 commit `37df62f4a1b6d89187a1169187a6cef10557c0ca`；shell 使用 Linux/bash 变体。来源和完整许可见同目录 `OPENCODE_LICENSE.md`。
+- `opencode_tools.json` 的说明和输入 schema 来自 MIT 许可的官方 OpenCode 源码，固定到 commit `37df62f4a1b6d89187a1169187a6cef10557c0ca`；与本次参考上游的五个核心工具内容一致，无需替换来源。shell 描述按宿主系统选择 Linux/bash 或 Windows/powershell；仅注入的官方 Chat function 带 `strict: false`，客户端 strict/schema 保留。来源和完整许可见同目录 `OPENCODE_LICENSE.md`。
 - `toolAliasOutbound` 对客户端与官方保留名称冲突的 function 工具使用不碰撞的 `axonhub_*` 内部别名，保留客户端 description/schema，并同步历史 tool calls 和指定工具选择。转换路径的流式事件、普通响应和聚合结果中的工具名称还原为客户端名称；结构化工具输入、参数字符串和用户文本不被改写。
 - Responses 在通用 transformer 完成原生序列化后对顶层 `function/custom` 工具分配别名，保留 custom 的 grammar/format、历史调用及 named/allowed_tools 选择。候选别名避开所有顶层工具、namespace 容器和成员名称，防止省略 namespace 的流式 done 事件误还原。namespace 的名称、描述、成员定义和 namespaced 调用保持原样。
 - Responses 工具协调仅重建与官方名称匹配的顶层 `type: function`，不按同名关系过滤 custom、namespace 或其他原生工具类型。
@@ -48,6 +51,23 @@ AxonHub 保留独立渠道类型 `opencode_zen`，在 `llm/transformer/opencode/
 模型通过 `GET /models` 动态获取，不维护前端静态目录，也不对未知模型静默回退。本次更新 transformer 的默认测试模型为实际可用的 `mimo-v2.6-flash-free`，不修改用户已保存的 supported models 或默认测试模型。
 
 ## Verification
+
+### 2026-10-24 客户端协议同步
+
+协议参考固定到 opencode2api commit `57b906b23fbecf3eed12297883a9e3bbf44e1493`，仅同步 2.1.1 的请求协议特征；未部署或运行 opencode2api 作对照测试。按用户确认的范围删除了试验性的 Bun 传输、专用测试、接入标记及生产依赖，恢复原有 HTTP 客户端。
+
+- 清理后独立、不落盘的本地 smoke 使用原生 `*http.Transport` 和 TLS 1.3，实际收到 `Accept: text/event-stream`、`opencode/latest/2.1.1/cli`。JSON 字节布局、缺省 token 上限及官方工具 strict 检查通过，SSE 成功聚合正文 `OK`、总 usage 11。
+- 清理后的 HTTP、Zen 三协议、pipeline、Responses 和 Anthropic 定向竞态测试通过；根模块的渠道与 orchestrator 定向测试通过，均使用只读模块模式，不需要新增依赖。
+- 清理前，经用户单独批准的一次匿名请求使用试验实现发出：`public` + `deepseek-v4.1-flash-free` + 固定文本，收到 HTTP 429 `FreeUsageLimitError`。该批准仅针对网络验证，不等于批准新增传输架构。该结果不是当前保留实现的线上验证；本轮未重复线上请求，不能宣称免费层已恢复，也不能仅凭该错误断言 IP 额度真实耗尽。
+
+```sh
+# llm 模块
+GOTMPDIR="/home/azusa/.cache/go-build" GOPROXY=off go test -p 2 -mod=readonly -vet=off -race ./httpclient ./transformer/opencode/... ./pipeline/... ./transformer/openai/responses/... ./transformer/anthropic/... -skip '^TestZenLive' -count=1
+# 仓库根模块
+GOTMPDIR="/home/azusa/.cache/go-build" GOPROXY=off go test -p 2 -mod=readonly -vet=off ./internal/server/biz ./internal/server/orchestrator -run 'OpenCodeZen|ModelFetcherFetchesOpenCodeZen|BulkImport.*OpenCodeZen|FinalizeTransportRequest' -count=1
+```
+
+### 2026-09-18 原实现验证（历史记录）
 
 本地验证：
 
@@ -96,12 +116,16 @@ AXONHUB_ZEN_LIVE_TEST=1 go test ./transformer/opencode/zen -run 'TestZenLive(Ano
 
 ## Consequences
 
-匿名 Chat 与 Responses 的文本和客户端工具调用有真实上游成功证据；Messages 使用同一身份和工具契约，并有本地完整链路覆盖。渠道保留现有代理、重试、记录、模型管理和用户 Key 能力，不需要数据库迁移或新增部署服务。
+2026-09-18 的匿名 Chat 与 Responses 文本和客户端工具调用有历史上游成功证据，但不代表当前线上可用性。本次只更新 transformer 的客户端协议字段，复用现有请求链路，不复制 Bun 网络栈。匿名准入和额度仍由上游决定。渠道保留现有代理、重试、记录、模型管理和用户 Key 能力，不需要数据库迁移或新增部署服务。
 
 代价是官方工具定义会占用 prompt tokens，且需要随上游协议变动维护；保留名称别名增加少量请求/响应处理。工具名称还原属于转换路径；原始响应或事件透传仍沿用通用透传语义，不在此层改写原始数据。客户端不应依赖内部别名；模型仍可能返回兼容占位工具，网关不执行这些工具。强制工具选择等模型能力限制仍由真实上游决定。已有渠道如果仍保存已下线模型，需要用户通过模型获取更新，不会自动替换用户模型映射。最终 User-Agent、身份 header、认证和上游 stream 属于准入契约，不受普通 override 配置控制。
 
 ## Sources
 
-- [opencode2api 参考实现](https://github.com/jasonxu114514/opencode2api/tree/25afadd30345faaa9c6f18c45c0c14b176862b89)
+- [opencode2api 本次协议参考](https://github.com/jasonxu114514/opencode2api/tree/57b906b23fbecf3eed12297883a9e3bbf44e1493)
+- [2.x 请求体特征更新 #142](https://github.com/jasonxu114514/opencode2api/pull/142)
+- [Bun 请求头特征更新 #143](https://github.com/jasonxu114514/opencode2api/pull/143)
+- [相同免费额度报错 #145（社区讨论，不是官方计额说明）](https://github.com/jasonxu114514/opencode2api/issues/145)
+- [OpenCode 官方模型与免费层客户端限制](https://opencode.ai/v2/docs/console/models/)
 - [OpenCode 官方工具定义](https://github.com/anomalyco/opencode/tree/37df62f4a1b6d89187a1169187a6cef10557c0ca/packages/core/src/tool/plugin)
 - [OpenCode MIT License](https://github.com/anomalyco/opencode/blob/37df62f4a1b6d89187a1169187a6cef10557c0ca/LICENSE)

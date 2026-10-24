@@ -2,9 +2,9 @@ package zen
 
 const (
 	DefaultBaseURL   = "https://opencode.ai/zen/v1"
-	AnonymousBaseURL = "https://opencode.ai/inference/v1"
+	InferenceBaseURL = "https://opencode.ai/inference"
 	PublicAPIKey     = "public"
-	OfficialUA       = "opencode/latest/2.0.29/cli"
+	OfficialUA       = "opencode/latest/2.1.1/cli"
 	DefaultModel     = "mimo-v2.6-flash-free"
 )
 

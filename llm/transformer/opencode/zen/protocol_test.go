@@ -81,11 +81,7 @@ func TestNativeProtocolsPreserveSelectedKeyAfterAuthFinalization(t *testing.T) {
 					assert.Equal(t, "Bearer "+key, finalized.Headers.Get("Authorization"))
 					assert.Empty(t, finalized.Headers.Get("X-API-Key"))
 				}
-				if key == PublicAPIKey {
-					assert.Contains(t, finalized.URL, AnonymousBaseURL)
-				} else {
-					assert.Contains(t, finalized.URL, DefaultBaseURL)
-				}
+				assert.Contains(t, finalized.URL, InferenceBaseURL+"/")
 				metadata, err := json.Marshal(finalized.TransformerMetadata)
 				require.NoError(t, err)
 				assert.NotContains(t, string(metadata), "user-key")

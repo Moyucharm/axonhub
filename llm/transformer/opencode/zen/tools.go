@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"runtime"
+	"strings"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -24,8 +26,18 @@ var officialTools = func() map[string]llm.Function {
 	if err := json.Unmarshal(officialToolsJSON, &definitions); err != nil {
 		panic(err)
 	}
+	shell := definitions["shell"]
+	shell.Description = shellDescriptionForOS(shell.Description, runtime.GOOS)
+	definitions["shell"] = shell
 	return definitions
 }()
+
+func shellDescriptionForOS(description, operatingSystem string) string {
+	if operatingSystem == "windows" {
+		return strings.Replace(description, "on Linux using bash", "on Windows using powershell", 1)
+	}
+	return description
+}
 
 // reconcileTools renders the same definitions in each provider's native shape.
 // Client tools with reserved names are aliased before serialization, so their
@@ -53,12 +65,14 @@ func reconcileTools(body []byte, format llm.APIFormat) ([]byte, error) {
 		}
 		tools = append(tools, json.RawMessage(tool.Raw))
 	}
+	strict := false
 	for _, name := range coreToolNames {
 		definition := officialTools[name]
 		var tool any
 		switch format {
 		case llm.APIFormatOpenAIChatCompletion:
 			definition.Name = name
+			definition.Strict = &strict
 			tool = llm.Tool{Type: llm.ToolTypeFunction, Function: definition}
 		case llm.APIFormatAnthropicMessage:
 			tool = map[string]any{"name": name, "description": definition.Description, "input_schema": definition.Parameters}

@@ -138,7 +138,11 @@ func reconcileResponsesRequestBody(body []byte) ([]byte, error) {
 		}
 	}
 
-	return reconcileTools(next, llm.APIFormatOpenAIResponse)
+	next, err = reconcileTools(next, llm.APIFormatOpenAIResponse)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeJSONBody(next)
 }
 
 // CustomizeExecutor forwards Responses HTTP/SSE executor customization.

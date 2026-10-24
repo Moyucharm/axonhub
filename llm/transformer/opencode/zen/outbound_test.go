@@ -77,7 +77,7 @@ func TestTransformRequestAppliesZenFingerprint(t *testing.T) {
 
 	require.NotNil(t, request.Stream)
 	assert.True(t, *request.Stream)
-	assert.Equal(t, AnonymousBaseURL+"/chat/completions", httpRequest.URL)
+	assert.Equal(t, InferenceBaseURL+"/openai/v1/chat/completions", httpRequest.URL)
 	assert.Equal(t, "Bearer public", httpRequest.Headers.Get("Authorization"))
 	require.NotNil(t, httpRequest.Auth)
 	assert.Equal(t, httpclient.AuthTypeBearer, httpRequest.Auth.Type)

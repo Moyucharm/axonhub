@@ -46,7 +46,7 @@ func TestResponsesTransformRequestAppliesZenIdentity(t *testing.T) {
 	httpRequest, err := outbound.TransformRequest(context.Background(), newResponsesRequest("gpt-5-nano"))
 	require.NoError(t, err)
 
-	assert.Equal(t, AnonymousBaseURL+"/responses", httpRequest.URL)
+	assert.Equal(t, InferenceBaseURL+"/openai/v1/responses", httpRequest.URL)
 	assert.Equal(t, llm.APIFormatOpenAIResponse.String(), httpRequest.APIFormat)
 	require.NotNil(t, httpRequest.Auth)
 	assert.Equal(t, httpclient.AuthTypeBearer, httpRequest.Auth.Type)

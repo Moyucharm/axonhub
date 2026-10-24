@@ -108,7 +108,7 @@ func TestOpenCodeZenBuildsNativeProtocolOutbounds(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, opencodezen.AnonymousBaseURL+"/responses", responsesRequest.URL)
+	require.Equal(t, opencodezen.InferenceBaseURL+"/openai/v1/responses", responsesRequest.URL)
 	require.NotNil(t, responsesRequest.Auth)
 	require.Equal(t, httpclient.AuthTypeBearer, responsesRequest.Auth.Type)
 	require.Equal(t, opencodezen.PublicAPIKey, responsesRequest.Auth.APIKey)
@@ -135,7 +135,7 @@ func TestOpenCodeZenBuildsNativeProtocolOutbounds(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(messagesRequest.Body, &body))
 	require.True(t, body.Stream)
-	require.Equal(t, opencodezen.AnonymousBaseURL+"/messages", messagesRequest.URL)
+	require.Equal(t, opencodezen.InferenceBaseURL+"/anthropic/v1/messages?beta=true", messagesRequest.URL)
 	require.NotNil(t, messagesRequest.Auth)
 	require.Equal(t, httpclient.AuthTypeAPIKey, messagesRequest.Auth.Type)
 	require.Equal(t, "X-API-Key", messagesRequest.Auth.HeaderKey)

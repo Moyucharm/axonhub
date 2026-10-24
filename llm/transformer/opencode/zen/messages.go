@@ -104,6 +104,10 @@ func applyMessagesFingerprint(request *httpclient.Request) error {
 	if err != nil {
 		return err
 	}
+	body, err = normalizeJSONBody(body)
+	if err != nil {
+		return err
+	}
 	request.Body = body
 	request.JSONBody = append([]byte(nil), body...)
 	return applyIdentityFingerprint(request)
