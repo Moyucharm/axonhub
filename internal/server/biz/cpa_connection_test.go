@@ -85,6 +85,10 @@ func (client *cpaConnectionTestClient) PatchAuthFileStatus(context.Context, stri
 	return errors.New("unexpected PatchAuthFileStatus call")
 }
 
+func (client *cpaConnectionTestClient) ListAuthFileModels(context.Context, string) ([]cpaclient.AuthFileModel, error) {
+	return nil, errors.New("unexpected ListAuthFileModels call")
+}
+
 func (client *cpaConnectionTestClient) ResetCooldown(context.Context, string, cpaclient.ManagementAPI) error {
 	return errors.New("unexpected ResetCooldown call")
 }

@@ -1,6 +1,4 @@
-import { Fragment } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, ChevronRight, Power, PowerOff, RefreshCw, RotateCcw, Ticket } from 'lucide-react';
+import { ChevronRight, Power, PowerOff, RefreshCw, RotateCcw, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -8,19 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/table-skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { QuotaWindowsBlock } from '@/components/quota-capsule';
 import { ServerSidePagination } from '@/components/server-side-pagination';
 import { planLabel, providerLabel } from '../labels';
-import { cpaQuotaItemsToWindows, formatTime } from '../quota-windows';
+import { formatTime } from '../quota-windows';
 import { SUPPORTED_QUOTA_PROVIDERS } from '../types';
 import type { CPACredential, CPACredentialConnection } from '../types';
-import { ClaudeResetGrants, claudeResetAction, claudeResetConfirmation, claudeResetIsCurrent, claudeResetRemaining } from './claude-reset-grants';
-import { CodexResetCredits, resetCreditIsUsable, resetCreditTiming, resetCreditsAreCurrent } from './codex-reset-credits';
-import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation, CPACredentialCooldownResetConfirmation } from './confirmation-dialogs';
+import { claudeResetAction, claudeResetConfirmation, claudeResetIsCurrent, claudeResetRemaining } from './claude-reset-grants';
+import { resetCreditIsUsable, resetCreditTiming, resetCreditsAreCurrent } from './codex-reset-credits';
+import type { CPAClaudeResetConfirmation, CPACodexResetConfirmation } from './confirmation-dialogs';
 import { QuotaSummaryCapsule } from './quota-summary-capsule';
-import { activeRoutingCooldowns, CPARoutingCooldownBadge, CPARoutingCooldownDetails } from './routing-cooldown';
-
-const MotionExpandedRow = motion.create(TableRow);
+import { CPARoutingCooldownBadge } from './routing-cooldown';
 
 interface CPACredentialTableProps {
   credentials: CPACredential[];
@@ -28,21 +23,18 @@ interface CPACredentialTableProps {
   totalCount?: number;
   isLoading: boolean;
   pageSize: number;
-  expanded: Set<number>;
   canWrite: boolean;
   instanceEnabled: boolean;
   resetPending: boolean;
   claudeResetPending: boolean;
-  cooldownResetPending: boolean;
   refreshPending: boolean;
   togglePending: boolean;
   locale: string;
-  onToggleExpanded: (id: number) => void;
+  onOpenDetail: (id: number) => void;
   onRefreshCredential: (id: number) => void;
   onRequestToggle: (credential: CPACredential) => void;
   onRequestReset: (confirmation: CPACodexResetConfirmation) => void;
   onRequestClaudeReset: (confirmation: CPAClaudeResetConfirmation) => void;
-  onRequestCooldownReset: (confirmation: CPACredentialCooldownResetConfirmation) => void;
   onNextPage: () => void;
   onPreviousPage: () => void;
   onPageSizeChange: (size: number) => void;
@@ -104,8 +96,8 @@ function CredentialResetBubble({
   const resetCredits = credential.quotaData?.resetCredits ?? [];
   const usableCredits = resetCredits.filter((credit) => resetCreditIsUsable(credit.expiresAt));
 
-  // The row bubble must follow the expanded panel: a failed or stale quota read
-  // hides the card instead of offering an action the panel refuses to show.
+  // The row bubble must follow the detail dialog: a failed or stale quota read
+  // hides the card instead of offering an action the dialog refuses to show.
   if (!resetCreditsAreCurrent(credential) || usableCredits.length === 0) return null;
 
   const firstCredit = usableCredits[0];
@@ -198,7 +190,7 @@ function ClaudeResetBubble({
 }) {
   const { t } = useTranslation();
   const status = credential.quotaData.claudeReset;
-  // Follows the expanded panel: stale or failed reads never offer an action.
+  // Follows the detail dialog: stale or failed reads never offer an action.
   if (!claudeResetIsCurrent(credential) || !status?.eligible) return null;
   const remaining = claudeResetRemaining(status);
   const action = claudeResetAction(status);
@@ -253,21 +245,18 @@ export function CPACredentialTable({
   totalCount,
   isLoading,
   pageSize,
-  expanded,
   canWrite,
   instanceEnabled,
   resetPending,
   claudeResetPending,
-  cooldownResetPending,
   refreshPending,
   togglePending,
   locale,
-  onToggleExpanded,
+  onOpenDetail,
   onRefreshCredential,
   onRequestToggle,
   onRequestReset,
   onRequestClaudeReset,
-  onRequestCooldownReset,
   onNextPage,
   onPreviousPage,
   onPageSizeChange,
@@ -289,7 +278,6 @@ export function CPACredentialTable({
                 after the email and next to the refreshed-at column. */}
             <TableHeader className='sticky top-0 z-20 bg-[var(--table-header)] shadow-sm'>
               <TableRow className='group/row border-0'>
-                <TableHead className='text-muted-foreground w-10 border-0 text-xs font-semibold tracking-wider uppercase' />
                 <TableHead className='text-muted-foreground w-[240px] border-0 text-xs font-semibold tracking-wider uppercase'>
                   {t('cpa.columns.credential')}
                 </TableHead>
@@ -313,218 +301,148 @@ export function CPACredentialTable({
                 <TableSkeleton rows={pageSize} />
               ) : credentials.length === 0 ? (
                 <TableRow className='!bg-[var(--table-background)]'>
-                  <TableCell colSpan={7} className='h-24 !bg-[var(--table-background)] text-center'>
+                  <TableCell colSpan={6} className='h-24 !bg-[var(--table-background)] text-center'>
                     {t('common.noData')}
                   </TableCell>
                 </TableRow>
               ) : (
                 credentials.map((credential) => (
-                  <Fragment key={credential.id}>
-                    <TableRow
-                      data-testid={`cpa-credential-row-${credential.id}`}
-                      className='group/row table-row-hover rounded-xl border-0 !bg-[var(--table-background)]'
-                    >
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <Button variant='ghost' size='icon' onClick={() => onToggleExpanded(credential.id)}>
-                          {expanded.has(credential.id) ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
-                        </Button>
-                      </TableCell>
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <div className='flex items-center gap-1.5'>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className='min-w-0 max-w-[180px] cursor-default truncate font-medium'>
-                                {credential.email || credential.displayName || '—'}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side='top'>
-                              {credential.remoteName}
-                              {credential.displayName && credential.displayName !== credential.remoteName
-                                ? ` · ${credential.displayName}`
-                                : ''}
-                            </TooltipContent>
-                          </Tooltip>
-                          <CredentialResetBubble
-                            credential={credential}
-                            canWrite={canWrite}
-                            instanceEnabled={instanceEnabled}
-                            resetPending={resetPending}
-                            locale={locale}
-                            onRequestReset={onRequestReset}
-                          />
-                          <ClaudeResetBubble
-                            credential={credential}
-                            canWrite={canWrite}
-                            instanceEnabled={instanceEnabled}
-                            resetPending={claudeResetPending}
-                            locale={locale}
-                            onRequestReset={onRequestClaudeReset}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <div>{providerLabel(credential.provider, t)}</div>
-                        {credential.planType && (
-                          <Badge variant='outline' className='mt-1'>
-                            {planLabel(credential.provider, credential.planType, t)}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <div className='flex flex-col items-start gap-1'>
-                          {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
-                          {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
-                          {credential.abnormal &&
-                            (credential.statusMessage ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant='destructive' className='cursor-help'>
-                                    {t('cpa.status.abnormal')}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side='top' className='max-w-xs break-all text-xs'>
-                                  {credential.statusMessage}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>
-                            ))}
-                          {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
-                          {credential.cooling && <CredentialCooldownBadge credential={credential} />}
-                          <CPARoutingCooldownBadge snapshot={credential.routingCooldown} />
-                          {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className='border-0 bg-inherit px-4 py-3'>
-                        <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
-                          <QuotaSummaryCell credential={credential} />
-                        </span>
-                        {credential.quotaLastError && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default text-xs break-all'>
-                                {credential.quotaLastError}
-                              </p>
-                            </TooltipTrigger>
-                            <TooltipContent side='top' className='max-w-80 break-all'>
+                  <TableRow
+                    key={credential.id}
+                    data-testid={`cpa-credential-row-${credential.id}`}
+                    className='group/row table-row-hover cursor-pointer rounded-xl border-0 !bg-[var(--table-background)]'
+                    onClick={() => onOpenDetail(credential.id)}
+                  >
+                    <TableCell className='border-0 bg-inherit px-4 py-3'>
+                      <div className='flex items-center gap-1.5'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className='min-w-0 max-w-[180px] cursor-default truncate font-medium'>
+                              {credential.email || credential.displayName || '—'}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side='top'>
+                            {credential.remoteName}
+                            {credential.displayName && credential.displayName !== credential.remoteName
+                              ? ` · ${credential.displayName}`
+                              : ''}
+                          </TooltipContent>
+                        </Tooltip>
+                        <CredentialResetBubble
+                          credential={credential}
+                          canWrite={canWrite}
+                          instanceEnabled={instanceEnabled}
+                          resetPending={resetPending}
+                          locale={locale}
+                          onRequestReset={onRequestReset}
+                        />
+                        <ClaudeResetBubble
+                          credential={credential}
+                          canWrite={canWrite}
+                          instanceEnabled={instanceEnabled}
+                          resetPending={claudeResetPending}
+                          locale={locale}
+                          onRequestReset={onRequestClaudeReset}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className='border-0 bg-inherit px-4 py-3'>
+                      <div>{providerLabel(credential.provider, t)}</div>
+                      <Badge variant='outline' className={credential.planType ? 'mt-1' : 'text-muted-foreground mt-1'}>
+                        {credential.planType
+                          ? planLabel(credential.provider, credential.planType, t)
+                          : t('cpa.planUnknown')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='border-0 bg-inherit px-4 py-3'>
+                      <div className='flex flex-col items-start gap-1'>
+                        {credential.disabled && <Badge variant='secondary'>{t('cpa.status.disabled')}</Badge>}
+                        {credential.unavailable && <Badge variant='destructive'>{t('cpa.status.unavailable')}</Badge>}
+                        {credential.abnormal &&
+                          (credential.statusMessage ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant='destructive' className='cursor-help'>
+                                  {t('cpa.status.abnormal')}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side='top' className='max-w-xs break-all text-xs'>
+                                {credential.statusMessage}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <Badge variant='destructive'>{t('cpa.status.abnormal')}</Badge>
+                          ))}
+                        {credential.expired && <Badge variant='destructive'>{t('cpa.status.expired')}</Badge>}
+                        {credential.cooling && <CredentialCooldownBadge credential={credential} />}
+                        <CPARoutingCooldownBadge snapshot={credential.routingCooldown} />
+                        {credential.available && <Badge>{t('cpa.status.available')}</Badge>}
+                      </div>
+                    </TableCell>
+                    <TableCell className='border-0 bg-inherit px-4 py-3'>
+                      <span className={credential.quotaState === 'error' ? 'text-destructive' : ''}>
+                        <QuotaSummaryCell credential={credential} />
+                      </span>
+                      {credential.quotaLastError && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className='text-destructive line-clamp-2 max-w-[240px] cursor-default text-xs break-all'>
                               {credential.quotaLastError}
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                      <TableCell className='text-muted-foreground border-0 bg-inherit px-4 py-3 text-sm'>
-                        {formatTime(credential.quotaLastSuccessAt ?? credential.quotaLastAttemptAt)}
-                      </TableCell>
-                      <TableCell className='sticky right-0 z-10 border-0 bg-inherit px-4 py-3 shadow-[-1px_0_0_0_var(--border)]'>
-                        <div className='flex items-center justify-center gap-1'>
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' className='max-w-80 break-all'>
+                            {credential.quotaLastError}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-muted-foreground border-0 bg-inherit px-4 py-3 text-sm'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <span>{formatTime(credential.quotaLastSuccessAt ?? credential.quotaLastAttemptAt)}</span>
+                        {/* Hover hint: the whole row opens the detail dialog. */}
+                        <span className='text-primary flex items-center text-xs font-medium opacity-0 transition-opacity group-hover/row:opacity-100'>
+                          {t('cpa.detail.open')}
+                          <ChevronRight className='h-3.5 w-3.5' />
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell
+                      className='sticky right-0 z-10 cursor-default border-0 bg-inherit px-4 py-3 shadow-[-1px_0_0_0_var(--border)]'
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className='flex items-center justify-center gap-1'>
+                        <Button
+                          data-testid={`cpa-refresh-credential-${credential.id}`}
+                          variant='outline'
+                          size='sm'
+                          className='h-8 w-8 p-0'
+                          title={t('common.refresh')}
+                          disabled={
+                            !canWrite ||
+                            credential.quotaState === 'unsupported' ||
+                            !SUPPORTED_QUOTA_PROVIDERS.has(credential.provider) ||
+                            refreshPending
+                          }
+                          onClick={() => onRefreshCredential(credential.id)}
+                        >
+                          <RefreshCw className='h-4 w-4' />
+                        </Button>
+                        {canWrite && (
                           <Button
-                            data-testid={`cpa-refresh-credential-${credential.id}`}
+                            data-testid={`cpa-toggle-credential-${credential.id}`}
                             variant='outline'
                             size='sm'
                             className='h-8 w-8 p-0'
-                            title={t('common.refresh')}
-                            disabled={
-                              !canWrite ||
-                              credential.quotaState === 'unsupported' ||
-                              !SUPPORTED_QUOTA_PROVIDERS.has(credential.provider) ||
-                              refreshPending
-                            }
-                            onClick={() => onRefreshCredential(credential.id)}
+                            title={credential.disabled ? t('cpa.credential.enable') : t('cpa.credential.disable')}
+                            disabled={togglePending}
+                            onClick={() => onRequestToggle(credential)}
                           >
-                            <RefreshCw className='h-4 w-4' />
+                            {credential.disabled ? <Power className='h-4 w-4' /> : <PowerOff className='text-destructive h-4 w-4' />}
                           </Button>
-                          {canWrite && (
-                            <Button
-                              data-testid={`cpa-toggle-credential-${credential.id}`}
-                              variant='outline'
-                              size='sm'
-                              className='h-8 w-8 p-0'
-                              title={credential.disabled ? t('cpa.credential.enable') : t('cpa.credential.disable')}
-                              disabled={togglePending}
-                              onClick={() => onRequestToggle(credential)}
-                            >
-                              {credential.disabled ? <Power className='h-4 w-4' /> : <PowerOff className='text-destructive h-4 w-4' />}
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    <AnimatePresence initial={false}>
-                      {expanded.has(credential.id) && (
-                        <MotionExpandedRow
-                          key={`${credential.id}-expanded`}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className='border-0'
-                        >
-                          <TableCell colSpan={6} className='border-0 p-0'>
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2, ease: 'easeInOut' }}
-                              className='overflow-hidden'
-                            >
-                              {/* Band and padding live on an inner element: the animated
-                                  wrapper must stay padding-free or a collapsed row keeps
-                                  the padding as an empty strip. */}
-                              <div className='bg-muted/30 hover:bg-muted/50 p-6'>
-                                {credential.quotaData.items.length > 0 ? (
-                                  <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)} />
-                                ) : (
-                                  <p className='text-muted-foreground text-sm'>
-                                    {quotaStateText(credential, t) ?? (credential.quotaState === 'error' ? t('cpa.quota.error') : '—')}
-                                  </p>
-                                )}
-                                {credential.provider === 'codex' && (
-                                  <CodexResetCredits
-                                    credential={credential}
-                                    canWrite={canWrite}
-                                    instanceEnabled={instanceEnabled}
-                                    resetPending={resetPending}
-                                    locale={locale}
-                                    onRequestReset={onRequestReset}
-                                  />
-                                )}
-                                {credential.provider === 'claude' && (
-                                  <ClaudeResetGrants
-                                    credential={credential}
-                                    canWrite={canWrite}
-                                    instanceEnabled={instanceEnabled}
-                                    resetPending={claudeResetPending}
-                                    locale={locale}
-                                    onRequestReset={onRequestClaudeReset}
-                                  />
-                                )}
-                                <CPARoutingCooldownDetails snapshot={credential.routingCooldown} locale={locale} />
-                                {canWrite && credential.canResetCooldown && activeRoutingCooldowns(credential.routingCooldown).length > 0 && (
-                                  <Button
-                                    data-testid={`cpa-clear-cooldown-${credential.id}`}
-                                    variant='link'
-                                    size='sm'
-                                    className='h-auto px-0 text-xs'
-                                    disabled={cooldownResetPending}
-                                    onClick={() => onRequestCooldownReset({
-                                      credentialID: credential.id,
-                                      displayName: credential.email || credential.displayName || credential.remoteName,
-                                    })}
-                                  >
-                                    {t('cpa.cooldownReset.action')}
-                                  </Button>
-                                )}
-                              </div>
-                            </motion.div>
-                          </TableCell>
-                          {/* Frozen strip for the expanded row: without it the actions
-                              column stops at the panel and its divider breaks. Opaque
-                              band tone (mixed, not translucent) so scrolling content
-                              stays hidden behind it. */}
-                          <TableCell className='sticky right-0 z-10 border-0 bg-[color-mix(in_srgb,var(--muted)_30%,var(--card))] p-0 shadow-[-1px_0_0_0_var(--border)] hover:bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]' />
-                        </MotionExpandedRow>
-                      )}
-                    </AnimatePresence>
-                  </Fragment>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
             </TableBody>

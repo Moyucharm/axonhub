@@ -9,9 +9,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/scopes"
 	"github.com/looplj/axonhub/internal/server/biz"
+	"github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
 // QuotaState is the resolver for the quotaState field.
@@ -141,6 +144,18 @@ func (r *queryResolver) CpaRefreshProgress(ctx context.Context, instanceID int) 
 	}
 	progress, _ := r.cpaService.RefreshProgress(instanceID)
 	return progress, nil
+}
+
+// CpaCredentialModels is the resolver for the cpaCredentialModels field.
+func (r *queryResolver) CpaCredentialModels(ctx context.Context, credentialID int) ([]*cpa.AuthFileModel, error) {
+	if !scopes.UserHasScope(ctx, scopes.ScopeReadSettings) {
+		return nil, fmt.Errorf("permission denied: requires read:settings scope")
+	}
+	models, err := r.cpaService.CredentialModels(ctx, credentialID)
+	if err != nil {
+		return nil, err
+	}
+	return lo.ToSlicePtr(models), nil
 }
 
 // CPAManagedCredential returns CPAManagedCredentialResolver implementation.

@@ -167,6 +167,7 @@ type cpaTestManagementClient struct {
 	callProvider        func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error)
 	listCredentials     func(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error)
 	patchAuthFileStatus func(context.Context, string, string, bool) error
+	listAuthFileModels  func(context.Context, string) ([]cpaclient.AuthFileModel, error)
 	resetCooldown       func(context.Context, string, cpaclient.ManagementAPI) error
 	closeIdle           func()
 }
@@ -193,6 +194,13 @@ func (c *cpaTestManagementClient) CallProvider(ctx context.Context, call cpaclie
 
 func (c *cpaTestManagementClient) ListUsageQueue(context.Context, int) ([]*cpaclient.UsageEvent, error) {
 	return nil, errors.New("unexpected ListUsageQueue call")
+}
+
+func (c *cpaTestManagementClient) ListAuthFileModels(ctx context.Context, name string) ([]cpaclient.AuthFileModel, error) {
+	if c.listAuthFileModels != nil {
+		return c.listAuthFileModels(ctx, name)
+	}
+	return nil, errors.New("unexpected ListAuthFileModels call")
 }
 
 func (c *cpaTestManagementClient) PatchAuthFileStatus(ctx context.Context, name, authIndex string, disabled bool) error {

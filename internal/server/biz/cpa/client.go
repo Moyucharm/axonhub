@@ -24,6 +24,7 @@ const (
 	maxAuthFilesBodySize  = 32 << 20
 	maxAPICallBodySize    = 16 << 20
 	maxUsageQueueBodySize = 16 << 20
+	maxModelsBodySize     = 4 << 20
 	// Unstable networks (VPN tunnels, reverse proxies, congested links) drop
 	// reads often enough that a bounded retry is standard behavior. Only
 	// idempotent reads retry; writes stay single-shot so a lost response can
@@ -45,6 +46,7 @@ type ManagementClient interface {
 	ListCredentials(context.Context) (*AuthFilesResponse, BuildInfo, error)
 	CallProvider(context.Context, ProviderCall) (*ProviderCallResult, error)
 	ListUsageQueue(context.Context, int) ([]*UsageEvent, error)
+	ListAuthFileModels(context.Context, string) ([]AuthFileModel, error)
 	PatchAuthFileStatus(context.Context, string, string, bool) error
 	ResetCooldown(context.Context, string, ManagementAPI) error
 }
@@ -305,6 +307,26 @@ func (c *Client) ListUsageQueue(ctx context.Context, count int) ([]*UsageEvent, 
 		events = []*UsageEvent{}
 	}
 	return events, nil
+}
+
+// ListAuthFileModels returns the models CPA's registry currently assigns to
+// one auth file. name is the remote auth file name (or ID).
+func (c *Client) ListAuthFileModels(ctx context.Context, name string) ([]AuthFileModel, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("CPA auth file name is required")
+	}
+	var output struct {
+		Models []AuthFileModel `json:"models"`
+	}
+	endpoint := "auth-files/models?name=" + url.QueryEscape(name)
+	if _, err := c.doJSON(ctx, http.MethodGet, managementPath, endpoint, nil, maxModelsBodySize, &output); err != nil {
+		return nil, err
+	}
+	if output.Models == nil {
+		output.Models = []AuthFileModel{}
+	}
+	return output.Models, nil
 }
 
 // PatchAuthFileStatus toggles the disabled state of one CPA auth file.

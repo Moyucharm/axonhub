@@ -201,17 +201,16 @@ test('expanded quota block lists every window as a width-capped detail block', (
   assert.doesNotMatch(capsule, /quota-capsule-more/);
 });
 
-test('expanded quota row animates like the channel expanded row', () => {
+test('credential rows open a detail dialog instead of an expanded row', () => {
   const table = read('features/cpa/components/credential-table.tsx');
-  assert.match(table, /<AnimatePresence initial=\{false\}>/);
-  assert.match(table, /initial=\{\{ height: 0, opacity: 0 \}\}/);
-  assert.match(table, /animate=\{\{ height: 'auto', opacity: 1 \}\}/);
-  assert.match(table, /exit=\{\{ height: 0, opacity: 0 \}\}/);
-  assert.match(table, /duration: 0\.2, ease: 'easeInOut'/);
-  // Band and padding sit on an inner element: the animated wrapper must stay
-  // padding-free or a collapsed row keeps the padding as an empty gray strip.
-  assert.match(table, /overflow-hidden'\s*>\s*\{\/\*\s*Band and padding/);
-  assert.match(table, /<div className='bg-muted\/30 hover:bg-muted\/50 p-6'>/);
+  const dialog = read('features/cpa/components/credential-detail-dialog.tsx');
+  assert.doesNotMatch(table, /AnimatePresence|onToggleExpanded/);
+  assert.match(table, /onClick=\{\(\) => onOpenDetail\(credential\.id\)\}/);
+  // Row actions must not also open the dialog.
+  assert.match(table, /onClick=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(dialog, /<TabsTrigger value='quota'/);
+  assert.match(dialog, /value='models'/);
+  assert.match(dialog, /<CPACredentialModelsPanel credentialID=\{credential\.id\} \/>/);
 });
 
 test('quota capsule renders remaining semantics with stepped severity tones', () => {

@@ -142,3 +142,47 @@ func TestNormalizeBaseURLRejectsUnsafeValues(t *testing.T) {
 		t.Fatalf("unexpected normalized URL: %q", normalized)
 	}
 }
+
+func TestClientListAuthFileModels(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/v0/management/auth-files/models" {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.URL.Query().Get("name") {
+		case "a b&c.json":
+			_, _ = w.Write([]byte(`{"models":[{"id":"gpt-5.2","display_name":"GPT 5.2","type":"codex","owned_by":"openai"},{"id":"gpt-5.2-mini"}]}`))
+		case "empty.json":
+			_, _ = w.Write([]byte(`{"models":null}`))
+		default:
+			t.Errorf("unexpected name query: %q", r.URL.RawQuery)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, ManagementSecret: "management-key"})
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	defer client.CloseIdleConnections()
+
+	models, err := client.ListAuthFileModels(context.Background(), " a b&c.json ")
+	if err != nil {
+		t.Fatalf("list models: %v", err)
+	}
+	if len(models) != 2 || models[0] != (AuthFileModel{ID: "gpt-5.2", DisplayName: "GPT 5.2", Type: "codex", OwnedBy: "openai"}) || models[1].ID != "gpt-5.2-mini" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+
+	models, err = client.ListAuthFileModels(context.Background(), "empty.json")
+	if err != nil || models == nil || len(models) != 0 {
+		t.Fatalf("expected empty non-nil models, got %#v, %v", models, err)
+	}
+
+	if _, err := client.ListAuthFileModels(context.Background(), "  "); err == nil {
+		t.Fatal("expected blank name to be rejected")
+	}
+}

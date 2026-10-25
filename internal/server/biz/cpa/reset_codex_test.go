@@ -32,6 +32,10 @@ func (s stubManagementClient) ListUsageQueue(context.Context, int) ([]*UsageEven
 	return nil, fmt.Errorf("unexpected ListUsageQueue call")
 }
 
+func (s stubManagementClient) ListAuthFileModels(context.Context, string) ([]AuthFileModel, error) {
+	return nil, fmt.Errorf("unexpected ListAuthFileModels call")
+}
+
 func (s stubManagementClient) PatchAuthFileStatus(context.Context, string, string, bool) error {
 	return fmt.Errorf("unexpected PatchAuthFileStatus call")
 }

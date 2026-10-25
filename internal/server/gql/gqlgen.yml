@@ -140,6 +140,9 @@ models:
   CPAClaudeResetOutcome:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPAClaudeResetOutcome
+  CPACredentialModel:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz/cpa.AuthFileModel
   CPAUsageEvent:
     model:
       - github.com/looplj/axonhub/internal/server/biz.CPAUsageEventView

@@ -119,6 +119,7 @@
   "cpa.providerLabels.antigravity": "Antigravity",
   "cpa.providerLabels.kimi": "Kimi",
   "cpa.providerLabels.xai": "xAI",
+  "cpa.planUnknown": "未知",
   "cpa.planLabels.codex.free": "Free",
   "cpa.planLabels.codex.plus": "Plus",
   "cpa.planLabels.codex.pro": "Pro",
@@ -238,5 +239,14 @@
   "cpa.usage.status.success": "成功",
   "cpa.usage.status.failed": "失败",
   "cpa.usage.empty": "暂无采集到的请求，请在实例设置中启用用量采集。",
-  "cpa.errors.loadUsageEvents": "加载 CPA 请求失败"
+  "cpa.errors.loadUsageEvents": "加载 CPA 请求失败",
+  "cpa.detail.open": "查看详情",
+  "cpa.detail.quota": "额度详情",
+  "cpa.models.title": "可用模型",
+  "cpa.models.search": "筛选模型",
+  "cpa.models.empty": "CPA 未报告该凭证的可用模型。",
+  "cpa.models.loadFailed": "从 CPA 加载模型失败。",
+  "cpa.models.count": "显示 {{shown}} / {{total}} 个模型",
+  "cpa.models.instanceDisabled": "启用 CPA 实例后才能加载模型。",
+  "cpa.errors.loadModels": "加载凭证模型失败"
 }

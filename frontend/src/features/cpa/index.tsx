@@ -14,6 +14,7 @@ import {
   CPAInstanceDeleteDialog,
 } from './components/confirmation-dialogs';
 import { CPAToolbar } from './components/cpa-toolbar';
+import { CPACredentialDetailDialog } from './components/credential-detail-dialog';
 import { CPACredentialTable } from './components/credential-table';
 import { CPAInstanceDialog } from './components/instance-dialog';
 import { CPAInstanceToolbar } from './components/instance-toolbar';
@@ -52,7 +53,8 @@ export default function CPAManagement() {
     cursorHistory,
     setCursorHistory,
     setAfter,
-    expanded,
+    detailCredentialID,
+    setDetailCredentialID,
     togglingCredential,
     setTogglingCredential,
     resettingCredential,
@@ -79,7 +81,6 @@ export default function CPAManagement() {
     resetPagination,
     selectInstance,
     changeProvider,
-    toggleExpanded,
     refreshSelectedScope,
     confirmDeleteInstance,
     confirmToggleCredential,
@@ -164,11 +165,11 @@ export default function CPAManagement() {
                     />
                   )}
                 </div>
-                <TabsList className='h-9 shrink-0 rounded-full border p-1'>
-                  <TabsTrigger value='credentials' className='rounded-full px-3.5'>
+                <TabsList className='shadow-soft border-border bg-background shrink-0 rounded-2xl border'>
+                  <TabsTrigger value='credentials' className='px-3.5'>
                     {t('cpa.views.credentials')}
                   </TabsTrigger>
-                  <TabsTrigger value='requests' className='rounded-full px-3.5'>
+                  <TabsTrigger value='requests' className='px-3.5'>
                     {t('cpa.views.requests')}
                   </TabsTrigger>
                 </TabsList>
@@ -207,16 +208,14 @@ export default function CPAManagement() {
                 totalCount={credentialsQuery.data?.totalCount}
                 isLoading={credentialsQuery.isLoading}
                 pageSize={pageSize}
-                expanded={expanded}
                 canWrite={canWrite}
                 instanceEnabled={selectedInstance.enabled}
                 resetPending={resetCredential.isPending}
                 claudeResetPending={claudeResetCredential.isPending}
-                cooldownResetPending={cooldownResetCredential.isPending}
                 refreshPending={refreshCredential.isPending}
                 togglePending={toggleCredential.isPending}
                 locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
-                onToggleExpanded={toggleExpanded}
+                onOpenDetail={setDetailCredentialID}
                 onRefreshCredential={(id) => refreshCredential.mutate(id)}
                 onRequestToggle={(credential) =>
                   setTogglingCredential({
@@ -227,7 +226,6 @@ export default function CPAManagement() {
                 }
                 onRequestReset={requestResetCredential}
                 onRequestClaudeReset={requestClaudeResetCredential}
-                onRequestCooldownReset={requestCooldownResetCredential}
                 onNextPage={() => {
                   if (!credentialsQuery.data?.pageInfo.hasNextPage || !credentialsQuery.data.pageInfo.endCursor) return;
                   setCursorHistory((history) => [...history, after]);
@@ -256,6 +254,21 @@ export default function CPAManagement() {
         onOpenChange={setDialogOpen}
         onSaved={(instance) => setSelectedInstanceID(instance.id)}
         onDelete={setDeletingInstance}
+      />
+      <CPACredentialDetailDialog
+        credential={credentials.find((credential) => credential.id === detailCredentialID)}
+        canWrite={canWrite}
+        instanceEnabled={selectedInstance?.enabled ?? false}
+        resetPending={resetCredential.isPending}
+        claudeResetPending={claudeResetCredential.isPending}
+        cooldownResetPending={cooldownResetCredential.isPending}
+        locale={i18n.language === 'zh' ? 'zh-CN' : 'en-US'}
+        onOpenChange={(open) => {
+          if (!open) setDetailCredentialID(null);
+        }}
+        onRequestReset={requestResetCredential}
+        onRequestClaudeReset={requestClaudeResetCredential}
+        onRequestCooldownReset={requestCooldownResetCredential}
       />
       <CPACredentialToggleDialog
         confirmation={togglingCredential}

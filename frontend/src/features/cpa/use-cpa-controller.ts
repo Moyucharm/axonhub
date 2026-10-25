@@ -38,7 +38,7 @@ export function useCPAController() {
   const [editingInstance, setEditingInstance] = useState<CPAInstance>();
   const [deletingInstance, setDeletingInstance] = useState<CPAInstance>();
   const { pageSize, after, setAfter, cursorHistory, setCursorHistory, resetPagination, setPageSize } = useCPAPagination();
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [detailCredentialID, setDetailCredentialID] = useState<number | null>(null);
   const [togglingCredential, setTogglingCredential] = useState<{
     id: number;
     displayName: string;
@@ -63,7 +63,7 @@ export function useCPAController() {
   useEffect(() => {
     if (!selectedInstanceID && instances.length > 0) setSelectedInstanceID(instances[0].id);
     if (selectedInstanceID && !instances.some((instance) => instance.id === selectedInstanceID)) {
-      setExpanded(new Set());
+      setDetailCredentialID(null);
       setResettingCredential(undefined);
       setClaudeResettingCredential(undefined);
       clearCooldownResetConfirmation();
@@ -114,7 +114,7 @@ export function useCPAController() {
 
   const changeSelectedInstance = (id: number) => {
     if (id === selectedInstanceID) return;
-    setExpanded(new Set());
+    setDetailCredentialID(null);
     setResettingCredential(undefined);
     setClaudeResettingCredential(undefined);
     clearCooldownResetConfirmation();
@@ -131,14 +131,6 @@ export function useCPAController() {
     resetPagination();
   };
 
-  const toggleExpanded = (id: number) => {
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const requestResetCredential = (confirmation: CPACodexResetConfirmation) => {
     if (resetSubmissionInFlight.current) return;
@@ -277,7 +269,8 @@ export function useCPAController() {
     cursorHistory,
     setCursorHistory,
     setAfter,
-    expanded,
+    detailCredentialID,
+    setDetailCredentialID,
     togglingCredential,
     setTogglingCredential,
     resettingCredential,
@@ -305,7 +298,6 @@ export function useCPAController() {
     resetPagination,
     selectInstance,
     changeProvider,
-    toggleExpanded,
     refreshSelectedScope,
     confirmDeleteInstance,
     confirmToggleCredential,

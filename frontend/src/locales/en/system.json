@@ -345,6 +345,7 @@
   "quota.label.secondary_duration": "Secondary duration",
   "quota.label.error": "Error",
   "quota.label.plan": "Plan",
+  "quota.label.plan_unknown": "Unknown",
   "quota.label.shared_account_channels_one": "{{count}} channel shares this account",
   "quota.label.shared_account_channels_other": "{{count}} channels share this account",
   "quota.label.commandcode.top_up": "Top-up credits",

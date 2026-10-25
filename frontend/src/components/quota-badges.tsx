@@ -911,12 +911,12 @@ function QuotaRow({ channel, effectiveMode }: { channel: ProviderQuotaChannel; e
               : undefined;
             return (
               <>
-                {qd.plan_type ? (
-                  <div className='text-muted-foreground flex items-center justify-between text-xs'>
-                    <span>{t('quota.label.plan')}</span>
-                    <span className='text-foreground font-medium'>{qd.plan_type}</span>
-                  </div>
-                ) : null}
+                <div className='text-muted-foreground flex items-center justify-between text-xs'>
+                  <span>{t('quota.label.plan')}</span>
+                  <span className={qd.plan_type ? 'text-foreground font-medium' : 'font-medium'}>
+                    {qd.plan_type || t('quota.label.plan_unknown')}
+                  </span>
+                </div>
                 {weekly ? (
                   <div className='space-y-1.5'>
                     <div className='flex items-center justify-between text-xs'>

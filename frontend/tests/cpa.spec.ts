@@ -378,7 +378,22 @@ test.describe('CPA critical paths', () => {
     const row = page.locator('[data-testid^="cpa-credential-row-"]').filter({ hasText: 'cpa-e2e-01@example.com' })
     await expect(row).toBeVisible({ timeout: 10_000 })
     const credentialID = Number((await row.getAttribute('data-testid'))?.replace('cpa-credential-row-', ''))
-    const cardRefresh = () => page.getByTestId(`cpa-refresh-credential-${credentialID}`).click()
+    const detail = page.getByTestId('cpa-credential-detail')
+    const openDetail = async () => {
+      if (!await detail.isVisible()) await row.locator('td').nth(2).click()
+      await expect(detail).toBeVisible()
+    }
+    const closeDetail = async () => {
+      if (await detail.isVisible()) await page.keyboard.press('Escape')
+      await expect(detail).toBeHidden()
+    }
+    // The detail dialog is modal: close it to reach the row's refresh button,
+    // then reopen it so the reset panel assertions keep working.
+    const cardRefresh = async () => {
+      await closeDetail()
+      await page.getByTestId(`cpa-refresh-credential-${credentialID}`).click()
+      await openDetail()
+    }
     const credits = page.getByTestId(`cpa-reset-credits-${credentialID}`)
     const bubble = page.getByTestId(`cpa-reset-bubble-${credentialID}`)
     // Reset cards arrive with the quota refresh, and one transient read failure
@@ -386,7 +401,6 @@ test.describe('CPA critical paths', () => {
     resetListFailures = 1
     await cardRefresh()
     await expect(page.getByTestId(`cpa-refresh-credential-${credentialID}`)).toBeEnabled({ timeout: 20_000 })
-    await row.getByRole('button').first().click()
     await expect(credits).toContainText(/3 reset credits remaining|剩余 3 次/)
     await expect(bubble).toContainText('3')
     // Three failures exhaust the retry budget: the refresh reports the card read
@@ -443,6 +457,7 @@ test.describe('CPA critical paths', () => {
     await expect(page.getByTestId(`cpa-reset-empty-${credentialID}`)).toBeVisible({ timeout: 20_000 })
     await expect(credits).toHaveCount(0)
     await expect(page.getByTestId(`cpa-reset-credential-${credentialID}`)).toHaveCount(0)
+    await closeDetail()
     await page.getByTestId('cpa-edit-instance').click()
     await expect(dialog.getByTestId('cpa-instance-name')).toHaveValue(instanceName)
     // Auto use depends on the patrol that refreshes quota and reset credits.
@@ -530,19 +545,30 @@ test.describe('CPA critical paths', () => {
         await expect(row('B')).toContainText(/CPA model cooldown|CPA 模型冷却/)
         await expect(row('E')).toContainText(/Disabled|已禁用/)
         const clearButton = (name: string) => page.getByTestId(`cpa-clear-cooldown-${ids[name]}`)
+        const detail = page.getByTestId('cpa-credential-detail')
+        const closeDetail = async () => {
+          if (await detail.isVisible()) await page.keyboard.press('Escape')
+          await expect(detail).toBeHidden()
+        }
+        const openDetail = async (name: string) => {
+          await closeDetail()
+          await row(name).locator('td').nth(2).click()
+          await expect(detail).toBeVisible()
+        }
         await expect(page.locator('[data-testid^="cpa-clear-cooldown-"]')).toHaveCount(0)
         for (const name of ['A', 'B', 'C', 'D', 'E', 'normal', 'both']) {
           await expect(row(name).locator('td').last().getByRole('button')).toHaveCount(2)
         }
         for (const name of ['C', 'D', 'normal']) await expect(clearButton(name)).toHaveCount(0)
-        await row('A').getByRole('button').first().click()
+        await openDetail('A')
         await expect(page.getByText(/Quota\/rate restriction|额度\/速率限制/).first()).toBeVisible()
         await expect(page.getByText(/remaining|剩余时间/i).first()).toBeVisible()
-        await row('B').getByRole('button').first().click()
+        await openDetail('B')
         await expect(page.getByText('cooldown-model', { exact: true })).toBeVisible()
-        await row('D').getByRole('button').first().click()
+        await openDetail('D')
         await expect(page.getByText(/CPA did not provide cooldown state|CPA 未提供冷却状态/)).toBeVisible()
         await page.screenshot({ path: test.info().outputPath(`cooldown-${api}-details.png`), fullPage: true })
+        await closeDetail()
 
         const statusTrigger = page.getByTestId('cpa-status-filter').getByRole('button')
         await statusTrigger.click()
@@ -569,7 +595,8 @@ test.describe('CPA critical paths', () => {
           await signInAsAdmin(readerPage, { email: readerEmail, password: 'pwd123456' })
           await readerPage.goto('/cpa')
           await expect(readerPage.getByTestId('cpa-credential-table')).toBeVisible()
-          await readerPage.locator(`[data-testid="cpa-credential-row-${ids.A}"]`).getByRole('button').first().click()
+          await readerPage.locator(`[data-testid="cpa-credential-row-${ids.A}"]`).locator('td').nth(2).click()
+          await expect(readerPage.getByTestId('cpa-credential-detail')).toBeVisible()
           await expect(readerPage.locator('[data-testid^="cpa-clear-cooldown-"]')).toHaveCount(0)
           const denied = await readerPage.evaluate(async (credentialID) => {
             const response = await fetch('/admin/graphql', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('axonhub_access_token')}` },
@@ -592,11 +619,12 @@ test.describe('CPA critical paths', () => {
         const confirmation = page.getByTestId('cpa-cooldown-reset-confirmation')
         const confirm = page.getByTestId('cpa-cooldown-reset-confirm')
         const submit = async (name: string) => {
-          if (!await clearButton(name).isVisible()) await row(name).getByRole('button').first().click()
+          if (!await clearButton(name).isVisible()) await openDetail(name)
           await clearButton(name).click()
           await expect(confirmation).toBeVisible()
           await Promise.all([waitForGraphQLOperation(page, 'ResetCPACredentialCooldown'), confirm.click()])
         }
+        await openDetail('A')
         await clearButton('A').click()
         await expect(confirmation).toContainText(/does not reset upstream quota|不重置上游额度/)
         await page.screenshot({ path: test.info().outputPath(`cooldown-${api}-confirmation.png`) })
@@ -651,6 +679,7 @@ test.describe('CPA critical paths', () => {
         expect(capturedVariables).toHaveLength(8)
 
         credentials.find((item) => item.name === 'cooldown-both.json')!.quotaUsedPercent = 25
+        await closeDetail()
         await page.getByTestId(`cpa-refresh-credential-${ids.both}`).click()
         await expect(row('both')).not.toContainText(/Quota exhausted|额度耗尽/)
         await expect(row('C')).toContainText(/Quota exhausted|额度耗尽/)

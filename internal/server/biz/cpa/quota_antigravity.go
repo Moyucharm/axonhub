@@ -37,7 +37,9 @@ func (antigravityQuotaAdapter) Fetch(ctx context.Context, client ManagementClien
 	requestBody, _ := json.Marshal(map[string]string{"project": input.ProjectID})
 
 	var payload map[string]any
-	var lastErr error
+	// The production error is the one worth surfacing: fallback endpoints only
+	// matter when production is unreachable, and their errors hide its cause.
+	var firstErr error
 	for _, quotaURL := range antigravityQuotaURLs {
 		payload = nil
 		_, err := callJSON(ctx, client, ProviderCall{
@@ -50,10 +52,12 @@ func (antigravityQuotaAdapter) Fetch(ctx context.Context, client ManagementClien
 		if err == nil {
 			break
 		}
-		lastErr = err
+		if firstErr == nil {
+			firstErr = err
+		}
 	}
 	if payload == nil {
-		return QuotaResult{}, lastErr
+		return QuotaResult{}, firstErr
 	}
 
 	now := time.Now().UTC()

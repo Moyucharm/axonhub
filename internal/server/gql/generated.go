@@ -37,6 +37,7 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/server/backup"
 	"github.com/looplj/axonhub/internal/server/biz"
+	"github.com/looplj/axonhub/internal/server/biz/cpa"
 	"github.com/looplj/axonhub/internal/server/gc"
 	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
@@ -407,6 +408,13 @@ type ComplexityRoot struct {
 	CPACredentialEdge struct {
 		Cursor func(childComplexity int) int
 		Node   func(childComplexity int) int
+	}
+
+	CPACredentialModel struct {
+		DisplayName func(childComplexity int) int
+		ID          func(childComplexity int) int
+		OwnedBy     func(childComplexity int) int
+		Type        func(childComplexity int) int
 	}
 
 	CPACredentialStats struct {
@@ -1738,6 +1746,7 @@ type ComplexityRoot struct {
 		CostStatsByChannel              func(childComplexity int, timeWindow *string) int
 		CostStatsByModel                func(childComplexity int, timeWindow *string) int
 		CountChannelsByType             func(childComplexity int, input CountChannelsByTypeInput) int
+		CpaCredentialModels             func(childComplexity int, credentialID int) int
 		CpaInstance                     func(childComplexity int, id int) int
 		CpaInstances                    func(childComplexity int) int
 		CpaOverview                     func(childComplexity int, instanceID int) int
@@ -2843,6 +2852,7 @@ type QueryResolver interface {
 	QueryCPAUsageEvents(ctx context.Context, input biz.QueryCPAUsageEventsInput) (*biz.CPAUsageEventConnection, error)
 	CpaOverview(ctx context.Context, instanceID int) (*biz.CPAOverview, error)
 	CpaRefreshProgress(ctx context.Context, instanceID int) (*biz.CPARefreshProgress, error)
+	CpaCredentialModels(ctx context.Context, credentialID int) ([]*cpa.AuthFileModel, error)
 }
 type RequestResolver interface {
 	ID(ctx context.Context, obj *ent.Request) (*objects.GUID, error)
@@ -4133,6 +4143,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.CPACredentialEdge.Node(childComplexity), true
+
+	case "CPACredentialModel.displayName":
+		if e.complexity.CPACredentialModel.DisplayName == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialModel.DisplayName(childComplexity), true
+	case "CPACredentialModel.id":
+		if e.complexity.CPACredentialModel.ID == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialModel.ID(childComplexity), true
+	case "CPACredentialModel.ownedBy":
+		if e.complexity.CPACredentialModel.OwnedBy == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialModel.OwnedBy(childComplexity), true
+	case "CPACredentialModel.type":
+		if e.complexity.CPACredentialModel.Type == nil {
+			break
+		}
+
+		return e.complexity.CPACredentialModel.Type(childComplexity), true
 
 	case "CPACredentialStats.abnormal":
 		if e.complexity.CPACredentialStats.Abnormal == nil {
@@ -10383,6 +10418,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.CountChannelsByType(childComplexity, args["input"].(CountChannelsByTypeInput)), true
+	case "Query.cpaCredentialModels":
+		if e.complexity.Query.CpaCredentialModels == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cpaCredentialModels_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.CpaCredentialModels(childComplexity, args["credentialID"].(int)), true
 	case "Query.cpaInstance":
 		if e.complexity.Query.CpaInstance == nil {
 			break
@@ -16748,6 +16794,17 @@ func (ec *executionContext) field_Query_countChannelsByType_args(ctx context.Con
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_cpaCredentialModels_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "credentialID", ec.unmarshalNInt2int)
+	if err != nil {
+		return nil, err
+	}
+	args["credentialID"] = arg0
 	return args, nil
 }
 
@@ -24053,6 +24110,122 @@ func (ec *executionContext) fieldContext_CPACredentialEdge_node(_ context.Contex
 				return ec.fieldContext_CPAManagedCredential_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CPAManagedCredential", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialModel_id(ctx context.Context, field graphql.CollectedField, obj *cpa.AuthFileModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialModel_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialModel_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialModel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialModel_displayName(ctx context.Context, field graphql.CollectedField, obj *cpa.AuthFileModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialModel_displayName,
+		func(ctx context.Context) (any, error) {
+			return obj.DisplayName, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialModel_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialModel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialModel_type(ctx context.Context, field graphql.CollectedField, obj *cpa.AuthFileModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialModel_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialModel_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialModel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CPACredentialModel_ownedBy(ctx context.Context, field graphql.CollectedField, obj *cpa.AuthFileModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_CPACredentialModel_ownedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.OwnedBy, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_CPACredentialModel_ownedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CPACredentialModel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -58740,6 +58913,57 @@ func (ec *executionContext) fieldContext_Query_cpaRefreshProgress(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_cpaRefreshProgress_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cpaCredentialModels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_cpaCredentialModels,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().CpaCredentialModels(ctx, fc.Args["credentialID"].(int))
+		},
+		nil,
+		ec.marshalNCPACredentialModel2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚋcpaᚐAuthFileModelᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_cpaCredentialModels(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CPACredentialModel_id(ctx, field)
+			case "displayName":
+				return ec.fieldContext_CPACredentialModel_displayName(ctx, field)
+			case "type":
+				return ec.fieldContext_CPACredentialModel_type(ctx, field)
+			case "ownedBy":
+				return ec.fieldContext_CPACredentialModel_ownedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CPACredentialModel", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cpaCredentialModels_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -105450,6 +105674,60 @@ func (ec *executionContext) _CPACredentialEdge(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var cPACredentialModelImplementors = []string{"CPACredentialModel"}
+
+func (ec *executionContext) _CPACredentialModel(ctx context.Context, sel ast.SelectionSet, obj *cpa.AuthFileModel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cPACredentialModelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CPACredentialModel")
+		case "id":
+			out.Values[i] = ec._CPACredentialModel_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "displayName":
+			out.Values[i] = ec._CPACredentialModel_displayName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._CPACredentialModel_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ownedBy":
+			out.Values[i] = ec._CPACredentialModel_ownedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var cPACredentialStatsImplementors = []string{"CPACredentialStats"}
 
 func (ec *executionContext) _CPACredentialStats(ctx context.Context, sel ast.SelectionSet, obj *biz.CPACredentialStats) graphql.Marshaler {
@@ -118399,6 +118677,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cpaCredentialModels":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cpaCredentialModels(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -127040,6 +127340,60 @@ func (ec *executionContext) marshalNCPACredentialFilterStatus2ᚕgithubᚗcomᚋ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNCPACredentialModel2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚋcpaᚐAuthFileModelᚄ(ctx context.Context, sel ast.SelectionSet, v []*cpa.AuthFileModel) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCPACredentialModel2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚋcpaᚐAuthFileModel(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCPACredentialModel2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚋcpaᚐAuthFileModel(ctx context.Context, sel ast.SelectionSet, v *cpa.AuthFileModel) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CPACredentialModel(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCPACredentialStats2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐCPACredentialStats(ctx context.Context, sel ast.SelectionSet, v *biz.CPACredentialStats) graphql.Marshaler {

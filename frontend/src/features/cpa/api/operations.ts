@@ -57,6 +57,8 @@ export const OVERVIEW_QUERY = `
     }
   }
 `;
+export const CREDENTIAL_MODELS_QUERY =
+  `query CPACredentialModels($credentialID: Int!) { cpaCredentialModels(credentialID: $credentialID) { id displayName type ownedBy } }`;
 export const CREATE_INSTANCE =
   `mutation CreateCPAInstance($input: CreateCPAInstanceInput!) { createCPAInstance(input: $input) { ${INSTANCE_FIELDS} } }`;
 export const UPDATE_INSTANCE =

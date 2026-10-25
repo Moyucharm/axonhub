@@ -154,6 +154,10 @@ func (providerErrorTestClient) ListUsageQueue(context.Context, int) ([]*UsageEve
 	return nil, errors.New("unused")
 }
 
+func (providerErrorTestClient) ListAuthFileModels(context.Context, string) ([]AuthFileModel, error) {
+	return nil, errors.New("unused")
+}
+
 func (providerErrorTestClient) PatchAuthFileStatus(context.Context, string, string, bool) error {
 	return errors.New("unused")
 }

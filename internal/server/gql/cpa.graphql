@@ -251,6 +251,13 @@ type CPAOverview {
   providers: [CPAProviderOverview!]!
 }
 
+type CPACredentialModel {
+  id: String!
+  displayName: String!
+  type: String!
+  ownedBy: String!
+}
+
 type CPARefreshResult {
   requested: Int!
   succeeded: Int!
@@ -348,6 +355,10 @@ extend type Query {
   queryCPAUsageEvents(input: QueryCPAUsageEventsInput!): CPAUsageEventConnection!
   cpaOverview(instanceID: Int!): CPAOverview!
   cpaRefreshProgress(instanceID: Int!): CPARefreshProgress
+  """
+  Models CPA currently routes to the credential; read live from CPA, never stored.
+  """
+  cpaCredentialModels(credentialID: Int!): [CPACredentialModel!]!
 }
 
 type CPACredentialCooldownResetOutcome {

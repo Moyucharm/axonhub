@@ -3,6 +3,7 @@ import { graphqlRequest } from '@/gql/graphql';
 import { useTranslation } from 'react-i18next';
 import { useErrorHandler } from '@/hooks/use-error-handler';
 import {
+  CREDENTIAL_MODELS_QUERY,
   CREDENTIALS_QUERY,
   INSTANCES_QUERY,
   OVERVIEW_QUERY,
@@ -12,6 +13,7 @@ import {
 import type {
   CPAInstance,
   CPACredentialConnection,
+  CPACredentialModel,
   CPAOverview,
   CPARefreshProgress,
   CPACredentialQueryInput,
@@ -87,6 +89,24 @@ export function useCPAOverview(instanceID?: number) {
         return data.cpaOverview;
       } catch (error) {
         handleError(error, { context: t('cpa.errors.loadOverview') });
+        throw error;
+      }
+    },
+  });
+}
+
+export function useCPACredentialModels(credentialID: number | null) {
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+  return useQuery({
+    queryKey: ['cpa', 'credential-models', credentialID],
+    enabled: credentialID != null,
+    queryFn: async () => {
+      try {
+        const data = await graphqlRequest<{ cpaCredentialModels: CPACredentialModel[] }>(CREDENTIAL_MODELS_QUERY, { credentialID });
+        return data.cpaCredentialModels;
+      } catch (error) {
+        handleError(error, { context: t('cpa.errors.loadModels') });
         throw error;
       }
     },

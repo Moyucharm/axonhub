@@ -119,6 +119,7 @@
   "cpa.providerLabels.antigravity": "Antigravity",
   "cpa.providerLabels.kimi": "Kimi",
   "cpa.providerLabels.xai": "xAI",
+  "cpa.planUnknown": "Unknown",
   "cpa.planLabels.codex.free": "Free",
   "cpa.planLabels.codex.plus": "Plus",
   "cpa.planLabels.codex.pro": "Pro",
@@ -238,5 +239,14 @@
   "cpa.usage.status.success": "Success",
   "cpa.usage.status.failed": "Failed",
   "cpa.usage.empty": "No requests collected yet. Enable the usage collector on this instance.",
-  "cpa.errors.loadUsageEvents": "Failed to load CPA requests"
+  "cpa.errors.loadUsageEvents": "Failed to load CPA requests",
+  "cpa.detail.open": "View details",
+  "cpa.detail.quota": "Quota",
+  "cpa.models.title": "Available models",
+  "cpa.models.search": "Filter models",
+  "cpa.models.empty": "CPA reports no models for this credential.",
+  "cpa.models.loadFailed": "Failed to load models from CPA.",
+  "cpa.models.count": "Showing {{shown}} of {{total}} models",
+  "cpa.models.instanceDisabled": "Enable the CPA instance to load models.",
+  "cpa.errors.loadModels": "Failed to load credential models"
 }

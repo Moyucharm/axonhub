@@ -56,6 +56,14 @@ type AuthFilesResponse struct {
 	API        ManagementAPI `json:"-"`
 }
 
+// AuthFileModel is one model CPA currently routes to a credential.
+type AuthFileModel struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Type        string `json:"type"`
+	OwnedBy     string `json:"owned_by"`
+}
+
 // ProviderCall is an internal, typed request executed by CPA's api-call endpoint.
 type ProviderCall struct {
 	AuthIndex string

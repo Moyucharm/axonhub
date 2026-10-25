@@ -125,6 +125,13 @@ export interface CPACredentialConnection {
   totalCount: number;
 }
 
+export interface CPACredentialModel {
+  id: string;
+  displayName: string;
+  type: string;
+  ownedBy: string;
+}
+
 export interface CPAUsageEvent {
   id: number;
   requestedAt: string;

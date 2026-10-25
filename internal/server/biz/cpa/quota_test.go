@@ -3,6 +3,7 @@ package cpa
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -435,4 +436,69 @@ func TestXAIMonthlyOverflowMovesToOnDemand(t *testing.T) {
 			t.Fatalf("no on-demand row expected without a cap: %#v", items)
 		}
 	}
+}
+
+func TestAntigravityQuotaEndpointOrder(t *testing.T) {
+	t.Parallel()
+
+	const (
+		production = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+		daily      = "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+		sandbox    = "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary"
+		quotaBody  = `{"groups":[{"displayName":"Gemini","buckets":[{"bucketId":"gemini","remainingFraction":0.5}]}]}`
+	)
+	input := CredentialInput{AuthIndex: "ag-1", Provider: "antigravity", ProjectID: "project-1"}
+	newClient := func(statuses map[string]int, calls *[]string) stubManagementClient {
+		return stubManagementClient{call: func(_ context.Context, call ProviderCall) (*ProviderCallResult, error) {
+			if call.URL == antigravitySubscriptionURL {
+				return &ProviderCallResult{StatusCode: http.StatusOK, Body: []byte(`{}`)}, nil
+			}
+			*calls = append(*calls, call.URL)
+			status := statuses[call.URL]
+			if status == 0 {
+				status = http.StatusOK
+			}
+			return &ProviderCallResult{StatusCode: status, Body: []byte(quotaBody)}, nil
+		}}
+	}
+
+	t.Run("production answers first", func(t *testing.T) {
+		var calls []string
+		result, err := antigravityQuotaAdapter{}.Fetch(context.Background(), newClient(nil, &calls), input)
+		if err != nil || result.State != objects.CPAQuotaStateSuccess {
+			t.Fatalf("unexpected result: state=%s err=%v", result.State, err)
+		}
+		if len(calls) != 1 || calls[0] != production {
+			t.Fatalf("production endpoint must be the only quota call: %v", calls)
+		}
+	})
+
+	t.Run("production failure falls back to daily", func(t *testing.T) {
+		var calls []string
+		client := newClient(map[string]int{production: http.StatusInternalServerError}, &calls)
+		result, err := antigravityQuotaAdapter{}.Fetch(context.Background(), client, input)
+		if err != nil || result.State != objects.CPAQuotaStateSuccess {
+			t.Fatalf("unexpected result: state=%s err=%v", result.State, err)
+		}
+		if len(calls) != 2 || calls[0] != production || calls[1] != daily {
+			t.Fatalf("expected production then daily: %v", calls)
+		}
+	})
+
+	t.Run("all endpoints failing reports the production error", func(t *testing.T) {
+		var calls []string
+		client := newClient(map[string]int{
+			production: http.StatusTooManyRequests,
+			daily:      http.StatusInternalServerError,
+			sandbox:    http.StatusBadGateway,
+		}, &calls)
+		_, err := antigravityQuotaAdapter{}.Fetch(context.Background(), client, input)
+		var providerErr *ProviderHTTPError
+		if !errors.As(err, &providerErr) || providerErr.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("expected production 429 error, got %v", err)
+		}
+		if len(calls) != 3 {
+			t.Fatalf("expected every endpoint to be tried: %v", calls)
+		}
+	})
 }
