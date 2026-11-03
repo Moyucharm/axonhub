@@ -864,6 +864,39 @@ func TestPersistentOutboundTransformer_CanRetry(t *testing.T) {
 			require.True(t, outbound.CanRetry(retryErr))
 		}
 	})
+
+	// A channel that lists 429 asks for a same-channel retry on a rate limit. The
+	// candidate keeps a single mapped model so the decision is about the 429
+	// branch itself — with a second model the retry is also allowed for "try the
+	// next mapped model".
+	t.Run("a channel that lists 429 opts a rate limit into same-channel retry", func(t *testing.T) {
+		optInChannel := &biz.Channel{
+			Channel: &ent.Channel{
+				ID:       2,
+				Name:     "opt-in-channel",
+				Settings: &objects.ChannelSettings{RetryableStatusCodes: []int{http.StatusTooManyRequests}},
+			},
+			Outbound: &mockTransformer{},
+		}
+		newOutbound := func(ch *biz.Channel) *PersistentOutboundTransformer {
+			return &PersistentOutboundTransformer{
+				wrapped: &mockTransformer{},
+				state: &PersistenceState{
+					CurrentCandidate: &ChannelModelsCandidate{
+						Channel: ch,
+						Models:  []biz.ChannelModelEntry{{RequestModel: "gpt-4", ActualModel: "gpt-4"}},
+					},
+				},
+			}
+		}
+
+		require.True(t, newOutbound(optInChannel).CanRetry(&httpclient.Error{StatusCode: http.StatusTooManyRequests}))
+		require.True(t, newOutbound(optInChannel).CanRetry(&llm.ResponseError{StatusCode: http.StatusTooManyRequests}))
+
+		// Without 429 in the list a rate limit still switches channels.
+		require.False(t, newOutbound(channel).CanRetry(&httpclient.Error{StatusCode: http.StatusTooManyRequests}))
+		require.False(t, newOutbound(channel).CanRetry(&llm.ResponseError{StatusCode: http.StatusTooManyRequests}))
+	})
 }
 
 func TestShouldForceStreamingForCandidate(t *testing.T) {
@@ -1864,6 +1897,7 @@ func TestPersistentOutboundTransformer_SameChannelRetryLimit_KeyPoolTotalRequest
 	tests := []struct {
 		name          string
 		requestCount  *int
+		channelLimit  *int
 		enabledKeys   int
 		defaultLimit  int
 		expectedLimit int
@@ -1872,6 +1906,9 @@ func TestPersistentOutboundTransformer_SameChannelRetryLimit_KeyPoolTotalRequest
 		{name: "three total requests allow two retries", requestCount: lo.ToPtr(3), enabledKeys: 4, defaultLimit: 5, expectedLimit: 2},
 		{name: "available keys cap retries", requestCount: lo.ToPtr(5), enabledKeys: 2, defaultLimit: 5, expectedLimit: 1},
 		{name: "missing pool override inherits system retries", requestCount: nil, enabledKeys: 4, defaultLimit: 2, expectedLimit: 2},
+		{name: "pool total requests wins over channel override", requestCount: lo.ToPtr(3), channelLimit: lo.ToPtr(0), enabledKeys: 4, defaultLimit: 5, expectedLimit: 2},
+		{name: "missing pool override inherits channel override", channelLimit: lo.ToPtr(1), enabledKeys: 4, defaultLimit: 5, expectedLimit: 1},
+		{name: "channel zero override stops inherited retries", channelLimit: lo.ToPtr(0), enabledKeys: 4, defaultLimit: 5, expectedLimit: 0},
 	}
 
 	for _, tt := range tests {
@@ -1882,7 +1919,7 @@ func TestPersistentOutboundTransformer_SameChannelRetryLimit_KeyPoolTotalRequest
 			}
 			channel := &biz.Channel{Channel: &ent.Channel{
 				Credentials: objects.ChannelCredentials{Mode: objects.APIKeyModePool, APIKeys: keys},
-				Settings:    &objects.ChannelSettings{APIKeyPool: &objects.APIKeyPoolSettings{RetryCount: tt.requestCount}},
+				Settings:    &objects.ChannelSettings{APIKeyPool: &objects.APIKeyPoolSettings{RetryCount: tt.requestCount}, MaxSingleChannelRetries: tt.channelLimit},
 			}}
 			outbound := &PersistentOutboundTransformer{state: &PersistenceState{CurrentCandidate: &ChannelModelsCandidate{Channel: channel}}}
 

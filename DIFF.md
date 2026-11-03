@@ -8,33 +8,34 @@
 
 | 项目 | 值 |
 |---|---|
-| 本分支 | `自用`（本次正式 merge commit 的目标分支；集成分支：`merge/beta11-20261009`） |
+| 本分支 | `自用`（从 `a6f04afb` 合并 beta12 正式 tag，保留自用历史） |
 | 官方仓库 | `https://github.com/looplj/axonhub.git` |
-| 对比基准 | 官方最新发行 tag `v1.0.0-beta11`（`b8bb3421`，2026-10-08） |
-| 当前发行基线提交 | `b8bb3421` fix(channels): 修复 System One 渠道与 API key 的测试格式 (#2607) |
+| 对比基准 | 官方最新发行 tag `v1.0.0-beta12`（`2b1a0f93`，2026-11-02） |
+| 当前发行基线提交 | `2b1a0f93` chore(deps): bump github.com/kaptinlin/jsonrepair in / (#2819) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta11+azusa.v0.6.9` |
+| 本分支版本号 | `v1.0.0-beta12+azusa.v0.6.10`（同名 git tag；镜像构建结果以自用 workflow 为准） |
 
 ### 更新本文件的方法
 
 ```bash
-# 获取官方发行版 tag 与 unstable 参考分支（临时 refs，不修改 remote 配置）
+# 获取官方发行版 tag（不修改 remote 配置，不跟进 unstable）
 git fetch https://github.com/looplj/axonhub.git \
-  'refs/tags/v1.0.0-beta*:refs/tags/upstream/v1.0.0-beta*' \
-  'refs/heads/unstable:refs/remotes/upstream-tmp/unstable'
+  'refs/tags/v1.0.0-beta*:refs/tags/upstream/v1.0.0-beta*'
 
 # 查看本地独有提交（自用增量，相对官方最新发行版）
-git log --oneline upstream/v1.0.0-beta10..自用
+git log --oneline upstream/v1.0.0-beta12..自用
 
 # 查看官方发行版独有提交（未合并内容）
-git log --oneline 自用..upstream/v1.0.0-beta10
+git log --oneline 自用..upstream/v1.0.0-beta12
 
 # 查看官方 unstable 未发行代码（仅参考，按约定忽略）
-git log --oneline upstream/v1.0.0-beta10..upstream-tmp/unstable
+git log --oneline upstream/v1.0.0-beta12..upstream-tmp/unstable
 
 # 查看文件级差异
-git diff upstream/v1.0.0-beta10 自用 --stat
+git diff upstream/v1.0.0-beta12 自用 --stat
 ```
+
+> 集成未提交时，`自用` 仍指向旧 HEAD；另用 `git diff HEAD` 检查工作树整合内容。只有完成 merge commit 后，上述分支范围才代表本次升级结果。
 
 ## 2. 自用功能增量 — 大功能
 
@@ -155,6 +156,21 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 10. **其他**：侧边栏改为上游 `config/nav-items.ts`，补回 CPA 菜单；管理端 GraphQL 迁到上游 `adminGraphqlGroup` 并保留 `LLMRequestTimeout` 硬上限；广告渠道（`qiniu*`/`fenno`/`atlascloud`）继续排除；`resetChannelFailure`/`resetAPIKeyFailure` 对未注入 `AbstractService` 的服务实例直接返回。
 - **待办**：#2542 页面标题栏响应式按用户要求单独处理（CPA 页迁移到 `PageHeader`）。
 - **验证**：`go build ./...`、`go vet`、`go test ./internal/...` 与 `llm` 模块测试通过；前端 `node --test` 294 项通过；`tsc` 在改动区域无新增错误（仓库原有大量既存类型错误）。
+
+### 2.9 2026-11-03 对齐官方 v1.0.0-beta12
+
+**来源**：正式发行 tag `v1.0.0-beta12@2b1a0f93`（相对 beta11 共 **141 个提交**，612 个上游变更文件）。在干净的 `自用@a6f04afb` 上以 `git merge --no-commit --no-ff` 整合，不跟进 `beta12..unstable`；用户指定增强号 `0.6.10`。**用户于 2026-11-03 明确确认发版、push 与编译：以合并提交及同名 tag 发布，通过 `docker-selfhosted.yml` 构建 linux/amd64 镜像；不部署、不重启服务。**
+
+- **采用发行能力**：Codex PAT 兼容入口、Responses HTTP/WS 独立端点与有界续接、流终止/交付确认/记账分离、原生 Images、Vertex 项目/区域绑定、多 Key 选择策略、渠道级重试与响应超时、Claude Code 服务端审查、Antigravity 分池路由、额度状态 webhook、统计性能和安全依赖升级。
+- **自用凭证与自动处置保留**：Key Pool 显式模式、失败计数/最近错误持久化、CAS、批量管理、主动 AutoCheck、全局 Key 策略、渠道 cooldown、单次失败单一归属与 Codex Simulation 不变；不恢复 #2453。上游同名 `channel_apikey_state.go` 的选择状态另存为 `channel_apikey_selection_state.go`，不覆盖自用状态写入。
+- **重试优先级**：全局关闭门禁优先；Pool 的 `RetryCount` 仍为总请求数（减一后作为重试次数），且不超过可用 Key 数减一；Pool 未配置时先继承渠道级重试数，再回退全局值。Pool 多 Key 429 换 Key 的行为保留，非 Pool 采用上游显式 opt-in 429 同渠道重试。
+- **设置与绑定保护**：上游 `updateChannelSettings` 扩展至自用 Pool/模拟及渠道重试/超时字段；共享前端 mutation fragment 保留自用凭证、运行态、冷却、限流与覆盖配置。Vertex 始终保留完整 project/key/region 三元组，删除/保留最后一 Key 走自用 CAS；不接受普通文本导入无绑定 Key。
+- **其他自用能力保留**：CPA 后端、实体源 schema、前端及路由无直接变更；模型精确规则注入、渠道借价匹配、执行详情 `last:20` 与选择保持、RequestExecution 跨项目权限、OpenCode Zen 三协议与匿名/工具身份、强制上游流式对象同步、Gemini thought signature 最后 chunk、Responses 网关 `[DONE]` 及迟到传输错误处理继续保留。System One 不收窄为上游有限类型白名单。
+- **削减与本地配置保留**：广告渠道 `atlascloud`/`qiniu*`/`fenno` 不恢复；README 赞助/推广、官方 Docker Hub 与 unstable 发布 workflow 不恢复；自用固定列宽与断点布局、5174 端口、air 配置、自用 Docker workflow 和官方 Release fork 守卫保留。安全 overrides 汇入现有 workspace，保留构建脚本许可；Docker 同步正式版基础镜像但继续复制 workspace。
+- **生成与迁移**：运行 `make generate`；保留 CPA、冷却与 legacy 广告渠道迁移，采用上游移除 Wafer 的启动前清理，并复用现有表存在性检查。只运行隔离测试数据库，不操作实际数据库；生产升级前必须备份。
+- **验证**：根模块 `go test ./...` 与 `cd llm && go test ./...` 全通过；前端 449 通过、1 跳过、0 失败。新增设置/Vertex/GraphQL 实际操作与 Pool 重试优先级回归通过。完整前端类型检查仍有错误：同依赖下升级前 HEAD 为 215，本次为 192，按文件与 TS 错误码计数无新增；未运行构建、lint、浏览器 E2E 或部署。
+
+决策与代价详见 [beta12 正式发行对齐与自用增量保护](.agents/notes/implemented/process/2026-11-03-beta12-release-integration.md)。
 
 ## 3. 自用修改 — 小修改
 
@@ -363,7 +379,11 @@ git diff upstream/v1.0.0-beta10 自用 --stat
 - **不改动**：渠道可见范围（`read_channels` 仍可读全部渠道，见上游 #2565）以及代理、覆盖规则的显示保持上游原样。
 - 回归测试：`internal/server/gql/admin_graphql_apikey_execution_visibility_test.go`。
 
-## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta11
+## 4. 官方差异 — 相对官方最新发行 tag v1.0.0-beta12
+
+本次以 `自用@a6f04afb` 整合官方 `v1.0.0-beta12@2b1a0f93` 的 141 个已发行提交，取舍见 2.9 节，完整清单见附录 D。所有自用功能与削减约束继续有效；上游关于 System One 类型限制、渠道表格横向滚动和历史广告枚举的测试按自用契约调整，而不为通过测试恢复被删内容。本次发布以同名 git tag 标识，通过自用 Docker workflow 编译并推送 GHCR；构建是否成功以对应 Actions run 为准。
+
+以下 beta11/beta10 内容为历史升级记录，不代表当前基线。
 
 本次合并前 `自用` HEAD 为 `414c9f84`。官方 `v1.0.0-beta11`（`b8bb3421`）相对 `v1.0.0-beta10` 新增 **138 个提交**，除 #2453（已 revert）外全部吸收，重叠项取舍见 2.8 节；明确忽略 `v1.0.0-beta11..unstable` 的未发行提交。下文 beta10 部分为上一轮记录。
 
@@ -404,7 +424,7 @@ beta10 记录：本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-be
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：自用更新时递增增强号（`azusa.v<主>.<次>.<修订>`），**递增幅度由用户根据更新情况决定**，没有固定步长；同步更新 `internal/build/VERSION` 与 git tag。不确定时先问用户。
 - **跨官方版本（2026-10-09 定）**：跟进新的官方发行版时，增强号**不归零**，在原数字上继续递增。
-- **当前状态**：`2026-10-25` 发布 `v1.0.0-beta11+azusa.v0.6.9`（相对 `v0.6.8` 递增修订位；新增 CPA 凭证详情弹窗与可用模型查看、原生冷却状态与手动解除、Antigravity 生产端点优先、套餐不再推测，OpenCode Zen 客户端协议兼容刷新，RequestExecution 跨项目读取修复（3.25））。基线仍为官方 `v1.0.0-beta11`，`beta11..unstable` 未发行提交不在本次范围内。
+- **当前状态**：`2026-11-03` 发布版本 `v1.0.0-beta12+azusa.v0.6.10`，基线为正式发行 `v1.0.0-beta12@2b1a0f93`；自用增量与削减保留，详见 2.9 节。VERSION 与同名 git tag 对齐；镜像由 `docker-selfhosted.yml` 编译并推送 `ghcr.io/moyucharm/axonhub:v1.0.0-beta12_azusa.v0.6.10` 及 `latest`，构建结果以 GitHub Actions 为准。此次仅发版与镜像发布，不部署或操作生产数据库。
 
 ### 官方新发行版发布时的升级流程
 
@@ -579,4 +599,152 @@ cc5b2022 fix(requests): keep API key filter visible without results (#2405)
 3ec59d14 chore: sync model developers data (#2412)
 f3e89019 feat: add ZenMux native video generation (#2410)
 939b2bc0 fix(frontend): preserve channel form focus and onboarding dismissal (#2411)
+```
+
+## 附录 D：beta12 正式发行对齐提交（`v1.0.0-beta11..v1.0.0-beta12`，141 个）
+
+> 本清单只包含正式发行范围；取舍及自用保护见 2.9 节。附录 A/B/C 保留为历史记录，不作为本次待重放清单。
+
+```
+e863c6fe fix(responses): preserve additional tools across forwarding (#2627)
+9ca15ea4 fix(antigravity): report merged 5h and weekly quota windows (#2626)
+5659a526 fix(responses): keep tool outputs adjacent to the calls that requested them (#2633)
+b6d184a8 fix: count message audio as content in empty response detection (#2634)
+18cc192e fix(storage): disable default trailing checksums for S3-compatible object stores (#981) (#2637)
+abd5bd73 chore: sync model developers data (#2643)
+931fafff fix(codex): honour the user-agent pass-through switch and stop leaking client headers (#2635) (#2638)
+8262e95a fix(orchestrator): refresh channel credentials before same-channel retry (#2545)
+7a0cfbf4 fix: models association dialog have double vertical scrollbar (#2649)
+3cb7e333 fix(images): forward Codex requests through native Images endpoints (#2651)
+36364049 fix(responses): retry structured Codex overload failures (#2657)
+94cd05b1 feat(responses): add HTTP and WebSocket protocol endpoints (#2656)
+cc1c7e5d fix(billing): fall back to model library price when a channel has no price (#2655)
+ca3059fe feat(codex): add PAT-compatible Codex provider surface (#2640)
+c7573e4c feat(gemini): bind Vertex API keys to projects
+490d91bd Revert "feat(gemini): bind Vertex API keys to projects"
+f7e60232 fix(responses): restrict websocket ALPN to HTTP/1.1 (#2664)
+aec4eff6 fix(codex): size usage-guide tabs to content and align setup examples (#2672)
+1c695ac3 fix(responses): surface stale WebSocket failures instead of replaying (#2669)
+ae491d69 feat(gemini): bind Vertex API keys to GCP projects and regions (#2673)
+3dcfa3ce fix(stream): separate terminal outcome, delivery acknowledgement, and usage accounting (#2659)
+de5f9039 fix(codex): preserve third-party channel credentials and catalog (#2675)
+afb92c05 fix(stream): preserve delivery acknowledgement after cancellation (#2677)
+1dd950d0 fix(stream): require delivery provenance after cancellation (#2678)
+a946fca4 fix(stream): preserve delivery capabilities through response decorators (#2679)
+697b13a5 feat(anthropic): enable cache for converted requests (#2697)
+28cab912 fix(anthropic): normalize managed platform cache control (#2702)
+8d3c3865 refactor(anthropic): share cache control slot traversal (#2703)
+cbdf9a6d fix(httpclient): recover unterminated final SSE line at stream EOF (#2692)
+71bdd328 chore: add new team member (#2716)
+f30e3c9b Merge pull request #2667 from EJCrystal/fix/upstream-antigravity-pool-quota
+a14d1013 fix(channels): add updateChannelSettings patch mutation (#2699)
+090e542e feat(channel): let a channel override the global single-channel retry count (#2660)
+c06e896e fix(responses): stop repeating tool call id and name in the arguments done chunk (#2686)
+19862baf fix(openai): index streamed tool calls that arrive without an index (#2707)
+8bd3e931 fix(openai): drop tool_choice when no tools are sent (#2706)
+b7cf0524 fix(metrics): record chat request and token metrics (#2698)
+48984732 feat(channel): support typesafe/systemone endpoint for openai channels (#2685)
+6250e7d3 ci: Scope Docker GHA cache by arch in workflows (#2712)
+1ced7546 chore(deps-dev): bump vite from 7.3.5 to 7.3.7 in /frontend
+57f15ffc fix(deps): synchronize compress 1.18.7 across Go modules (#2723)
+128e5d7f build: pin Go builder image to 1.27.3 and Alpine 3.24
+73151f77 chore(deps): configure Dependabot for all dependency surfaces (#2725)
+204644b4 chore(deps): bump github.com/alicebob/miniredis/v2 in / (#2734)
+78fd232b chore(deps): bump cloud.google.com/go/storage in / (#2732)
+d2e6faee chore(deps): bump github.com/openai/openai-go/v3 (#2731)
+ef768894 chore(deps): bump go.uber.org/zap in / (#2729)
+b35ced17 chore(deps): bump google.golang.org/genai in /integration_test/gemini (#2728)
+49cb7a31 chore(deps): bump node from 22-alpine to 25-alpine (#2726)
+ebdf97ef chore(deps): bump github.com/anthropics/anthropic-sdk-go (#2727)
+2acd7b9e chore(deps): bump ariga.io/atlas in / (#2735)
+9eaf0fb7 chore(deps): bump golang.org/x/sync in / (#2730)
+42b9bb6c chore(deps): bump github.com/aws/aws-sdk-go-v2 in / (#2736)
+4d2c2edd chore(deps): bump github.com/Masterminds/semver/v3 in / (#2733)
+c0e3374c chore(deps): bump vite, @vitejs/plugin-react-swc and @tailwindcss/vite (#2738)
+4d4cfb3f chore(deps): bump github.com/aws/aws-sdk-go-v2/feature/s3/manager in / (#2737)
+a8a78c5e chore(deps): bump @google/genai in /integration_test/gemini/node (#2739)
+03437bb1 feat: add server-side Claude auto-mode reviewer (#2722)
+6980148a feat(ui): categorize channels with filter pills and section headers in provider quota popover (#2688)
+605b828d feat(requests): show the cache hit rate in the tokens column (#2661)
+f8f12109 fix(channels): make channel table responsive on mobile and narrow viewports (#2689)
+9c1ea3bf feat(channel): configurable multi-key selection strategies (sticky/random/round-robin/priority/fixed) (#2548)
+0d82a8e4 feat(channels): add Cloudflare Workers AI channel type (#2674)
+6c137e31 feat(quota): support Synthetic search and weekly credits (#2743)
+5b9b2e96 fix(build): restore Corepack and validate Docker builds (#2744)
+e06cf9eb feat(provider-quota): remove Wafer quota provider (#2745)
+5503b112 docs: document OpenCode V1 and V2 tracing config (#2748)
+513a7822 fix: support Claude Code WebSearch through Responses backends (#2750)
+847e5919 fix(anthropic): estimate and calibrate initial input usage for Claude Code (#2749)
+a7ad1f9b chore(deps): bump zod from 4.3.6 to 4.6.6 in /frontend (#2746)
+e6c67fe4 fix(ui): repair provider quota popover grouping and sort (#2751)
+3cd5b590 ci: add Go vulnerability scanning (#2753)
+1c41403d fix(users): use AutoCompleteSelect for Add User picker (#2752)
+07ce14d8 fix(system): raise the per-channel max retry limit to 10 (#2663)
+66ad2fc3 chore: sync model developers data (#2693)
+532a8032 perf(dashboard): reduce aggregate load (#2755)
+0348663b chore: sync model developers data (#2756)
+0b6c9bf0 chore(deps): bump @radix-ui/react-scroll-area in /frontend (#2759)
+90b2a154 chore(deps): bump @radix-ui/react-avatar in /frontend (#2760)
+461e3c9e chore(deps): bump @tanstack/react-router in /frontend (#2761)
+bb4e4aae chore(deps): bump i18next from 25.8.18 to 26.5.5 in /frontend (#2762)
+d566398e chore(deps): bump cloud.google.com/go/storage in / (#2764)
+15744c7c chore(deps): bump github.com/anthropics/anthropic-sdk-go (#2765)
+fad1c52e chore(deps): bump github.com/openai/openai-go/v3 (#2766)
+a1047e20 chore(deps): bump github.com/aws/aws-sdk-go-v2/config in / (#2767)
+e828b7a6 chore(deps): bump github.com/coreos/go-oidc/v3 in / (#2770)
+dc68318c perf(dashboard): use PostgreSQL DISTINCT ON for fastest rankings (#2780)
+f322df79 fix(biz): strip NUL escapes before storing bodies in jsonb (#2779)
+5731bbd3 chore(deps): bump google.golang.org/genai in /integration_test/gemini (#2778)
+19123186 fix(deploy): verify PID ownership before trusting the PID file (#2772)
+1c4fedda fix(anthropic): accept thinking.type=between_tools and pass it through (#2771)
+c31867e0 fix(orchestrator): let a channel opt 429 into same-channel retry (#2668)
+859a0dd0 feat(minimax): suggest Flash and M3 while preserving saved models (#2715)
+2851a192 feat(analytics): filter by a second-precision time range (#2775)
+5e81f252 style(analytics): use tabular numerals for numeric cells in usage detail table (#2774)
+3183be2a chore(deps): bump github.com/aws/aws-sdk-go-v2/service/s3 in / (#2769)
+c64a81c8 chore(deps): bump nanoid from 6.0.0 to 6.0.2 in /frontend (#2758)
+d6e638ad fix(gemini): keep tool_calls finish reason across stream chunks (#2713)
+1e45a7af feat(quota): read Ollama Cloud quota with the account API key (#2628)
+8e467537 feat(safeguards): configure Claude Code review policies and system settings (#2777)
+0896305e chore(deps): bump node from 24-alpine to 26-alpine (#2763)
+ec1e65a7 chore(deps): bump use-stick-to-bottom from 1.1.3 to 1.1.6 in /frontend (#2795)
+85b91311 chore(deps): bump github.com/gin-contrib/static in / (#2794)
+29770839 chore(deps): bump tailwind-merge from 3.5.0 to 3.7.0 in /frontend (#2792)
+3f1a99e8 chore(deps): bump github.com/dlclark/regexp2/v2 in / (#2789)
+66d0bedf chore(deps): bump @tabler/icons-react from 3.40.0 to 3.49.0 in /frontend (#2788)
+3d2fb929 chore(deps): bump github.com/openai/openai-go/v3 (#2787)
+cf11a438 chore(deps): bump @vvo/tzdb from 6.198.0 to 6.201.1 in /frontend (#2785)
+44ea3eef chore(deps): bump zod from 4.6.6 to 4.6.7 in /frontend (#2786)
+42235c3c chore(deps): bump github.com/eko/gocache/lib/v4 in / (#2790)
+fc881111 chore(deps): bump github.com/gin-contrib/cors in / (#2793)
+c9c1fb75 chore(deps): bump github.com/eko/gocache/store/go_cache/v4 in / (#2791)
+6c181e01 chore(deps): bump github.com/go-jose/go-jose/v4 from 4.1.4 to 4.1.6 (#2796)
+e5c904ef fix(api-keys): enforce scope grants for service account keys (#2741)
+7313fbc9 chore(*): upgrade deps to resolve security issues (#2811)
+c51972c6 fix(typesafe): unwrap provider result envelopes in responses (#2631) (#2636)
+8cdc33a1 fix(anthropic): carry allowed_callers through the tool conversion (#2504) (#2639)
+9142eb6a feat(channels): support per-channel response timeout override (#2630)
+f272549f docs: add reveric link to the readme
+b9415562 fix(gql): raise the multipart upload cap so large restores work (#2625)
+959cb2f9 chore: sync model developers data (#2829)
+677166b4 feat: add provider quota state change webhook events (#2828)
+73f8c845 chore(deps): bump @google/genai in /integration_test/gemini/node (#2837)
+86e1ecd5 chore(deps): bump @hookform/resolvers from 5.2.2 to 6.0.2 in /frontend (#2835)
+2a8ccea3 chore(deps): bump google.golang.org/genai in /integration_test/gemini (#2836)
+db5fd803 chore(deps): bump js-cookie from 3.0.7 to 3.0.8 in /frontend (#2834)
+42040fee chore(deps): bump @radix-ui/react-tabs from 1.1.13 to 1.2.1 in /frontend (#2833)
+afb08817 chore(deps): bump @radix-ui/react-separator in /frontend (#2832)
+b9844410 fix(openai): preserve explicit image response format (#2838)
+9e8b494d fix(gemini): preserve multipart thought summaries (#2831)
+ab621571 chore(deps): bump github.com/jackc/pgx/v5 in / (#2818)
+832a42a5 chore(deps): bump github.com/aws/aws-sdk-go-v2/config in / (#2816)
+5aed6e45 chore(deps): bump github.com/openai/openai-go/v3 (#2815)
+5c0346e1 chore(deps): bump github.com/redis/go-redis/v9 in / (#2820)
+deaa6b49 fix(gql): preserve dashboard helpers during generation (#2830)
+3227edde fix(anthropic): apply repaired tool input in stream aggregation (#2827)
+ca2809c9 fix(gemini): map blocked finish reasons to content_filter (#2826)
+35eef0e0 feat(overrides): delete fields across request body arrays (#2824)
+5c5da019 chore(deps): bump github.com/aws/aws-sdk-go-v2/credentials in / (#2817)
+aa3a265d fix(gemini): accept GenerateContent field aliases (#2798)
+2b1a0f93 chore(deps): bump github.com/kaptinlin/jsonrepair in / (#2819)
 ```

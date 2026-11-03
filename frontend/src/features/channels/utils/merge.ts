@@ -164,7 +164,12 @@ export function mergeChannelSettingsForUpdate(
       pick('codexSimulation', existing?.codexSimulation ?? null) as CodexSimulationSettings | null,
       hasOwn('codexSimulation')
     ),
+    maxSingleChannelRetries: pick('maxSingleChannelRetries', existing?.maxSingleChannelRetries ?? null),
+
+    responseTimeout: pick('responseTimeout', existing?.responseTimeout ?? null),
     modelProtocols: pick('modelProtocols', existing?.modelProtocols ?? []),
+apiKeyStrategy: pick('apiKeyStrategy', existing?.apiKeyStrategy ?? null),
+    apiKeyRoundRobinSwitchAfter: pick('apiKeyRoundRobinSwitchAfter', existing?.apiKeyRoundRobinSwitchAfter ?? null),
     providerQuota: pick('providerQuota', existing?.providerQuota ?? null),
     quotaRoutingMode: pick('quotaRoutingMode', existing?.quotaRoutingMode ?? undefined),
   };

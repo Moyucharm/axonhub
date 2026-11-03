@@ -23,7 +23,7 @@ import {
   useTestChannelAPIKey,
   useUpdateChannel,
 } from '../data/channels';
-import { TestAPIKeyResult, type Channel } from '../data/schema';
+import { ChannelCredentials, TestAPIKeyResult, type Channel } from '../data/schema';
 import { ChannelAPIKeyPoolPanel } from './channel-api-key-pool-panel';
 
 interface ChannelsAPIKeyManagementDialogProps {
@@ -60,6 +60,9 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
   // 本弹窗独立的 key 列表：基于 currentRow 快照初始化，导入/删除后本地更新，
   // 避免依赖不会随 query 刷新而更新的 currentRow 快照。
   const [localKeys, setLocalKeys] = useState<string[]>([]);
+  // Vertex 密钥是项目绑定的三元组：列表里展示 apiKey，但每次提交都必须把绑定原样带回，
+  // 否则后端整体替换 credentials 时会丢掉 projectID/region。
+  const [vertexBindings, setVertexBindings] = useState<NonNullable<ChannelCredentials['vertexApiKeys']>>([]);
   const abortRef = useRef(false);
 
   const testSingleKey = useTestChannelAPIKey();
@@ -99,7 +102,13 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
   useEffect(() => {
     if (open) {
       setBulkImportText('');
-      setLocalKeys(currentRow?.credentials?.apiKeys ?? []);
+      // Vertex 渠道的三元组密钥存在 vertexApiKeys,平铺密钥存在 apiKeys;
+      // 普通渠道只用平铺 apiKeys。初始化时两个来源都读,避免批量导入时
+      // 只读绑定 key 导致平铺 key 从列表消失。
+      const flatKeys = currentRow?.credentials?.apiKeys ?? [];
+      const boundKeys = (currentRow?.credentials?.vertexApiKeys ?? []).map((binding) => binding.apiKey);
+      setLocalKeys([...flatKeys, ...boundKeys]);
+      setVertexBindings(currentRow?.credentials?.vertexApiKeys ?? []);
       setSelectedKeys(new Set());
       setTestingKey(null);
       setTestResults({});
@@ -117,10 +126,25 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
   if (!currentRow) {
     return null;
   }
+  const isVertexChannel = currentRow.type === 'gemini_vertex';
+
+  // Vertex 密钥只能作为三元组提交：平铺进 apiKeys 会变成没有项目绑定的密钥，
+  // 所以列表里的 Vertex 密钥要从 apiKeys 里排除，绑定则按存活的 key 过滤后原样带回。
+  const buildCredentials = (keys: string[]) => {
+    if (!isVertexChannel) {
+      return { apiKeys: keys };
+    }
+    const boundKeys = new Set(vertexBindings.map((binding) => binding.apiKey));
+    const keptKeys = new Set(keys);
+    return {
+      apiKeys: keys.filter((key) => !boundKeys.has(key)),
+      vertexApiKeys: vertexBindings.filter((binding) => keptKeys.has(binding.apiKey)),
+    };
+  };
 
   const apiKeyCount = currentRow.credentials?.apiKeys?.filter((key) => key.trim().length > 0).length ?? 0;
   const isPool = currentRow.credentials?.mode === 'pool' || apiKeyCount > 1;
-  if (isPool) {
+  if (isPool && !isVertexChannel) {
     return <ChannelAPIKeyPoolPanel channel={currentRow} open={open} onOpenChange={onOpenChange} onChannelChange={onChannelChange} />;
   }
 
@@ -138,8 +162,12 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
     setConfirmDeleteSelected(false);
   };
 
-  /** 批量导入：多行文本，一行一个 key，去重、去空白，追加到渠道 apiKeys */
+  /** 批量导入：多行文本，一行一个 key，去重、去空白，追加到渠道密钥列表 */
   const handleBulkImport = async () => {
+    if (isVertexChannel) {
+      return;
+    }
+
     const newKeys = bulkImportText
       .split('\n')
       .map((k) => k.trim())
@@ -160,9 +188,7 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
       await updateChannel.mutateAsync({
         id: currentRow.id,
         input: {
-          credentials: {
-            apiKeys: [...validKeys, ...deduped],
-          },
+          credentials: buildCredentials([...validKeys, ...deduped]),
         },
       });
       // 本地同步更新，避免依赖不会刷新的 currentRow 快照
@@ -192,12 +218,13 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
     if (active.length > 0) {
       await updateChannel.mutateAsync({
         id: currentRow.id,
-        input: { credentials: { apiKeys: remainingKeys } },
+        input: { credentials: buildCredentials(remainingKeys) },
       });
     }
     // 本地同步更新（disabled 删除走 deleteDisabledAPIKeys 不触发 updateChannel，
     // 但同样要从弹窗列表里移除）
     setLocalKeys(remainingKeys);
+    setVertexBindings((prev) => prev.filter((binding) => !removed.has(binding.apiKey)));
   };
 
   const handleDeleteSingle = async (key: string) => {
@@ -357,8 +384,9 @@ export function ChannelsAPIKeyManagementDialog({ open, onOpenChange, onChannelCh
                 onChange={(e) => setBulkImportText(e.target.value)}
                 placeholder={t('channels.dialogs.keyManagement.importPlaceholder')}
                 className='min-h-[64px] flex-1 font-mono text-xs'
+                disabled={isVertexChannel}
               />
-              <Button onClick={handleBulkImport} disabled={isPending || bulkImportText.trim().length === 0}>
+              <Button onClick={handleBulkImport} disabled={isVertexChannel || isPending || bulkImportText.trim().length === 0}>
                 {updateChannel.isPending ? <IconLoader2 className='mr-2 h-4 w-4 animate-spin' /> : <IconUpload className='mr-2 h-4 w-4' />}
                 {t('channels.dialogs.keyManagement.importButton')}
               </Button>

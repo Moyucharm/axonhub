@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { CHANNEL_CONFIGS, getChannelColor, getChannelEffectiveApiFormat } from '../data/config_channels';
 import { useChannelDetails } from '../data/channels';
+import { getEffectiveResponsesFormats } from '../data/protocol-options';
 import { Channel } from '../data/schema';
 import { getChannelAPIKeySummary } from '../utils/key-pool';
 
@@ -19,6 +20,7 @@ export const ChannelExpandedRow = memo(({ channel: listChannel, columnsLength, g
   const channel = detailedChannel ?? listChannel;
   const config = CHANNEL_CONFIGS[channel.type];
   const { total, enabled, disabled, isPool } = getChannelAPIKeySummary(channel);
+  const responsesFormats = config?.apiFormat === 'openai/responses' ? getEffectiveResponsesFormats(channel) : [];
 
   return (
     <div className='bg-muted/30 p-6 hover:bg-muted/50'>
@@ -39,7 +41,9 @@ export const ChannelExpandedRow = memo(({ channel: listChannel, columnsLength, g
               </div>
               <div className='flex items-center justify-between'>
                 <span className='text-muted-foreground'>{t('channels.expandedRow.apiFormat')}:</span>
-                <span className='font-mono text-xs'>{getApiFormatLabel(getChannelEffectiveApiFormat(channel))}</span>
+                <span className='font-mono text-xs'>
+                  {responsesFormats.length > 0 ? responsesFormats.map(getApiFormatLabel).join(', ') : getApiFormatLabel(getChannelEffectiveApiFormat(channel))}
+                </span>
               </div>
               <div className='flex justify-between'>
                 <span className='text-muted-foreground'>{t('common.columns.createdAt')}:</span>

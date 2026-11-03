@@ -49,13 +49,13 @@ func migrateLegacyChannelTypes(ctx context.Context, dbDialect string, db *sql.DB
 func tableExists(ctx context.Context, dbDialect string, db *sql.DB, table string) (bool, error) {
 	var query string
 
-	switch dbDialect {
-	case dialect.SQLite:
+	switch dialectFamily(dbDialect) {
+	case "sqlite":
 		query = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
 	case dialect.MySQL:
 		query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?"
 	case dialect.Postgres:
-		query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1"
+		query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ANY(current_schemas(false)) AND table_name = $1"
 	default:
 		return false, fmt.Errorf("unsupported database dialect %q", dbDialect)
 	}

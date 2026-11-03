@@ -27,11 +27,27 @@ func TestChannelEndpoint_TypesafeStrictness(t *testing.T) {
 
 	// 3. Non-typesafe channels may expose a Jev-compatible typesafe/systemone endpoint.
 	openaiWithSystemOne := []objects.ChannelEndpoint{
+		{APIFormat: llm.APIFormatOpenAIChatCompletion.String()},
 		{APIFormat: llm.APIFormatTypeSafeSystemOne.String()},
 	}
 	require.NoError(t, validateEndpointsForChannelType(channel.TypeOpenai, openaiWithSystemOne))
 
-	// 4. Default endpoints for TypeSafe channel must only be typesafe/systemone
+	// 4. Cloudflare channel type with typesafe/systemone endpoint should PASS
+	cloudflareWithSystemOne := []objects.ChannelEndpoint{
+		{APIFormat: llm.APIFormatOpenAIChatCompletion.String()},
+		{APIFormat: llm.APIFormatTypeSafeSystemOne.String()},
+	}
+	require.NoError(t, validateEndpointsForChannelType(channel.TypeCloudflare, cloudflareWithSystemOne))
+
+	// 5. Self-hosted channels retain generic Jev-compatible endpoints.
+	anthropicWithSystemOne := []objects.ChannelEndpoint{
+		{APIFormat: llm.APIFormatAnthropicMessage.String()},
+		{APIFormat: llm.APIFormatTypeSafeSystemOne.String()},
+	}
+	err = validateEndpointsForChannelType(channel.TypeAnthropic, anthropicWithSystemOne)
+	require.NoError(t, err)
+
+	// 6. Default endpoints for TypeSafe channel must only be typesafe/systemone
 	defaults := DefaultEndpointsForChannelType(channel.TypeTypesafe)
 	require.Len(t, defaults, 1)
 	require.Equal(t, llm.APIFormatTypeSafeSystemOne.String(), defaults[0].APIFormat)

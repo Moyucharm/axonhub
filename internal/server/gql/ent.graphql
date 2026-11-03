@@ -1335,6 +1335,7 @@ enum ChannelType @goModel(model: "github.com/looplj/axonhub/internal/ent/channel
   commandcode
   commandcode_anthropic
   typesafe
+  cloudflare
 }
 """
 ChannelWhereInput is used for filtering Channel objects.
@@ -3783,7 +3784,6 @@ enum ProviderQuotaStatusProviderType @goModel(model: "github.com/looplj/axonhub/
   github_copilot
   nanogpt
   cline
-  wafer
   synthetic
   neuralwatt
   apertis

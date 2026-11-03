@@ -245,6 +245,10 @@ func (svc *ChannelService) ImportChannelAPIKeys(ctx context.Context, channelID i
 			return nil, fmt.Errorf("cannot import API keys for OAuth channels")
 		}
 
+		if ch.Type == channel.TypeGeminiVertex {
+			return nil, fmt.Errorf("Vertex API keys must be configured with their project and region bindings")
+		}
+
 		credentials := cloneChannelCredentials(ch.Credentials)
 		credentials.APIKeys = slices.Clone(credentials.GetAllAPIKeys())
 		credentials.APIKey = ""
@@ -421,6 +425,10 @@ func (svc *ChannelService) DeleteDisabledAPIKeys(ctx context.Context, channelID 
 			_, remove := keysToRemove[key]
 			return remove
 		})
+		credentials.VertexAPIKeys = lo.Reject(credentials.VertexAPIKeys, func(binding objects.VertexAPIKey, _ int) bool {
+			_, remove := keysToRemove[binding.APIKey]
+			return remove
+		})
 		credentials.APIKeyStates = lo.Reject(credentials.APIKeyStates, func(state objects.ChannelAPIKeyState, _ int) bool {
 			_, requestedKey := matched[state.Key]
 			return requestedKey
@@ -523,6 +531,9 @@ func (svc *ChannelService) recordAPIKeyFailure(
 			if credentials.APIKey == key {
 				credentials.APIKey = ""
 			}
+			credentials.VertexAPIKeys = lo.Reject(credentials.VertexAPIKeys, func(binding objects.VertexAPIKey, _ int) bool {
+				return binding.APIKey == key
+			})
 			credentials.APIKeyStates = lo.Reject(credentials.APIKeyStates, func(candidate objects.ChannelAPIKeyState, _ int) bool {
 				return candidate.Key == key
 			})

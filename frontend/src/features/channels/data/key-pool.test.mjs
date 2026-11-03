@@ -21,7 +21,8 @@ test('key pool schema and GraphQL hooks cover managed key behavior', () => {
     assert.match(data, new RegExp(operation), `${operation} should be wired in the channel data layer`);
   }
 
-  const updateMutation = data.match(/const UPDATE_CHANNEL_MUTATION = `([\s\S]*?)`;/)?.[1] ?? '';
+  const updateMutation = (data.match(/const UPDATE_CHANNEL_MUTATION = `([\s\S]*?)`;/)?.[1] ?? '') +
+    (data.match(/const CHANNEL_FIELDS_FRAGMENT = `([\s\S]*?)`;/)?.[1] ?? '');
   for (const field of ['credentials', 'apiKeyPool', 'bodyOverrideOperations', 'headerOverrideOperations', 'rateLimit']) {
     assert.match(updateMutation, new RegExp(`\\b${field}\\b`), `updateChannel must return ${field} for snapshot replacement`);
   }

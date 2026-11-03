@@ -49,7 +49,8 @@ export interface ChannelAPIKeySummary {
  */
 export function getChannelAPIKeySummary(channel?: Pick<Channel, 'credentials' | 'disabledAPIKeys'>): ChannelAPIKeySummary {
   const credentials = channel?.credentials;
-  const allKeys = (credentials?.apiKeys ?? []).filter((key) => key.trim().length > 0);
+  const allKeys = [...new Set([...(credentials?.apiKeys ?? []), ...(credentials?.vertexApiKeys ?? []).map((binding) => binding.apiKey)])]
+    .filter((key) => key.trim().length > 0);
   const total = allKeys.length;
   const disabled = channel?.disabledAPIKeys?.length ?? 0;
   const enabled = Math.max(0, total - disabled);

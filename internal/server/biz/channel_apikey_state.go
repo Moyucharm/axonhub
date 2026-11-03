@@ -62,6 +62,7 @@ func shouldRecoverAPIKeyExhaustedChannel(
 func cloneChannelCredentials(credentials objects.ChannelCredentials) objects.ChannelCredentials {
 	cloned := credentials
 	cloned.APIKeys = slices.Clone(credentials.APIKeys)
+	cloned.VertexAPIKeys = slices.Clone(credentials.VertexAPIKeys)
 	cloned.APIKeyStates = slices.Clone(credentials.APIKeyStates)
 	return cloned
 }

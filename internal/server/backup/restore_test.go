@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -42,7 +43,7 @@ func TestBackupService_Restore_SystemConfigs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{IncludeSystemConfigs: true})
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{IncludeSystemConfigs: true})
 	require.NoError(t, err)
 
 	retryPolicy, err := client.System.Query().Where(system.KeyEQ(biz.SystemKeyRetryPolicy)).Only(ctx)
@@ -113,7 +114,7 @@ func TestBackupService_Restore_NormalizesLegacyChannelTypes(t *testing.T) {
 					})
 					require.NoError(t, err)
 
-					err = service.Restore(ctx, data, RestoreOptions{
+					err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 						IncludeChannels:         true,
 						ChannelConflictStrategy: strategy.conflict,
 					})
@@ -153,7 +154,7 @@ func TestBackupService_Restore(t *testing.T) {
 	modelsBefore, err := client.Model.Query().Count(ctx)
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		IncludeModelPrices:      true,
@@ -232,7 +233,7 @@ func TestBackupService_Restore_ModelPricesOnly(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         false,
 		IncludeModels:           false,
 		IncludeAPIKeys:          false,
@@ -332,7 +333,7 @@ func TestBackupService_Restore_RemapChannelIDsInModelSettingsAndAPIKeyProfiles(t
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		IncludeAPIKeys:          true,
@@ -406,7 +407,7 @@ func TestBackupService_Restore_RemapChannelIDsInProjectProfiles(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeProjects:         true,
 		IncludeChannels:         true,
 		ProjectConflictStrategy: ConflictStrategyOverwrite,
@@ -491,7 +492,7 @@ func TestBackupService_Restore_NewData(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		IncludeModelPrices:      true,
@@ -573,7 +574,7 @@ func TestBackupService_Restore_UpdateExisting(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		IncludeModelPrices:      true,
@@ -619,7 +620,7 @@ func TestBackupService_Restore_InvalidJSON(t *testing.T) {
 
 	invalidData := []byte("invalid json")
 
-	err := service.Restore(ctx, invalidData, RestoreOptions{
+	err := service.Restore(ctx, bytes.NewReader(invalidData), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		ChannelConflictStrategy: ConflictStrategyOverwrite,
@@ -641,7 +642,7 @@ func TestBackupService_Restore_InvalidVersion(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:         true,
 		IncludeModels:           true,
 		ChannelConflictStrategy: ConflictStrategyOverwrite,
@@ -685,7 +686,7 @@ func TestBackupService_Restore_ModelPriceConflictStrategy_Skip(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:            false,
 		IncludeModels:              false,
 		IncludeAPIKeys:             false,
@@ -739,7 +740,7 @@ func TestBackupService_Restore_ModelPriceConflictStrategy_Overwrite(t *testing.T
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:            false,
 		IncludeModels:              false,
 		IncludeAPIKeys:             false,
@@ -793,7 +794,7 @@ func TestBackupService_Restore_ModelPriceConflictStrategy_Error(t *testing.T) {
 	data, err := json.MarshalIndent(backupData, "", "  ")
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeChannels:            false,
 		IncludeModels:              false,
 		IncludeAPIKeys:             false,
@@ -826,7 +827,7 @@ func TestBackupService_Restore_UsageStats(t *testing.T) {
 	_, err = client.Request.Delete().Exec(ctx)
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeUsageStats: true,
 	})
 	require.NoError(t, err)
@@ -852,7 +853,7 @@ func TestBackupService_Restore_UsageStats(t *testing.T) {
 	require.Equal(t, ak.ID, restoredRequest.APIKeyID)
 	require.JSONEq(t, `{}`, string(restoredRequest.RequestBody))
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeUsageStats: true,
 	})
 	require.NoError(t, err)
@@ -890,7 +891,7 @@ func TestBackupService_Restore_UsageStatsWithRequestLogs(t *testing.T) {
 	_, err = client.Request.Delete().Exec(ctx)
 	require.NoError(t, err)
 
-	err = service.Restore(ctx, data, RestoreOptions{
+	err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{
 		IncludeUsageStats:  true,
 		IncludeRequestLogs: true,
 	})

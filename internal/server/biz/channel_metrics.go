@@ -562,6 +562,9 @@ func (svc *ChannelService) RecordPerformance(ctx context.Context, perf *Performa
 				}
 			}
 		}
+		if !perf.SkipAutoDisable {
+			svc.onAPIKeySuccess(perf.ChannelID, perf.APIKey)
+		}
 	} else if !perf.Canceled && !perf.SkipAutoDisable {
 		policy := svc.SystemService.RetryPolicyOrDefault(ctx)
 

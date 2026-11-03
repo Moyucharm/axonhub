@@ -279,3 +279,28 @@ test('more than five normalized limits expose the remaining rows for expansion',
   assert.match(columns, /const visibleLimits = isExpanded \? limits : limits\.slice\(0, QUOTA_VISIBLE_LIMIT\)/);
   assert.match(columns, /const hiddenCount = limits\.length - QUOTA_VISIBLE_LIMIT/);
 });
+
+test('the search quota reaches the table with its production label', () => {
+  assert.match(
+    columnsSource,
+    /search_hourly:\s*'quota\.window\.search_hourly'/,
+    'the table must map the search window through the production label map'
+  );
+
+  const limits = parseQuotaLimits({
+    _limits: [{ type: 'search', window: 'search_hourly', status: 'available', ready: true, usageRatio: 0.4 }],
+  });
+  assert.deepEqual(
+    limits.map(({ type, window, usageRatio }) => ({ type, window, usageRatio })),
+    [{ type: 'search', window: 'search_hourly', usageRatio: 0.4 }]
+  );
+});
+
+test('preserves the self-hosted fixed-width channel layout', () => {
+  const tableSource = read('features/channels/components/channels-table.tsx');
+  const columnsSource = read('features/channels/components/channels-columns.tsx');
+  assert.match(tableSource, /overflow-x-hidden/);
+  assert.match(tableSource, /table-fixed/);
+  assert.match(columnsSource, /hidden w-\[13%\] min-w-0 2xl:table-cell/);
+  assert.match(columnsSource, /w-\[20%\] min-w-0 max-w-none/);
+});

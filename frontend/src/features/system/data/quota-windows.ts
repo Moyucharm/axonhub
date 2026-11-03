@@ -13,7 +13,6 @@ import type {
   ProviderSyntheticQuotaData,
   ProviderNeuralWattQuotaData,
   ProviderApertisQuotaData,
-  ProviderWaferQuotaData,
   ProviderMinimaxQuotaData,
   ProviderZhipuQuotaData,
   ProviderKimiCodeQuotaData,
@@ -424,21 +423,6 @@ export function getChannelQuotaWindows(channel: ProviderQuotaChannel, t: TFuncti
         tooltipExtras: extras,
       });
     }
-  } else if (isOpenaiType(channel.type) && channel.providerType === 'wafer') {
-    const qd = channel.quotaStatus.quotaData as ProviderWaferQuotaData;
-    const usedPct = qd.current_period_used_percent ?? 0;
-    const usedRequests = (qd.included_request_limit ?? 0) - (qd.remaining_included_requests ?? 0);
-    const totalRequests = qd.included_request_limit ?? 0;
-    const extras: string[] = [`${usedRequests} / ${totalRequests}`];
-    if (qd.window_end) extras.push(formatTimeToReset(qd.window_end, t, usedPct));
-    windows.push({
-      id: 'wafer-usage',
-      kind: 'monthly',
-      shortLabelKey: PERIOD_SHORT_LABELS.monthly,
-      fullLabelKey: 'quota.label.requests',
-      percent: Math.round(usedPct),
-      tooltipExtras: extras,
-    });
   } else if (isOpenaiType(channel.type) && channel.providerType === 'synthetic') {
     const qd = channel.quotaStatus.quotaData as ProviderSyntheticQuotaData;
     if (qd.weeklyTokenLimit) {

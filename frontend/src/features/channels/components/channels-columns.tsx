@@ -66,6 +66,10 @@ const MAX_WEIGHT = 100;
 const QUOTA_VISIBLE_LIMIT = 5;
 
 const QUOTA_WINDOW_LABEL_KEYS: Record<string, string> = {
+  gemini_5h: 'quota.window.gemini_5h',
+  gemini_7d: 'quota.window.gemini_7d',
+  claude_gpt_5h: 'quota.window.claude_gpt_5h',
+  claude_gpt_7d: 'quota.window.claude_gpt_7d',
   '5h': 'quota.window.5h',
   '7d': 'quota.window.7d',
   '30d': 'quota.window.30d',
@@ -76,6 +80,7 @@ const QUOTA_WINDOW_LABEL_KEYS: Record<string, string> = {
   credits: 'quota.label.credits_remaining',
   cycle: 'quota.window.cycle',
   overage: 'quota.label.overage_window',
+  search_hourly: 'quota.window.search_hourly',
 };
 
 function getQuotaLimits(channel: Channel) {
@@ -623,7 +628,9 @@ const QuotaCell = memo(({ row }: { row: Row<Channel> }) => {
         const accountLabel = limit.account ? ` · ${limit.account}` : '';
         return (
           <div key={`${label}-${index}`} className='flex min-w-0 items-center gap-1'>
-            <span className='text-muted-foreground w-20 shrink-0 truncate text-left'>{`${label}${accountLabel}`}</span>
+            <span className='text-muted-foreground w-28 shrink-0 truncate text-left' title={`${label}${accountLabel}`}>
+              {`${label}${accountLabel}`}
+            </span>
             <div className='bg-muted h-1.5 min-w-0 flex-1 overflow-hidden rounded-full'>
               <div
                 className={`h-full ${remaining <= 20 ? 'bg-red-500' : remaining <= 50 ? 'bg-yellow-500' : 'bg-green-500'}`}
@@ -1025,7 +1032,7 @@ export const createColumns = (
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('channels.columns.provider')} className='justify-center' />,
       cell: ProviderCell,
       meta: {
-         className: 'w-[9%] min-w-0 text-center',
+        className: 'w-[9%] min-w-0 text-center',
       },
       filterFn: (row, _id, value) => {
         return value.includes(row.original.type);
@@ -1038,7 +1045,7 @@ export const createColumns = (
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.columns.status')} className='justify-center' />,
       cell: StatusSwitchCell,
       meta: {
-         className: 'w-[8%] min-w-0 text-center',
+        className: 'w-[8%] min-w-0 text-center',
       },
       enableSorting: true,
       enableHiding: false,
@@ -1049,7 +1056,7 @@ export const createColumns = (
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('channels.columns.quota')} className='justify-center' />,
       cell: QuotaCell,
       meta: {
-         className: 'hidden w-[13%] min-w-0 2xl:table-cell text-center',
+        className: 'hidden w-[13%] min-w-0 2xl:table-cell text-center',
       },
       enableSorting: false,
       enableHiding: true,
@@ -1088,7 +1095,7 @@ export const createColumns = (
       ),
       cell: SupportedModelsCell,
       meta: {
-         className: 'w-[20%] min-w-0 max-w-none text-center',
+        className: 'w-[20%] min-w-0 max-w-none text-center',
       },
       enableSorting: false,
     },
