@@ -670,8 +670,9 @@ func (filter cpaStatusFilter) matches(view *CPACredentialView) bool {
 	return false
 }
 
-// cpaQuotaCooldown reports whether any quota window is exhausted and still
-// cooling down at now. Windows whose reset time already passed are ignored:
+// cpaQuotaCooldown reports whether quota exhaustion blocks the credential at
+// now. Independent model pools must all be exhausted to block the credential.
+// Windows whose reset time already passed are ignored:
 // they recovered server-side and only await the next successful refresh.
 func cpaQuotaCooldown(snapshot objects.CPAQuotaSnapshot, now time.Time) (bool, *time.Time) {
 	cooling, until, _ := cpaQuotaCooldownDetail(snapshot, now)
@@ -690,6 +691,30 @@ func cpaAutoManageQuotaCooldownDetail(snapshot objects.CPAQuotaSnapshot, now tim
 }
 
 func cpaQuotaCooldownDetailFor(snapshot objects.CPAQuotaSnapshot, now time.Time, ignoreFiveHour bool) (bool, *time.Time, *objects.CPAQuotaItem) {
+	if snapshot.IndependentGroups {
+		groups := make(map[string][]objects.CPAQuotaItem)
+		for _, item := range snapshot.Items {
+			groups[item.Group] = append(groups[item.Group], item)
+		}
+		var exhaustedItem *objects.CPAQuotaItem
+		var until *time.Time
+		for _, items := range groups {
+			cooling, reset, item := cpaQuotaCooldownDetailFor(objects.CPAQuotaSnapshot{Items: items}, now, ignoreFiveHour)
+			if !cooling {
+				return false, nil, nil
+			}
+			if exhaustedItem == nil {
+				exhaustedItem = item
+			}
+			// Any recovered model pool restores availability, so a finite
+			// reset takes precedence over another pool's indefinite cooldown.
+			if reset != nil && (until == nil || reset.Before(*until)) {
+				until, exhaustedItem = reset, item
+			}
+		}
+		return exhaustedItem != nil, until, exhaustedItem
+	}
+
 	var cooling bool
 	var until *time.Time
 	var indefinite bool

@@ -54,7 +54,7 @@ function QuotaSummaryCell({ credential }: { credential: CPACredential }) {
   if (stateText) return <span>{stateText}</span>;
   if (credential.quotaState === 'error') return <span>{t('cpa.quota.error')}</span>;
   if (credential.quotaData.items.length === 0) return <span>—</span>;
-  return <QuotaSummaryCapsule items={credential.quotaData.items} fallback={<span>—</span>} />;
+  return <QuotaSummaryCapsule items={credential.quotaData.items} provider={credential.provider} fallback={<span>—</span>} />;
 }
 
 function CredentialCooldownBadge({ credential }: { credential: CPACredential }) {

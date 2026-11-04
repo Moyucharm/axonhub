@@ -109,6 +109,9 @@ func TestQuotaAdaptersRouteEveryRequestThroughCPA(t *testing.T) {
 			if len(expected) > 0 {
 				t.Fatalf("%s missing windows: %v", input.Provider, expected)
 			}
+			if got, want := result.Snapshot.IndependentGroups, input.Provider == "antigravity"; got != want {
+				t.Fatalf("%s independent quota groups = %v, want %v", input.Provider, got, want)
+			}
 			if input.Provider == "claude" {
 				// Model-scoped sub-limits must stay display-only: their percentage
 				// cannot be paired with the credential-wide cost aggregate.

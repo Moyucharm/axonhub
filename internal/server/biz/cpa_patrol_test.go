@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -334,6 +335,59 @@ func TestCPADisabledPatrolRecoversAndSyncsWithOneClient(t *testing.T) {
 	require.Equal(t, int32(1), listCalls.Load())
 	updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
 	require.False(t, updated.Disabled)
+}
+
+func TestCPAAntigravityPatrolKeepsAvailableModelGroups(t *testing.T) {
+	for _, disabled := range []bool{false, true} {
+		name := "enabled credential is not disabled"
+		if disabled {
+			name = "disabled credential recovers with one available group"
+		}
+		t.Run(name, func(t *testing.T) {
+			var openCalls, patchCalls atomic.Int32
+			managementClient := &cpaTestManagementClient{
+				callProvider: func(_ context.Context, call cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+					body := `{}`
+					if strings.Contains(call.URL, "retrieveUserQuotaSummary") {
+						body = `{"groups":[{"displayName":"Claude and GPT models","buckets":[{"bucketId":"claude-weekly","window":"weekly","remainingFraction":0.97}]},{"displayName":"Gemini Models","buckets":[{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.99}]},{"displayName":"Gemini 4 Argon","buckets":[{"bucketId":"argon-weekly","window":"weekly","remainingFraction":0}]}]}`
+					}
+					return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(body)}, nil
+				},
+				patchAuthFileStatus: func(_ context.Context, name, authIndex string, newDisabled bool) error {
+					patchCalls.Add(1)
+					require.Equal(t, "agy.json", name)
+					require.Equal(t, "agy-auth", authIndex)
+					require.False(t, newDisabled, "partially exhausted Antigravity must never be disabled")
+					return nil
+				},
+				listCredentials: func(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error) {
+					return &cpaclient.AuthFilesResponse{Files: []cpaclient.AuthFile{{
+						AuthIndex: "agy-auth", Name: "agy.json", Type: "antigravity", Status: "active", ProjectID: "project",
+					}}}, cpaclient.BuildInfo{}, nil
+				},
+			}
+			ctx, svc, instance, credential := setupCPAPatrolTest(t, disabled, managementClient, &openCalls)
+			svc.entFromContext(ctx).CPACredential.UpdateOne(credential).
+				SetExternalKey("agy-auth").SetProvider("antigravity").
+				SetAuthIndex("agy-auth").SetRemoteName("agy.json").
+				SetQuotaContext(objects.CPAQuotaContext{ProjectID: "project"}).ExecX(ctx)
+
+			if disabled {
+				svc.patrolInstanceDisabled(ctx, instance)
+				require.Equal(t, int32(1), patchCalls.Load())
+			} else {
+				svc.patrolInstanceEnabled(ctx, instance)
+				require.Zero(t, patchCalls.Load())
+			}
+			updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
+			require.False(t, updated.Disabled)
+			require.False(t, updated.QuotaCooling)
+			require.Nil(t, updated.QuotaCooldownUntil)
+			require.True(t, updated.QuotaData.IndependentGroups, "group semantics must survive persistence and sync")
+			require.Len(t, updated.QuotaData.Items, 3)
+			require.True(t, buildCPACredentialView(instance, updated, svc.now()).Available)
+		})
+	}
 }
 
 func setupCPAPatrolTest(

@@ -73,7 +73,7 @@ export function CPACredentialDetailDialog({
               </TabsList>
               <TabsContent value='quota' className='min-h-0 overflow-y-auto'>
                 {credential.quotaData.items.length > 0 ? (
-                  <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale)} />
+                  <QuotaWindowsBlock windows={cpaQuotaItemsToWindows(credential.quotaData.items, t, locale, credential.provider)} />
                 ) : (
                   <p className='text-muted-foreground text-sm'>{quotaStateText(credential, t)}</p>
                 )}

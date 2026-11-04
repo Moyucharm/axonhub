@@ -1,7 +1,7 @@
 // CPA quota window adapter: maps backend-normalized CPA quota items onto the
 // shared capsule window model (lib/quota-types.ts) so the CPA page can reuse
-// QuotaCapsule / QuotaWindowsBlock verbatim, ordered shortest period first for
-// the summary cell (shortGroupLabel supplies its pool chips).
+// QuotaCapsule / QuotaWindowsBlock verbatim, preferring weekly windows for
+// Antigravity and shortest periods otherwise (shortGroupLabel supplies pool chips).
 //
 // This module must stay loadable under bare `node --test`, so it imports from
 // ./data only via `import type` (stripped by Node's type stripping) and uses a
@@ -42,15 +42,15 @@ export function cpaWindowKind(item: CpaWindowLike): QuotaWindowKind {
   return 'other';
 }
 
-// Projects CPA quota items onto the shared capsule window model, sorted
-// shortest period first (ties broken alphabetically) so the summary cell's
-// inline budget always holds the shortest windows.
+// Projects CPA quota items onto the shared capsule window model. Antigravity
+// prioritizes weekly pools; other providers keep shortest-period-first order.
+// Ties are broken alphabetically.
 //
 // Items without any computable percentage (both usedPercent and
 // remainingPercent are null — e.g. a "Monthly balance" of 0/0 cents) carry no
 // renderable usage info, so they are skipped instead of being shown as a
 // misleading full remaining bar.
-export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, locale = 'en-US'): QuotaWindowItem[] {
+export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, locale = 'en-US', provider?: string): QuotaWindowItem[] {
   const windows = items.flatMap((item) => {
     if (item.usedPercent == null && item.remainingPercent == null) return [];
     const usedPct = item.usedPercent ?? (item.remainingPercent != null ? 100 - item.remainingPercent : 0);
@@ -87,7 +87,12 @@ export function cpaQuotaItemsToWindows(items: CPAQuotaItem[], t: TFunction, loca
       },
     ];
   });
-  return windows.sort(compareQuotaWindows);
+  return windows.sort((a, b) => {
+    if (provider === 'antigravity' && (a.kind === 'weekly') !== (b.kind === 'weekly')) {
+      return a.kind === 'weekly' ? -1 : 1;
+    }
+    return compareQuotaWindows(a, b);
+  });
 }
 
 export function getQuotaWindowDuration(window: QuotaWindowItem): number {

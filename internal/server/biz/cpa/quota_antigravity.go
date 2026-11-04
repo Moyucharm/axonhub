@@ -119,7 +119,7 @@ func (antigravityQuotaAdapter) Fetch(ctx context.Context, client ManagementClien
 	return QuotaResult{
 		State:    objects.CPAQuotaStateSuccess,
 		PlanType: planType,
-		Snapshot: objects.CPAQuotaSnapshot{Items: items},
+		Snapshot: objects.CPAQuotaSnapshot{Items: items, IndependentGroups: true},
 	}, nil
 }
 

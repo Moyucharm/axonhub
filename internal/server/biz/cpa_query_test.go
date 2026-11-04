@@ -206,6 +206,113 @@ func TestCPAQuotaCooldownCombinations(t *testing.T) {
 	}
 }
 
+func TestCPAIndependentQuotaGroups(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	soon, later := now.Add(time.Hour), now.Add(24*time.Hour)
+	passed := now.Add(-time.Hour)
+	exhausted, available := 100.0, 3.0
+	fiveHour, weekly := objects.CPAFiveHourPeriodSeconds, objects.CPAWeeklyPeriodSeconds
+
+	tests := []struct {
+		name      string
+		items     []objects.CPAQuotaItem
+		cooling   bool
+		auto      bool
+		wantUntil *time.Time
+	}{
+		{
+			name: "Argon exhausted but Claude and Gemini remain available",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude and GPT models", PeriodSeconds: &fiveHour, UsedPercent: &available, ResetAt: &soon},
+				{Group: "Claude and GPT models", PeriodSeconds: &weekly, UsedPercent: &available, ResetAt: &later},
+				{Group: "Gemini Models", PeriodSeconds: &fiveHour, UsedPercent: &available, ResetAt: &soon},
+				{Group: "Gemini Models", PeriodSeconds: &weekly, UsedPercent: &available, ResetAt: &later},
+				{Group: "Gemini 4 Argon", PeriodSeconds: &weekly, UsedPercent: &exhausted, ResetAt: &later},
+			},
+		},
+		{
+			name: "all groups weekly exhausted despite available five hour windows",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", PeriodSeconds: &fiveHour, UsedPercent: &available, ResetAt: &soon},
+				{Group: "Claude", PeriodSeconds: &weekly, UsedPercent: &exhausted, ResetAt: &later},
+				{Group: "Gemini", PeriodSeconds: &weekly, UsedPercent: &exhausted, ResetAt: &soon},
+			},
+			cooling: true, auto: true, wantUntil: &soon,
+		},
+		{
+			name: "five hour exhaustion in one group cannot trigger auto disable",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", PeriodSeconds: &fiveHour, UsedPercent: &exhausted, ResetAt: &soon},
+				{Group: "Gemini", PeriodSeconds: &weekly, UsedPercent: &exhausted, ResetAt: &later},
+			},
+			cooling: true, wantUntil: &soon,
+		},
+		{
+			name: "one recovered group restores availability",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", UsedPercent: &exhausted, ResetAt: &passed},
+				{Group: "Gemini", UsedPercent: &exhausted, ResetAt: &later},
+			},
+		},
+		{
+			name: "finite group reset overrides another indefinite group",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", UsedPercent: &exhausted},
+				{Group: "Gemini", UsedPercent: &exhausted, ResetAt: &soon},
+			},
+			cooling: true, auto: true, wantUntil: &soon,
+		},
+		{
+			name: "indefinite window still blocks its own group",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", UsedPercent: &exhausted},
+				{Group: "Claude", UsedPercent: &exhausted, ResetAt: &soon},
+				{Group: "Gemini", UsedPercent: &exhausted, ResetAt: &later},
+			},
+			cooling: true, auto: true, wantUntil: &later,
+		},
+		{
+			name: "all groups indefinitely exhausted",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", UsedPercent: &exhausted},
+				{Group: "Gemini", UsedPercent: &exhausted},
+			},
+			cooling: true, auto: true,
+		},
+		{
+			name: "display only exhausted group cannot gate availability",
+			items: []objects.CPAQuotaItem{
+				{Group: "Claude", UsedPercent: &exhausted, DisplayOnly: true},
+				{Group: "Gemini", UsedPercent: &exhausted, ResetAt: &later},
+			},
+		},
+		{name: "empty snapshot"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := objects.CPAQuotaSnapshot{Items: tt.items, IndependentGroups: true}
+			cooling, until, item := cpaQuotaCooldownDetail(snapshot, now)
+			require.Equal(t, tt.cooling, cooling)
+			require.Equal(t, tt.wantUntil, until)
+			require.Equal(t, tt.cooling, item != nil)
+
+			projection := projectCPACredential("test", "active", false, false, objects.CPAQuotaStateSuccess, snapshot, now)
+			require.Equal(t, tt.cooling, projection.quotaCooling)
+			require.Equal(t, tt.wantUntil, projection.quotaCooldownUntil)
+
+			credential := &ent.CPACredential{QuotaState: string(objects.CPAQuotaStateSuccess), QuotaData: snapshot}
+			decision := decideCPAAutomation(credential, now)
+			require.Equal(t, tt.auto, decision.action == cpaAutomationDisable)
+			require.Equal(t, tt.auto, decision.exhaustedItem != nil)
+			credential.Disabled = true
+			require.Equal(t, !tt.cooling, decideCPAAutomation(credential, now).action == cpaAutomationEnable)
+		})
+	}
+}
+
 func TestCPAAutoManageQuotaCooldownIgnoresFiveHour(t *testing.T) {
 	t.Parallel()
 

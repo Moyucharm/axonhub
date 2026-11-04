@@ -4,10 +4,9 @@ import { EstimateBadge, QuotaCapsule, QuotaMorePopover } from '@/components/quot
 import { cpaQuotaItemsToWindows, shortGroupLabel } from '@/features/cpa/quota-windows';
 import type { CPAQuotaItem } from '../types';
 
-// Compact quota cell for the CPA credential table. The adapter already orders
-// windows shortest period first, so the two-bar inline budget always shows the
-// tightest windows (Codex 5h before 7d, Antigravity 5h pools before 7d pools)
-// and everything past the budget goes into the +N overflow popover.
+// Compact quota cell for the CPA credential table. The adapter prioritizes
+// Antigravity's 7d pools, otherwise showing shortest periods first (Codex 5h
+// before 7d). Everything past the budget goes into the +N overflow popover.
 // Rows are stacked:
 //   - 1 window       -> single plain capsule (no pool chip)
 //   - <=2 windows    -> one bar per window, all visible
@@ -19,10 +18,10 @@ import type { CPAQuotaItem } from '../types';
 // hosts the estimate badge and/or the inline +N overflow button at the right edge.
 const MAX_INLINE_WINDOWS = 2;
 
-export function QuotaSummaryCapsule({ items, fallback = null }: { items: CPAQuotaItem[]; fallback?: ReactNode }) {
+export function QuotaSummaryCapsule({ items, provider, fallback = null }: { items: CPAQuotaItem[]; provider: string; fallback?: ReactNode }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === 'zh' ? 'zh-CN' : 'en-US';
-  const windows = cpaQuotaItemsToWindows(items, t, locale);
+  const windows = cpaQuotaItemsToWindows(items, t, locale, provider);
   if (windows.length === 0) return fallback;
 
   const inline = windows.slice(0, MAX_INLINE_WINDOWS);

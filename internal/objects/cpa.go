@@ -69,6 +69,10 @@ const (
 // CPAQuotaSnapshot stores the normalized, provider-independent quota view.
 type CPAQuotaSnapshot struct {
 	Items []CPAQuotaItem `json:"items,omitempty"`
+	// IndependentGroups means each item Group is an alternative model pool:
+	// the credential is exhausted only when every group is exhausted.
+	// Old snapshots keep their existing semantics until the next refresh.
+	IndependentGroups bool `json:"independent_groups,omitempty"`
 	// ResetCredits mirrors the provider reset cards read together with quota.
 	// They are display data only: every consume is re-validated live first.
 	ResetCredits []CPAQuotaResetCredit `json:"reset_credits,omitempty"`

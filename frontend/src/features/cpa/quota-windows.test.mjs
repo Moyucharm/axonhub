@@ -166,6 +166,46 @@ test('cpaQuotaItemsToWindows orders shortest period first and alphabetically on 
   );
 });
 
+test('Antigravity prioritizes weekly pools without dropping five-hour windows', () => {
+  const items = [
+    { id: 'g-5h', group: 'Gemini Models', label: '5 hour', usedPercent: 0, periodSeconds: 18000 },
+    { id: 'g-7d', group: 'Gemini Models', label: 'Weekly', usedPercent: 1, periodSeconds: 604800 },
+    { id: 'c-5h', group: 'Claude and GPT models', label: '5 hour', usedPercent: 0, periodSeconds: 18000 },
+    { id: 'c-7d', group: 'Claude and GPT models', label: 'Weekly', usedPercent: 3, periodSeconds: 604800 },
+    { id: 'argon-7d', group: 'Gemini 4 Argon', label: 'Weekly', usedPercent: 100, periodSeconds: 604800 },
+  ];
+  const original = structuredClone(items);
+  const windows = cpaQuotaItemsToWindows(items, t, 'en-US', 'antigravity');
+  assert.deepEqual(windows.map((window) => window.id), ['c-7d', 'argon-7d', 'g-7d', 'c-5h', 'g-5h']);
+  assert.equal(windows[1].percent, 100);
+  assert.deepEqual(items, original);
+
+  const summary = read('features/cpa/components/quota-summary-capsule.tsx');
+  const table = read('features/cpa/components/credential-table.tsx');
+  const dialog = read('features/cpa/components/credential-detail-dialog.tsx');
+  assert.match(summary, /cpaQuotaItemsToWindows\(items, t, locale, provider\)/);
+  assert.match(table, /<QuotaSummaryCapsule[^>]*provider=\{credential\.provider\}/);
+  assert.match(dialog, /cpaQuotaItemsToWindows\(credential\.quotaData\.items, t, locale, credential\.provider\)/);
+});
+
+test('Antigravity falls back to five-hour windows when weekly quota is absent', () => {
+  const items = [{ id: 'g-5h', group: 'Gemini Models', label: '5 hour', remainingPercent: 99 }];
+  const windows = cpaQuotaItemsToWindows(items, t, 'en-US', 'antigravity');
+  assert.deepEqual(windows.map((window) => window.id), ['g-5h']);
+  assert.equal(windows[0].percent, 1);
+});
+
+test('weekly priority falls back to labels and does not affect other providers', () => {
+  const items = [
+    { id: '5h', label: '5 hour', usedPercent: 0 },
+    { id: '7d', label: 'Weekly', usedPercent: 3 },
+  ];
+  assert.deepEqual(cpaQuotaItemsToWindows(items, t, 'en-US', 'antigravity').map((window) => window.id), ['7d', '5h']);
+  for (const provider of ['codex', 'claude', 'kimi', 'xai', undefined]) {
+    assert.deepEqual(cpaQuotaItemsToWindows(items, t, 'en-US', provider).map((window) => window.id), ['5h', '7d']);
+  }
+});
+
 test('shortGroupLabel maps known pools to i18n keys and truncates unknown ones', () => {
   assert.equal(shortGroupLabel('Gemini Models', t), 'cpa.quota.group.gemini');
   assert.equal(shortGroupLabel('claude and gpt models', t), 'cpa.quota.group.claude_gpt');
