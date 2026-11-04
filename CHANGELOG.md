@@ -23,9 +23,23 @@
 
 ### Removed
 
-- Removed the dedicated OpenCode Zen channel and its request fingerprint/tool injection. With automatic migration enabled, existing Zen channels are converted to ordinary OpenAI Chat Completions before schema migration; legacy backup restores apply the same conversion. Channel identity, Base URL, models, status, credentials, and unrelated settings are preserved; credential-free channels explicitly retain `public`. OpenCode Go is unchanged.
-
 - Wafer quota monitor removed — Wafer is PAYG-only. Legacy wafer quota rows are purged at startup before schema migration when automatic migration is enabled.
+
+## [v1.0.0-beta12+azusa.v0.6.11] - 2026-11-04
+
+### Fixed
+
+- CPA Antigravity quota and subscription requests now use the official management UI's Hub client identity instead of the obsolete CLI 1.0.13 identity.
+
+### Removed
+
+- Removed the dedicated OpenCode Zen channel, request fingerprinting, tool injection, and forced streaming. OpenCode Go is unchanged.
+
+### Migration
+
+- With automatic database migration enabled, startup converts existing OpenCode Zen channels to ordinary OpenAI Chat Completions before schema migration. Legacy backup restores apply the same conversion.
+- Migration preserves channel identity, Base URL, models, status, configured credentials, and unrelated settings. Existing model protocols are forced to Chat; Responses/Messages custom endpoints are removed. Credential-free channels explicitly retain `public`.
+- Back up the database before upgrading. Ordinary OpenAI requests no longer apply Zen-specific URL rewriting or identity emulation; anonymous free access is not guaranteed.
 
 v0.4.0
 
