@@ -21,6 +21,11 @@ var antigravityQuotaURLs = []string{
 
 const antigravitySubscriptionURL = "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
 
+// Match the official CPA management UI's quota client identity. Cloud Code
+// restricts newer models for clients below Hub 2.23.0, so quota requests must
+// not keep advertising the obsolete CLI 1.0.13 identity.
+const antigravityQuotaUserAgent = "antigravity/hub/2.23.0 darwin/arm64"
+
 type antigravityQuotaAdapter struct{}
 
 func (antigravityQuotaAdapter) Provider() string { return "antigravity" }
@@ -32,7 +37,7 @@ func (antigravityQuotaAdapter) Fetch(ctx context.Context, client ManagementClien
 	headers := map[string]string{
 		"Authorization": "Bearer $TOKEN$",
 		"Content-Type":  "application/json",
-		"User-Agent":    "antigravity/cli/1.0.13 (aidev_client; os_type=darwin; arch=arm64)",
+		"User-Agent":    antigravityQuotaUserAgent,
 	}
 	requestBody, _ := json.Marshal(map[string]string{"project": input.ProjectID})
 
