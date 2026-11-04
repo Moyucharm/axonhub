@@ -391,7 +391,7 @@ func (svc *ChannelService) BulkImportChannels(ctx context.Context, items []*Bulk
 			continue
 		}
 
-		if (item.APIKey == nil || *item.APIKey == "") && channelType != channel.TypeOpencodeZen {
+		if item.APIKey == nil || *item.APIKey == "" {
 			errors = append(errors, fmt.Sprintf("Row %d (%s): API Key is required", i+1, item.Name))
 			failed++
 

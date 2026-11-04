@@ -428,7 +428,7 @@ func TestPopulateAPIFormat_AppliesModelProtocols(t *testing.T) {
 	})
 }
 
-func TestPopulateAPIFormat_OpenCodeZenChannelSelection(t *testing.T) {
+func TestPopulateAPIFormat_ExplicitOpenAIChannelSelection(t *testing.T) {
 	tests := []struct {
 		name       string
 		inbound    llm.APIFormat
@@ -444,7 +444,8 @@ func TestPopulateAPIFormat_OpenCodeZenChannelSelection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ch := &biz.Channel{Channel: &ent.Channel{
-				Type: channel.TypeOpencodeZen,
+				Type:      channel.TypeOpenai,
+				Endpoints: []objects.ChannelEndpoint{{APIFormat: tt.configured.String()}},
 				Settings: &objects.ChannelSettings{ModelProtocols: []objects.ModelProtocol{{
 					Model: tt.actual, APIFormats: []string{tt.configured.String()},
 				}}},

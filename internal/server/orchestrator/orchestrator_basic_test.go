@@ -19,14 +19,15 @@ import (
 	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/server/biz"
+	"github.com/looplj/axonhub/llm"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/pipeline"
 	"github.com/looplj/axonhub/llm/pipeline/stream"
 	"github.com/looplj/axonhub/llm/streams"
+	"github.com/looplj/axonhub/llm/transformer"
 	anthropictransformer "github.com/looplj/axonhub/llm/transformer/anthropic"
 	geminitransformer "github.com/looplj/axonhub/llm/transformer/gemini"
 	"github.com/looplj/axonhub/llm/transformer/openai"
-	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 )
 
 func TestChatCompletionOrchestrator_Process_NonStreaming_PreservesGeminiGroundingAnnotations(t *testing.T) {
@@ -533,7 +534,7 @@ func TestChatCompletionOrchestrator_Process_NonStreamingRequireStreamCandidate_D
 
 // TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvivesRequestReplacement
 // covers an outbound transformer that upgrades the upstream request to streaming on its own
-// (OpenCode Zen) while a channel transform option replaced the unified request mid-chain:
+// while a channel transform option replaced the unified request mid-chain:
 // the pipeline must still aggregate the upstream SSE stream for a non-streaming client.
 func TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvivesRequestReplacement(t *testing.T) {
 	ctx := context.Background()
@@ -547,10 +548,10 @@ func TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvi
 	project := createTestProject(t, ctx, client)
 
 	ch, err := client.Channel.Create().
-		SetType(channel.TypeOpencodeZen).
-		SetName("Zen Forced Stream Channel").
-		SetBaseURL(opencodezen.DefaultBaseURL).
-		SetCredentials(objects.ChannelCredentials{}).
+		SetType(channel.TypeOpenai).
+		SetName("Forced Stream Channel").
+		SetBaseURL("https://api.example.com/v1").
+		SetCredentials(objects.ChannelCredentials{APIKey: "test-key"}).
 		SetSupportedModels([]string{"mimo-v2.5-free"}).
 		SetDefaultTestModel("mimo-v2.5-free").
 		SetSettings(&objects.ChannelSettings{
@@ -569,7 +570,7 @@ func TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvi
 	}
 
 	executor := &mockExecutor{
-		// The Zen upstream only answers with SSE, so a non-streaming provider call
+		// This upstream only answers with SSE, so a non-streaming provider call
 		// returns the raw event stream body.
 		response: &httpclient.Response{
 			StatusCode: http.StatusOK,
@@ -579,10 +580,10 @@ func TestChatCompletionOrchestrator_Process_NonStreamingForcedStreamUpgradeSurvi
 		streamEvents: streamEvents,
 	}
 
-	outbound, err := opencodezen.NewOutboundTransformer(ch.BaseURL)
+	outbound, err := openai.NewOutboundTransformer(ch.BaseURL, "test-key")
 	require.NoError(t, err)
 
-	bizChannel := &biz.Channel{Channel: ch, Outbound: outbound}
+	bizChannel := &biz.Channel{Channel: ch, Outbound: &forcedStreamTestOutbound{Outbound: outbound}}
 	channelSelector := &staticChannelSelector{candidates: channelsToTestCandidates([]*biz.Channel{bizChannel}, "mimo-v2.5-free")}
 
 	orchestrator := newTestOrchestrator(t, channelSelector, client, executor)
@@ -1154,4 +1155,14 @@ func TestChatCompletionOrchestrator_Process_StickyChannelRetryBudget(t *testing.
 			require.Len(t, executions, len(tt.wantModels))
 		})
 	}
+}
+
+// forcedStreamTestOutbound isolates the pipeline's stream-upgrade contract from providers.
+type forcedStreamTestOutbound struct {
+	transformer.Outbound
+}
+
+func (t *forcedStreamTestOutbound) TransformRequest(ctx context.Context, request *llm.Request) (*httpclient.Request, error) {
+	request.Stream = lo.ToPtr(true)
+	return t.Outbound.TransformRequest(ctx, request)
 }

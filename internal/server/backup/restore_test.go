@@ -3,8 +3,10 @@ package backup
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
@@ -910,4 +912,30 @@ func TestBackupService_Restore_UsageStatsWithRequestLogs(t *testing.T) {
 	require.Equal(t, int64(150), usageLogs[0].TotalTokens)
 	require.NotNil(t, usageLogs[0].TotalCost)
 	require.Equal(t, *usage.TotalCost, *usageLogs[0].TotalCost)
+}
+
+func TestBackupService_Restore_LegacyZenForcesChat(t *testing.T) {
+	for _, overwrite := range []bool{false, true} {
+		t.Run(fmt.Sprint("overwrite=", overwrite), func(t *testing.T) {
+			client, service, ctx := setupBackupTest(t)
+			defer client.Close()
+			if overwrite {
+				_, err := client.Channel.Create().SetType(channel.TypeAnthropic).SetName("Legacy Zen").SetBaseURL("https://old.example").SetCredentials(objects.ChannelCredentials{APIKey: "old-key"}).SetSupportedModels([]string{"old-model"}).SetDefaultTestModel("old-model").SetEndpoints([]objects.ChannelEndpoint{{APIFormat: "anthropic/messages"}}).Save(ctx)
+				require.NoError(t, err)
+			}
+			source := &BackupChannel{Channel: ent.Channel{Type: channel.LegacyTypeOpencodeZen, Name: "Legacy Zen", BaseURL: "https://opencode.ai/zen/v1", Status: channel.StatusDisabled, SupportedModels: []string{"model"}, DefaultTestModel: "model", Settings: &objects.ChannelSettings{PassThroughBody: lo.ToPtr(true), ModelProtocols: []objects.ModelProtocol{{Model: "model", APIFormats: []string{"anthropic/messages"}}}}, Endpoints: []objects.ChannelEndpoint{{APIFormat: "anthropic/messages"}}}}
+			data, err := json.Marshal(BackupData{Version: BackupVersion, Channels: []*BackupChannel{source}})
+			require.NoError(t, err)
+			err = service.Restore(ctx, bytes.NewReader(data), RestoreOptions{IncludeChannels: true, ChannelConflictStrategy: ConflictStrategyOverwrite})
+			require.NoError(t, err)
+			restored, err := client.Channel.Query().Where(channel.NameEQ("Legacy Zen")).Only(ctx)
+			require.NoError(t, err)
+			require.Equal(t, channel.TypeOpenai, restored.Type)
+			require.Equal(t, []string{"public"}, restored.Credentials.APIKeys)
+			require.Equal(t, []objects.ChannelEndpoint{{APIFormat: "openai/chat_completions"}}, restored.Endpoints)
+			require.True(t, *restored.Settings.PassThroughBody)
+			require.Equal(t, []string{"openai/chat_completions"}, restored.Settings.ModelProtocols[0].APIFormats)
+			require.Equal(t, []string{"anthropic/messages"}, source.Settings.ModelProtocols[0].APIFormats)
+		})
+	}
 }

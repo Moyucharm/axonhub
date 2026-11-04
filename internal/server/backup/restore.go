@@ -710,6 +710,10 @@ func (svc *BackupService) restoreChannelModelPrices(
 
 func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, channels []*BackupChannel, opts RestoreOptions) error {
 	for _, chData := range channels {
+		legacyZen := chData.Type == channel.LegacyTypeOpencodeZen
+		if legacyZen {
+			chData = normalizeLegacyZenBackup(chData)
+		}
 		channelType := channel.NormalizeLegacyType(chData.Type)
 		existing, err := db.Channel.Query().
 			Where(channel.Name(chData.Name)).
@@ -754,6 +758,9 @@ func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, c
 					SetSettings(chData.Settings).
 					SetOrderingWeight(chData.OrderingWeight)
 
+				if legacyZen {
+					update.SetEndpoints(chData.Endpoints)
+				}
 				if chData.Remark != nil {
 					update.SetRemark(*chData.Remark)
 				} else {
@@ -784,6 +791,9 @@ func (svc *BackupService) restoreChannels(ctx context.Context, db *ent.Client, c
 				SetSettings(chData.Settings).
 				SetOrderingWeight(chData.OrderingWeight)
 
+			if legacyZen {
+				create.SetEndpoints(chData.Endpoints)
+			}
 			if chData.Remark != nil {
 				create.SetRemark(*chData.Remark)
 			}
@@ -1565,4 +1575,45 @@ func nilIfEmpty(v string) *string {
 	}
 
 	return &v
+}
+
+// normalizeLegacyZenBackup applies the same Chat-only contract as startup
+// migration, including formerly anonymous channels, without changing the backup.
+func normalizeLegacyZenBackup(source *BackupChannel) *BackupChannel {
+	result := *source
+	settings := objects.ChannelSettings{}
+	if source.Settings != nil {
+		settings = *source.Settings
+	}
+	models := append([]string(nil), source.SupportedModels...)
+	for _, protocol := range settings.ModelProtocols {
+		models = append(models, protocol.Model)
+	}
+	settings.ModelProtocols = nil
+	for _, model := range lo.Uniq(models) {
+		if model != "" {
+			settings.ModelProtocols = append(settings.ModelProtocols, objects.ModelProtocol{Model: model, APIFormats: []string{"openai/chat_completions"}, Enabled: lo.ToPtr(true)})
+		}
+	}
+	result.Settings = &settings
+	result.Endpoints = []objects.ChannelEndpoint{{APIFormat: "openai/chat_completions"}}
+	for _, endpoint := range source.Endpoints {
+		if endpoint.APIFormat == "openai/chat_completions" {
+			endpoint.Transport = ""
+			result.Endpoints[0] = endpoint
+			break
+		}
+	}
+	hasKeys := false
+	for _, key := range result.Credentials.APIKeys {
+		hasKeys = hasKeys || strings.TrimSpace(key) != ""
+	}
+	if !hasKeys {
+		key := strings.TrimSpace(result.Credentials.APIKey)
+		if key == "" {
+			key = "public"
+		}
+		result.Credentials.APIKeys = []string{key}
+	}
+	return &result
 }

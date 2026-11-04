@@ -18,6 +18,7 @@ func TestNormalizeLegacyType(t *testing.T) {
 		{name: "qiniu", input: channel.LegacyTypeQiniu, expected: channel.TypeOpenai},
 		{name: "qiniu anthropic", input: channel.LegacyTypeQiniuAnthropic, expected: channel.TypeAnthropic},
 		{name: "fenno", input: channel.LegacyTypeFenno, expected: channel.TypeOpenaiResponses},
+		{name: "opencode zen", input: channel.LegacyTypeOpencodeZen, expected: channel.TypeOpenai},
 		{name: "current type", input: channel.TypeAnthropic, expected: channel.TypeAnthropic},
 	}
 

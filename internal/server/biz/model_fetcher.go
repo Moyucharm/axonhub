@@ -25,7 +25,6 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/gemini/vertex"
 	"github.com/looplj/axonhub/llm/transformer/openai/codex"
 	"github.com/looplj/axonhub/llm/transformer/openai/copilot"
-	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 	"github.com/looplj/axonhub/llm/transformer/xai/subscription"
 )
 
@@ -468,10 +467,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 	channelType := channel.Type(input.ChannelType)
 	thirdPartyCodexCatalog := channelType == channel.TypeCodex && codexChannel == nil && !isOAuthJSON(apiKey)
 
-	if apiKey == "" && channelType == channel.TypeOpencodeZen {
-		apiKey = opencodezen.PublicAPIKey
-	}
-
 	if apiKey == "" && codexChannel == nil {
 		if isOfficialOnlyType(channelType) {
 			if models := f.getDefaultModelsByType(ctx, channelType); models != nil {
@@ -624,7 +619,6 @@ func (f *ModelFetcher) FetchModels(ctx context.Context, input FetchModelsInput) 
 			Error:  lo.ToPtr(fmt.Sprintf("failed to fetch models: %v", err)),
 		}, nil
 	}
-
 
 	if isCommandCodeChannelType(channelType) {
 		models = filterCommandCodeModels(channelType, models)

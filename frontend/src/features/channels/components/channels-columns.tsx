@@ -48,7 +48,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { DataTableColumnHeader } from '@/components/data-table-column-header';
 import { useChannels } from '../context/channels-context';
 import { useRecoverChannelCooldown, useTestChannel, useUpdateChannel } from '../data/channels';
-import { CHANNEL_CONFIGS, getChannelColor, getChannelEffectiveApiFormat, getProvider } from '../data/config_channels';
+import { CHANNEL_CONFIGS, getChannelColor, getProvider } from '../data/config_channels';
 import { Channel } from '../data/schema';
 import { getChannelAPIKeySummary } from '../utils/key-pool';
 import { parseQuotaLimits } from '../../system/data/quotas';
@@ -557,13 +557,6 @@ const ProviderCell = memo(({ row }: { row: Row<Channel> }) => {
   const provider = getProvider(type);
   const IconComponent = config.icon;
   const color = getChannelColor(channel);
-  const effectiveApiFormat = getChannelEffectiveApiFormat(channel);
-
-  const tooltipText =
-    type === 'opencode_zen' && effectiveApiFormat
-      ? `${t(`channels.providers.${provider}`)} (${effectiveApiFormat})`
-      : undefined;
-
   const badge = (
     <div className='flex justify-center'>
       <Badge variant='outline' className={cn('capitalize', color)}>
@@ -574,15 +567,6 @@ const ProviderCell = memo(({ row }: { row: Row<Channel> }) => {
       </Badge>
     </div>
   );
-
-  if (tooltipText) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{badge}</TooltipTrigger>
-        <TooltipContent side='top'>{tooltipText}</TooltipContent>
-      </Tooltip>
-    );
-  }
 
   return badge;
 });

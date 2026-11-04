@@ -141,75 +141,6 @@ test('Cline has localized channel and provider labels', () => {
   }
 });
 
-test('OpenCode Zen supports an optional user API key and dynamic models', () => {
-  const schema = read('features/channels/data/schema.ts');
-  const channelsConfig = read('features/channels/data/config_channels.ts');
-  const providersConfig = read('features/channels/data/config_providers.ts');
-  const dialog = read('features/channels/components/channels-action-dialog.tsx');
-  const bulkDialog = read('features/channels/components/channels-bulk-import-dialog.tsx');
-  const protocolOptions = read('features/channels/data/protocol-options.ts');
-
-  assert.match(schema, /channelTypeSchema[\s\S]*'opencode_zen'/);
-  assert.match(
-    schema,
-    /data\.type !== 'opencode_zen'[\s\S]*At least one API Key is required/,
-    'create validation should exempt only OpenCode Zen from API key requirements'
-  );
-  assert.match(
-    schema,
-    /bulkImportChannelItemSchema[\s\S]*data\.type !== 'opencode_zen'[\s\S]*API Key is required/,
-    'bulk import validation should exempt OpenCode Zen from API key requirements'
-  );
-  assert.match(
-    channelsConfig,
-    /opencode_zen:\s*{[\s\S]*?baseURL:\s*'https:\/\/opencode\.ai\/zen\/v1'[\s\S]*?defaultModels:\s*\[\][\s\S]*?apiFormat:\s*OPENAI_CHAT_COMPLETIONS/
-  );
-  assert.match(channelsConfig, /CHANNEL_TYPE_TO_PROVIDER[\s\S]*opencode_zen:\s*'opencode_zen'/);
-  assert.match(providersConfig, /opencode_zen:\s*{[\s\S]*channelTypes:\s*\[\s*'opencode_zen'\s*\]/);
-  assert.match(dialog, /const isOpenCodeZenType = activeChannelType === 'opencode_zen'/);
-  assert.match(
-    dialog,
-    /\(isOpenCodeZenType \|\| !isEdit \|\| apiKeyMode !== 'pool'\)[\s\S]*name='credentials\.apiKeys'/,
-    'the channel form should show the optional API key input for OpenCode Zen'
-  );
-  assert.match(dialog, /!isOpenCodeZenType\s*&&\s*\([\s\S]*name='credentials\.mode'/, 'OpenCode Zen should hide key pool mode controls');
-  assert.match(dialog, /isOpenCodeZenSubmit[\s\S]*values\.credentials\.mode = 'single'[\s\S]*\.slice\(0, 1\)/);
-  assert.match(dialog, /channels\.dialogs\.fields\.apiKey\.openCodeZenHint/);
-  assert.match(
-    dialog,
-    /isXAISubscriptionType \|\| isOpenCodeZenType[\s\S]*return !!baseURL/,
-    'static model fetching should not require an API key'
-  );
-  assert.match(bulkDialog, /typeResult\.data !== 'opencode_zen'[\s\S]*apiKeyRequired/);
-  assert.match(
-    protocolOptions,
-    /OPEN_CODE_ZEN_API_FORMATS[\s\S]*'openai\/chat_completions'[\s\S]*'openai\/responses'[\s\S]*'anthropic\/messages'/,
-    'OpenCode Zen should expose its three native protocols'
-  );
-  assert.match(
-    dialog,
-    /isOpenCodeZenSubmit[\s\S]*getModelProtocolsForChannelApiFormat/,
-    'OpenCode Zen API format selection should be persisted as model protocol settings'
-  );
-
-  const en = parseLocale('en');
-  const zh = parseLocale('zh-CN');
-  assert.equal(en['channels.types.opencode_zen'], 'OpenCode Zen');
-  assert.equal(en['channels.providers.opencode_zen'], 'OpenCode Zen');
-  assert.equal(zh['channels.types.opencode_zen'], 'OpenCode Zen');
-  assert.equal(zh['channels.providers.opencode_zen'], 'OpenCode Zen');
-  assert.equal(
-    en['channels.dialogs.fields.apiKey.openCodeZenHint'],
-    'Optional. Leave blank to use Bearer public. Contributor-free models only accept requests that retain the OpenCode-compatible request structure.'
-  );
-  assert.equal(
-    zh['channels.dialogs.fields.apiKey.openCodeZenHint'],
-    '可选。留空时使用 Bearer public。Contributor Free 模型仅接受保留 OpenCode 兼容请求结构的调用。'
-  );
-  assert.match(en['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
-  assert.match(zh['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
-});
-
 test('xAI subscription is exposed as an OAuth Responses channel', () => {
   const schema = read('features/channels/data/schema.ts');
   const channelsConfig = read('features/channels/data/config_channels.ts');
@@ -513,5 +444,31 @@ test('Ollama has localized channel, provider, and cookie-field labels', () => {
     assert.ok(channels['channels.types.ollama_anthropic']);
     assert.ok(channels['channels.dialogs.fields.ollamaQuota.authCookie.placeholder'].includes('__Secure-session'));
     assert.ok(channels['channels.dialogs.fields.ollamaQuota.authCookie.description']);
+  }
+});
+
+test('removes OpenCode Zen without removing OpenCode Go or ordinary OpenAI Chat', () => {
+  for (const file of [
+    'features/channels/data/schema.ts',
+    'features/channels/data/config_channels.ts',
+    'features/channels/data/config_providers.ts',
+    'features/channels/data/protocol-options.ts',
+    'features/channels/components/channels-action-dialog.tsx',
+    'features/channels/components/channels-bulk-import-dialog.tsx',
+    'features/channels/components/channels-columns.tsx',
+  ]) {
+    assert.doesNotMatch(read(file), /opencode_zen|OpenCodeZen|OPEN_CODE_ZEN/, file);
+  }
+  const schema = read('features/channels/data/schema.ts');
+  assert.match(schema, /'opencode_go'/);
+  assert.match(schema, /'opencode_go_anthropic'/);
+  assert.match(schema, /'openai'/);
+  for (const locale of ['en', 'zh-CN']) {
+    const messages = parseLocale(locale);
+    assert.equal(messages['channels.types.opencode_zen'], undefined);
+    assert.equal(messages['channels.providers.opencode_zen'], undefined);
+    assert.equal(messages['channels.dialogs.fields.apiKey.openCodeZenHint'], undefined);
+    assert.doesNotMatch(messages['channels.dialogs.bulkImport.supportedTypes'], /opencode_zen/);
+    assert.match(messages['channels.dialogs.bulkImport.supportedTypes'], /opencode_go/);
   }
 });

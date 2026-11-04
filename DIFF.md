@@ -15,6 +15,14 @@
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
 | 本分支版本号 | `v1.0.0-beta12+azusa.v0.6.10`（同名 git tag；镜像构建结果以自用 workflow 为准） |
 
+### 未发布变更：移除 OpenCode Zen 专用渠道
+
+- 删除 `opencode_zen` 枚举、前端供应商入口及后端 Zen 专用三协议 transformer、身份模拟和工具注入；OpenCode Go 保留。
+- 启用自动迁移时，启动在 Ent schema 收缩枚举前，将所有旧 Zen 记录原子转换为 `openai`；移除旧 Responses/Messages 端点，并将支持模型及旧覆盖中的模型统一固定为 `openai/chat_completions`。
+- 保留渠道身份、Base URL、模型、状态、已有密钥与无关 JSON 字段；空密钥显式保存 `public`，旧单密钥同时写入普通 OpenAI 编辑器的密钥列表。旧备份恢复同样转换，重复启动不覆盖用户后续配置。
+- 不再自动改写 Zen 上游 URL，不保证原来的匿名免费访问。通用强制流式请求替换回归测试改用测试 transformer 保留，不随 Zen 删除。
+- 此变更未修改版本号或 tag；下文的 Zen 功能条目为历史记录，当前行为以此处为准。决策记录：[移除 Zen 并迁移 OpenAI Chat](.agents/notes/implemented/simplification/2026-11-04-remove-opencode-zen-channel.md)。
+
 ### 更新本文件的方法
 
 ```bash
@@ -264,7 +272,7 @@ git diff upstream/v1.0.0-beta12 自用 --stat
 - **隔离 Codex 5h 重置与 7d CPA 额度估算**：7d observation 状态机收紧 re-anchor 条件，仅在 collector 变更、7d `reset_at` 改变或首建基线时重新锚定；同一 7d reset 下的百分比回退与重复/乱序事件按非单调样本处理并保留 high-water 基线，防止 5h primary 窗口归零导致 7d 金额估算被误清空。
 - 对应架构决策记录：[统一渠道失败单一责任归属](.agent/notes/implemented/simplification/2026-09-13-exclusive-channel-failure-owner.md)、[隔离 Codex 5h 重置与 7d CPA 额度估算](.agent/notes/implemented/bug-fix/2026-09-13-cpa-estimate-window-isolation.md)。发布版本递增为 `v1.0.0-beta10+azusa.v0.6`。
 
-### 3.12 支持 OpenCode Zen 渠道（`v1.0.0-beta10+azusa.v0.6.1`）
+### 3.12 支持 OpenCode Zen 渠道（`v1.0.0-beta10+azusa.v0.6.1`；已由未发布移除变更取代）
 
 - 新增原生 `opencode_zen` 渠道类型，支持通过单一渠道使用 OpenAI Chat Completions、OpenAI Responses 与 Anthropic Messages 三种协议。
 - 后端实现免费层指纹与请求体协调（流式强制升级、`bash`/`read` 工具补齐、自定义工具保留），支持 `Bearer public` 运行时回退与单个用户自定义 API Key。

@@ -15,13 +15,15 @@
 - CPA Codex reset credits are no longer marked as attempted when the local provider concurrency permit fails before any upstream call; a cancelled or unavailable permit leaves the card available for a later attempt.
 - A failed CPA quota refresh no longer offers cached Reset credits: the row bubble follows the expanded panel and hides the action until a successful read.
 - CPA quota estimates now price cache reads and cache writes with their own rates instead of dropping the write counter and double counting the read counter, and Claude windows use the wire's raw input plus both cache counters.
-- CPA quota estimates no longer inherit another window's interval when two ungrouped windows share a period and reset, and OpenCode Zen protocol badges/colors and the channel edit echo now follow the explicit per-model protocol before falling back to the endpoint list.
+- CPA quota estimates no longer inherit another window's interval when two ungrouped windows share a period and reset.
 - Dashboard analytics no longer rescan the full usage history for every widget: request, cost, and token widgets share one grouped query, expensive 30-day aggregates are cached, SQLite uses window functions instead of correlated `MAX(id)` scans, and off-screen sections load only when they approach the viewport.
 - PostgreSQL fastest-model and fastest-channel resolver rankings use `DISTINCT ON` to select each request's latest successful execution before aggregation; SQLite retains the `ROW_NUMBER` path. `modelPerformanceStats` keeps `ROW_NUMBER` because `DISTINCT ON` measured a 5% regression without the covering index (not yet approved).
 - Personal API Key names can be reused by different creators in a project; creating or renaming a key rejects collisions with non-personal keys visible to its creator. Duplicate checks run after create authorization.
 - Synthetic weekly credit amounts that parse to NaN or infinity are now ignored instead of leaking into the period money fields and breaking quota persistence.
 
 ### Removed
+
+- Removed the dedicated OpenCode Zen channel and its request fingerprint/tool injection. With automatic migration enabled, existing Zen channels are converted to ordinary OpenAI Chat Completions before schema migration; legacy backup restores apply the same conversion. Channel identity, Base URL, models, status, credentials, and unrelated settings are preserved; credential-free channels explicitly retain `public`. OpenCode Go is unchanged.
 
 - Wafer quota monitor removed — Wafer is PAYG-only. Legacy wafer quota rows are purged at startup before schema migration when automatic migration is enabled.
 

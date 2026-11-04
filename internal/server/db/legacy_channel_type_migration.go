@@ -21,6 +21,21 @@ func migrateLegacyChannelTypes(ctx context.Context, dbDialect string, db *sql.DB
 		return nil
 	}
 
+	// Zen needs its protocol configuration converted before its type changes.
+	countQuery := "SELECT COUNT(*) FROM channels WHERE type = ?"
+	if dbDialect == dialect.Postgres {
+		countQuery = "SELECT COUNT(*) FROM channels WHERE type = $1"
+	}
+	var zenChannels int
+	if err := db.QueryRowContext(ctx, countQuery, channel.LegacyTypeOpencodeZen.String()).Scan(&zenChannels); err != nil {
+		return fmt.Errorf("check legacy OpenCode Zen channels: %w", err)
+	}
+	if zenChannels > 0 {
+		if err := migrateLegacyOpenCodeZen(ctx, dbDialect, db); err != nil {
+			return err
+		}
+	}
+
 	query := "UPDATE channels SET type = ? WHERE type = ?"
 	if dbDialect == dialect.Postgres {
 		query = "UPDATE channels SET type = $1 WHERE type = $2"

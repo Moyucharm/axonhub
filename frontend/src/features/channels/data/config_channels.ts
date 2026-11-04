@@ -758,14 +758,6 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     icon: OpenCode,
   },
-  opencode_zen: {
-    channelType: 'opencode_zen',
-    baseURL: 'https://opencode.ai/zen/v1',
-    defaultModels: [],
-    apiFormat: OPENAI_CHAT_COMPLETIONS,
-    color: 'bg-violet-100 text-violet-800 border-violet-200',
-    icon: OpenCode,
-  },
   ollama: {
     channelType: 'ollama',
     baseURL: 'https://ollama.com',
@@ -947,7 +939,6 @@ export type Provider =
   | 'nanogpt'
   | 'fireworks'
   | 'opencode_go'
-  | 'opencode_zen'
   | 'ollama'
   | 'evolink'
   | 'groq'
@@ -1017,7 +1008,6 @@ export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   fireworks: 'fireworks',
   opencode_go: 'opencode_go',
   opencode_go_anthropic: 'opencode_go',
-  opencode_zen: 'opencode_zen',
   ollama: 'ollama',
   ollama_anthropic: 'ollama',
   evolink: 'evolink',
@@ -1039,22 +1029,11 @@ export const getProvider = (channelType: ChannelType): Provider => {
   return CHANNEL_TYPE_TO_PROVIDER[channelType];
 };
 
-export const OPEN_CODE_ZEN_ENDPOINT_COLORS: Record<string, string> = {
-  'openai/chat_completions': 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800',
-  'openai/responses': 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
-  'anthropic/messages': 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
-};
-
 export function getChannelColor(channel: {
   type: ChannelType;
   settings?: { modelProtocols?: readonly ModelProtocol[] | null } | null;
   endpoints?: readonly { apiFormat?: string | null }[] | null;
 }): string {
-  if (channel.type === 'opencode_zen') {
-    const apiFormat = getChannelEffectiveApiFormat(channel);
-    return (apiFormat && OPEN_CODE_ZEN_ENDPOINT_COLORS[apiFormat]) || CHANNEL_CONFIGS.opencode_zen?.color || '';
-  }
-
   return CHANNEL_CONFIGS[channel.type]?.color || '';
 }
 

@@ -92,7 +92,7 @@ export function ChannelsBulkImportDialog({ isOpen, onClose }: ChannelsBulkImport
         return;
       }
 
-      if (typeResult.data !== 'opencode_zen' && (!apiKey || apiKey.trim() === '')) {
+      if (!apiKey || apiKey.trim() === '') {
         errors.push(t('channels.dialogs.bulkImport.apiKeyRequired', { line: index + 1 }));
         return;
       }

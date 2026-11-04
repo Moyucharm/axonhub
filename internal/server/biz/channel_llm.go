@@ -47,7 +47,6 @@ import (
 	"github.com/looplj/axonhub/llm/transformer/openai/decisions"
 	"github.com/looplj/axonhub/llm/transformer/openai/responses"
 	"github.com/looplj/axonhub/llm/transformer/opencode"
-	opencodezen "github.com/looplj/axonhub/llm/transformer/opencode/zen"
 	"github.com/looplj/axonhub/llm/transformer/openrouter"
 	"github.com/looplj/axonhub/llm/transformer/typesafe"
 	"github.com/looplj/axonhub/llm/transformer/xai"
@@ -193,25 +192,6 @@ func getAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
 	panic(fmt.Errorf("no enabled api key configured for channel %s", ch.Name))
 }
 
-// getOptionalAPIKeyProvider returns the channel provider when an override or
-// enabled key exists. Credential-optional transformers can apply their own
-// public or anonymous fallback when this returns nil.
-func getOptionalAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
-	if ch.apiKeyOverride != "" || len(ch.cachedEnabledAPIKeys) > 0 {
-		return getAPIKeyProvider(ch)
-	}
-
-	return nil
-}
-
-func getOpenCodeZenAPIKeyProvider(ch *Channel) auth.APIKeyProvider {
-	if provider := getOptionalAPIKeyProvider(ch); provider != nil {
-		return provider
-	}
-
-	return auth.NewStaticKeyProvider(opencodezen.PublicAPIKey)
-}
-
 // BuildOutboundByAPIFormat returns the outbound transformer for a resolved endpoint API format.
 // If the channel does not support the format, returns an error.
 func BuildOutboundByAPIFormat(ch *Channel, apiFormat string) (transformer.Outbound, error) {
@@ -260,7 +240,7 @@ func (svc *ChannelService) buildChannelWithOutbounds(c *ent.Channel, apiKeyOverr
 			continue
 		}
 
-		if ((c.Type != channel.TypeXai && c.Type != channel.TypeOpencodeZen) || ep.APIFormat == ch.Outbound.APIFormat().String()) &&
+		if (c.Type != channel.TypeXai || ep.APIFormat == ch.Outbound.APIFormat().String()) &&
 			(c.Type != channel.TypeCodex || !isNativeImageFormat(ep.APIFormat)) &&
 			(c.Type != channel.TypeCodex || !isResponsesEndpoint(ep.APIFormat) || ep.APIFormat == ch.Outbound.APIFormat().String()) {
 			outbounds[ep.APIFormat] = ch.Outbound
@@ -453,15 +433,6 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 	ch *Channel,
 	ep objects.ChannelEndpoint,
 ) (transformer.Outbound, error) {
-	if c.Type == channel.TypeOpencodeZen {
-		if !isOpenCodeZenAPIFormat(ep.APIFormat) {
-			return nil, fmt.Errorf("channel type %q does not support api_format %q", c.Type, ep.APIFormat)
-		}
-		if endpointTransport(ep) == objects.ChannelEndpointTransportWebSocket {
-			return nil, fmt.Errorf("channel type %q does not support websocket transport", c.Type)
-		}
-	}
-
 	apiKeyProvider := func() auth.APIKeyProvider {
 		return getAPIKeyProvider(ch)
 	}
@@ -496,14 +467,6 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 				APIKeyProvider: apiKeyProvider(),
 			})
 		}
-		if c.Type == channel.TypeOpencodeZen {
-			return opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
-				BaseURL:        baseURL,
-				EndpointPath:   ep.Path,
-				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
-			})
-		}
-
 		// Empty paths on existing custom endpoints historically used the generic
 		// OpenAI transformer, which appends /v1. There is no persisted flag that
 		// distinguishes those records from newer family endpoints, so only opt into
@@ -533,14 +496,6 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 		llm.APIFormatOpenAIResponseWebSocket.String(),
 		llm.APIFormatOpenAIResponseCompact.String():
 		transport := endpointTransport(ep)
-		if c.Type == channel.TypeOpencodeZen {
-			return opencodezen.NewResponsesOutboundTransformerWithConfig(&opencodezen.ResponsesConfig{
-				BaseURL:        baseURL,
-				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
-				EndpointPath:   ep.Path,
-				Transport:      transport,
-			})
-		}
 		if c.Type == channel.TypeCodex &&
 			(ep.APIFormat == llm.APIFormatOpenAIResponse.String() || ep.APIFormat == llm.APIFormatOpenAIResponseWebSocket.String()) {
 			return svc.buildCodexOutbound(c, ch, baseURL, transport, "", ch.HTTPClient, ep.Path)
@@ -603,14 +558,6 @@ func (svc *ChannelService) buildNonDefaultEndpointOutbound(
 			APIKeyProvider: apiKeyProvider(),
 		})
 	case llm.APIFormatAnthropicMessage.String():
-		if c.Type == channel.TypeOpencodeZen {
-			return opencodezen.NewMessagesOutboundTransformerWithConfig(&opencodezen.Config{
-				BaseURL:        baseURL,
-				APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
-				EndpointPath:   ep.Path,
-			})
-		}
-
 		// Command Code only accepts Authorization: Bearer, for both the
 		// Anthropic-format channel type and the chat-completions channel type
 		// opting into a custom Anthropic endpoint; ordinary Anthropic direct
@@ -782,9 +729,6 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 		// Ollama is often run locally without an API key. An apiKeyOverride
 		// (channel key test flow) may also supply a key when none are stored,
 		// so skip the stored-key check here.
-	case channel.TypeOpencodeZen:
-		// OpenCode Zen accepts an optional user key and otherwise falls back to
-		// the public credential inside its transformer.
 	case channel.TypeCommandcode, channel.TypeCommandcodeAnthropic:
 		// Command Code inference always authenticates with a Bearer API key;
 		// the quota collection cookie is never an inference credential.
@@ -1294,18 +1238,6 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel, apiKeyOve
 		transformer, err := opencode.NewOutboundTransformerWithConfig(&opencode.Config{
 			BaseURL:        c.BaseURL,
 			APIKeyProvider: getAPIKeyProvider(ch),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create outbound transformer: %w", err)
-		}
-
-		ch.Outbound = transformer
-
-		return ch, nil
-	case channel.TypeOpencodeZen:
-		transformer, err := opencodezen.NewOutboundTransformerWithConfig(&opencodezen.Config{
-			BaseURL:        c.BaseURL,
-			APIKeyProvider: getOpenCodeZenAPIKeyProvider(ch),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create outbound transformer: %w", err)

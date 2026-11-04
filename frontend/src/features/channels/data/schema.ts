@@ -133,7 +133,6 @@ export const channelTypeSchema = z.enum([
   'fireworks',
   'opencode_go',
   'opencode_go_anthropic',
-  'opencode_zen',
   'ollama',
   'ollama_anthropic',
   'evolink',
@@ -978,7 +977,6 @@ export const createChannelInputSchema = z
       !hasApiKeys &&
       data.type !== 'anthropic_aws' &&
       data.type !== 'anthropic_gcp' &&
-      data.type !== 'opencode_zen' &&
       data.type !== 'gemini_vertex'
     ) {
       ctx.addIssue({
@@ -1170,7 +1168,7 @@ export const bulkImportChannelItemSchema = z
     defaultTestModel: z.string().min(1, 'Please select a default test model'),
   })
   .superRefine((data, ctx) => {
-    if (data.type !== 'opencode_zen' && data.apiKey.trim() === '') {
+    if (data.apiKey.trim() === '') {
       ctx.addIssue({
         code: 'custom',
         message: 'API Key is required',

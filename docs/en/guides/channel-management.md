@@ -266,7 +266,14 @@ Force the available outbound protocols for a single model in the **Model Protoco
 - Enabled overrides may only reference `api_format`s the channel already provides (default or custom endpoints), validated on save; overrides are cleaned up automatically when a model is removed from the channel's supported list.
 - Endpoints and protocol overrides are committed atomically in a single save.
 
-For OpenCode Zen, the channel create/edit **API format** selector saves one outbound protocol (Chat Completions, Responses, or Messages) for every model currently supported by that channel, regardless of the client's inbound protocol. Per-model setup is not required. Channels previously saved as Chat Completions may lack these protocol entries; open and save the channel once after upgrading to make that selection effective.
+### Legacy OpenCode Zen channel migration
+
+The dedicated OpenCode Zen channel has been removed; OpenCode Go is unaffected. With automatic database migration enabled, startup converts existing `opencode_zen` channels (including disabled, archived, and soft-deleted rows) to ordinary `openai` channels before schema migration, forcing their existing model protocol overrides to `openai/chat_completions`. No manual channel re-save is required.
+
+Migration preserves channel IDs, names, Base URLs, models, status, configured credentials, and unrelated settings. Responses/Messages custom endpoints are removed; an existing Chat endpoint keeps its path and Base URL override. Previously credential-free channels explicitly store `public`, and legacy single keys are also carried into the key list used by the ordinary OpenAI editor. Restoring a legacy Zen backup applies the same conversion.
+
+Migrated channels no longer inject OpenCode identities or tools, force upstream streaming, or rewrite Zen inference URLs. They use the retained address through ordinary OpenAI Chat requests; anonymous free access is not guaranteed. Subsequent startups do not overwrite post-migration edits. Back up the database before upgrading. Deployments with automatic database migration disabled must complete migration before running the new version.
+
 ### Responses HTTP and WebSocket endpoints
 
 Responses has two distinct endpoint formats:

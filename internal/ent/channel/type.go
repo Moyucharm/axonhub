@@ -10,12 +10,13 @@ const (
 	LegacyTypeQiniu          Type = "qiniu"
 	LegacyTypeQiniuAnthropic Type = "qiniu_anthropic"
 	LegacyTypeFenno          Type = "fenno"
+	LegacyTypeOpencodeZen    Type = "opencode_zen"
 )
 
 // NormalizeLegacyType maps removed channel types to their supported compatibility type.
 func NormalizeLegacyType(t Type) Type {
 	switch t {
-	case LegacyTypeAtlascloud, LegacyTypeQiniu:
+	case LegacyTypeAtlascloud, LegacyTypeQiniu, LegacyTypeOpencodeZen:
 		return TypeOpenai
 	case LegacyTypeQiniuAnthropic:
 		return TypeAnthropic

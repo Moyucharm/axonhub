@@ -266,7 +266,14 @@ https://custom-gateway.example.com/api##
 - 启用的覆盖只能引用渠道已具备的 `api_format`（默认端点或自定义端点），保存时校验；模型被移出渠道支持列表时自动清理对应覆盖。
 - 端点与协议覆盖在同一次保存中原子提交。
 
-OpenCode Zen 渠道创建/编辑页的 **API 格式** 选择会为该渠道当前支持的每个模型保存单一出站协议（Chat Completions、Responses 或 Messages），与客户端的入站协议无关；不需要逐个模型配置。此前保存为 Chat Completions 的渠道可能没有对应的协议记录，请在升级后打开渠道编辑页重新保存一次，使该选择明确生效。
+### 旧 OpenCode Zen 渠道迁移
+
+OpenCode Zen 专用渠道已移除，OpenCode Go 不受影响。启用数据库自动迁移时，升级启动会在 schema 迁移前将已有 `opencode_zen` 渠道（包括禁用、归档和软删除记录）强制转换为普通 `openai` 渠道，并把已有模型协议覆盖统一为 `openai/chat_completions`。无需手动重新保存渠道。
+
+迁移保留渠道 ID、名称、Base URL、模型、状态、已配置密钥和其他无关设置；移除 Responses/Messages 自定义端点，已有 Chat 端点的路径与 Base URL 覆盖保留。原先没有密钥的渠道显式保存 `public`，旧单密钥同时转入普通 OpenAI 编辑器使用的密钥列表。旧 Zen 备份恢复时也执行相同转换。
+
+迁移后不再注入 OpenCode 专用身份、工具或强制上游流式，也不再自动重写 Zen 推理地址；使用保留的地址走普通 OpenAI Chat 请求。原来的匿名免费访问不保证继续可用。重复启动不会再次覆盖已经迁移后的渠道配置；升级前请备份数据库。关闭数据库自动迁移的部署需要先完成迁移再启动新版本。
+
 ### Responses HTTP 与 WebSocket 端点
 
 Responses 有两种独立的端点格式：

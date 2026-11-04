@@ -93,7 +93,6 @@ func (Channel) Fields() []ent.Field {
 				"nanogpt_responses",
 				"opencode_go",
 				"opencode_go_anthropic",
-				"opencode_zen",
 				"ollama",
 				"ollama_anthropic",
 				"evolink",

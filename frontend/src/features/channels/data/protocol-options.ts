@@ -32,12 +32,9 @@ export type ProtocolConfigs = {
   readonly channelConfigs: Readonly<Record<string, ChannelConfig>>;
 };
 
-const OPEN_CODE_ZEN_API_FORMATS: readonly ApiFormat[] = ['openai/chat_completions', 'openai/responses', 'anthropic/messages'];
-
 // Channel types whose model overrides and endpoints pick between several
 // protocol formats. Everything else keeps its configured format.
 const SUPPORTED_PROTOCOL_FORMATS: Partial<Record<ChannelType, readonly ApiFormat[]>> = {
-  opencode_zen: OPEN_CODE_ZEN_API_FORMATS,
   zenmux: ['zenmux/video'],
 };
 
@@ -53,11 +50,6 @@ export function getApiFormatsForProvider(provider: string, configs: ProtocolConf
     }
   }
 
-  if (providerConfig.channelTypes.includes('opencode_zen')) {
-    for (const format of OPEN_CODE_ZEN_API_FORMATS) {
-      if (!formats.includes(format)) formats.push(format);
-    }
-  }
   return formats;
 }
 
@@ -70,15 +62,9 @@ export function getApiFormatsForProvider(provider: string, configs: ProtocolConf
  * a Jev-compatible typesafe/systemone endpoint.
  * Other custom endpoint formats remain available everywhere.
  */
-export function getConfigurableApiFormatsForChannelType(
-  channelType: ChannelType,
-  configurableFormats: readonly string[]
-): string[] {
+export function getConfigurableApiFormatsForChannelType(channelType: ChannelType, configurableFormats: readonly string[]): string[] {
   if (channelType === 'typesafe') {
     return ['typesafe/systemone'];
-  }
-  if (channelType === 'opencode_zen') {
-    return configurableFormats.filter((format) => OPEN_CODE_ZEN_API_FORMATS.includes(format as ApiFormat));
   }
   const filtered = configurableFormats
     .filter((format) => channelType === 'openai' || format !== 'openai/decisions')
@@ -98,10 +84,6 @@ export function getChannelTypeForApiFormat(provider: string, apiFormat: ApiForma
   // channel type.
   if (apiFormat === 'zenmux/video') {
     return providerConfig.channelTypes.includes('zenmux_video') ? 'zenmux_video' : undefined;
-  }
-
-  if (OPEN_CODE_ZEN_API_FORMATS.includes(apiFormat) && providerConfig.channelTypes.includes('opencode_zen')) {
-    return 'opencode_zen';
   }
 
   for (const channelType of providerConfig.channelTypes) {
@@ -140,22 +122,6 @@ export function getModelProtocolsForApiFormat(
   });
 }
 
-export function getModelProtocolsForChannelApiFormat(
-  channelType: ChannelType,
-  apiFormat: ApiFormat,
-  models: readonly string[],
-  existingProtocols: readonly ModelProtocol[] | null | undefined = []
-): ModelProtocol[] {
-  if (channelType !== 'opencode_zen') {
-    return getModelProtocolsForApiFormat(apiFormat, models, existingProtocols);
-  }
-
-  const selectedModels = new Set(models);
-  const untouchedProtocols = (existingProtocols ?? []).filter((protocol) => !selectedModels.has(protocol.model));
-
-  return [...untouchedProtocols, ...models.map((model) => ({ model, apiFormats: [apiFormat], enabled: true }))];
-}
-
 /**
  * Effective protocol of a stored channel. Explicit model overrides win even
  * when they select the default format; the endpoint list is only consulted
@@ -187,7 +153,6 @@ export function getEffectiveApiFormatForChannel(
   )?.apiFormat;
   return (endpointFormat as ApiFormat | undefined) ?? defaultApiFormat;
 }
-
 
 const OPENAI_RESPONSES_FORMAT = 'openai/responses';
 const OPENAI_RESPONSES_WEBSOCKET_FORMAT = 'openai/responses-ws';
@@ -256,7 +221,9 @@ export function hasCodexResponsesWebSocketOverrideReplacement(channel?: CodexRes
   if (!channel) return false;
 
   const http = channel.endpoints?.find((endpoint) => resolveResponsesFormat(endpoint, channel.baseURL) === OPENAI_RESPONSES_FORMAT);
-  const webSocket = channel.endpoints?.find((endpoint) => resolveResponsesFormat(endpoint, channel.baseURL) === OPENAI_RESPONSES_WEBSOCKET_FORMAT);
+  const webSocket = channel.endpoints?.find(
+    (endpoint) => resolveResponsesFormat(endpoint, channel.baseURL) === OPENAI_RESPONSES_WEBSOCKET_FORMAT
+  );
   if (!http || !webSocket) return false;
 
   return http.baseURL !== webSocket.baseURL || http.path !== webSocket.path;

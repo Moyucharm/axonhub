@@ -327,11 +327,6 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	channel.TypeNanogpt:          openAIFullDefaultEndpoints,
 	channel.TypeNanogptResponses: {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
 	channel.TypeOpencodeGo:       openAIChatOnlyDefaultEndpoints,
-	channel.TypeOpencodeZen: {
-		{APIFormat: llm.APIFormatOpenAIChatCompletion.String()},
-		{APIFormat: llm.APIFormatOpenAIResponse.String()},
-		{APIFormat: llm.APIFormatAnthropicMessage.String()},
-	},
 	channel.TypeOllama:           {{APIFormat: llm.APIFormatOllamaChat.String()}},
 	channel.TypeOllamaAnthropic:  {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
 	channel.TypeEvolink:          openAICompatibleDefaultEndpoints,
@@ -353,31 +348,9 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	},
 }
 
-func isOpenCodeZenAPIFormat(apiFormat string) bool {
-	switch apiFormat {
-	case llm.APIFormatOpenAIChatCompletion.String(),
-		llm.APIFormatOpenAIResponse.String(),
-		llm.APIFormatAnthropicMessage.String():
-		return true
-	default:
-		return false
-	}
-}
-
 func validateEndpointsForChannelType(channelType channel.Type, endpoints []objects.ChannelEndpoint, baseURL ...string) error {
 	if err := ValidateEndpoints(endpoints, baseURL...); err != nil {
 		return err
-	}
-
-	if channelType == channel.TypeOpencodeZen {
-		for _, endpoint := range endpoints {
-			if !isOpenCodeZenAPIFormat(endpoint.APIFormat) {
-				return fmt.Errorf("channel type %q does not support api_format %q", channelType, endpoint.APIFormat)
-			}
-			if endpointTransport(endpoint) == objects.ChannelEndpointTransportWebSocket {
-				return fmt.Errorf("channel type %q does not support websocket transport", channelType)
-			}
-		}
 	}
 
 	// TypeSafe channels only speak System One. The reverse is intentionally not
