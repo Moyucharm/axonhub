@@ -13,9 +13,17 @@
 | 对比基准 | 官方最新发行 tag `v1.0.0-beta12`（`2b1a0f93`，2026-11-02） |
 | 当前发行基线提交 | `2b1a0f93` chore(deps): bump github.com/kaptinlin/jsonrepair in / (#2819) |
 | 上次 unstable 例外 | `upstream-tmp/unstable`（`a037c0bf`，2026-08-27；其后 62 个提交现已由 beta8～beta10 正式发行覆盖） |
-| 本分支版本号 | `v1.0.0-beta12+azusa.v0.6.11`（同名 git tag；镜像构建结果以自用 workflow 为准） |
+| 本分支版本号 | `v1.0.0-beta12+azusa.v0.6.12`（同名 git tag；镜像构建结果以自用 workflow 为准） |
 
-### 本次发版 `v1.0.0-beta12+azusa.v0.6.11`：移除 OpenCode Zen 专用渠道
+### 本次发版 `v1.0.0-beta12+azusa.v0.6.12`：CPA 自动刷新与自动操作解耦
+
+- 自动刷新统一采集凭证基础信息、额度及重置卡信息；凭证自动管理与自动使用重置卡分别依赖自动刷新，互不依赖。前后端配置归一化，旧的无效开关组合不会自动执行写操作。
+- 自动操作仅消费本轮成功刷新结果；先使用重置卡，再根据更新后的额度决定启停。重置结果不确定或重置后刷新失败时，不使用旧额度授权启停。
+- 自动启停批次惰性创建并复用一个 ManagementClient，供多个凭证及 Patch 后同步使用，结束时统一关闭；合并重复调度条件，保留独立周期与 jitter。
+- 包含 CPA Antigravity 独立额度组及周额度窗口优先修复（`1b24212a`），以及本轮自动操作解耦和连接复用（`2ed1abe8`）。后端 biz 全量测试通过；前端单测 451 通过、1 跳过、0 失败；完整浏览器 E2E 未运行。
+- 版本末尾数字按用户要求 +1，官方基线仍为 `v1.0.0-beta12`。发布镜像 `ghcr.io/moyucharm/axonhub:v1.0.0-beta12_azusa.v0.6.12` 及 `latest`，构建结果以自用 workflow 为准；不部署、不操作生产数据库。
+
+### 上次发版 `v1.0.0-beta12+azusa.v0.6.11`：移除 OpenCode Zen 专用渠道
 
 - 删除 `opencode_zen` 枚举、前端供应商入口及后端 Zen 专用三协议 transformer、身份模拟和工具注入；OpenCode Go 保留。
 - 启用自动迁移时，启动在 Ent schema 收缩枚举前，将所有旧 Zen 记录原子转换为 `openai`；移除旧 Responses/Messages 端点，并将支持模型及旧覆盖中的模型统一固定为 `openai/chat_completions`。
@@ -432,7 +440,7 @@ beta10 记录：本次合并前 `自用` HEAD 为 `14f27870`。官方 `v1.0.0-be
 - **增强部分**：`azusa.v0.x` 为 build metadata（SemVer 规范中不参与版本比较），保证官方发布新版本时更新检查始终正确。
 - **递增规则**：自用更新时递增增强号（`azusa.v<主>.<次>.<修订>`），**递增幅度由用户根据更新情况决定**，没有固定步长；同步更新 `internal/build/VERSION` 与 git tag。不确定时先问用户。
 - **跨官方版本（2026-10-09 定）**：跟进新的官方发行版时，增强号**不归零**，在原数字上继续递增。
-- **当前状态**：`2026-11-04` 发布版本 `v1.0.0-beta12+azusa.v0.6.11`，按用户要求自用版本末尾数字 +1；基线仍为正式发行 `v1.0.0-beta12@2b1a0f93`。本次包含 CPA Antigravity Hub 请求身份修复（`09a4c821`）和 OpenCode Zen 移除及 OpenAI Chat 迁移（`6e3cea6d`）。VERSION 与同名 git tag 对齐；推送自用分支和 tag 后通过 `docker-selfhosted.yml` 编译并推送 `ghcr.io/moyucharm/axonhub:v1.0.0-beta12_azusa.v0.6.11` 及 `latest`，构建结果以 GitHub Actions 为准。仅发版与镜像发布，不部署、不操作生产数据库；升级前需备份数据库，旧 Zen 渠道会在自动迁移启用时转为普通 OpenAI Chat。
+- **当前状态**：`2026-11-09` 发布版本 `v1.0.0-beta12+azusa.v0.6.12`，按用户要求自用版本末尾数字 +1；基线仍为正式发行 `v1.0.0-beta12@2b1a0f93`。本次包含 CPA Antigravity 独立额度组与窗口优先修复（`1b24212a`）、自动刷新与自动操作解耦及批次连接复用（`2ed1abe8`）。VERSION 与同名 git tag 对齐；推送自用分支和 tag 后通过 `docker-selfhosted.yml` 编译并推送 `ghcr.io/moyucharm/axonhub:v1.0.0-beta12_azusa.v0.6.12` 及 `latest`，构建结果以 GitHub Actions 为准。仅发版与镜像发布，不部署、不操作生产数据库；升级前需备份数据库，旧 Zen 渠道迁移保持 v0.6.11 行为。
 
 ### 官方新发行版发布时的升级流程
 
