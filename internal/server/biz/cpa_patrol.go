@@ -10,117 +10,123 @@ import (
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
 )
 
-// patrolInstanceEnabled refreshes quotas of all enabled credentials and
-// remotely disables any that expired or exhausted a non-five-hour quota.
-func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.CPAInstance) {
-	client, err := svc.clientForInstance(ctx, instance)
-	if err != nil {
-		log.Warn(ctx, "CPA enabled patrol failed to build client",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
-	defer client.CloseIdleConnections()
+// patrolInstanceEnabled collects enabled credentials without changing remote status.
+func (svc *CPAService) patrolInstanceEnabled(ctx context.Context, instance *ent.CPAInstance) []cpaQuotaExecutionOutcome {
+	return svc.refreshPatrolCredentials(ctx, instance, false)
+}
 
-	credentials, err := svc.repository.patrolCandidates(ctx, instance.ID, false)
-	if err != nil {
-		log.Warn(ctx, "CPA enabled patrol failed to query credentials",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
+// patrolInstanceDisabled also collects disabled credentials through the api-call proxy.
+func (svc *CPAService) patrolInstanceDisabled(ctx context.Context, instance *ent.CPAInstance) []cpaQuotaExecutionOutcome {
+	return svc.refreshPatrolCredentials(ctx, instance, true)
+}
 
+func (svc *CPAService) refreshPatrolCredentials(ctx context.Context, instance *ent.CPAInstance, disabled bool) []cpaQuotaExecutionOutcome {
+	if !instance.Enabled || !instance.AutoRefreshEnabled {
+		return nil
+	}
+	credentials, err := svc.repository.patrolCandidates(ctx, instance.ID, disabled)
+	if err != nil {
+		log.Warn(ctx, "CPA refresh candidates query failed", log.Int("cpa_instance_id", instance.ID), log.Cause(err))
+		return nil
+	}
+	filtered := make([]*ent.CPACredential, 0, len(credentials))
 	for _, credential := range credentials {
 		if credential.Unavailable || !svc.supportsStoredQuota(credential) {
 			continue
 		}
-		// An Unsupported quota state was produced by a real fetch attempt, so
-		// the remote cannot report quotas for this credential; retrying every
-		// patrol would only burn requests. A later sync or manual refresh can
-		// still flip the state back.
-		if objects.CPAQuotaState(credential.QuotaState) == objects.CPAQuotaStateUnsupported {
+		// Preserve the enabled patrol's unsupported-provider backoff.
+		if !disabled && objects.CPAQuotaState(credential.QuotaState) == objects.CPAQuotaStateUnsupported {
 			continue
 		}
-		outcome := svc.refreshCredentialOutcome(ctx, client, credential)
+		filtered = append(filtered, credential)
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	client, err := svc.clientForInstance(ctx, instance)
+	if err != nil {
+		log.Warn(ctx, "CPA scheduled quota refresh connection failed", log.Int("cpa_instance_id", instance.ID), log.Cause(err))
+		return nil
+	}
+	defer client.CloseIdleConnections()
+	_, outcomes, err := svc.refreshCredentialBatchOutcomesWithClient(ctx, instance, client, filtered, nil)
+	if err != nil {
+		log.Warn(ctx, "CPA scheduled quota refresh failed", log.Int("cpa_instance_id", instance.ID), log.Cause(err))
+	}
+	for _, outcome := range outcomes {
 		if outcome.err != nil {
-			log.Warn(ctx, "CPA enabled patrol quota refresh failed",
-				log.Int("cpa_instance_id", instance.ID),
-				log.Int("credential_id", credential.ID),
-				log.Cause(outcome.err),
-			)
+			log.Warn(ctx, "CPA scheduled credential quota refresh failed",
+				log.Int("cpa_instance_id", instance.ID), log.Int("credential_id", outcome.credentialID), log.Cause(outcome.err))
+		}
+	}
+	return outcomes
+}
+
+// automateRefreshedCredentials never queries a stale instance-wide quota snapshot.
+// Reset consumers return replacement outcomes so a failed post-reset refresh
+// cannot authorize a status change using the pre-reset quota.
+func (svc *CPAService) automateRefreshedCredentials(ctx context.Context, instance *ent.CPAInstance, outcomes []cpaQuotaExecutionOutcome) {
+	if !instance.Enabled || !instance.AutoRefreshEnabled {
+		return
+	}
+	credentials := make([]*ent.CPACredential, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		if outcome.status == cpaQuotaExecutionSuccess && outcome.credential != nil && !outcome.credential.Unavailable {
+			credentials = append(credentials, outcome.credential)
+		}
+	}
+	codex := svc.autoResetCodexInstance(ctx, instance, credentials)
+	claude := svc.autoResetClaudeInstance(ctx, instance, credentials)
+	if !instance.AutoManageEnabled {
+		return
+	}
+	var client cpaclient.ManagementClient
+	defer func() {
+		if client != nil {
+			client.CloseIdleConnections()
+		}
+	}()
+	for _, outcome := range outcomes {
+		if replacement, ok := codex[outcome.credentialID]; ok {
+			outcome = replacement
+		}
+		if replacement, ok := claude[outcome.credentialID]; ok {
+			outcome = replacement
+		}
+		if outcome.status != cpaQuotaExecutionSuccess || outcome.credential == nil || outcome.credential.Unavailable {
 			continue
 		}
-		fresh := outcome.credential
-		if fresh == nil {
+		credential := outcome.credential
+		decision := decideCPAAutomation(credential, svc.now())
+		if decision.action == cpaAutomationNone {
 			continue
 		}
-		decision := decideCPAAutomation(fresh, svc.now())
-		if decision.action != cpaAutomationDisable {
-			continue
+		if client == nil {
+			var err error
+			client, err = svc.clientForInstance(ctx, instance)
+			if err != nil {
+				log.Warn(ctx, "CPA automatic status change connection failed", log.Int("credential_id", credential.ID), log.Cause(err))
+				return
+			}
 		}
-		if decision.reason == "quota exhausted" && decision.exhaustedItem != nil {
-			log.Info(ctx, "CPA credential quota exhaustion confirmed",
-				log.Int("cpa_instance_id", instance.ID),
-				log.Int("credential_id", fresh.ID),
-				log.String("quota_item_id", decision.exhaustedItem.ID),
-				log.Any("used_percent", decision.exhaustedItem.UsedPercent),
-				log.Any("remaining_percent", decision.exhaustedItem.RemainingPercent),
-				log.Any("reset_at", decision.exhaustedItem.ResetAt),
-			)
-		}
-		svc.disableCredentialRemotely(ctx, client, instance, fresh, decision.reason)
+		svc.autoManageCredential(ctx, client, instance, credential, decision)
 	}
 }
 
-// patrolInstanceDisabled refreshes quotas of all disabled credentials and
-// remotely re-enables those whose quota recovered and that are not expired.
-func (svc *CPAService) patrolInstanceDisabled(ctx context.Context, instance *ent.CPAInstance) {
-	client, err := svc.clientForInstance(ctx, instance)
-	if err != nil {
-		log.Warn(ctx, "CPA disabled patrol failed to build client",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
-	defer client.CloseIdleConnections()
-
-	credentials, err := svc.repository.patrolCandidates(ctx, instance.ID, true)
-	if err != nil {
-		log.Warn(ctx, "CPA disabled patrol failed to query credentials",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
-	if len(credentials) == 0 {
-		return
-	}
-
-	// Quota collection works through the api-call proxy regardless of the
-	// disabled flag, so a straight batch refresh is enough here.
-	_, outcomes, err := svc.refreshCredentialBatchOutcomesWithClient(ctx, instance, client, credentials, nil)
-	if err != nil {
-		log.Warn(ctx, "CPA disabled patrol quota refresh failed to start",
-			log.Int("cpa_instance_id", instance.ID),
-			log.Cause(err),
-		)
-		return
-	}
-
-	for _, outcome := range outcomes {
-		credential := outcome.credential
-		if credential == nil || outcome.status == cpaQuotaExecutionFailure {
-			continue
-		}
-		decision := decideCPAAutomation(credential, svc.now())
-		if decision.action != cpaAutomationEnable {
-			continue
-		}
+func (svc *CPAService) autoManageCredential(ctx context.Context, client cpaclient.ManagementClient, instance *ent.CPAInstance, credential *ent.CPACredential, decision cpaAutomationDecision) {
+	if decision.action == cpaAutomationEnable {
 		svc.enableCredentialRemotely(ctx, client, instance, credential)
+		return
 	}
+	if decision.reason == "quota exhausted" && decision.exhaustedItem != nil {
+		log.Info(ctx, "CPA credential quota exhaustion confirmed",
+			log.Int("cpa_instance_id", instance.ID), log.Int("credential_id", credential.ID),
+			log.String("quota_item_id", decision.exhaustedItem.ID),
+			log.Any("used_percent", decision.exhaustedItem.UsedPercent),
+			log.Any("remaining_percent", decision.exhaustedItem.RemainingPercent),
+			log.Any("reset_at", decision.exhaustedItem.ResetAt))
+	}
+	svc.disableCredentialRemotely(ctx, client, instance, credential, decision.reason)
 }
 
 // cpaCredentialRecovered reports whether a refreshed disabled credential is
@@ -176,7 +182,7 @@ func (svc *CPAService) enableCredentialRemotely(ctx context.Context, client cpac
 
 // syncAfterPatch refreshes the local snapshot right after a successful remote
 // toggle so the panel converges immediately instead of waiting for the next
-// scheduled sync. The patrol-owned client is reused for this convergence read.
+// scheduled sync. The automation-owned client is reused for this convergence read.
 func (svc *CPAService) syncAfterPatch(ctx context.Context, client cpaclient.ManagementClient, instance *ent.CPAInstance) {
 	if _, err := svc.syncInstanceCredentialsWithClient(ctx, instance, client); err != nil {
 		log.Warn(ctx, "CPA credential sync after toggle failed",

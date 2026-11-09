@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -244,7 +245,7 @@ func TestCPACredentialRecovered(t *testing.T) {
 	}
 }
 
-func TestCPAEnabledPatrolPatchesAndSyncsWithOneClient(t *testing.T) {
+func TestCPAEnabledRefreshThenAutomationPatchesAndSyncs(t *testing.T) {
 	var openCalls atomic.Int32
 	var closeCalls atomic.Int32
 	var listCalls atomic.Int32
@@ -268,14 +269,116 @@ func TestCPAEnabledPatrolPatchesAndSyncsWithOneClient(t *testing.T) {
 	}
 	ctx, svc, instance, credential := setupCPAPatrolTest(t, false, managementClient, &openCalls)
 
-	svc.patrolInstanceEnabled(ctx, instance)
+	svc.automateRefreshedCredentials(ctx, instance, svc.patrolInstanceEnabled(ctx, instance))
 
-	require.Equal(t, int32(1), openCalls.Load())
-	require.Equal(t, int32(1), closeCalls.Load())
+	require.Equal(t, int32(2), openCalls.Load())
+	require.Equal(t, int32(2), closeCalls.Load())
 	require.Equal(t, int32(1), patchCalls.Load())
 	require.Equal(t, int32(1), listCalls.Load())
 	updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
 	require.True(t, updated.Disabled)
+}
+
+func TestCPAAutomationBatchClientLifecycle(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		noAction      bool
+		manageOff     bool
+		connectionErr bool
+		patchErr      bool
+		syncErr       bool
+	}{
+		{name: "mixed enable and disable reuse one client"},
+		{name: "no action opens no client", noAction: true},
+		{name: "management disabled opens no client", manageOff: true},
+		{name: "connection failure stops batch", connectionErr: true},
+		{name: "patch failure continues with same client", patchErr: true},
+		{name: "sync failure continues with same client", syncErr: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var opens, closes, patches, lists atomic.Int32
+			files := []cpaclient.AuthFile{}
+			management := &cpaTestManagementClient{
+				patchAuthFileStatus: func(_ context.Context, name, authIndex string, disabled bool) error {
+					require.Zero(t, closes.Load(), "client must stay open throughout the batch")
+					call := patches.Add(1)
+					require.Equal(t, call != 2, disabled)
+					if tt.patchErr && call == 1 {
+						return errors.New("patch failed")
+					}
+					for i := range files {
+						if files[i].AuthIndex == authIndex {
+							require.Equal(t, files[i].Name, name)
+							files[i].Disabled = disabled
+						}
+					}
+					return nil
+				},
+				listCredentials: func(context.Context) (*cpaclient.AuthFilesResponse, cpaclient.BuildInfo, error) {
+					require.Zero(t, closes.Load())
+					lists.Add(1)
+					if tt.syncErr {
+						return nil, cpaclient.BuildInfo{}, errors.New("sync failed")
+					}
+					return &cpaclient.AuthFilesResponse{Files: files}, cpaclient.BuildInfo{}, nil
+				},
+				closeIdle: func() { closes.Add(1) },
+			}
+			ctx, svc, instance, first := setupCPAPatrolTest(t, false, management, &opens)
+			instance.AutoManageEnabled = !tt.manageOff
+			if tt.connectionErr {
+				svc.connections.openInstanceClient = func(context.Context, *ent.CPAInstance) (cpaclient.ManagementClient, error) {
+					opens.Add(1)
+					return nil, errors.New("connection failed")
+				}
+			}
+			var outcomes []cpaQuotaExecutionOutcome
+			for i := range 3 {
+				credential := first
+				if i > 0 {
+					key := fmt.Sprintf("kimi-%d", i)
+					credential = svc.entFromContext(ctx).CPACredential.Create().
+						SetCpaInstanceID(instance.ID).SetExternalKey(key).
+						SetAuthIndex(key).SetRemoteName(key + ".json").SetDisplayName(key).
+						SetProvider("kimi").SetStatus("active").SaveX(ctx)
+				}
+				used := 100.0
+				credential.Disabled = i == 1 && !tt.noAction
+				if i == 1 || tt.noAction {
+					used = 20
+				}
+				credential.QuotaState = string(objects.CPAQuotaStateSuccess)
+				credential.QuotaData = objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{ID: "weekly", UsedPercent: &used}}}
+				files = append(files, cpaclient.AuthFile{
+					AuthIndex: credential.AuthIndex, Name: credential.RemoteName,
+					Type: "kimi", Status: "active", Disabled: credential.Disabled,
+				})
+				outcomes = append(outcomes, refreshOutcomeFromCredential(credential, svc.now()))
+			}
+
+			svc.automateRefreshedCredentials(ctx, instance, outcomes)
+
+			if tt.noAction || tt.manageOff {
+				require.Zero(t, opens.Load())
+				require.Zero(t, closes.Load())
+				require.Zero(t, patches.Load())
+				return
+			}
+			require.Equal(t, int32(1), opens.Load())
+			if tt.connectionErr {
+				require.Zero(t, closes.Load())
+				require.Zero(t, patches.Load())
+				return
+			}
+			require.Equal(t, int32(1), closes.Load())
+			require.Equal(t, int32(3), patches.Load())
+			wantLists := int32(3)
+			if tt.patchErr {
+				wantLists--
+			}
+			require.Equal(t, wantLists, lists.Load())
+		})
+	}
 }
 
 func TestCPAEnabledPatrolPatchFailureKeepsLocalState(t *testing.T) {
@@ -295,15 +398,15 @@ func TestCPAEnabledPatrolPatchFailureKeepsLocalState(t *testing.T) {
 	}
 	ctx, svc, instance, credential := setupCPAPatrolTest(t, false, managementClient, &openCalls)
 
-	svc.patrolInstanceEnabled(ctx, instance)
+	svc.automateRefreshedCredentials(ctx, instance, svc.patrolInstanceEnabled(ctx, instance))
 
-	require.Equal(t, int32(1), openCalls.Load())
+	require.Equal(t, int32(2), openCalls.Load())
 	require.Zero(t, listCalls.Load())
 	updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
 	require.False(t, updated.Disabled)
 }
 
-func TestCPADisabledPatrolRecoversAndSyncsWithOneClient(t *testing.T) {
+func TestCPADisabledRefreshThenAutomationRecoversAndSyncs(t *testing.T) {
 	var openCalls atomic.Int32
 	var closeCalls atomic.Int32
 	var listCalls atomic.Int32
@@ -327,10 +430,10 @@ func TestCPADisabledPatrolRecoversAndSyncsWithOneClient(t *testing.T) {
 	}
 	ctx, svc, instance, credential := setupCPAPatrolTest(t, true, managementClient, &openCalls)
 
-	svc.patrolInstanceDisabled(ctx, instance)
+	svc.automateRefreshedCredentials(ctx, instance, svc.patrolInstanceDisabled(ctx, instance))
 
-	require.Equal(t, int32(1), openCalls.Load())
-	require.Equal(t, int32(1), closeCalls.Load())
+	require.Equal(t, int32(2), openCalls.Load())
+	require.Equal(t, int32(2), closeCalls.Load())
 	require.Equal(t, int32(1), patchCalls.Load())
 	require.Equal(t, int32(1), listCalls.Load())
 	updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
@@ -373,10 +476,10 @@ func TestCPAAntigravityPatrolKeepsAvailableModelGroups(t *testing.T) {
 				SetQuotaContext(objects.CPAQuotaContext{ProjectID: "project"}).ExecX(ctx)
 
 			if disabled {
-				svc.patrolInstanceDisabled(ctx, instance)
+				svc.automateRefreshedCredentials(ctx, instance, svc.patrolInstanceDisabled(ctx, instance))
 				require.Equal(t, int32(1), patchCalls.Load())
 			} else {
-				svc.patrolInstanceEnabled(ctx, instance)
+				svc.automateRefreshedCredentials(ctx, instance, svc.patrolInstanceEnabled(ctx, instance))
 				require.Zero(t, patchCalls.Load())
 			}
 			updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
@@ -411,6 +514,7 @@ func setupCPAPatrolTest(
 		SetBaseURL("http://127.0.0.1:8323").
 		SetEncryptedSecret("encrypted").
 		SetEnabled(true).
+		SetAutoManageEnabled(true).
 		SaveX(ctx)
 	credential := client.CPACredential.Create().
 		SetCpaInstanceID(instance.ID).
@@ -439,4 +543,81 @@ func patrolAuthFiles(disabled bool) *cpaclient.AuthFilesResponse {
 
 func floatPtr(value float64) *float64 {
 	return &value
+}
+
+func TestCPARefreshCollectsWithoutAutomaticWrites(t *testing.T) {
+	for _, disabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("disabled=%t", disabled), func(t *testing.T) {
+			var opens, patches, calls atomic.Int32
+			management := &cpaTestManagementClient{
+				callProvider: func(context.Context, cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+					calls.Add(1)
+					return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"limits":[{"name":"Weekly","detail":{"used":100,"limit":100,"remaining":0}}]}`)}, nil
+				},
+				patchAuthFileStatus: func(context.Context, string, string, bool) error { patches.Add(1); return nil },
+			}
+			ctx, svc, instance, credential := setupCPAPatrolTest(t, disabled, management, &opens)
+			instance.AutoManageEnabled = false
+			outcomes := svc.refreshPatrolCredentials(ctx, instance, disabled)
+			require.Len(t, outcomes, 1)
+			require.Equal(t, cpaQuotaExecutionSuccess, outcomes[0].status)
+			require.Zero(t, patches.Load(), "information collection must never patch remote status")
+			svc.automateRefreshedCredentials(ctx, instance, outcomes)
+			require.Zero(t, patches.Load())
+			require.Positive(t, calls.Load())
+			updated := svc.entFromContext(ctx).CPACredential.GetX(ctx, credential.ID)
+			require.Equal(t, string(objects.CPAQuotaStateSuccess), updated.QuotaState)
+			require.Equal(t, disabled, updated.Disabled)
+		})
+	}
+}
+
+func TestCPAAutomationRejectsFailedAndSkippedOutcomes(t *testing.T) {
+	var opens atomic.Int32
+	ctx, svc, instance, credential := setupCPAPatrolTest(t, false, &cpaTestManagementClient{}, &opens)
+	credential.QuotaState = string(objects.CPAQuotaStateSuccess)
+	credential.QuotaData = objects.CPAQuotaSnapshot{Items: []objects.CPAQuotaItem{{ID: "weekly", UsedPercent: floatPtr(100)}}}
+	for _, status := range []cpaQuotaExecutionStatus{cpaQuotaExecutionFailure, cpaQuotaExecutionSkipped} {
+		svc.automateRefreshedCredentials(ctx, instance, []cpaQuotaExecutionOutcome{{
+			status: status, credentialID: credential.ID, credential: credential,
+		}})
+	}
+	require.Zero(t, opens.Load(), "an old quota snapshot on a failed/skipped outcome cannot authorize a write")
+	instance.AutoRefreshEnabled = false
+	instance.AutoResetEnabled = true
+	outcome := cpaQuotaExecutionOutcome{status: cpaQuotaExecutionSuccess, credentialID: credential.ID, credential: credential}
+	svc.automateRefreshedCredentials(ctx, instance, []cpaQuotaExecutionOutcome{outcome})
+	require.Empty(t, svc.patrolInstanceEnabled(ctx, instance))
+	require.Zero(t, opens.Load(), "legacy B/C=true with A=false must remain inert")
+}
+
+func TestCPARefreshFailureDoesNotBlockOtherCredentials(t *testing.T) {
+	var opens atomic.Int32
+	management := &cpaTestManagementClient{
+		callProvider: func(_ context.Context, call cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+			if call.AuthIndex == "failing-auth" {
+				return nil, errors.New("provider unavailable")
+			}
+			return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"limits":[{"name":"Weekly","detail":{"used":20,"limit":100,"remaining":80}}]}`)}, nil
+		},
+	}
+	ctx, svc, instance, credential := setupCPAPatrolTest(t, false, management, &opens)
+	svc.entFromContext(ctx).CPACredential.Create().SetCpaInstanceID(instance.ID).
+		SetExternalKey("failing").SetAuthIndex("failing-auth").SetRemoteName("failing.json").
+		SetDisplayName("Failing").SetProvider("kimi").SaveX(ctx)
+	outcomes := svc.patrolInstanceEnabled(ctx, instance)
+	require.Len(t, outcomes, 2)
+	statuses := map[int]cpaQuotaExecutionStatus{}
+	for _, outcome := range outcomes {
+		statuses[outcome.credentialID] = outcome.status
+	}
+	require.Equal(t, cpaQuotaExecutionSuccess, statuses[credential.ID])
+	require.Contains(t, statuses, credential.ID)
+	failures := 0
+	for _, status := range statuses {
+		if status == cpaQuotaExecutionFailure {
+			failures++
+		}
+	}
+	require.Equal(t, 1, failures)
 }

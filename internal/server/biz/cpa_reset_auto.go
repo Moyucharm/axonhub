@@ -2,11 +2,11 @@ package biz
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	cpaclient "github.com/looplj/axonhub/internal/server/biz/cpa"
@@ -48,30 +48,17 @@ func (svc *CPAService) confirmExpiringCodexResetCredit(ctx context.Context, clie
 	return false, nil
 }
 
-// autoResetCodexInstance consumes Codex reset cards that expire within the
-// automatic window. It runs as part of the instance runtime cycle, right after
-// the quota refresh phases, so the candidates come from the snapshots those
-// refreshes just wrote instead of a separate per-minute sweep. Every candidate
-// is still confirmed against the provider once before its consume claim, and
-// failures skip only that card.
-//
-// The credential patrol owns the scheduled quota refresh that also reads reset
-// credits, so auto use requires it: without the patrol the snapshots would go
-// stale and the feature would act on outdated cards.
-func (svc *CPAService) autoResetCodexInstance(ctx context.Context, instance *ent.CPAInstance) {
-	if !instance.Enabled || !instance.AutoManageEnabled || !instance.AutoResetEnabled {
-		return
-	}
-	credentials, err := svc.entFromContext(ctx).CPACredential.Query().Where(
-		cpacredential.CpaInstanceIDEQ(instance.ID), cpacredential.ProviderEQ("codex"),
-		cpacredential.UnavailableEQ(false),
-	).All(ctx)
-	if err != nil {
-		log.Warn(ctx, "CPA Codex auto reset credential query failed", log.Int("cpa_instance_id", instance.ID), log.Cause(err))
+// autoResetCodexInstance only consumes candidates collected successfully this cycle.
+// Replacement outcomes invalidate pre-reset snapshots if consumption or its
+// follow-up refresh fails. Live confirmation and persistent claims remain mandatory.
+func (svc *CPAService) autoResetCodexInstance(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential) (refreshed map[int]cpaQuotaExecutionOutcome) {
+	refreshed = make(map[int]cpaQuotaExecutionOutcome)
+	if !instance.Enabled || !instance.AutoRefreshEnabled || !instance.AutoResetEnabled {
 		return
 	}
 	now := svc.now()
 	deadline := now.Add(codexResetAutoWindow)
+	var err error
 	var client cpaclient.ManagementClient
 	defer func() {
 		if client != nil {
@@ -79,7 +66,7 @@ func (svc *CPAService) autoResetCodexInstance(ctx context.Context, instance *ent
 		}
 	}()
 	for _, credential := range credentials {
-		if strings.TrimSpace(credential.AuthIndex) == "" || strings.TrimSpace(credential.QuotaContext.CodexAccountID) == "" {
+		if credential.Provider != "codex" || credential.Unavailable || credential.QuotaData.ResetCreditsFailed || credential.QuotaState != string(objects.CPAQuotaStateSuccess) || strings.TrimSpace(credential.AuthIndex) == "" || strings.TrimSpace(credential.QuotaContext.CodexAccountID) == "" {
 			continue
 		}
 		candidates := expiringCodexResetCredits(credential.QuotaData.ResetCredits, now, deadline)
@@ -112,13 +99,22 @@ func (svc *CPAService) autoResetCodexInstance(ctx context.Context, instance *ent
 			if !confirmed {
 				continue
 			}
+			// Once consumption is attempted, old quota no longer authorizes a toggle.
+			refreshed[credential.ID] = newCPAQuotaFailureOutcome(instance.ID, credential.ID, svc.now(), fmt.Errorf("Codex reset outcome requires a successful refresh"))
 			if err := svc.consumeCodexResetCredit(ctx, client, credential, candidate.ID); err != nil {
 				log.Warn(ctx, "CPA Codex auto reset attempt failed", log.Int("credential_id", credential.ID), log.Cause(err))
-				continue
+				break
 			}
-			if outcome := svc.refreshCredentialOutcome(ctx, client, credential); outcome.err != nil {
+			outcome := svc.refreshCredentialOutcome(ctx, client, credential)
+			refreshed[credential.ID] = outcome
+			if outcome.err != nil {
 				log.Warn(ctx, "CPA Codex auto reset quota refresh failed", log.Int("credential_id", credential.ID), log.Cause(outcome.err))
+				break
+			}
+			if outcome.credential != nil {
+				credential = outcome.credential
 			}
 		}
 	}
+	return
 }

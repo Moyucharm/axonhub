@@ -40,7 +40,7 @@ func TestCPACodexNoExpiryCreditOnlyRedeemedManually(t *testing.T) {
 		return &cpaclient.ProviderCallResult{StatusCode: 200, Body: []byte(`{"credits":[{"id":"manual","status":"available","expires_at":"not-a-date"}]}`)}, nil
 	}}
 	svc.connections.openInstanceClient = func(context.Context, *ent.CPAInstance) (cpaclient.ManagementClient, error) { return management, nil }
-	svc.autoResetCodexInstance(ctx, instance)
+	svc.autoResetCodexInstance(ctx, instance, []*ent.CPACredential{credential})
 	require.Zero(t, posts)
 	live, err := svc.liveCodexResetCredits(ctx, management, credential)
 	require.NoError(t, err)

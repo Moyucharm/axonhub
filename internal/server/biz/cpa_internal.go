@@ -55,8 +55,8 @@ func (svc *CPAService) initializeCPASchedules(ctx context.Context) error {
 	}
 	for _, instance := range instances {
 		needsRefresh := instance.AutoRefreshEnabled && instance.NextRefreshAt == nil
-		needsEnabledPatrol := instance.AutoManageEnabled && instance.NextEnabledPatrolAt == nil
-		needsDisabledPatrol := instance.AutoManageEnabled && instance.NextDisabledPatrolAt == nil
+		needsEnabledPatrol := instance.AutoRefreshEnabled && instance.NextEnabledPatrolAt == nil
+		needsDisabledPatrol := instance.AutoRefreshEnabled && instance.NextDisabledPatrolAt == nil
 		if !needsRefresh && !needsEnabledPatrol && !needsDisabledPatrol {
 			continue
 		}
@@ -84,23 +84,14 @@ func (svc *CPAService) runCPARuntime(ctx context.Context) {
 	instances, err := svc.entFromContext(ctx).CPAInstance.Query().
 		Where(
 			cpainstance.EnabledEQ(true),
+			cpainstance.AutoRefreshEnabledEQ(true),
 			cpainstance.Or(
-				cpainstance.And(
-					cpainstance.AutoRefreshEnabledEQ(true),
-					cpainstance.Or(
-						cpainstance.NextRefreshAtIsNil(),
-						cpainstance.NextRefreshAtLTE(now),
-					),
-				),
-				cpainstance.And(
-					cpainstance.AutoManageEnabledEQ(true),
-					cpainstance.Or(
-						cpainstance.NextEnabledPatrolAtIsNil(),
-						cpainstance.NextEnabledPatrolAtLTE(now),
-						cpainstance.NextDisabledPatrolAtIsNil(),
-						cpainstance.NextDisabledPatrolAtLTE(now),
-					),
-				),
+				cpainstance.NextRefreshAtIsNil(),
+				cpainstance.NextRefreshAtLTE(now),
+				cpainstance.NextEnabledPatrolAtIsNil(),
+				cpainstance.NextEnabledPatrolAtLTE(now),
+				cpainstance.NextDisabledPatrolAtIsNil(),
+				cpainstance.NextDisabledPatrolAtLTE(now),
 			),
 		).
 		All(ctx)
@@ -156,8 +147,8 @@ func (svc *CPAService) claimCPARuntimeInstance(ctx context.Context, instance *en
 	job := cpaRuntimeJob{
 		instance:       instance,
 		refresh:        instance.AutoRefreshEnabled && dueCPATime(instance.NextRefreshAt, now),
-		enabledPatrol:  instance.AutoManageEnabled && dueCPATime(instance.NextEnabledPatrolAt, now),
-		disabledPatrol: instance.AutoManageEnabled && dueCPATime(instance.NextDisabledPatrolAt, now),
+		enabledPatrol:  instance.AutoRefreshEnabled && dueCPATime(instance.NextEnabledPatrolAt, now),
+		disabledPatrol: instance.AutoRefreshEnabled && dueCPATime(instance.NextDisabledPatrolAt, now),
 	}
 	if !job.refresh && !job.enabledPatrol && !job.disabledPatrol {
 		return cpaRuntimeJob{}, false, nil
@@ -189,38 +180,40 @@ func dueCPATime(next *time.Time, now time.Time) bool {
 	return next == nil || !next.After(now)
 }
 
+// executeCPARuntimeJob collects read-only snapshots before running optional writes.
 func (svc *CPAService) executeCPARuntimeJob(ctx context.Context, job cpaRuntimeJob) {
+	if !job.instance.Enabled || !job.instance.AutoRefreshEnabled {
+		return
+	}
 	executeCPARuntimeOperations(
 		job,
 		func() {
 			if _, err := svc.syncInstanceCredentials(ctx, job.instance); err != nil {
 				log.Warn(ctx, "CPA scheduled credential sync failed",
-					log.Int("cpa_instance_id", job.instance.ID),
-					log.Cause(err),
-				)
+					log.Int("cpa_instance_id", job.instance.ID), log.Cause(err))
 			}
 		},
-		func() { svc.patrolInstanceEnabled(ctx, job.instance) },
-		func() { svc.patrolInstanceDisabled(ctx, job.instance) },
-		// Auto use runs last so it sees the snapshots this cycle just refreshed.
-		func() {
-			svc.autoResetCodexInstance(ctx, job.instance)
-			svc.autoResetClaudeInstance(ctx, job.instance)
+		func() []cpaQuotaExecutionOutcome { return svc.patrolInstanceEnabled(ctx, job.instance) },
+		func() []cpaQuotaExecutionOutcome { return svc.patrolInstanceDisabled(ctx, job.instance) },
+		func(outcomes []cpaQuotaExecutionOutcome) {
+			svc.automateRefreshedCredentials(ctx, job.instance, outcomes)
 		},
 	)
 }
 
-func executeCPARuntimeOperations(job cpaRuntimeJob, refresh, enabledPatrol, disabledPatrol, autoReset func()) {
+func executeCPARuntimeOperations(job cpaRuntimeJob, refresh func(), enabledPatrol, disabledPatrol func() []cpaQuotaExecutionOutcome, automate func([]cpaQuotaExecutionOutcome)) {
 	if job.refresh {
 		refresh()
 	}
+	var outcomes []cpaQuotaExecutionOutcome
 	if job.enabledPatrol {
-		enabledPatrol()
+		outcomes = append(outcomes, enabledPatrol()...)
 	}
 	if job.disabledPatrol {
-		disabledPatrol()
+		outcomes = append(outcomes, disabledPatrol()...)
 	}
-	if autoReset != nil {
-		autoReset()
+	// An auth-files-only cycle never authorizes writes from old quota snapshots.
+	if len(outcomes) > 0 && automate != nil {
+		automate(outcomes)
 	}
 }

@@ -225,16 +225,16 @@ func TestCPAClaudeResetRejectsGrantThatNeedsALimit(t *testing.T) {
 func TestCPAClaudeAutoResetUsesOnlyExpiringGrants(t *testing.T) {
 	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
 	provider := &claudeResetProvider{resetsLeft: 1, endsAt: now.Add(31 * time.Minute)}
-	ctx, client, svc, instance, _ := newClaudeResetFixture(t, "claude_reset_auto", &now, provider)
-	instance = client.CPAInstance.UpdateOneID(instance.ID).SetAutoManageEnabled(true).SetAutoResetEnabled(true).SaveX(ctx)
+	ctx, client, svc, instance, credential := newClaudeResetFixture(t, "claude_reset_auto", &now, provider)
+	instance = client.CPAInstance.UpdateOneID(instance.ID).SetAutoManageEnabled(false).SetAutoResetEnabled(true).SaveX(ctx)
 
-	svc.autoResetClaudeInstance(ctx, instance)
+	svc.autoResetClaudeInstance(ctx, instance, []*ent.CPACredential{client.CPACredential.GetX(ctx, credential.ID)})
 	require.Empty(t, provider.posts)
 
 	now = now.Add(2 * time.Minute)
-	svc.autoResetClaudeInstance(ctx, instance)
+	svc.autoResetClaudeInstance(ctx, instance, []*ent.CPACredential{client.CPACredential.GetX(ctx, credential.ID)})
 	require.Len(t, provider.posts, 1)
-	svc.autoResetClaudeInstance(ctx, instance)
+	svc.autoResetClaudeInstance(ctx, instance, []*ent.CPACredential{client.CPACredential.GetX(ctx, credential.ID)})
 	require.Len(t, provider.posts, 1)
 }
 
@@ -307,4 +307,38 @@ func TestCPAClaudeResetKeepsClaimOpenWhenRequestIsCancelled(t *testing.T) {
 	attempt := client.CPAResetAttempt.Query().OnlyX(ctx)
 	require.Equal(t, cparesetattempt.StateUncertain, attempt.State)
 	require.NotNil(t, attempt.ResetsLeft)
+}
+
+func TestCPAClaudeResetUnsafeOutcomeDoesNotEnableCredential(t *testing.T) {
+	for _, uncertain := range []bool{false, true} {
+		t.Run(fmt.Sprintf("uncertain=%t", uncertain), func(t *testing.T) {
+			now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+			provider := &claudeResetProvider{resetsLeft: 1, endsAt: now.Add(20 * time.Minute)}
+			ctx, client, svc, instance, credential := newClaudeResetFixture(t, t.Name(), &now, provider)
+			instance = client.CPAInstance.UpdateOne(instance).SetAutoManageEnabled(true).SetAutoResetEnabled(true).SaveX(ctx)
+			credential = client.CPACredential.UpdateOne(credential).SetDisabled(true).SaveX(ctx)
+			failRead := false
+			provider.claimReply = func(requestID string) (*cpaclient.ProviderCallResult, error) {
+				if uncertain {
+					return nil, errors.New("claim reply lost")
+				}
+				failRead = true
+				return provider.spend(requestID), nil
+			}
+			patches := 0
+			management := &cpaTestManagementClient{
+				callProvider: func(ctx context.Context, call cpaclient.ProviderCall) (*cpaclient.ProviderCallResult, error) {
+					if failRead && strings.Contains(call.URL, "/api/oauth/usage") {
+						return nil, errors.New("post-reset quota unavailable")
+					}
+					return provider.call(ctx, call)
+				},
+				patchAuthFileStatus: func(context.Context, string, string, bool) error { patches++; return nil },
+			}
+			svc.connections.openInstanceClient = func(context.Context, *ent.CPAInstance) (cpaclient.ManagementClient, error) { return management, nil }
+			svc.automateRefreshedCredentials(ctx, instance, []cpaQuotaExecutionOutcome{refreshOutcomeFromCredential(credential, now)})
+			require.Len(t, provider.posts, 1)
+			require.Zero(t, patches, "failed post-reset refresh or uncertain claim invalidates the pre-reset quota")
+		})
+	}
 }

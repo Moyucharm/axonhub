@@ -47,9 +47,16 @@ export function CPAInstanceSettings({
             <p className='text-muted-foreground text-xs'>{t('cpa.instance.autoRefreshHint')}</p>
           </div>
           <Switch
+            data-testid='cpa-auto-refresh'
             id='cpa-auto-refresh'
             checked={values.autoRefreshEnabled}
-            onCheckedChange={(value) => form.setValue('autoRefreshEnabled', value)}
+            onCheckedChange={(value) => {
+              form.setValue('autoRefreshEnabled', value);
+              if (!value) {
+                form.setValue('autoManageEnabled', false);
+                form.setValue('autoResetEnabled', false);
+              }
+            }}
           />
         </div>
         <div className='grid gap-2'>
@@ -64,49 +71,7 @@ export function CPAInstanceSettings({
           />
           <p className='text-muted-foreground text-xs'>{t('cpa.instance.refreshIntervalHint')}</p>
         </div>
-        <div className='flex items-center justify-between gap-4'>
-          <div>
-            <Label htmlFor='cpa-auto-manage'>{t('cpa.instance.autoManage')}</Label>
-            <p className='text-muted-foreground text-xs'>{t('cpa.instance.autoManageHint')}</p>
-          </div>
-          <Switch
-            data-testid='cpa-auto-manage'
-            id='cpa-auto-manage'
-            checked={values.autoManageEnabled}
-            onCheckedChange={(value) => {
-              form.setValue('autoManageEnabled', value);
-              // Reset-card auto use depends on the patrol that refreshes quota.
-              if (!value) form.setValue('autoResetEnabled', false);
-            }}
-          />
-        </div>
-        <div className='flex items-center justify-between gap-4'>
-          <div>
-            <Label htmlFor='cpa-auto-reset'>{t('cpa.instance.autoReset')}</Label>
-            <p className='text-muted-foreground text-xs'>
-              {values.autoManageEnabled ? t('cpa.instance.autoResetHint') : t('cpa.instance.autoResetDependency')}
-            </p>
-          </div>
-          <Switch
-            data-testid='cpa-auto-reset'
-            id='cpa-auto-reset'
-            checked={values.autoResetEnabled}
-            disabled={!values.autoManageEnabled}
-            onCheckedChange={(value) => form.setValue('autoResetEnabled', value)}
-          />
-        </div>
-        <div className='flex items-center justify-between gap-4'>
-          <div>
-            <Label htmlFor='cpa-usage-stream'>{t('cpa.instance.usageStream')}</Label>
-            <p className='text-muted-foreground text-xs'>{t('cpa.instance.usageStreamHint')}</p>
-          </div>
-          <Switch
-            id='cpa-usage-stream'
-            checked={values.usageStreamEnabled}
-            onCheckedChange={(value) => form.setValue('usageStreamEnabled', value)}
-          />
-        </div>
-        {values.autoManageEnabled && (
+        {values.autoRefreshEnabled && (
           <>
             <div className='grid gap-2'>
               <Label htmlFor='cpa-enabled-patrol-interval'>{t('cpa.instance.enabledPatrolInterval')}</Label>
@@ -152,6 +117,47 @@ export function CPAInstanceSettings({
             </div>
           </>
         )}
+        <div className='flex items-center justify-between gap-4'>
+          <div>
+            <Label htmlFor='cpa-auto-manage'>{t('cpa.instance.autoManage')}</Label>
+            <p className='text-muted-foreground text-xs'>
+              {values.autoRefreshEnabled ? t('cpa.instance.autoManageHint') : t('cpa.instance.autoResetDependency')}
+            </p>
+          </div>
+          <Switch
+            data-testid='cpa-auto-manage'
+            id='cpa-auto-manage'
+            checked={values.autoManageEnabled}
+            disabled={!values.autoRefreshEnabled}
+            onCheckedChange={(value) => form.setValue('autoManageEnabled', value)}
+          />
+        </div>
+        <div className='flex items-center justify-between gap-4'>
+          <div>
+            <Label htmlFor='cpa-auto-reset'>{t('cpa.instance.autoReset')}</Label>
+            <p className='text-muted-foreground text-xs'>
+              {values.autoRefreshEnabled ? t('cpa.instance.autoResetHint') : t('cpa.instance.autoResetDependency')}
+            </p>
+          </div>
+          <Switch
+            data-testid='cpa-auto-reset'
+            id='cpa-auto-reset'
+            checked={values.autoResetEnabled}
+            disabled={!values.autoRefreshEnabled}
+            onCheckedChange={(value) => form.setValue('autoResetEnabled', value)}
+          />
+        </div>
+        <div className='flex items-center justify-between gap-4'>
+          <div>
+            <Label htmlFor='cpa-usage-stream'>{t('cpa.instance.usageStream')}</Label>
+            <p className='text-muted-foreground text-xs'>{t('cpa.instance.usageStreamHint')}</p>
+          </div>
+          <Switch
+            id='cpa-usage-stream'
+            checked={values.usageStreamEnabled}
+            onCheckedChange={(value) => form.setValue('usageStreamEnabled', value)}
+          />
+        </div>
         <div className='flex items-center justify-between gap-4'>
           <div>
             <Label htmlFor='cpa-insecure-tls'>{t('cpa.instance.insecureTLS')}</Label>

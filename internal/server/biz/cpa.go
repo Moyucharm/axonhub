@@ -228,10 +228,8 @@ func (svc *CPAService) CreateInstance(ctx context.Context, input CreateCPAInstan
 			SetLastSyncAttemptAt(now).
 			SetLastSyncSuccessAt(now)
 		if config.enabled && config.autoRefreshEnabled {
-			builder.SetNextRefreshAt(now.Add(svc.jitter()))
-		}
-		if config.enabled && config.autoManageEnabled {
 			builder.
+				SetNextRefreshAt(now.Add(svc.jitter())).
 				SetNextEnabledPatrolAt(now.Add(svc.jitter())).
 				SetNextDisabledPatrolAt(now.Add(svc.jitter()))
 		}
@@ -317,13 +315,16 @@ func (svc *CPAService) UpdateInstance(ctx context.Context, id int, input UpdateC
 			}
 			if !config.enabled || !config.autoRefreshEnabled {
 				builder.ClearNextRefreshAt()
-			} else if connectionChanged || input.RefreshIntervalMinutes != nil || input.AutoRefreshEnabled != nil {
+			} else if connectionChanged || config.autoRefreshEnabled != current.AutoRefreshEnabled ||
+				config.refreshIntervalMinutes != current.RefreshIntervalMinutes || current.NextRefreshAt == nil {
 				builder.SetNextRefreshAt(now.Add(svc.jitter()))
 			}
-			patrolChanged := input.AutoManageEnabled != nil || input.EnabledPatrolIntervalMinutes != nil || input.DisabledPatrolIntervalMinutes != nil
-			if !config.enabled || !config.autoManageEnabled {
+			patrolChanged := config.autoRefreshEnabled != current.AutoRefreshEnabled ||
+				config.enabledPatrolInterval != current.EnabledPatrolIntervalMinutes ||
+				config.disabledPatrolInterval != current.DisabledPatrolIntervalMinutes
+			if !config.enabled || !config.autoRefreshEnabled {
 				builder.ClearNextEnabledPatrolAt().ClearNextDisabledPatrolAt()
-			} else if connectionChanged || patrolChanged {
+			} else if connectionChanged || patrolChanged || current.NextEnabledPatrolAt == nil || current.NextDisabledPatrolAt == nil {
 				builder.
 					SetNextEnabledPatrolAt(now.Add(svc.jitter())).
 					SetNextDisabledPatrolAt(now.Add(svc.jitter()))

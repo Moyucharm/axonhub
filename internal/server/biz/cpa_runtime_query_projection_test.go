@@ -239,25 +239,34 @@ func TestCPARuntimeJobsRespectCrossInstanceConcurrencyLimit(t *testing.T) {
 }
 
 func TestCPARuntimeOperationsExecuteInOrder(t *testing.T) {
-	var operations []string
-	executeCPARuntimeOperations(
-		cpaRuntimeJob{refresh: true, enabledPatrol: true, disabledPatrol: true},
-		func() { operations = append(operations, "refresh") },
-		func() { operations = append(operations, "enabled") },
-		func() { operations = append(operations, "disabled") },
-		func() { operations = append(operations, "auto-reset") },
-	)
-	require.Equal(t, []string{"refresh", "enabled", "disabled", "auto-reset"}, operations)
-
-	operations = nil
-	executeCPARuntimeOperations(
-		cpaRuntimeJob{enabledPatrol: true},
-		func() { operations = append(operations, "refresh") },
-		func() { operations = append(operations, "enabled") },
-		func() { operations = append(operations, "disabled") },
-		func() { operations = append(operations, "auto-reset") },
-	)
-	require.Equal(t, []string{"enabled", "auto-reset"}, operations)
+	for _, job := range []cpaRuntimeJob{
+		{refresh: true, enabledPatrol: true, disabledPatrol: true},
+		{enabledPatrol: true}, {refresh: true},
+	} {
+		var operations []string
+		executeCPARuntimeOperations(job,
+			func() { operations = append(operations, "sync") },
+			func() []cpaQuotaExecutionOutcome {
+				operations = append(operations, "enabled")
+				return []cpaQuotaExecutionOutcome{{credentialID: 1}}
+			},
+			func() []cpaQuotaExecutionOutcome {
+				operations = append(operations, "disabled")
+				return []cpaQuotaExecutionOutcome{{credentialID: 2}}
+			},
+			func(outcomes []cpaQuotaExecutionOutcome) {
+				operations = append(operations, "automate")
+				require.NotEmpty(t, outcomes)
+			},
+		)
+		if job.disabledPatrol {
+			require.Equal(t, []string{"sync", "enabled", "disabled", "automate"}, operations)
+		} else if job.enabledPatrol {
+			require.Equal(t, []string{"enabled", "automate"}, operations)
+		} else {
+			require.Equal(t, []string{"sync"}, operations)
+		}
+	}
 }
 
 func TestCPARuntimeClaimIsAtomicAcrossDueOperations(t *testing.T) {
@@ -272,7 +281,7 @@ func TestCPARuntimeClaimIsAtomicAcrossDueOperations(t *testing.T) {
 		SetBaseURL("http://127.0.0.1:8319").
 		SetEncryptedSecret("encrypted").
 		SetAutoRefreshEnabled(true).
-		SetAutoManageEnabled(true).
+		SetAutoManageEnabled(false).
 		SetRefreshIntervalMinutes(5).
 		SetEnabledPatrolIntervalMinutes(7).
 		SetDisabledPatrolIntervalMinutes(120).
@@ -309,4 +318,69 @@ func signInt(value int) int {
 	default:
 		return 0
 	}
+}
+
+func TestCPARuntimeClaimRejectsLegacyAutomationWithoutRefresh(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_runtime_legacy?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	created := client.CPAInstance.Create().SetName("legacy").SetBaseURL("http://127.0.0.1:8319").
+		SetEncryptedSecret("encrypted").SetAutoRefreshEnabled(false).
+		SetAutoManageEnabled(true).SetAutoResetEnabled(true).SaveX(ctx)
+	svc := newCPAServiceForTest(client, time.Now)
+	require.NoError(t, svc.initializeCPASchedules(ctx))
+	updated := client.CPAInstance.GetX(ctx, created.ID)
+	require.Nil(t, updated.NextRefreshAt)
+	require.Nil(t, updated.NextEnabledPatrolAt)
+	require.Nil(t, updated.NextDisabledPatrolAt)
+	_, claimed, err := svc.claimCPARuntimeInstance(ctx, updated, time.Now())
+	require.NoError(t, err)
+	require.False(t, claimed)
+}
+
+func TestCPARefreshInitializesAllSchedulesWithoutAutoManagement(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_runtime_refresh_only?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	created := client.CPAInstance.Create().SetName("refresh").SetBaseURL("http://127.0.0.1:8319").
+		SetEncryptedSecret("encrypted").SetAutoRefreshEnabled(true).SetAutoManageEnabled(false).SaveX(ctx)
+	svc := newCPAServiceForTest(client, time.Now)
+	require.NoError(t, svc.initializeCPASchedules(ctx))
+	updated := client.CPAInstance.GetX(ctx, created.ID)
+	require.NotNil(t, updated.NextRefreshAt)
+	require.NotNil(t, updated.NextEnabledPatrolAt)
+	require.NotNil(t, updated.NextDisabledPatrolAt)
+}
+
+func TestCPAChangingWritePermissionsPreservesRefreshSchedules(t *testing.T) {
+	client := enttest.NewEntClient(t, "sqlite3", "file:cpa_runtime_preserve?mode=memory&_fk=0")
+	defer client.Close()
+	ctx := authz.WithTestBypass(ent.NewContext(t.Context(), client))
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	next := now.Add(time.Hour)
+	instance := client.CPAInstance.Create().SetName("refresh").SetBaseURL("http://127.0.0.1:8319").
+		SetEncryptedSecret("encrypted").SetUsageCollectorID("test-collector").SetAutoRefreshEnabled(true).
+		SetAutoManageEnabled(false).SetNextRefreshAt(next).SetNextEnabledPatrolAt(next).SetNextDisabledPatrolAt(next).SaveX(ctx)
+	svc := newCPAServiceForTest(client, func() time.Time { return now })
+	on := true
+	// Forms submit unchanged interval and refresh fields along with the toggles.
+	_, err := svc.UpdateInstance(ctx, instance.ID, UpdateCPAInstanceInput{
+		AutoRefreshEnabled: &on, AutoManageEnabled: &on, AutoResetEnabled: &on,
+		RefreshIntervalMinutes:        &instance.RefreshIntervalMinutes,
+		EnabledPatrolIntervalMinutes:  &instance.EnabledPatrolIntervalMinutes,
+		DisabledPatrolIntervalMinutes: &instance.DisabledPatrolIntervalMinutes,
+	})
+	require.NoError(t, err)
+	updated := client.CPAInstance.GetX(ctx, instance.ID)
+	require.True(t, updated.NextRefreshAt.Equal(next))
+	require.True(t, updated.NextEnabledPatrolAt.Equal(next))
+	require.True(t, updated.NextDisabledPatrolAt.Equal(next))
+	_, err = svc.UpdateInstance(ctx, instance.ID, UpdateCPAInstanceInput{AutoRefreshEnabled: new(bool)})
+	require.NoError(t, err)
+	updated = client.CPAInstance.GetX(ctx, instance.ID)
+	require.False(t, updated.AutoManageEnabled)
+	require.False(t, updated.AutoResetEnabled)
+	require.Nil(t, updated.NextRefreshAt)
+	require.Nil(t, updated.NextEnabledPatrolAt)
+	require.Nil(t, updated.NextDisabledPatrolAt)
 }

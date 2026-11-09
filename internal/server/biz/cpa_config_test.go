@@ -98,31 +98,51 @@ func TestMergeUpdateCPAInstanceConfigRequiresSecretForURLChange(t *testing.T) {
 	require.EqualError(t, err, "CPA management secret is required when changing the base URL")
 }
 
-func TestCPAInstanceConfigKeepsAutoResetDependentOnAutoManage(t *testing.T) {
-	created := true
-	config, err := normalizeCreateCPAInstanceConfig(CreateCPAInstanceInput{
-		Name:              "dependent",
-		BaseURL:           "http://127.0.0.1:8317",
-		ManagementSecret:  "secret",
-		AutoManageEnabled: new(bool),
-		AutoResetEnabled:  &created,
-	})
-	require.NoError(t, err)
-	require.False(t, config.autoResetEnabled)
-
-	managed := true
-	config, err = normalizeCreateCPAInstanceConfig(CreateCPAInstanceInput{
-		Name:              "dependent",
-		BaseURL:           "http://127.0.0.1:8318",
-		ManagementSecret:  "secret",
-		AutoManageEnabled: &managed,
-		AutoResetEnabled:  &created,
-	})
-	require.NoError(t, err)
-	require.True(t, config.autoResetEnabled)
-
-	current := &ent.CPAInstance{Name: "dependent", BaseURL: "http://127.0.0.1:8319", Enabled: true, AutoManageEnabled: true, AutoResetEnabled: true}
+func TestCPAInstanceConfigAutomaticWritesDependOnRefresh(t *testing.T) {
+	for _, refresh := range []bool{false, true} {
+		for _, manage := range []bool{false, true} {
+			for _, reset := range []bool{false, true} {
+				config, err := normalizeCreateCPAInstanceConfig(CreateCPAInstanceInput{
+					Name: "dependent", BaseURL: "http://127.0.0.1:8317", ManagementSecret: "secret",
+					AutoRefreshEnabled: &refresh, AutoManageEnabled: &manage, AutoResetEnabled: &reset,
+				})
+				require.NoError(t, err)
+				require.Equal(t, refresh && manage, config.autoManageEnabled)
+				require.Equal(t, refresh && reset, config.autoResetEnabled)
+				current := &ent.CPAInstance{Name: "dependent", BaseURL: "http://127.0.0.1:8319",
+					Enabled: true, AutoRefreshEnabled: refresh, AutoManageEnabled: manage, AutoResetEnabled: reset}
+				merged, _, _, err := mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{})
+				require.NoError(t, err)
+				require.Equal(t, refresh && manage, merged.autoManageEnabled)
+				require.Equal(t, refresh && reset, merged.autoResetEnabled)
+			}
+		}
+	}
+	current := &ent.CPAInstance{Name: "dependent", BaseURL: "http://127.0.0.1:8319", Enabled: true,
+		AutoRefreshEnabled: true, AutoManageEnabled: true, AutoResetEnabled: true}
 	merged, _, _, err := mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{AutoManageEnabled: new(bool)})
 	require.NoError(t, err)
+	require.False(t, merged.autoManageEnabled)
+	require.True(t, merged.autoResetEnabled)
+	merged, _, _, err = mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{AutoRefreshEnabled: new(bool)})
+	require.NoError(t, err)
+	require.False(t, merged.autoManageEnabled)
 	require.False(t, merged.autoResetEnabled)
+}
+
+func TestCPAEnablingRefreshDoesNotRestoreLegacyWritePermissions(t *testing.T) {
+	current := &ent.CPAInstance{Name: "legacy", BaseURL: "http://127.0.0.1:8319", Enabled: true,
+		AutoRefreshEnabled: false, AutoManageEnabled: true, AutoResetEnabled: true}
+	on := true
+	config, _, _, err := mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{AutoRefreshEnabled: &on})
+	require.NoError(t, err)
+	require.True(t, config.autoRefreshEnabled)
+	require.False(t, config.autoManageEnabled)
+	require.False(t, config.autoResetEnabled)
+	config, _, _, err = mergeUpdateCPAInstanceConfig(current, UpdateCPAInstanceInput{
+		AutoRefreshEnabled: &on, AutoResetEnabled: &on,
+	})
+	require.NoError(t, err)
+	require.False(t, config.autoManageEnabled)
+	require.True(t, config.autoResetEnabled, "explicit reset permission is independent of management")
 }

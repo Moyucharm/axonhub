@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/looplj/axonhub/internal/ent"
-	"github.com/looplj/axonhub/internal/ent/cpacredential"
 	"github.com/looplj/axonhub/internal/ent/cparesetattempt"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
@@ -419,20 +418,11 @@ func (svc *CPAService) decorateClaudeResetViews(ctx context.Context, views ...*C
 	return nil
 }
 
-// autoResetClaudeInstance claims Claude grants that expire within the automatic
-// window, under the same switches and cycle as Codex reset cards. Every
-// candidate is still validated live by claimClaudeReset, and uncertain claims
-// are never retried automatically.
-func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *ent.CPAInstance) {
-	if !instance.Enabled || !instance.AutoManageEnabled || !instance.AutoResetEnabled {
-		return
-	}
-	credentials, err := svc.entFromContext(ctx).CPACredential.Query().Where(
-		cpacredential.CpaInstanceIDEQ(instance.ID), cpacredential.ProviderEQ("claude"),
-		cpacredential.UnavailableEQ(false),
-	).All(ctx)
-	if err != nil {
-		log.Warn(ctx, "CPA Claude auto reset credential query failed", log.Int("cpa_instance_id", instance.ID), log.Cause(err))
+// autoResetClaudeInstance shares the refresh dependency, not the status toggle
+// permission. Each candidate must come from this cycle and is validated live.
+func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *ent.CPAInstance, credentials []*ent.CPACredential) (refreshed map[int]cpaQuotaExecutionOutcome) {
+	refreshed = make(map[int]cpaQuotaExecutionOutcome)
+	if !instance.Enabled || !instance.AutoRefreshEnabled || !instance.AutoResetEnabled {
 		return
 	}
 	now := svc.now()
@@ -444,7 +434,7 @@ func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *en
 		}
 	}()
 	for _, credential := range credentials {
-		if strings.TrimSpace(credential.AuthIndex) == "" || credential.QuotaState != string(objects.CPAQuotaStateSuccess) {
+		if credential.Provider != "claude" || credential.Unavailable || credential.QuotaData.ClaudeResetFailed || strings.TrimSpace(credential.AuthIndex) == "" || credential.QuotaState != string(objects.CPAQuotaStateSuccess) {
 			continue
 		}
 		// A grant whose use already has a claim record only burns live reads
@@ -466,6 +456,7 @@ func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *en
 				return
 			}
 		}
+		refreshed[credential.ID] = newCPAQuotaFailureOutcome(instance.ID, credential.ID, svc.now(), fmt.Errorf("Claude reset outcome requires a successful refresh"))
 		outcome, err := svc.claimClaudeReset(ctx, client, credential, grant.ID)
 		if err != nil {
 			log.Warn(ctx, "CPA Claude auto reset attempt failed", log.Int("credential_id", credential.ID), log.Cause(err))
@@ -474,8 +465,14 @@ func (svc *CPAService) autoResetClaudeInstance(ctx context.Context, instance *en
 		if outcome.Result == nil || !outcome.Result.Spent() {
 			log.Warn(ctx, "CPA Claude auto reset not applied", log.Int("credential_id", credential.ID), log.Any("result", outcome.Result), log.Bool("uncertain", outcome.Uncertain))
 		}
-		if refreshed := svc.refreshCredentialOutcome(ctx, client, credential); refreshed.err != nil {
-			log.Warn(ctx, "CPA Claude auto reset quota refresh failed", log.Int("credential_id", credential.ID), log.Cause(refreshed.err))
+		updated := svc.refreshCredentialOutcome(ctx, client, credential)
+		// An uncertain claim never authorizes a subsequent automatic toggle.
+		if !outcome.Uncertain {
+			refreshed[credential.ID] = updated
+		}
+		if updated.err != nil {
+			log.Warn(ctx, "CPA Claude auto reset quota refresh failed", log.Int("credential_id", credential.ID), log.Cause(updated.err))
 		}
 	}
+	return
 }

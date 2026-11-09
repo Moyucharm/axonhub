@@ -42,10 +42,9 @@ export function cpaInstanceFormValues(instance?: CPAInstance): CPAInstanceFormVa
     insecureSkipTLS: instance?.insecureSkipTLS ?? false,
     autoRefreshEnabled: instance?.autoRefreshEnabled ?? true,
     refreshIntervalMinutes: instance?.refreshIntervalMinutes ?? 5,
-    autoManageEnabled: instance?.autoManageEnabled ?? false,
-    // Reset-card auto use runs with the credential patrol, so a stored value
-    // without the dependency stays off in the form and on save.
-    autoResetEnabled: (instance?.autoManageEnabled ?? false) && (instance?.autoResetEnabled ?? false),
+    autoManageEnabled: (instance?.autoRefreshEnabled ?? true) && (instance?.autoManageEnabled ?? false),
+    // Both automatic writes depend on refresh, independently of each other.
+    autoResetEnabled: (instance?.autoRefreshEnabled ?? true) && (instance?.autoResetEnabled ?? false),
     usageStreamEnabled: instance?.usageStreamEnabled ?? false,
     enabledPatrolIntervalMinutes: instance?.enabledPatrolIntervalMinutes ?? 5,
     disabledPatrolIntervalMinutes: instance?.disabledPatrolIntervalMinutes ?? 480,
@@ -55,6 +54,8 @@ export function cpaInstanceFormValues(instance?: CPAInstance): CPAInstanceFormVa
 export function cpaInstanceInput(values: CPAInstanceFormValues): CPAInstanceInput {
   return {
     ...values,
+    autoManageEnabled: values.autoRefreshEnabled && values.autoManageEnabled,
+    autoResetEnabled: values.autoRefreshEnabled && values.autoResetEnabled,
     name: values.name.trim(),
     baseURL: values.baseURL.trim(),
     managementSecret: values.managementSecret.trim() || undefined,
